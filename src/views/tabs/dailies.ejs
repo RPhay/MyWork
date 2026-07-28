@@ -1,5 +1,5 @@
-<div class="row mb-4">
-  <div class="col-md-6">
+<div class="row mb-3">
+  <div class="col-md-12">
     <div class="btn-group" role="group">
       <input type="radio" class="btn-check" name="viewMode" id="dayView" value="day" checked onchange="changeViewMode('day')">
       <label class="btn btn-outline-primary" for="dayView">Day View</label>
@@ -8,64 +8,58 @@
       <label class="btn btn-outline-primary" for="weekView">Week View</label>
     </div>
   </div>
-  <div class="col-md-6 text-end">
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#workModal" onclick="openNewWorkForm()">
-      + Add Work
-    </button>
-  </div>
 </div>
 
-<div class="row mb-4">
-  <div class="col-md-3">
-    <div class="card">
-      <div class="card-body">
-        <div id="calendar"></div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-9">
-    <div class="card">
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-8">
-            <label for="selectedDate" class="form-label">Selected Date:</label>
-            <input type="date" id="selectedDate" class="form-control" onchange="loadWorkItems()">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">&nbsp;</label>
-            <div>
-              <button class="btn btn-sm btn-secondary" onclick="previousDate()">← Previous</button>
-              <button class="btn btn-sm btn-secondary" onclick="today()">Today</button>
-              <button class="btn btn-sm btn-secondary" onclick="nextDate()">Next →</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<div class="row" style="height: 70vh;">
+  <!-- Left Column: Calendar -->
+  <div class="col-md-3" style="overflow-y: auto; border-right: 1px solid #dee2e6;">
+    <h6 class="mb-3">Select Date</h6>
+    <div id="calendar" class="mb-4"></div>
 
-<div class="row">
-  <div class="col-md-12">
-    <div id="dayViewContent">
-      <h5 id="dayViewTitle">Today's Work</h5>
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead class="table-light">
-            <tr>
-              <th>Title</th>
-              <th>Associated Goals/Priorities</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="workItemsTableBody">
-            <tr>
-              <td colspan="4" class="text-center text-muted">Loading work items...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="d-grid gap-2">
+      <button class="btn btn-sm btn-secondary" onclick="previousDate()">← Previous Day</button>
+      <button class="btn btn-sm btn-secondary" onclick="today()">Today</button>
+      <button class="btn btn-sm btn-secondary" onclick="nextDate()">Next Day →</button>
+    </div>
+  </div>
+
+  <!-- Middle Column: Work Items -->
+  <div class="col-md-6" style="overflow-y: auto;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h6>Work Items for <span id="selectedDateDisplay"></span></h6>
+      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#workModal" onclick="openNewWorkForm()">
+        + Add
+      </button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead class="table-light">
+          <tr>
+            <th>Title</th>
+            <th>Status</th>
+            <th width="80">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="workItemsTableBody">
+          <tr>
+            <td colspan="3" class="text-center text-muted">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Right Column: Priorities & Goals -->
+  <div class="col-md-3" style="overflow-y: auto; border-left: 1px solid #dee2e6;">
+    <h6 class="mb-3">My Priorities</h6>
+    <div id="prioritiesListRight" class="mb-4" style="max-height: 250px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
+      <small class="text-muted">Loading...</small>
+    </div>
+
+    <h6 class="mb-3">My Goals</h6>
+    <div id="goalsListRight" class="mb-4" style="max-height: 250px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
+      <small class="text-muted">Loading...</small>
     </div>
   </div>
 </div>
@@ -146,7 +140,33 @@
   </div>
 </div>
 
+<style>
+  .priority-item, .goal-item {
+    padding: 8px;
+    margin-bottom: 5px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 3px;
+    cursor: move;
+    font-size: 0.85rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .priority-item:hover, .goal-item:hover {
+    background: #e9ecef;
+  }
+
+  .dragging-item {
+    opacity: 0.5;
+    background: #fff3cd;
+  }
+</style>
+
 <script>
+let currentViewMode = 'day';
+
 function renderCalendar() {
   const today = new Date();
   const year = today.getFullYear();
@@ -159,8 +179,8 @@ function renderCalendar() {
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  let html = `<h5>${monthNames[month]} ${year}</h5><table class="table table-sm" style="font-size: 0.85rem;">`;
-  html += '<tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr><tr>';
+  let html = `<h6>${monthNames[month]} ${year}</h6><table class="table table-sm" style="font-size: 0.85rem; margin-bottom: 0;">`;
+  html += '<tr style="text-align: center;"><th>S</th><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th></tr><tr>';
 
   for (let i = 0; i < startingDayOfWeek; i++) {
     html += '<td>&nbsp;</td>';
@@ -170,7 +190,7 @@ function renderCalendar() {
     const date = new Date(year, month, day);
     const dateStr = date.toISOString().split('T')[0];
     const isToday = dateStr === new Date().toISOString().split('T')[0];
-    const isSelected = dateStr === document.getElementById('selectedDate').value;
+    const isSelected = dateStr === document.getElementById('selectedDate')?.value;
 
     html += `<td style="cursor: pointer; padding: 5px; text-align: center; ${isToday ? 'background: #e7f3ff; font-weight: bold;' : ''} ${isSelected ? 'background: #007bff; color: white;' : ''}" onclick="selectDate('${dateStr}')">${day}</td>`;
 
@@ -184,21 +204,45 @@ function renderCalendar() {
 }
 
 function selectDate(dateStr) {
-  document.getElementById('selectedDate').value = dateStr;
+  // Create hidden input if it doesn't exist
+  let dateInput = document.getElementById('selectedDate');
+  if (!dateInput) {
+    dateInput = document.createElement('input');
+    dateInput.type = 'hidden';
+    dateInput.id = 'selectedDate';
+    document.body.appendChild(dateInput);
+  }
+  dateInput.value = dateStr;
   loadWorkItems();
   renderCalendar();
+  updateDateDisplay();
+}
+
+function updateDateDisplay() {
+  const dateInput = document.getElementById('selectedDate');
+  const dateStr = dateInput?.value || new Date().toISOString().split('T')[0];
+  const date = new Date(dateStr + 'T00:00:00');
+  const formatted = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  document.getElementById('selectedDateDisplay').textContent = formatted;
 }
 
 function changeViewMode(mode) {
-  console.log('Changing view mode to:', mode);
+  currentViewMode = mode;
   loadWorkItems();
 }
 
 async function loadWorkItems() {
-  const date = document.getElementById('selectedDate').value;
+  const dateInput = document.getElementById('selectedDate');
+  if (!dateInput || !dateInput.value) {
+    const today = new Date().toISOString().split('T')[0];
+    selectDate(today);
+    return;
+  }
+
+  const date = dateInput.value;
   const tbody = document.getElementById('workItemsTableBody');
 
-  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Loading...</td></tr>';
 
   try {
     const response = await fetch(`/api/work/date/${date}`);
@@ -208,52 +252,139 @@ async function loadWorkItems() {
       tbody.innerHTML = result.data.map(item => `
         <tr>
           <td>${item.title}</td>
-          <td>-</td>
           <td><span class="badge bg-${item.status === 'Complete' ? 'success' : item.status === 'In Progress' ? 'warning' : 'secondary'}">${item.status}</span></td>
           <td>
             <button class="btn btn-sm btn-info" onclick="editWorkItem(${item.id})">Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteWorkItem(${item.id})">Delete</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteWorkItem(${item.id})">Del</button>
           </td>
         </tr>
       `).join('');
     } else {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No work items for ' + date + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No work items</td></tr>';
     }
   } catch (error) {
     console.error('Error:', error);
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading work items</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading</td></tr>';
   }
 }
 
+async function loadPrioritiesAndGoals() {
+  // Load priorities
+  try {
+    const prioResponse = await fetch('/api/priorities');
+    const prioResult = await prioResponse.json();
+    const prioritiesDiv = document.getElementById('prioritiesListRight');
+
+    if (prioResult.success && prioResult.data.length > 0) {
+      prioritiesDiv.innerHTML = prioResult.data.map(p => `
+        <div class="priority-item" draggable="true" data-type="priority" data-id="${p.id}" onmouseenter="this.style.backgroundColor='#e9ecef'" onmouseleave="this.style.backgroundColor='#f8f9fa'">
+          <span>${p.title}</span>
+          <small class="text-muted">→</small>
+        </div>
+      `).join('');
+      setupDragListeners();
+    } else {
+      prioritiesDiv.innerHTML = '<small class="text-muted">No priorities</small>';
+    }
+  } catch (error) {
+    console.error('Error loading priorities:', error);
+  }
+
+  // Load goals
+  try {
+    const year = new Date().getFullYear();
+    const goalResponse = await fetch(`/api/goals/year/${year}`);
+    const goalResult = await goalResponse.json();
+    const goalsDiv = document.getElementById('goalsListRight');
+
+    if (goalResult.success && goalResult.data.length > 0) {
+      goalsDiv.innerHTML = goalResult.data.map(g => `
+        <div class="goal-item" draggable="true" data-type="goal" data-id="${g.id}" onmouseenter="this.style.backgroundColor='#e9ecef'" onmouseleave="this.style.backgroundColor='#f8f9fa'">
+          <span>${g.name}</span>
+          <small class="text-muted">→</small>
+        </div>
+      `).join('');
+      setupDragListeners();
+    } else {
+      goalsDiv.innerHTML = '<small class="text-muted">No goals</small>';
+    }
+  } catch (error) {
+    console.error('Error loading goals:', error);
+  }
+}
+
+function setupDragListeners() {
+  const draggables = document.querySelectorAll('[draggable="true"]');
+  draggables.forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData('type', item.dataset.type);
+      e.dataTransfer.setData('id', item.dataset.id);
+      e.dataTransfer.setData('name', item.textContent.trim());
+      item.classList.add('dragging-item');
+    });
+
+    item.addEventListener('dragend', (e) => {
+      item.classList.remove('dragging-item');
+    });
+  });
+}
+
 function previousDate() {
-  const dateInput = document.getElementById('selectedDate');
+  const dateInput = document.getElementById('selectedDate') || (() => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.id = 'selectedDate';
+    input.value = new Date().toISOString().split('T')[0];
+    document.body.appendChild(input);
+    return input;
+  })();
+
   const date = new Date(dateInput.value);
   date.setDate(date.getDate() - 1);
   dateInput.value = date.toISOString().split('T')[0];
   loadWorkItems();
   renderCalendar();
+  updateDateDisplay();
 }
 
 function nextDate() {
-  const dateInput = document.getElementById('selectedDate');
+  const dateInput = document.getElementById('selectedDate') || (() => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.id = 'selectedDate';
+    input.value = new Date().toISOString().split('T')[0];
+    document.body.appendChild(input);
+    return input;
+  })();
+
   const date = new Date(dateInput.value);
   date.setDate(date.getDate() + 1);
   dateInput.value = date.toISOString().split('T')[0];
   loadWorkItems();
   renderCalendar();
+  updateDateDisplay();
 }
 
 function today() {
-  const dateInput = document.getElementById('selectedDate');
+  const dateInput = document.getElementById('selectedDate') || (() => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.id = 'selectedDate';
+    document.body.appendChild(input);
+    return input;
+  })();
+
   dateInput.value = new Date().toISOString().split('T')[0];
   loadWorkItems();
   renderCalendar();
+  updateDateDisplay();
 }
 
 function openNewWorkForm() {
   document.getElementById('workId').value = '';
   const dateInput = document.getElementById('selectedDate');
-  document.getElementById('workDate').value = dateInput.value || new Date().toISOString().split('T')[0];
+  document.getElementById('workDate').value = dateInput?.value || new Date().toISOString().split('T')[0];
   document.getElementById('workForm').reset();
 }
 
@@ -342,15 +473,29 @@ async function deleteWorkItem(workId) {
 // Initialize on page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
-    const dateInput = document.getElementById('selectedDate');
-    dateInput.value = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.createElement('input');
+    dateInput.type = 'hidden';
+    dateInput.id = 'selectedDate';
+    dateInput.value = today;
+    document.body.appendChild(dateInput);
+
     renderCalendar();
+    updateDateDisplay();
     loadWorkItems();
+    loadPrioritiesAndGoals();
   });
 } else {
-  const dateInput = document.getElementById('selectedDate');
-  dateInput.value = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
+  const dateInput = document.createElement('input');
+  dateInput.type = 'hidden';
+  dateInput.id = 'selectedDate';
+  dateInput.value = today;
+  document.body.appendChild(dateInput);
+
   renderCalendar();
+  updateDateDisplay();
   loadWorkItems();
+  loadPrioritiesAndGoals();
 }
 </script>

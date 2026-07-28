@@ -1,11 +1,15 @@
 <footer class="mt-5 py-3 bg-light text-center border-top">
   <div class="container">
-    <p class="text-muted mb-0">&copy; 2026 MyWork. All rights reserved. <span id="version"></span></p>
+    <p class="text-muted mb-0">&copy; 2026 MyWork. All rights reserved.</p>
   </div>
 </footer>
 
 <script>
   if (window.APP_CONFIG?.version) {
-    document.getElementById('version').textContent = 'v' + window.APP_CONFIG.version;
+    const versionText = ' - v' + window.APP_CONFIG.version;
+    const navVersion = document.getElementById('navVersion');
+    if (navVersion) {
+      navVersion.textContent = versionText;
+    }
   }
 </script>
