@@ -13,7 +13,9 @@
       "Bash(git add *)",
       "Bash(git commit -m 'Initial MyWork project scaffolding *)",
       "Bash(curl -s http://localhost:3000/health)",
-      "Bash(git commit -m 'Redesign Dailies tab with three-column layout and show version in navbar *)"
+      "Bash(git commit -m 'Redesign Dailies tab with three-column layout and show version in navbar *)",
+      "Bash(open -a \"Google Chrome\" http://localhost:3000)",
+      "Bash(npx playwright *)"
     ]
   }
 }
