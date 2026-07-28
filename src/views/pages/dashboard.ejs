@@ -72,6 +72,15 @@
       csrfToken: '<%= csrfToken %>',
       version: '<%= version %>'
     };
+
+    // Display version immediately
+    if (window.APP_CONFIG.version) {
+      const versionText = ' - v' + window.APP_CONFIG.version;
+      const navVersion = document.getElementById('navVersion');
+      if (navVersion) {
+        navVersion.textContent = versionText;
+      }
+    }
   </script>
   <script src="/js/main.js"></script>
   <script src="/js/tabs.js"></script>

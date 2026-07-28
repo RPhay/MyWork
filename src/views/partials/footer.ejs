@@ -5,11 +5,19 @@
 </footer>
 
 <script>
-  if (window.APP_CONFIG?.version) {
-    const versionText = ' - v' + window.APP_CONFIG.version;
-    const navVersion = document.getElementById('navVersion');
-    if (navVersion) {
-      navVersion.textContent = versionText;
+  function displayVersion() {
+    if (window.APP_CONFIG?.version) {
+      const versionText = ' - v' + window.APP_CONFIG.version;
+      const navVersion = document.getElementById('navVersion');
+      if (navVersion) {
+        navVersion.textContent = versionText;
+      }
     }
+  }
+
+  // Run immediately and on DOM ready
+  displayVersion();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', displayVersion);
   }
 </script>

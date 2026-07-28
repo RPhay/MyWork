@@ -12,14 +12,13 @@
 
 <div class="row" style="height: 70vh;">
   <!-- Left Column: Calendar -->
-  <div class="col-md-3" style="overflow-y: auto; border-right: 1px solid #dee2e6;">
-    <h6 class="mb-3">Select Date</h6>
-    <div id="calendar" class="mb-4"></div>
+  <div class="col-md-3" style="overflow-y: auto; border-right: 1px solid #dee2e6; padding: 20px;">
+    <div id="calendar" style="font-size: 0.9rem;"></div>
 
-    <div class="d-grid gap-2">
-      <button class="btn btn-sm btn-secondary" onclick="previousDate()">← Previous Day</button>
-      <button class="btn btn-sm btn-secondary" onclick="today()">Today</button>
-      <button class="btn btn-sm btn-secondary" onclick="nextDate()">Next Day →</button>
+    <div class="d-grid gap-2 mt-4">
+      <button class="btn btn-sm btn-outline-secondary" onclick="previousDate()">← Previous</button>
+      <button class="btn btn-sm btn-primary" onclick="today()">Today</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="nextDate()">Next →</button>
     </div>
   </div>
 
@@ -177,25 +176,40 @@ function renderCalendar() {
   const daysInMonth = lastDay.getDate();
   const startingDayOfWeek = firstDay.getDay();
 
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  let html = `<h6>${monthNames[month]} ${year}</h6><table class="table table-sm" style="font-size: 0.85rem; margin-bottom: 0;">`;
-  html += '<tr style="text-align: center;"><th>S</th><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th></tr><tr>';
+  let html = `<h5 style="text-align: center; margin-bottom: 15px;">${monthNames[month]} ${year}</h5>`;
+  html += '<table class="table table-bordered" style="margin-bottom: 0; font-size: 0.95rem;">';
+  html += '<tr style="background: #f8f9fa;"><th style="text-align: center;">Sun</th><th style="text-align: center;">Mon</th><th style="text-align: center;">Tue</th><th style="text-align: center;">Wed</th><th style="text-align: center;">Thu</th><th style="text-align: center;">Fri</th><th style="text-align: center;">Sat</th></tr>';
+  html += '<tr>';
 
   for (let i = 0; i < startingDayOfWeek; i++) {
-    html += '<td>&nbsp;</td>';
+    html += '<td style="background: #fafafa;">&nbsp;</td>';
   }
 
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month, day);
     const dateStr = date.toISOString().split('T')[0];
     const isToday = dateStr === new Date().toISOString().split('T')[0];
-    const isSelected = dateStr === document.getElementById('selectedDate')?.value;
+    const isSelected = dateStr === (document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0]);
 
-    html += `<td style="cursor: pointer; padding: 5px; text-align: center; ${isToday ? 'background: #e7f3ff; font-weight: bold;' : ''} ${isSelected ? 'background: #007bff; color: white;' : ''}" onclick="selectDate('${dateStr}')">${day}</td>`;
+    let cellStyle = 'cursor: pointer; text-align: center; padding: 8px; height: 40px; vertical-align: middle; ';
+    if (isToday) cellStyle += 'background: #e7f3ff; font-weight: bold; border: 2px solid #007bff;';
+    else if (isSelected) cellStyle += 'background: #007bff; color: white; font-weight: bold;';
+
+    html += `<td style="${cellStyle}" onclick="selectDate('${dateStr}')" title="${dateStr}">${day}</td>`;
 
     if ((day + startingDayOfWeek) % 7 === 0 && day < daysInMonth) {
       html += '</tr><tr>';
+    }
+  }
+
+  // Fill remaining cells
+  const totalCells = startingDayOfWeek + daysInMonth;
+  const remainingCells = 7 - (totalCells % 7);
+  if (remainingCells < 7) {
+    for (let i = 0; i < remainingCells; i++) {
+      html += '<td style="background: #fafafa;">&nbsp;</td>';
     }
   }
 
