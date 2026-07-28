@@ -74,11 +74,14 @@
     };
 
     // Display version immediately
+    console.log('[APP] APP_CONFIG version:', window.APP_CONFIG.version);
     if (window.APP_CONFIG.version) {
       const versionText = ' - v' + window.APP_CONFIG.version;
       const navVersion = document.getElementById('navVersion');
+      console.log('[APP] navVersion element:', navVersion);
       if (navVersion) {
         navVersion.textContent = versionText;
+        console.log('[APP] Version set to:', versionText);
       }
     }
   </script>

@@ -9,6 +9,41 @@ class TabManager {
     this.setupTabButtons();
     this.showTab(this.currentTab);
     this.setupUrlSync();
+    this.initializeTabContent();
+  }
+
+  initializeTabContent() {
+    // Initialize Dailies tab if it exists
+    if (typeof renderCalendar !== 'undefined') {
+      renderCalendar();
+      updateDateDisplay();
+      const today = new Date().toISOString().split('T')[0];
+      const dateInput = document.getElementById('selectedDate');
+      if (!dateInput) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.id = 'selectedDate';
+        input.value = today;
+        document.body.appendChild(input);
+      }
+      loadWorkItems();
+      loadPrioritiesAndGoals();
+    }
+
+    // Initialize Priorities tab if it exists
+    if (typeof loadPriorities !== 'undefined') {
+      loadPriorities();
+    }
+
+    // Initialize Goals tab if it exists
+    if (typeof loadYearlyGoals !== 'undefined') {
+      loadYearlyGoals();
+    }
+
+    // Initialize Settings tab if it exists
+    if (typeof loadSources !== 'undefined') {
+      loadSources();
+    }
   }
 
   setupTabButtons() {

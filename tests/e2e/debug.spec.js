@@ -1,9 +1,15 @@
 import { test, expect } from '@playwright/test';
 
 test('debug: check what is actually displayed', async ({ page }) => {
+  page.on('console', msg => {
+    if (msg.text().includes('[APP]')) {
+      console.log('CONSOLE:', msg.text());
+    }
+  });
+
   await page.goto('http://localhost:3000/');
   await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(1500);
 
   // Check navbar
   const navbar = page.locator('.navbar-brand');

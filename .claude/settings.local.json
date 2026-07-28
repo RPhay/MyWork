@@ -17,7 +17,12 @@
       "Bash(open -a \"Google Chrome\" http://localhost:3000)",
       "Bash(npx playwright *)",
       "Bash(curl -s http://localhost:3000/?tab=my-priorities)",
-      "Bash(git commit -m 'WIP: Fix version display and calendar rendering *)"
+      "Bash(git commit -m 'WIP: Fix version display and calendar rendering *)",
+      "Bash(pkill -f \"npm run dev\")",
+      "Bash(npm run *)",
+      "Bash(curl -s \"http://localhost:3000/\")",
+      "Bash(open -a \"Google Chrome\" \"http://localhost:3000\")",
+      "Bash(git commit -m 'Add Playwright debug tests and logging for version display *)"
     ]
   }
 }
