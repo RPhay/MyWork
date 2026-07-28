@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyWork Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <%- include('../components/navbar.ejs') %>
+
+  <div class="container-fluid mt-4">
+    <%- include('../components/alerts.ejs') %>
+
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="dailies-tab" data-tab="dailies" type="button" role="tab">
+          Dailies
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="my-priorities-tab" data-tab="my-priorities" type="button" role="tab">
+          My Priorities
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="yearly-goals-tab" data-tab="yearly-goals" type="button" role="tab">
+          Yearly Goals
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="settings-tab" data-tab="settings" type="button" role="tab">
+          Settings
+        </button>
+      </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="mainTabContent">
+      <!-- Dailies Tab -->
+      <div id="tab-dailies" class="tab-content-pane">
+        <%- include('../tabs/dailies.ejs') %>
+      </div>
+
+      <!-- My Priorities Tab -->
+      <div id="tab-my-priorities" class="tab-content-pane">
+        <%- include('../tabs/my-priorities.ejs') %>
+      </div>
+
+      <!-- Yearly Goals Tab -->
+      <div id="tab-yearly-goals" class="tab-content-pane">
+        <%- include('../tabs/yearly-goals.ejs') %>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="tab-settings" class="tab-content-pane">
+        <%- include('../tabs/settings.ejs') %>
+      </div>
+    </div>
+  </div>
+
+  <%- include('../partials/footer.ejs') %>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/sortablejs@latest/Sortable.min.js"></script>
+  <script>
+    window.APP_CONFIG = {
+      activeTab: '<%= activeTab || 'dailies' %>',
+      currentYear: <%= currentYear %>,
+      csrfToken: '<%= csrfToken %>'
+    };
+  </script>
+  <script src="/js/main.js"></script>
+  <script src="/js/tabs.js"></script>
+  <script src="/js/forms.js"></script>
+</body>
+</html>

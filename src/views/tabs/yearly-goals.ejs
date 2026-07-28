@@ -1,0 +1,128 @@
+<div class="row mb-4">
+  <div class="col-md-6">
+    <label for="yearSelect" class="form-label">Select Year:</label>
+    <select id="yearSelect" class="form-select" onchange="loadYearlyGoals()">
+      <% for (let i = 2024; i <= 2030; i++) { %>
+        <option value="<%= i %>" <%= i === currentYear ? 'selected' : '' %>><%= i %></option>
+      <% } %>
+    </select>
+  </div>
+  <div class="col-md-6 text-end">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#goalModal" onclick="openNewGoalForm()">
+      + Add Goal
+    </button>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover" id="goalsTable">
+    <thead class="table-light">
+      <tr>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Status</th>
+        <th>Due Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="goalsTableBody">
+      <tr>
+        <td colspan="5" class="text-center text-muted">Loading goals...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Goal Modal -->
+<div class="modal fade" id="goalModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Goal Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="goalForm">
+          <input type="hidden" id="goalId" name="goalId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="goalName" class="form-label">Name *</label>
+            <input type="text" class="form-control" id="goalName" name="name" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="goalDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="goalDescription" name="description" rows="3"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="goalMeasurements" class="form-label">Measurements</label>
+            <textarea class="form-control" id="goalMeasurements" name="measurements" rows="3"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="goalUpdates" class="form-label">Goal Updates</label>
+            <textarea class="form-control" id="goalUpdates" name="goal_updates" rows="3"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="goalCategories" class="form-label">Categories</label>
+            <select class="form-select" id="goalCategories" name="categories" multiple>
+              <option value="work">Work</option>
+              <option value="personal">Personal</option>
+              <option value="health">Health</option>
+              <option value="finance">Finance</option>
+              <option value="education">Education</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="goalStatus" class="form-label">Status</label>
+            <select class="form-select" id="goalStatus" name="status">
+              <option value="Not Started">Not Started</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Complete">Complete</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="goalDueDate" class="form-label">Due Date</label>
+            <input type="date" class="form-control" id="goalDueDate" name="due_date">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveGoal()">Save Goal</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function loadYearlyGoals() {
+  const year = document.getElementById('yearSelect').value;
+  const tbody = document.getElementById('goalsTableBody');
+
+  // Placeholder - will be replaced with actual AJAX call
+  tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No goals found for ' + year + '</td></tr>';
+}
+
+function openNewGoalForm() {
+  document.getElementById('goalId').value = '';
+  document.getElementById('goalForm').reset();
+}
+
+function saveGoal() {
+  // Placeholder - will be replaced with actual save logic
+  console.log('Saving goal...');
+}
+
+// Load goals on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadYearlyGoals);
+} else {
+  loadYearlyGoals();
+}
+</script>

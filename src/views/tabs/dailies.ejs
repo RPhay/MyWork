@@ -1,0 +1,202 @@
+<div class="row mb-4">
+  <div class="col-md-6">
+    <div class="btn-group" role="group">
+      <input type="radio" class="btn-check" name="viewMode" id="dayView" value="day" checked onchange="changeViewMode('day')">
+      <label class="btn btn-outline-primary" for="dayView">Day View</label>
+
+      <input type="radio" class="btn-check" name="viewMode" id="weekView" value="week" onchange="changeViewMode('week')">
+      <label class="btn btn-outline-primary" for="weekView">Week View</label>
+    </div>
+  </div>
+  <div class="col-md-6 text-end">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#workModal" onclick="openNewWorkForm()">
+      + Add Work
+    </button>
+  </div>
+</div>
+
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-8">
+            <label for="selectedDate" class="form-label">Select Date:</label>
+            <input type="date" id="selectedDate" class="form-control" onchange="loadWorkItems()">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">&nbsp;</label>
+            <div>
+              <button class="btn btn-sm btn-secondary" onclick="previousDate()">← Previous</button>
+              <button class="btn btn-sm btn-secondary" onclick="today()">Today</button>
+              <button class="btn btn-sm btn-secondary" onclick="nextDate()">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-12">
+    <div id="dayViewContent">
+      <h5 id="dayViewTitle">Today's Work</h5>
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>Title</th>
+              <th>Associated Goals/Priorities</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="workItemsTableBody">
+            <tr>
+              <td colspan="4" class="text-center text-muted">Loading work items...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Work Item Modal -->
+<div class="modal fade" id="workModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Work Item Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="workForm">
+          <input type="hidden" id="workId" name="workId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="workDate" class="form-label">Date *</label>
+            <input type="date" class="form-control" id="workDate" name="date" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="workTitle" class="form-label">Title *</label>
+            <input type="text" class="form-control" id="workTitle" name="title" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="workDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="workDescription" name="description" rows="3"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="workGoals" class="form-label">Associated Goals</label>
+            <select class="form-select" id="workGoals" name="goals" multiple>
+              <!-- Goals will be loaded via AJAX -->
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="workPriorities" class="form-label">Associated Priorities</label>
+            <select class="form-select" id="workPriorities" name="priorities" multiple>
+              <!-- Priorities will be loaded via AJAX -->
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="workSource" class="form-label">Data Source</label>
+            <select class="form-select" id="workSource" name="source_id">
+              <option value="">-- None --</option>
+              <option value="1">Outlook Calendar</option>
+              <option value="2">Azure DevOps</option>
+              <option value="3">GitHub Commits</option>
+              <option value="4">Outlook Email</option>
+              <option value="5">Azure DevOps Commits</option>
+              <option value="6">MS Teams Messages</option>
+              <option value="7">Daily Notes</option>
+              <option value="8">OneNote Priorities</option>
+              <option value="9">ServiceNow</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="workStatus" class="form-label">Status</label>
+            <select class="form-select" id="workStatus" name="status">
+              <option value="Not Started">Not Started</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Complete">Complete</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveWorkItem()">Save Work</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function changeViewMode(mode) {
+  console.log('Changing view mode to:', mode);
+  loadWorkItems();
+}
+
+function loadWorkItems() {
+  const date = document.getElementById('selectedDate').value;
+  const tbody = document.getElementById('workItemsTableBody');
+
+  // Placeholder - will be replaced with actual AJAX call
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No work items for ' + date + '</td></tr>';
+}
+
+function previousDate() {
+  const dateInput = document.getElementById('selectedDate');
+  const date = new Date(dateInput.value);
+  date.setDate(date.getDate() - 1);
+  dateInput.value = date.toISOString().split('T')[0];
+  loadWorkItems();
+}
+
+function nextDate() {
+  const dateInput = document.getElementById('selectedDate');
+  const date = new Date(dateInput.value);
+  date.setDate(date.getDate() + 1);
+  dateInput.value = date.toISOString().split('T')[0];
+  loadWorkItems();
+}
+
+function today() {
+  const dateInput = document.getElementById('selectedDate');
+  dateInput.value = new Date().toISOString().split('T')[0];
+  loadWorkItems();
+}
+
+function openNewWorkForm() {
+  document.getElementById('workId').value = '';
+  const dateInput = document.getElementById('selectedDate');
+  document.getElementById('workDate').value = dateInput.value || new Date().toISOString().split('T')[0];
+  document.getElementById('workForm').reset();
+}
+
+function saveWorkItem() {
+  // Placeholder - will be replaced with actual save logic
+  console.log('Saving work item...');
+}
+
+// Initialize on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('selectedDate');
+    dateInput.value = new Date().toISOString().split('T')[0];
+    loadWorkItems();
+  });
+} else {
+  const dateInput = document.getElementById('selectedDate');
+  dateInput.value = new Date().toISOString().split('T')[0];
+  loadWorkItems();
+}
+</script>

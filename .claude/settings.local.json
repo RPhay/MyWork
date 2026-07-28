@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql --version)",
+      "Bash(brew services *)",
+      "Bash(sudo brew services start mysql 2>&1)",
+      "Bash(brew install *)",
+      "Bash(mysql -u root --password='' -e \"SELECT 'MySQL is running!' as status;\")",
+      "Bash(mysql_admin -u root ping)",
+      "Bash(mysqladmin -u root ping)",
+      "Bash(mysql -u root -h 127.0.0.1 -e \"SELECT 1\")",
+      "Bash(npm install *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Initial MyWork project scaffolding *)"
+    ]
+  }
+}

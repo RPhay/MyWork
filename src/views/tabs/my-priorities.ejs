@@ -1,0 +1,121 @@
+<div class="row mb-4">
+  <div class="col-md-12 text-end">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#priorityModal" onclick="openNewPriorityForm()">
+      + Add Priority
+    </button>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover" id="prioritiesTable">
+    <thead class="table-light">
+      <tr>
+        <th width="40"></th>
+        <th>Title</th>
+        <th>Data Source</th>
+        <th width="100">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="prioritiesTableBody" class="sortable-priorities">
+      <tr>
+        <td colspan="4" class="text-center text-muted">Loading priorities...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Priority Modal -->
+<div class="modal fade" id="priorityModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Priority Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="priorityForm">
+          <input type="hidden" id="priorityId" name="priorityId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="priorityTitle" class="form-label">Title *</label>
+            <input type="text" class="form-control" id="priorityTitle" name="title" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="prioritySource" class="form-label">Data Source</label>
+            <select class="form-select" id="prioritySource" name="source_id">
+              <option value="">-- None --</option>
+              <option value="1">Outlook Calendar</option>
+              <option value="2">Azure DevOps</option>
+              <option value="3">GitHub Commits</option>
+              <option value="4">Outlook Email</option>
+              <option value="5">Azure DevOps Commits</option>
+              <option value="6">MS Teams Messages</option>
+              <option value="7">Daily Notes</option>
+              <option value="8">OneNote Priorities</option>
+              <option value="9">ServiceNow</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="priorityNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="priorityNotes" name="notes" rows="4"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="savePriority()">Save Priority</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function loadPriorities() {
+  const tbody = document.getElementById('prioritiesTableBody');
+
+  // Placeholder - will be replaced with actual AJAX call
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No priorities found</td></tr>';
+
+  // Initialize drag-and-drop after loading
+  initSortable();
+}
+
+function initSortable() {
+  const sortableElement = document.querySelector('.sortable-priorities');
+  if (sortableElement && window.Sortable) {
+    Sortable.create(sortableElement, {
+      handle: '.drag-handle',
+      ghostClass: 'sortable-ghost',
+      animation: 150,
+      onEnd: function(evt) {
+        updatePriorityOrder(evt.item.dataset.priorityId, evt.newIndex);
+      }
+    });
+  }
+}
+
+function openNewPriorityForm() {
+  document.getElementById('priorityId').value = '';
+  document.getElementById('priorityForm').reset();
+}
+
+function savePriority() {
+  // Placeholder - will be replaced with actual save logic
+  console.log('Saving priority...');
+}
+
+function updatePriorityOrder(priorityId, newPosition) {
+  // Placeholder - will be replaced with actual API call
+  console.log('Updating priority order:', priorityId, newPosition);
+}
+
+// Load priorities on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadPriorities);
+} else {
+  loadPriorities();
+}
+</script>
