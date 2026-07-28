@@ -10,6 +10,7 @@ import config from './config/environment.js';
 import logger from './utils/logger.js';
 import { ValidationError, AppError } from './config/errors.js';
 import indexRouter from './routes/index.js';
+import { readVersion } from './utils/version.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();

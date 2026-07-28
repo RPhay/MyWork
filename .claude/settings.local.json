@@ -11,7 +11,8 @@
       "Bash(mysql -u root -h 127.0.0.1 -e \"SELECT 1\")",
       "Bash(npm install *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'Initial MyWork project scaffolding *)"
+      "Bash(git commit -m 'Initial MyWork project scaffolding *)",
+      "Bash(curl -s http://localhost:3000/health)"
     ]
   }
 }

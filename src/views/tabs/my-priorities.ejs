@@ -73,20 +73,45 @@
 </div>
 
 <script>
-function loadPriorities() {
+async function loadPriorities() {
   const tbody = document.getElementById('prioritiesTableBody');
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>';
 
-  // Placeholder - will be replaced with actual AJAX call
-  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No priorities found</td></tr>';
+  try {
+    const response = await fetch('/api/priorities');
+    const result = await response.json();
 
-  // Initialize drag-and-drop after loading
-  initSortable();
+    if (result.success && result.data.length > 0) {
+      tbody.innerHTML = result.data.map(priority => `
+        <tr data-priority-id="${priority.id}">
+          <td class="drag-handle" style="cursor: move; color: #999;">⋮⋮</td>
+          <td>${priority.title}</td>
+          <td>${priority.source_id ? 'Source #' + priority.source_id : '-'}</td>
+          <td>
+            <button class="btn btn-sm btn-info" onclick="editPriority(${priority.id})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deletePriority(${priority.id})">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No priorities yet</td></tr>';
+    }
+
+    // Initialize drag-and-drop after loading
+    initSortable();
+  } catch (error) {
+    console.error('Error loading priorities:', error);
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading priorities</td></tr>';
+  }
 }
 
 function initSortable() {
   const sortableElement = document.querySelector('.sortable-priorities');
   if (sortableElement && window.Sortable) {
-    Sortable.create(sortableElement, {
+    if (window.sortableInstance) {
+      window.sortableInstance.destroy();
+    }
+    window.sortableInstance = Sortable.create(sortableElement, {
       handle: '.drag-handle',
       ghostClass: 'sortable-ghost',
       animation: 150,
@@ -102,14 +127,102 @@ function openNewPriorityForm() {
   document.getElementById('priorityForm').reset();
 }
 
-function savePriority() {
-  // Placeholder - will be replaced with actual save logic
-  console.log('Saving priority...');
+async function savePriority() {
+  const priorityId = document.getElementById('priorityId').value;
+
+  const data = {
+    title: document.getElementById('priorityTitle').value,
+    source_id: document.getElementById('prioritySource').value || null,
+    notes: document.getElementById('priorityNotes').value
+  };
+
+  try {
+    const url = priorityId ? `/api/priorities/${priorityId}` : '/api/priorities';
+    const method = priorityId ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Priority saved!', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('priorityModal')).hide();
+      loadPriorities();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error saving priority', 'danger');
+  }
 }
 
-function updatePriorityOrder(priorityId, newPosition) {
-  // Placeholder - will be replaced with actual API call
-  console.log('Updating priority order:', priorityId, newPosition);
+async function editPriority(priorityId) {
+  try {
+    const response = await fetch(`/api/priorities/${priorityId}`);
+    const result = await response.json();
+    const priority = result.data;
+
+    document.getElementById('priorityId').value = priority.id;
+    document.getElementById('priorityTitle').value = priority.title;
+    document.getElementById('prioritySource').value = priority.source_id || '';
+    document.getElementById('priorityNotes').value = priority.notes;
+
+    const modal = new bootstrap.Modal(document.getElementById('priorityModal'));
+    modal.show();
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error loading priority', 'danger');
+  }
+}
+
+async function deletePriority(priorityId) {
+  if (!await app.confirm('Delete this priority?')) return;
+
+  try {
+    const response = await fetch(`/api/priorities/${priorityId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Priority deleted', 'success');
+      loadPriorities();
+    } else {
+      app.notify('Error deleting priority', 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error deleting priority', 'danger');
+  }
+}
+
+async function updatePriorityOrder(priorityId, newPosition) {
+  try {
+    const response = await fetch(`/api/priorities/${priorityId}/reorder`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ newIndex: newPosition })
+    });
+
+    const result = await response.json();
+    if (!result.success) {
+      loadPriorities(); // Reload if update failed
+    }
+  } catch (error) {
+    console.error('Error reordering:', error);
+    loadPriorities();
+  }
 }
 
 // Load priorities on page load

@@ -16,12 +16,19 @@
 </div>
 
 <div class="row mb-4">
-  <div class="col-md-12">
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body">
+        <div id="calendar"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-9">
     <div class="card">
       <div class="card-body">
         <div class="row">
           <div class="col-md-8">
-            <label for="selectedDate" class="form-label">Select Date:</label>
+            <label for="selectedDate" class="form-label">Selected Date:</label>
             <input type="date" id="selectedDate" class="form-control" onchange="loadWorkItems()">
           </div>
           <div class="col-md-4">
@@ -140,17 +147,82 @@
 </div>
 
 <script>
+function renderCalendar() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay();
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  let html = `<h5>${monthNames[month]} ${year}</h5><table class="table table-sm" style="font-size: 0.85rem;">`;
+  html += '<tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr><tr>';
+
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    html += '<td>&nbsp;</td>';
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    const dateStr = date.toISOString().split('T')[0];
+    const isToday = dateStr === new Date().toISOString().split('T')[0];
+    const isSelected = dateStr === document.getElementById('selectedDate').value;
+
+    html += `<td style="cursor: pointer; padding: 5px; text-align: center; ${isToday ? 'background: #e7f3ff; font-weight: bold;' : ''} ${isSelected ? 'background: #007bff; color: white;' : ''}" onclick="selectDate('${dateStr}')">${day}</td>`;
+
+    if ((day + startingDayOfWeek) % 7 === 0 && day < daysInMonth) {
+      html += '</tr><tr>';
+    }
+  }
+
+  html += '</tr></table>';
+  document.getElementById('calendar').innerHTML = html;
+}
+
+function selectDate(dateStr) {
+  document.getElementById('selectedDate').value = dateStr;
+  loadWorkItems();
+  renderCalendar();
+}
+
 function changeViewMode(mode) {
   console.log('Changing view mode to:', mode);
   loadWorkItems();
 }
 
-function loadWorkItems() {
+async function loadWorkItems() {
   const date = document.getElementById('selectedDate').value;
   const tbody = document.getElementById('workItemsTableBody');
 
-  // Placeholder - will be replaced with actual AJAX call
-  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No work items for ' + date + '</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>';
+
+  try {
+    const response = await fetch(`/api/work/date/${date}`);
+    const result = await response.json();
+
+    if (result.success && result.data.length > 0) {
+      tbody.innerHTML = result.data.map(item => `
+        <tr>
+          <td>${item.title}</td>
+          <td>-</td>
+          <td><span class="badge bg-${item.status === 'Complete' ? 'success' : item.status === 'In Progress' ? 'warning' : 'secondary'}">${item.status}</span></td>
+          <td>
+            <button class="btn btn-sm btn-info" onclick="editWorkItem(${item.id})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteWorkItem(${item.id})">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No work items for ' + date + '</td></tr>';
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading work items</td></tr>';
+  }
 }
 
 function previousDate() {
@@ -159,6 +231,7 @@ function previousDate() {
   date.setDate(date.getDate() - 1);
   dateInput.value = date.toISOString().split('T')[0];
   loadWorkItems();
+  renderCalendar();
 }
 
 function nextDate() {
@@ -167,12 +240,14 @@ function nextDate() {
   date.setDate(date.getDate() + 1);
   dateInput.value = date.toISOString().split('T')[0];
   loadWorkItems();
+  renderCalendar();
 }
 
 function today() {
   const dateInput = document.getElementById('selectedDate');
   dateInput.value = new Date().toISOString().split('T')[0];
   loadWorkItems();
+  renderCalendar();
 }
 
 function openNewWorkForm() {
@@ -182,9 +257,86 @@ function openNewWorkForm() {
   document.getElementById('workForm').reset();
 }
 
-function saveWorkItem() {
-  // Placeholder - will be replaced with actual save logic
-  console.log('Saving work item...');
+async function saveWorkItem() {
+  const workId = document.getElementById('workId').value;
+
+  const data = {
+    date: document.getElementById('workDate').value,
+    title: document.getElementById('workTitle').value,
+    description: document.getElementById('workDescription').value,
+    status: document.getElementById('workStatus').value,
+    goal_ids: Array.from(document.getElementById('workGoals').selectedOptions).map(opt => opt.value),
+    priority_ids: Array.from(document.getElementById('workPriorities').selectedOptions).map(opt => opt.value),
+    source_id: document.getElementById('workSource').value || null
+  };
+
+  try {
+    const url = workId ? `/api/work/${workId}` : '/api/work';
+    const method = workId ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Work item saved!', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('workModal')).hide();
+      loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error saving work item', 'danger');
+  }
+}
+
+async function editWorkItem(workId) {
+  try {
+    const response = await fetch(`/api/work/${workId}`);
+    const result = await response.json();
+    const item = result.data;
+
+    document.getElementById('workId').value = item.id;
+    document.getElementById('workDate').value = item.date;
+    document.getElementById('workTitle').value = item.title;
+    document.getElementById('workDescription').value = item.description;
+    document.getElementById('workStatus').value = item.status;
+
+    const modal = new bootstrap.Modal(document.getElementById('workModal'));
+    modal.show();
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error loading work item', 'danger');
+  }
+}
+
+async function deleteWorkItem(workId) {
+  if (!await app.confirm('Delete this work item?')) return;
+
+  try {
+    const response = await fetch(`/api/work/${workId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Work item deleted', 'success');
+      loadWorkItems();
+    } else {
+      app.notify('Error deleting work item', 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error deleting work item', 'danger');
+  }
 }
 
 // Initialize on page load
@@ -192,11 +344,13 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.getElementById('selectedDate');
     dateInput.value = new Date().toISOString().split('T')[0];
+    renderCalendar();
     loadWorkItems();
   });
 } else {
   const dateInput = document.getElementById('selectedDate');
   dateInput.value = new Date().toISOString().split('T')[0];
+  renderCalendar();
   loadWorkItems();
 }
 </script>
