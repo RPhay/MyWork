@@ -382,6 +382,31 @@ function initTemplatesEventListeners() {
 
   const container = document.getElementById('templatesList');
 
+  app.bindInlineRename(container, '.template-title', async (newTitle, titleEl) => {
+    const templateId = titleEl.closest('.template-node').dataset.templateId;
+    try {
+      const response = await fetch(`/api/work-item-templates/${templateId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ title: newTitle })
+      });
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return false;
+      }
+      loadTemplates();
+      return true;
+    } catch (error) {
+      console.error('Error renaming template:', error);
+      app.notify('Error renaming template', 'danger');
+      return false;
+    }
+  });
+
   container.addEventListener('click', (e) => {
     const actionBtn = e.target.closest('[data-action="edit"], [data-action="delete"], [data-action="unlink"], [data-action="pick-emoji"], [data-action="cycle-status"], [data-action="cycle-timebox"]');
     if (actionBtn) {

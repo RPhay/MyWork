@@ -57,14 +57,20 @@ export async function createArea(data) {
 }
 
 export async function updateArea(id, data) {
-  const { name, description } = data;
+  const setClauses = [];
+  const values = [];
 
-  if (!name) {
-    throw new ValidationError('Area name is required');
+  if (data.name !== undefined) {
+    if (!data.name) {
+      throw new ValidationError('Area name is required');
+    }
+    setClauses.push('name = ?');
+    values.push(data.name);
   }
-
-  const setClauses = ['name = ?', 'description = ?'];
-  const values = [name, description || null];
+  if (data.description !== undefined) {
+    setClauses.push('description = ?');
+    values.push(data.description || null);
+  }
 
   // Only touch parent_id when the caller explicitly provided it (e.g. drag-to-reparent).
   // A plain name/description edit from the modal must leave the current parent alone.
@@ -83,6 +89,10 @@ export async function updateArea(id, data) {
 
     setClauses.push('parent_id = ?');
     values.push(parentId);
+  }
+
+  if (setClauses.length === 0) {
+    return getAreaById(id);
   }
 
   values.push(id);

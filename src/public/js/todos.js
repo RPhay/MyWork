@@ -570,6 +570,56 @@ function initToDosEventListeners() {
 
   const container = document.getElementById('toDosList');
 
+  app.bindInlineRename(container, '.todo-row .todo-title', async (newTitle, titleEl) => {
+    const toDoId = titleEl.closest('.todo-row').dataset.todoId;
+    try {
+      const response = await fetch(`/api/to-dos/${toDoId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ title: newTitle })
+      });
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return false;
+      }
+      loadToDos();
+      return true;
+    } catch (error) {
+      console.error('Error renaming to do:', error);
+      app.notify('Error renaming to do', 'danger');
+      return false;
+    }
+  });
+
+  app.bindInlineRename(container, '.todo-folder-header .todo-title', async (newName, titleEl) => {
+    const folderId = titleEl.closest('.todo-folder-node').dataset.folderId;
+    try {
+      const response = await fetch(`/api/to-do-folders/${folderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ name: newName })
+      });
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return false;
+      }
+      loadToDos();
+      return true;
+    } catch (error) {
+      console.error('Error renaming folder:', error);
+      app.notify('Error renaming folder', 'danger');
+      return false;
+    }
+  });
+
   container.addEventListener('dragstart', (e) => {
     const folderHeader = e.target.closest('.todo-folder-header');
     const todoRow = e.target.closest('.todo-row');

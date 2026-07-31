@@ -76,7 +76,7 @@ async function loadYearlyGoals() {
       currentGoals = result.data;
       tbody.innerHTML = currentGoals.map(goal => `
         <tr draggable="true" data-goal-id="${goal.id}">
-          <td><i class="bi ${APP_ICONS.goal} text-muted"></i> ${goal.name}</td>
+          <td><i class="bi ${APP_ICONS.goal} text-muted"></i> <span class="goal-name">${goal.name}</span></td>
           <td>${(goal.categories || []).map(c => c.name).join(', ') || '-'}</td>
           <td><span class="badge bg-${goal.status === 'Complete' ? 'success' : goal.status === 'In Progress' ? 'warning' : 'secondary'} goal-status-badge" data-action="cycle-status" data-id="${goal.id}" title="Click to change status">${goal.status}</span></td>
           <td>${goal.due_date || '-'}</td>
@@ -281,6 +281,31 @@ function initGoalsEventListeners() {
   document.getElementById('saveGoalBtn').addEventListener('click', saveGoal);
 
   const tbody = document.getElementById('goalsTableBody');
+
+  app.bindInlineRename(tbody, '.goal-name', async (newName, titleEl) => {
+    const goalId = titleEl.closest('tr[data-goal-id]').dataset.goalId;
+    try {
+      const response = await fetch(`/api/goals/${goalId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ name: newName })
+      });
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return false;
+      }
+      loadYearlyGoals();
+      return true;
+    } catch (error) {
+      console.error('Error renaming goal:', error);
+      app.notify('Error renaming goal', 'danger');
+      return false;
+    }
+  });
 
   tbody.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');

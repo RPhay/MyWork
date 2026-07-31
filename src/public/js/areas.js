@@ -342,6 +342,31 @@ function initAreasEventListeners() {
 
   const container = document.getElementById('areasList');
 
+  app.bindInlineRename(container, '.area-name', async (newName, titleEl) => {
+    const areaId = titleEl.closest('.area-node').dataset.areaId;
+    try {
+      const response = await fetch(`/api/areas/${areaId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ name: newName })
+      });
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return false;
+      }
+      loadAreas();
+      return true;
+    } catch (error) {
+      console.error('Error renaming category:', error);
+      app.notify('Error renaming category', 'danger');
+      return false;
+    }
+  });
+
   container.addEventListener('contextmenu', (e) => {
     const header = e.target.closest('.area-node-header');
     if (!header) return;

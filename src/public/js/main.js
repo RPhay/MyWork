@@ -180,6 +180,71 @@ const app = {
     walk(null, 0);
     return result;
   },
+
+  // Click, pause, click again on a title (not a fast double-click, which rows
+  // typically still use to open the full edit modal) starts inline rename.
+  // Bound once per container; delegates to any current/future element matching
+  // `selector`. Captures on the way down so title clicks never also reach the
+  // row's own click handling (status cycling, expand/collapse, etc).
+  bindInlineRename(container, selector, onSave) {
+    const MIN_GAP_MS = 400;
+    const MAX_GAP_MS = 1000;
+    let lastClick = null;
+
+    container.addEventListener('click', (e) => {
+      const titleEl = e.target.closest(selector);
+      if (!titleEl) return;
+
+      e.stopPropagation();
+      if (titleEl.querySelector('input')) return; // already editing
+
+      const now = Date.now();
+      if (lastClick && lastClick.el === titleEl) {
+        const delta = now - lastClick.time;
+        lastClick = null;
+        if (delta >= MIN_GAP_MS && delta <= MAX_GAP_MS) {
+          app.startInlineRename(titleEl, onSave);
+          return;
+        }
+      }
+      lastClick = { el: titleEl, time: now };
+    }, true);
+  },
+
+  startInlineRename(titleEl, onSave) {
+    const originalText = titleEl.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control form-control-sm inline-rename-input';
+    input.value = originalText;
+
+    titleEl.textContent = '';
+    titleEl.appendChild(input);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const finish = async (commit) => {
+      if (done) return;
+      done = true;
+
+      const newValue = input.value.trim();
+      if (!commit || !newValue || newValue === originalText) {
+        titleEl.textContent = originalText;
+        return;
+      }
+
+      titleEl.textContent = newValue;
+      const ok = await onSave(newValue, titleEl);
+      if (ok === false) titleEl.textContent = originalText;
+    };
+
+    input.addEventListener('blur', () => finish(true));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+  },
 };
 
 // Make app globally accessible

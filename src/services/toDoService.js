@@ -67,14 +67,20 @@ export async function createToDo(data) {
 }
 
 export async function updateToDo(id, data) {
-  const { title, notes } = data;
+  const setClauses = [];
+  const values = [];
 
-  if (!title) {
-    throw new ValidationError('To do title is required');
+  if (data.title !== undefined) {
+    if (!data.title) {
+      throw new ValidationError('To do title is required');
+    }
+    setClauses.push('title = ?');
+    values.push(data.title);
   }
-
-  const setClauses = ['title = ?', 'notes = ?'];
-  const values = [title, notes ?? null];
+  if (data.notes !== undefined) {
+    setClauses.push('notes = ?');
+    values.push(data.notes ?? null);
+  }
 
   // Only touch folder_id when the caller explicitly provided it (e.g. drag-to-file),
   // so a plain title/notes edit from the modal leaves the current folder untouched.
@@ -83,9 +89,10 @@ export async function updateToDo(id, data) {
     values.push(data.folder_id || null);
   }
 
-  values.push(id);
-
-  await db.update(`UPDATE to_dos SET ${setClauses.join(', ')} WHERE id = ?`, values);
+  if (setClauses.length > 0) {
+    values.push(id);
+    await db.update(`UPDATE to_dos SET ${setClauses.join(', ')} WHERE id = ?`, values);
+  }
 
   // Only touch items when the caller explicitly provided them, so operations like
   // drag-to-file (which only sends title/notes/folder_id) don't wipe the checklist.

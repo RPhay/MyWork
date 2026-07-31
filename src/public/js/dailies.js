@@ -382,59 +382,27 @@ function setupDragListeners() {
   });
 }
 
-const WORK_TIME_BOX_PRESETS = ['', '15', '30', '45', '60'];
-
-function setWorkTimeBoxField(minutes) {
-  const select = document.getElementById('workTimeBox');
-  const custom = document.getElementById('workTimeBoxCustom');
-  const value = minutes ? String(minutes) : '';
-
-  if (WORK_TIME_BOX_PRESETS.includes(value)) {
-    select.value = value;
-    custom.classList.add('d-none');
-    custom.value = '';
-  } else {
-    select.value = 'custom';
-    custom.classList.remove('d-none');
-    custom.value = value;
-  }
-}
-
-function getWorkTimeBoxField() {
-  const select = document.getElementById('workTimeBox');
-  if (select.value === 'custom') {
-    return document.getElementById('workTimeBoxCustom').value || null;
-  }
-  return select.value || null;
-}
-
-function initWorkTimeBoxFieldToggle() {
-  document.getElementById('workTimeBox').addEventListener('change', (e) => {
-    const custom = document.getElementById('workTimeBoxCustom');
-    custom.classList.toggle('d-none', e.target.value !== 'custom');
-    if (e.target.value === 'custom') custom.focus();
-  });
-}
-
 function openNewWorkForm() {
   document.getElementById('workId').value = '';
   document.getElementById('workForm').reset();
   updateEmojiFieldButton('workEmojiBtn', '');
-  setWorkTimeBoxField(null);
 }
 
 async function saveWorkItem() {
   const workId = document.getElementById('workId').value;
   const dateInput = document.getElementById('selectedDate');
 
+  // status/time_box_minutes are intentionally omitted here - they're no longer
+  // editable from this form (removed in favor of the list's cycle badges), and
+  // workItemService only touches columns present in the payload, so omitting
+  // them leaves an existing item's values untouched on edit. New items fall
+  // back to the service's own defaults (Not Started, no time box).
   const data = {
     date: dateInput?.value || new Date().toISOString().split('T')[0],
     title: document.getElementById('workTitle').value,
     description: document.getElementById('workDescription').value,
     notes: document.getElementById('workNotes').value,
     emoji: document.getElementById('workEmoji').value,
-    status: document.getElementById('workStatus').value,
-    time_box_minutes: getWorkTimeBoxField()
   };
 
   try {
@@ -477,8 +445,6 @@ async function editWorkItem(workId) {
     document.getElementById('workNotes').value = item.notes || '';
     document.getElementById('workEmoji').value = item.emoji || '';
     updateEmojiFieldButton('workEmojiBtn', item.emoji || '');
-    document.getElementById('workStatus').value = item.status;
-    setWorkTimeBoxField(item.time_box_minutes);
 
     const modal = new bootstrap.Modal(document.getElementById('workModal'));
     modal.show();
@@ -1081,6 +1047,31 @@ function initWorkItemsListEventListeners() {
   const container = document.getElementById('workItemsList');
   let clickTimer = null;
 
+  app.bindInlineRename(container, '.work-item-title', async (newTitle, titleEl) => {
+    const workId = titleEl.closest('.work-item').dataset.workId;
+    try {
+      const response = await fetch(`/api/work/${workId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ title: newTitle })
+      });
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return false;
+      }
+      loadWorkItems();
+      return true;
+    } catch (error) {
+      console.error('Error renaming work item:', error);
+      app.notify('Error renaming work item', 'danger');
+      return false;
+    }
+  });
+
   container.addEventListener('click', (e) => {
     const actionBtn = e.target.closest('[data-action="edit"], [data-action="delete"], [data-action="unlink"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"]');
     if (actionBtn) {
@@ -1318,7 +1309,6 @@ function initWorkItemContextMenu() {
 function initDailiesEventListeners() {
   document.getElementById('addWorkItemBtn').addEventListener('click', openNewWorkForm);
   document.getElementById('saveWorkBtn').addEventListener('click', saveWorkItem);
-  initWorkTimeBoxFieldToggle();
 
   initWorkItemsListEventListeners();
   initRightPanelTabs();

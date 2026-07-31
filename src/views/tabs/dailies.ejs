@@ -72,8 +72,17 @@
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
           <div class="mb-3">
-            <label for="workTitle" class="form-label">Title *</label>
-            <input type="text" class="form-control" id="workTitle" name="title" required>
+            <div class="d-flex gap-2 align-items-end">
+              <div class="flex-grow-1">
+                <label for="workTitle" class="form-label">Title *</label>
+                <input type="text" class="form-control" id="workTitle" name="title" required>
+              </div>
+              <div>
+                <label class="form-label d-block">Oh!</label>
+                <input type="hidden" id="workEmoji" name="emoji">
+                <button type="button" class="btn btn-outline-secondary emoji-field-btn text-muted" id="workEmojiBtn" data-action="pick-emoji-field" data-input="workEmoji">Pick an emoji</button>
+              </div>
+            </div>
           </div>
 
           <div class="mb-3">
@@ -84,34 +93,6 @@
           <div class="mb-3">
             <label for="workNotes" class="form-label">Notes</label>
             <textarea class="form-control" id="workNotes" name="notes" rows="3"></textarea>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label d-block">Oh!</label>
-            <input type="hidden" id="workEmoji" name="emoji">
-            <button type="button" class="btn btn-outline-secondary emoji-field-btn text-muted" id="workEmojiBtn" data-action="pick-emoji-field" data-input="workEmoji">Pick an emoji</button>
-          </div>
-
-          <div class="mb-3">
-            <label for="workStatus" class="form-label">Status</label>
-            <select class="form-select" id="workStatus" name="status">
-              <option value="Not Started">Not Started</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Complete">Complete</option>
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label for="workTimeBox" class="form-label">Time Box</label>
-            <select class="form-select" id="workTimeBox">
-              <option value="">No time box</option>
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="45">45 minutes</option>
-              <option value="60">60 minutes</option>
-              <option value="custom">Custom...</option>
-            </select>
-            <input type="number" class="form-control mt-2 d-none" id="workTimeBoxCustom" name="time_box_minutes" min="1" step="1" placeholder="Minutes">
           </div>
         </form>
       </div>

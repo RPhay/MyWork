@@ -143,12 +143,40 @@ export async function createWorkItem(data) {
 }
 
 export async function updateWorkItem(id, data) {
-  const { title, description, notes, emoji, status, goal_ids, priority_ids, source_id, time_box_minutes } = data;
+  const { goal_ids, priority_ids, source_id } = data;
 
-  await db.update(
-    'UPDATE work_items SET title = ?, description = ?, notes = ?, emoji = ?, status = ?, time_box_minutes = ? WHERE id = ?',
-    [title, description ?? null, notes ?? null, emoji ?? null, status, normalizeTimeBox(time_box_minutes), id]
-  );
+  const setClauses = [];
+  const values = [];
+
+  if (data.title !== undefined) {
+    setClauses.push('title = ?');
+    values.push(data.title);
+  }
+  if (data.description !== undefined) {
+    setClauses.push('description = ?');
+    values.push(data.description ?? null);
+  }
+  if (data.notes !== undefined) {
+    setClauses.push('notes = ?');
+    values.push(data.notes ?? null);
+  }
+  if (data.emoji !== undefined) {
+    setClauses.push('emoji = ?');
+    values.push(data.emoji || null);
+  }
+  if (data.status !== undefined) {
+    setClauses.push('status = ?');
+    values.push(data.status);
+  }
+  if (data.time_box_minutes !== undefined) {
+    setClauses.push('time_box_minutes = ?');
+    values.push(normalizeTimeBox(data.time_box_minutes));
+  }
+
+  if (setClauses.length > 0) {
+    values.push(id);
+    await db.update(`UPDATE work_items SET ${setClauses.join(', ')} WHERE id = ?`, values);
+  }
 
   // Update associations
   if (goal_ids !== undefined) {

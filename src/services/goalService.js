@@ -80,18 +80,46 @@ export async function createGoal(data) {
 }
 
 export async function updateGoal(id, data) {
-  const { name, description, measurements, goal_updates, status, due_date, categories } = data;
+  const { categories } = data;
 
-  try {
-    await db.update(
-      'UPDATE goals SET name = ?, description = ?, measurements = ?, goal_updates = ?, status = ?, due_date = ? WHERE id = ?',
-      [name, description ?? null, measurements ?? null, goal_updates ?? null, status || 'Not Started', due_date || null, id]
-    );
-  } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
-      throw new ConflictError('A goal with that name already exists for this year');
+  const setClauses = [];
+  const values = [];
+
+  if (data.name !== undefined) {
+    setClauses.push('name = ?');
+    values.push(data.name);
+  }
+  if (data.description !== undefined) {
+    setClauses.push('description = ?');
+    values.push(data.description ?? null);
+  }
+  if (data.measurements !== undefined) {
+    setClauses.push('measurements = ?');
+    values.push(data.measurements ?? null);
+  }
+  if (data.goal_updates !== undefined) {
+    setClauses.push('goal_updates = ?');
+    values.push(data.goal_updates ?? null);
+  }
+  if (data.status !== undefined) {
+    setClauses.push('status = ?');
+    values.push(data.status || 'Not Started');
+  }
+  if (data.due_date !== undefined) {
+    setClauses.push('due_date = ?');
+    values.push(data.due_date || null);
+  }
+
+  if (setClauses.length > 0) {
+    try {
+      values.push(id);
+      await db.update(`UPDATE goals SET ${setClauses.join(', ')} WHERE id = ?`, values);
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new ConflictError('A goal with that name already exists for this year');
+      }
+      throw error;
     }
-    throw error;
   }
 
   // Update categories

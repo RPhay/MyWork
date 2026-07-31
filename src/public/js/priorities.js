@@ -364,6 +364,31 @@ function initPrioritiesEventListeners() {
 
   const container = document.getElementById('prioritiesList');
 
+  app.bindInlineRename(container, '.priority-title', async (newTitle, titleEl) => {
+    const priorityId = titleEl.closest('.priority-node').dataset.priorityId;
+    try {
+      const response = await fetch(`/api/priorities/${priorityId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ title: newTitle })
+      });
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return false;
+      }
+      loadPriorities();
+      return true;
+    } catch (error) {
+      console.error('Error renaming project:', error);
+      app.notify('Error renaming project', 'danger');
+      return false;
+    }
+  });
+
   container.addEventListener('dragstart', (e) => {
     const header = e.target.closest('.priority-node-header');
     if (!header) return;
