@@ -19,18 +19,18 @@ context.
 
 **Services split by pool:**
 
-| Uses home pool | Uses content pool |
-|---|---|
-| `contextService.js` | `workItemService.js` |
-| `contextFolderService.js` | `priorityService.js` |
-| `userService.js` | `goalService.js` |
-| `contextTabSettingsService.js` | `areaService.js` |
-| `activeContextService.js` | `sourceService.js` |
-| | `toDoService.js` / `toDoFolderService.js` |
-| | `ideaService.js` / `ideaFolderService.js` |
-| | `workItemTemplateService.js` |
-| | `yearService.js` |
-| | `backupService.js` |
+| Uses home pool                 | Uses content pool                         |
+| ------------------------------ | ----------------------------------------- |
+| `contextService.js`            | `workItemService.js`                      |
+| `contextFolderService.js`      | `priorityService.js`                      |
+| `userService.js`               | `goalService.js`                          |
+| `contextTabSettingsService.js` | `areaService.js`                          |
+| `activeContextService.js`      | `sourceService.js`                        |
+|                                | `toDoService.js` / `toDoFolderService.js` |
+|                                | `ideaService.js` / `ideaFolderService.js` |
+|                                | `workItemTemplateService.js`              |
+|                                | `yearService.js`                          |
+|                                | `backupService.js`                        |
 
 **`homePool.js`** — mirrors `connectionPool.js`'s `query / queryOne / insert /
 update / deleteRecord` API but reads `config.database.*` once at startup and
@@ -67,7 +67,6 @@ Design complete. Not yet implemented. Start with `homePool.js`, then update
 the service imports one by one, test that contexts remain visible after
 switching to a context with a different DB, then add the badge.
 
-
 ## The feature, as scoped
 
 Started from: "introduce the idea of areas (Work vs Life)" → renamed to
@@ -85,8 +84,8 @@ order:
 3. A "Default" context is always seeded and can't be deleted if it's the last
    one remaining (rename instead). **Done, shipped.**
 4. **Tonight's unfinished piece:** each context should be able to define its
-   own **database connection** (contexts can point at *entirely different
-   physical databases*, not just filter rows within one shared DB), plus its
+   own **database connection** (contexts can point at _entirely different
+   physical databases_, not just filter rows within one shared DB), plus its
    own **Data Sources**, **Backup & Restore**, and **which main-app tabs are
    visible/in what order** (Dailies always shown first, can't be hidden).
    The Settings page becomes: Contexts is the only top-level tab, split into
@@ -103,7 +102,7 @@ order:
 - **Contexts can have independent databases.** This was an explicit user
   choice over "just filter rows in one shared DB." Both mechanisms coexist:
   `context_id` filtering still applies to whatever DB is currently connected;
-  *additionally*, each context can have its own DB connection profile, and
+  _additionally_, each context can have its own DB connection profile, and
   switching to it can switch the live physical connection entirely.
 - **Split-pane layout, not a modal.** Left column = context list, right
   column = tabbed panel for the selected context.
@@ -112,12 +111,12 @@ order:
   the per-context system and stays fixed).
 - **MSSQL dropped from the per-context DB config**, deliberately. It was
   never actually functional (no query path anywhere in the app, confirmed
-  earlier this session) even as a *global* option — replicating that
+  earlier this session) even as a _global_ option — replicating that
   non-functional option per-context would add pure complexity for nothing.
   MySQL/MariaDB only, per context.
 - **Data Sources and Backup & Restore inside the per-context panel operate on
-  whichever context is currently *active* (navbar switcher), not necessarily
-  the one merely *selected* in the left list.** This was a scope call to
+  whichever context is currently _active_ (navbar switcher), not necessarily
+  the one merely _selected_ in the left list.** This was a scope call to
   avoid rewriting those two features to accept an arbitrary context_id
   end-to-end (see "Not done yet" below — this is the main compromise worth
   revisiting). The UI says this explicitly in both sub-panels.
@@ -126,7 +125,7 @@ order:
   active requires a DB query, but which DB to query depends on which context
   is active. Solved by caching the last successfully-applied connection's
   details in `data/active-context.json` (`lastLiveConfig`, password
-  encrypted) and reconnecting to *that* directly at every process boot,
+  encrypted) and reconnecting to _that_ directly at every process boot,
   before ever querying anything. `.env.local` is only the fallback the very
   first time, before any context has ever gone live. See
   `activeContextService.applyCachedConnectionAtBoot()` and how `server.js`
@@ -158,7 +157,7 @@ order:
   `/api/active-context`. Fixed with a `maskContext()` helper (same pattern as
   the old `maskProfile()`) — now returns `hasDbPassword: true/false` instead.
   **If you touch these two functions again, keep the masking.**
-  `contextDatabaseConfigService.js` has its *own* separate raw query
+  `contextDatabaseConfigService.js` has its _own_ separate raw query
   (`getContextRow`) that legitimately needs the real blob for
   encrypt/decrypt — that one is correctly unmasked, don't "fix" it.
 - **Real bug found and fixed in `mysqlSchema.js`:** old pre-context
@@ -172,12 +171,12 @@ order:
   migrations). **Confirmed idempotent** — `db:init` now runs clean
   back-to-back multiple times in a row.
 - **`main.js`**: generic `app.bindTabDragReorder(navEl, itemSelector,
-  onReorder)` — reusable drag-to-reorder for any tab strip. Reads/writes
+onReorder)` — reusable drag-to-reorder for any tab strip. Reads/writes
   `data-tab` (or whatever attribute the selector implies) on each item.
 - **`dashboard.ejs` + `tabs.js`**: main app tabs (except Dailies) are now
   `draggable="true"` `<li data-tab="...">`, reordered/hidden per the active
   context's `context_tab_settings` on load (`TabManager.applyContextTabConfig
-  ()`), with drag-reorder wired to persist back via
+()`), with drag-reorder wired to persist back via
   `PUT /api/context-tab-settings/:contextId`. Gated so this only runs on the
   dashboard page (checks for `#dailies-tab`), not Settings.
 - **New split-pane `contexts.ejs` + `contexts.js`** — left panel (context
@@ -208,14 +207,14 @@ order:
 1. **`backupService.js`** — was mid-edit when we stopped. It currently still
    works exactly as it did before tonight (untouched), but has two known
    problems to fix:
-   - Its `TABLES` list predates several features added *this session* and is
+   - Its `TABLES` list predates several features added _this session_ and is
      missing: `idea_folders`, `ideas`, `idea_items`, `contexts`,
      `context_tab_settings`. Export/import silently skip these tables right
      now. This bug is independent of the context work — worth fixing either
      way.
    - Per the "Data Sources/Backup operate on the active context" decision
      above, `exportDatabase()`/`importDatabase()` should ideally scope to the
-     active context's rows rather than exporting/replacing the *entire*
+     active context's rows rather than exporting/replacing the _entire_
      database (which is what they do today — a backup import right now still
      nukes every context's data, not just the active one). Tables with a
      `context_id` column can filter directly; join/child tables (e.g.
@@ -262,5 +261,5 @@ order:
   table (Categories tab, unrelated) vs `contexts` (this feature). Don't
   conflate them; this naming collision is exactly why "Contexts" was chosen
   over reusing the word "Areas."
-- **`db:init` needs to be run against *both* local and remote** after any
+- **`db:init` needs to be run against _both_ local and remote** after any
   schema change — there's no automatic sync between them.
