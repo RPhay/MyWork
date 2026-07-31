@@ -10,9 +10,20 @@ function maskContext(context) {
   return { ...rest, hasDbPassword: !!db_password_enc };
 }
 
+async function attachUserNames(contexts) {
+  const userIds = [...new Set(contexts.map(c => c.user_id).filter(Boolean))];
+  if (userIds.length === 0) return contexts.map(c => ({ ...c, userName: null }));
+
+  const placeholders = userIds.map(() => '?').join(',');
+  const users = await db.query(`SELECT id, name FROM users WHERE id IN (${placeholders})`, userIds);
+  const nameById = new Map(users.map(u => [u.id, u.name]));
+
+  return contexts.map(c => ({ ...c, userName: c.user_id ? (nameById.get(c.user_id) || null) : null }));
+}
+
 export async function getAllContexts() {
   const rows = await db.query('SELECT * FROM contexts ORDER BY order_index ASC, name ASC');
-  return rows.map(maskContext);
+  return attachUserNames(rows.map(maskContext));
 }
 
 export async function getContextById(id) {
@@ -20,7 +31,8 @@ export async function getContextById(id) {
   if (!context) {
     throw new NotFoundError('Context not found');
   }
-  return maskContext(context);
+  const [withUserName] = await attachUserNames([maskContext(context)]);
+  return withUserName;
 }
 
 export async function createContext(data) {
@@ -62,6 +74,10 @@ export async function updateContext(id, data) {
   if (data.order_index !== undefined) {
     setClauses.push('order_index = ?');
     values.push(data.order_index);
+  }
+  if (data.user_id !== undefined) {
+    setClauses.push('user_id = ?');
+    values.push(data.user_id || null);
   }
 
   if (setClauses.length === 0) {

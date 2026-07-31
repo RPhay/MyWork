@@ -473,6 +473,18 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Create users table - identity is deliberately minimal (name only, no
+  // password): logging in with a name that doesn't exist yet creates it.
+  // Good enough to keep each person's contexts (and everything under them)
+  // separate; not intended as real access control against a hostile actor.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
   // distinct from the "areas" table, which backs the unrelated Categories tab)
   await connection.query(`
@@ -492,6 +504,20 @@ export async function createMysqlSchema(connection) {
     await connection.query('INSERT INTO contexts (name, order_index) VALUES (?, ?)', ['Default', 0]);
   }
 
+  // Every context belongs to exactly one user, once someone's logged in as
+  // one - nullable so existing installs (upgrading from a pre-login version)
+  // aren't immediately broken. Left NULL, a context is "unclaimed"; the
+  // first person to log in after upgrading claims every unclaimed context
+  // (see userService.js#findOrCreateUser), so this self-heals on first
+  // login rather than needing a real migration/backfill decision here.
+  if (!(await columnExists(connection, 'contexts', 'user_id'))) {
+    await connection.query(`
+      ALTER TABLE contexts
+        ADD COLUMN user_id INT NULL,
+        ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    `);
+  }
+
   // Each context owns its own database connection (contexts can point at
   // entirely different physical databases, not just filter rows within a
   // shared one) and its own sub-tab ordering for the Settings > Contexts panel.
@@ -509,11 +535,8 @@ export async function createMysqlSchema(connection) {
 
   // A context can additionally save an MSSQL profile alongside its MySQL/MariaDB
   // one (Settings > Contexts > Database has a type toggle so both can be
-  // configured, tested, and schema-created independently). Only MySQL/MariaDB
-  // is ever the *live* query backend, though - db_type just records which one
-  // the toggle was last left on; connectionPool.js has no MSSQL query path, so
-  // whichever type is selected here does not change what the app actually
-  // queries through. The unprefixed db_* columns above are the MySQL/MariaDB
+  // configured, tested, and schema-created independently, and db_type selects
+  // which one is live - see connectionPool.js). The unprefixed db_* columns above are the MySQL/MariaDB
   // profile; these mssql_* columns are the separate MSSQL one.
   if (!(await columnExists(connection, 'contexts', 'db_type'))) {
     await connection.query(`

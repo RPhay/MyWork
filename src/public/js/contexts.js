@@ -12,6 +12,9 @@ function renderContextsList() {
   container.innerHTML = allContexts.map(context => `
     <div class="context-row ${String(context.id) === String(selectedContextId) ? 'selected' : ''}" data-context-id="${context.id}" draggable="true">
       <span class="context-row-title">${context.name}</span>
+      ${context.userName
+        ? `<span class="badge bg-light text-dark border context-row-owner" title="Owner">${app.escapeHtml(context.userName)}</span>`
+        : `<span class="badge bg-danger context-row-owner" title="No owner assigned - this context can't be activated"><i class="bi bi-exclamation-triangle"></i> No owner</span>`}
       <span class="context-row-actions">
         <button class="btn btn-sm btn-danger" data-action="delete" data-id="${context.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
       </span>
@@ -141,9 +144,88 @@ function showContextPanel(context) {
   panel.classList.remove('d-none');
   document.getElementById('contextPanelTitle').textContent = context.name;
 
+  populateContextOwnerSelect(context);
   applySubtabOrder(context);
   loadContextTabsSubpanel(context.id);
   loadContextDbSubpanel(context.id);
+}
+
+// ---- Owner: every context must have a user assigned before it can be
+// activated (see activeContextService.js#setActiveContextId) ----
+
+let allUsers = [];
+
+async function loadUsers() {
+  try {
+    const response = await fetch('/api/users');
+    const result = await response.json();
+    if (result.success) allUsers = result.data;
+  } catch (error) {
+    console.error('Error loading users:', error);
+  }
+}
+
+function populateContextOwnerSelect(context) {
+  const select = document.getElementById('contextOwnerSelect');
+  select.innerHTML = '<option value="">Unassigned</option>' +
+    allUsers.map(u => `<option value="${u.id}">${app.escapeHtml(u.name)}</option>`).join('');
+  select.value = context.user_id || '';
+  document.getElementById('contextOwnerWarning').classList.toggle('d-none', !!context.user_id);
+}
+
+async function saveContextOwner(contextId, userId) {
+  try {
+    const response = await fetch(`/api/contexts/${contextId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ user_id: userId || null })
+    });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify('Error: ' + result.message, 'danger');
+      return;
+    }
+    document.getElementById('contextOwnerWarning').classList.toggle('d-none', !!userId);
+    await loadContexts();
+  } catch (error) {
+    console.error('Error saving context owner:', error);
+    app.notify('Error saving owner', 'danger');
+  }
+}
+
+async function addNewContextOwner() {
+  const name = window.prompt('New user name:');
+  if (!name || !name.trim()) return;
+
+  try {
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ name: name.trim() })
+    });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify('Error: ' + result.message, 'danger');
+      return;
+    }
+    if (!allUsers.some(u => u.id === result.data.id)) {
+      allUsers.push(result.data);
+    }
+    const select = document.getElementById('contextOwnerSelect');
+    select.innerHTML = '<option value="">Unassigned</option>' +
+      allUsers.map(u => `<option value="${u.id}">${app.escapeHtml(u.name)}</option>`).join('');
+    select.value = result.data.id;
+    if (selectedContextId) await saveContextOwner(selectedContextId, result.data.id);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    app.notify('Error creating user', 'danger');
+  }
 }
 
 async function selectContext(contextId) {
@@ -477,6 +559,11 @@ function initContextsEventListeners() {
   document.getElementById('saveContextBtn').addEventListener('click', saveContext);
   document.getElementById('saveContextDbBtn').addEventListener('click', saveContextDbConfig);
 
+  document.getElementById('contextOwnerSelect').addEventListener('change', (e) => {
+    if (selectedContextId) saveContextOwner(selectedContextId, e.target.value);
+  });
+  document.getElementById('addContextOwnerBtn').addEventListener('click', addNewContextOwner);
+
   document.querySelectorAll('input[name="contextDbType"]').forEach(radio => {
     radio.addEventListener('change', () => {
       updateDbTypeVisibility();
@@ -571,6 +658,7 @@ function initContextsEventListeners() {
 
 function initContexts() {
   initContextsEventListeners();
+  loadUsers();
   loadContexts();
 }
 

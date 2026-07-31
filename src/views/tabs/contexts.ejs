@@ -25,7 +25,20 @@
     </div>
 
     <div id="contextPanel" class="d-none">
-      <h5 id="contextPanelTitle" class="mb-3"></h5>
+      <h5 id="contextPanelTitle" class="mb-2"></h5>
+
+      <div class="mb-3">
+        <label class="form-label d-block">Owner <span class="text-danger">*</span></label>
+        <div class="d-flex gap-2 align-items-center">
+          <select class="form-select form-select-sm" id="contextOwnerSelect" style="max-width: 220px;">
+            <option value="">Unassigned</option>
+          </select>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="addContextOwnerBtn">+ New User</button>
+        </div>
+        <div id="contextOwnerWarning" class="text-danger small mt-1 d-none">
+          <i class="bi bi-exclamation-triangle"></i> This context has no owner - it can't be activated until you assign one.
+        </div>
+      </div>
 
       <ul class="nav nav-tabs mb-3" id="contextSubTabs">
         <li class="nav-item" data-subtab="tabs" draggable="true">
@@ -202,9 +215,15 @@
     white-space: nowrap;
   }
 
+  .context-row-owner {
+    flex-shrink: 0;
+    font-weight: 400;
+  }
+
   .context-row-actions {
     display: flex;
     gap: 4px;
+    flex-shrink: 0;
   }
 
   .context-tab-visibility-row {

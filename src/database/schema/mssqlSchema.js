@@ -399,6 +399,14 @@ export async function createMssqlSchema(pool) {
     )
   `);
 
+  await createTableIfNotExists(pool, 'users', `
+    CREATE TABLE users (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      name NVARCHAR(255) NOT NULL UNIQUE,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME()
+    )
+  `);
+
   await createTableIfNotExists(pool, 'contexts', `
     CREATE TABLE contexts (
       id INT IDENTITY(1,1) PRIMARY KEY,
@@ -414,6 +422,15 @@ export async function createMssqlSchema(pool) {
   const contextCountResult = await pool.request().query('SELECT COUNT(*) as cnt FROM contexts');
   if (contextCountResult.recordset[0].cnt === 0) {
     await pool.request().input('name', 'Default').query('INSERT INTO contexts (name, order_index) VALUES (@name, 0)');
+  }
+
+  // Every context belongs to a user once someone's logged in - see the
+  // matching note in mysqlSchema.js.
+  if (!(await columnExists(pool, 'contexts', 'user_id'))) {
+    await pool.request().query(`
+      ALTER TABLE contexts ADD
+        user_id INT NULL CONSTRAINT fk_contexts_user FOREIGN KEY REFERENCES users(id) ON DELETE SET NULL
+    `);
   }
 
   // Each context owns its own database connection and its own sub-tab

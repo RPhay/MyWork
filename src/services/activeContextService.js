@@ -25,25 +25,24 @@ function writeStore(store) {
 
 // Resolves the server's current active context id, persisted across restarts
 // (data/active-context.json, not session-based). Falls back to the first
-// context (by order_index) if none has been explicitly set yet, or if the
-// previously-set one no longer exists (e.g. was deleted). Assumes the caller
-// is already connected to the right database - see applyCachedConnectionAtBoot
-// for why that has to happen first.
+// *owned* context (by order_index) if none has been explicitly set yet, or
+// if the previously-set one no longer exists or has no user assigned (e.g.
+// its owner was deleted) - a context with no user isn't usable, see
+// setActiveContextId. Assumes the caller is already connected to the right
+// database - see applyCachedConnectionAtBoot for why that has to happen first.
 export async function getActiveContextId() {
   const store = readStore();
-
-  if (store.activeContextId) {
-    const contexts = await getAllContexts();
-    if (contexts.some(c => c.id === store.activeContextId)) {
-      return store.activeContextId;
-    }
-  }
-
   const contexts = await getAllContexts();
-  if (contexts.length === 0) {
-    throw new ValidationError('No contexts exist');
+  const ownedContexts = contexts.filter(c => c.user_id);
+
+  if (store.activeContextId && ownedContexts.some(c => c.id === store.activeContextId)) {
+    return store.activeContextId;
   }
-  return contexts[0].id;
+
+  if (ownedContexts.length === 0) {
+    throw new ValidationError('No contexts have an owner assigned yet - assign one in Settings > Contexts before this context can be used');
+  }
+  return ownedContexts[0].id;
 }
 
 // Switches the live connection pool to whatever context is passed in - its own
@@ -133,6 +132,9 @@ export async function applyCachedConnectionAtBoot() {
 export async function setActiveContextId(id) {
   // Throws NotFoundError if it doesn't exist
   const context = await getContextById(id);
+  if (!context.user_id) {
+    throw new ValidationError('Assign a user to this context (Settings > Contexts) before activating it');
+  }
   const store = readStore();
   writeStore({ ...store, activeContextId: context.id });
   await applyContextDatabaseConnection(context.id);
