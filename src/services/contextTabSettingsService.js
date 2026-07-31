@@ -10,6 +10,7 @@ export const CONFIGURABLE_TABS = [
   { key: 'templates', label: 'Templates' },
   { key: 'todos', label: 'To Dos' },
   { key: 'brainstorming', label: 'Brainstorming' },
+  { key: 'reporting', label: 'Reporting' },
 ];
 
 // Returns every configurable tab for a context, visible and in the order

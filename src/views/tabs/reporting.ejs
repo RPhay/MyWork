@@ -1,0 +1,256 @@
+<div class="row mb-3">
+  <div class="col-md-12">
+    <h4>Reporting</h4>
+    <p class="text-muted">Work items, goals, projects, categories, and to-dos/ideas across a date range. Projects and Categories don't have a date of their own, so they're reported via the Work Items linked to them in range.</p>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="rptReportingSubTabs">
+  <li class="nav-item"><button class="nav-link active" data-subtab="summary" type="button">Time Summary</button></li>
+  <li class="nav-item"><button class="nav-link" data-subtab="work-items" type="button">Work Items</button></li>
+  <li class="nav-item"><button class="nav-link" data-subtab="goals" type="button">Goals</button></li>
+  <li class="nav-item"><button class="nav-link" data-subtab="by-project" type="button">By Project</button></li>
+  <li class="nav-item"><button class="nav-link" data-subtab="by-category" type="button">By Category</button></li>
+  <li class="nav-item"><button class="nav-link" data-subtab="todos-ideas" type="button">To Dos &amp; Ideas</button></li>
+</ul>
+
+<!-- Time Summary -->
+<div class="reporting-subtab-pane" data-subtab-pane="summary">
+  <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+    <div>
+      <label for="rptSummaryStartDate" class="form-label small mb-1">From</label>
+      <input type="date" class="form-control form-control-sm" id="rptSummaryStartDate">
+    </div>
+    <div>
+      <label for="rptSummaryEndDate" class="form-label small mb-1">To</label>
+      <input type="date" class="form-control form-control-sm" id="rptSummaryEndDate">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="rptSummaryApplyBtn">Apply</button>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="reporting-stat-card">
+        <div class="text-muted small">Total Time</div>
+        <div class="fs-4" id="rptSummaryTotalTime">&ndash;</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="reporting-stat-card">
+        <div class="text-muted small">Work Items</div>
+        <div class="fs-4" id="rptSummaryItemCount">&ndash;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-md-6">
+      <h6>Status Breakdown</h6>
+      <canvas id="rptSummaryStatusChart" height="180"></canvas>
+    </div>
+    <div class="col-md-6">
+      <h6>Time by Day</h6>
+      <canvas id="rptSummaryByDayChart" height="180"></canvas>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-6">
+      <h6>Top Projects</h6>
+      <div id="rptSummaryTopProjects" class="text-muted small">Loading&hellip;</div>
+    </div>
+    <div class="col-md-6">
+      <h6>Top Categories</h6>
+      <div id="rptSummaryTopCategories" class="text-muted small">Loading&hellip;</div>
+    </div>
+  </div>
+</div>
+
+<!-- Work Items -->
+<div class="reporting-subtab-pane d-none" data-subtab-pane="work-items">
+  <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+    <div>
+      <label for="rptWiStartDate" class="form-label small mb-1">From</label>
+      <input type="date" class="form-control form-control-sm" id="rptWiStartDate">
+    </div>
+    <div>
+      <label for="rptWiEndDate" class="form-label small mb-1">To</label>
+      <input type="date" class="form-control form-control-sm" id="rptWiEndDate">
+    </div>
+    <div>
+      <label for="rptWiStatus" class="form-label small mb-1">Status</label>
+      <select class="form-select form-select-sm" id="rptWiStatus">
+        <option value="">All</option>
+        <option value="Not Started">Not Started</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Complete">Complete</option>
+      </select>
+    </div>
+    <div>
+      <label for="rptWiProject" class="form-label small mb-1">Project</label>
+      <select class="form-select form-select-sm" id="rptWiProject"><option value="">All</option></select>
+    </div>
+    <div>
+      <label for="rptWiCategory" class="form-label small mb-1">Category</label>
+      <select class="form-select form-select-sm" id="rptWiCategory"><option value="">All</option></select>
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="rptWiApplyBtn">Apply</button>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-8">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <thead>
+            <tr><th>Date</th><th>Title</th><th>Project(s)</th><th>Category(ies)</th><th>Status</th><th>Time</th></tr>
+          </thead>
+          <tbody id="rptWiTableBody"><tr><td colspan="6" class="text-center text-muted">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <h6>Status Breakdown</h6>
+      <canvas id="rptWiStatusChart" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Goals -->
+<div class="reporting-subtab-pane d-none" data-subtab-pane="goals">
+  <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+    <div>
+      <label for="rptGoalsYear" class="form-label small mb-1">Year</label>
+      <select class="form-select form-select-sm" id="rptGoalsYear"></select>
+    </div>
+    <div>
+      <label for="rptGoalsStatus" class="form-label small mb-1">Status</label>
+      <select class="form-select form-select-sm" id="rptGoalsStatus">
+        <option value="">All</option>
+        <option value="Not Started">Not Started</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Complete">Complete</option>
+      </select>
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="rptGoalsApplyBtn">Apply</button>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-8">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <thead>
+            <tr><th>Name</th><th>Due Date</th><th>Status</th><th>Categories</th></tr>
+          </thead>
+          <tbody id="rptGoalsTableBody"><tr><td colspan="4" class="text-center text-muted">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <h6>Status Breakdown</h6>
+      <canvas id="rptGoalsStatusChart" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- By Project -->
+<div class="reporting-subtab-pane d-none" data-subtab-pane="by-project">
+  <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+    <div>
+      <label for="rptByProjectStartDate" class="form-label small mb-1">From</label>
+      <input type="date" class="form-control form-control-sm" id="rptByProjectStartDate">
+    </div>
+    <div>
+      <label for="rptByProjectEndDate" class="form-label small mb-1">To</label>
+      <input type="date" class="form-control form-control-sm" id="rptByProjectEndDate">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="rptByProjectApplyBtn">Apply</button>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-6">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <thead><tr><th>Project</th><th>Items</th><th>Time</th></tr></thead>
+          <tbody id="rptByProjectTableBody"><tr><td colspan="3" class="text-center text-muted">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <h6>Time by Project</h6>
+      <canvas id="rptByProjectChart" height="260"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- By Category -->
+<div class="reporting-subtab-pane d-none" data-subtab-pane="by-category">
+  <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+    <div>
+      <label for="rptByCategoryStartDate" class="form-label small mb-1">From</label>
+      <input type="date" class="form-control form-control-sm" id="rptByCategoryStartDate">
+    </div>
+    <div>
+      <label for="rptByCategoryEndDate" class="form-label small mb-1">To</label>
+      <input type="date" class="form-control form-control-sm" id="rptByCategoryEndDate">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="rptByCategoryApplyBtn">Apply</button>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-6">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <thead><tr><th>Category</th><th>Items</th><th>Time</th></tr></thead>
+          <tbody id="rptByCategoryTableBody"><tr><td colspan="3" class="text-center text-muted">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <h6>Time by Category</h6>
+      <canvas id="rptByCategoryChart" height="260"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- To Dos & Ideas -->
+<div class="reporting-subtab-pane d-none" data-subtab-pane="todos-ideas">
+  <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+    <div>
+      <label for="rptTiStartDate" class="form-label small mb-1">From</label>
+      <input type="date" class="form-control form-control-sm" id="rptTiStartDate">
+    </div>
+    <div>
+      <label for="rptTiEndDate" class="form-label small mb-1">To</label>
+      <input type="date" class="form-control form-control-sm" id="rptTiEndDate">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="rptTiApplyBtn">Apply</button>
+  </div>
+
+  <p class="text-muted small">Filtered by when each was created, the closest thing either has to a date.</p>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover">
+      <thead><tr><th>Type</th><th>Title</th><th>Folder</th><th>Progress</th><th>Created</th></tr></thead>
+      <tbody id="rptTiTableBody"><tr><td colspan="5" class="text-center text-muted">Loading&hellip;</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .reporting-stat-card {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 12px 16px;
+    text-align: center;
+  }
+
+  .reporting-subtab-pane table th {
+    font-size: 0.8rem;
+    color: #6c757d;
+    font-weight: 600;
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+  integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
+<script src="/js/reporting.js"></script>

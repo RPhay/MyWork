@@ -77,11 +77,14 @@ if (config.rateLimit.enabled) {
   app.use(globalLimiter);
 }
 
-// CSRF token middleware - make token available to all views
+// CSRF token middleware - make token available to all views. Always set,
+// even when CSRF protection is disabled (falls back to '') - every view
+// (setup.ejs, dashboard.ejs, settings.ejs, ...) references <%= csrfToken %>
+// unconditionally, so on a machine where CSRF_ENABLED was never configured
+// (e.g. a fresh install with no .env.local yet) leaving this unset makes
+// EJS throw "csrfToken is not defined" and 500 the whole page.
 app.use((req, res, next) => {
-  if (config.security.csrf && req.csrfToken) {
-    res.locals.csrfToken = req.csrfToken();
-  }
+  res.locals.csrfToken = (config.security.csrf && req.csrfToken) ? req.csrfToken() : '';
   next();
 });
 

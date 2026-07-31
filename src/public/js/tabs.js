@@ -239,6 +239,9 @@ class TabManager {
       case 'priority-board':
         if (typeof loadBoard !== 'undefined') loadBoard();
         break;
+      case 'reporting':
+        if (typeof loadActiveReportingSubtab !== 'undefined') loadActiveReportingSubtab();
+        break;
     }
   }
 
