@@ -1,0 +1,226 @@
+<div class="row mb-2">
+  <div class="col-md-12 text-end">
+    <button class="btn btn-outline-secondary" id="addIdeaFolderBtn" data-bs-toggle="modal" data-bs-target="#ideaFolderModal">
+      + Add Folder
+    </button>
+    <button class="btn btn-primary" id="addIdeaBtn" data-bs-toggle="modal" data-bs-target="#ideaModal">
+      + Add Idea
+    </button>
+  </div>
+</div>
+
+<p class="text-muted small mb-2">Drag an idea onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+
+<div class="idea-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
+  <span>Title</span>
+  <span>Notes</span>
+  <span>Actions</span>
+</div>
+
+<div id="ideasList">
+  <p class="text-center text-muted">No ideas yet</p>
+</div>
+
+<!-- Idea Folder Modal -->
+<div class="modal fade" id="ideaFolderModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Folder Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="ideaFolderForm">
+          <input type="hidden" id="ideaFolderId" name="folderId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="ideaFolderName" class="form-label">Name *</label>
+            <input type="text" class="form-control" id="ideaFolderName" name="name" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveIdeaFolderBtn">Save Folder</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Idea Modal -->
+<div class="modal fade" id="ideaModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Idea Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="ideaForm">
+          <input type="hidden" id="ideaId" name="ideaId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="ideaTitle" class="form-label">Title *</label>
+            <input type="text" class="form-control" id="ideaTitle" name="title" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="ideaNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="ideaNotes" name="notes" rows="4"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Items</label>
+            <div id="ideaItemsList"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="addIdeaItemBtn">
+              <i class="bi bi-plus-lg"></i> Add Item
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveIdeaBtn">Save Idea</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Convert Idea Modal -->
+<div class="modal fade" id="convertIdeaModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Convert Idea</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Converting: <strong id="convertIdeaTitle"></strong></p>
+
+        <div class="mb-3">
+          <label for="convertIdeaType" class="form-label">Convert To</label>
+          <select class="form-select" id="convertIdeaType">
+            <option value="project">Project</option>
+            <option value="sub-project">Sub-Project</option>
+            <option value="area">Category</option>
+            <option value="sub-area">Sub-Category</option>
+            <option value="work-item">Work Item</option>
+          </select>
+        </div>
+
+        <div class="mb-3 d-none" id="convertIdeaParentGroup">
+          <label for="convertIdeaParent" class="form-label">Parent</label>
+          <select class="form-select" id="convertIdeaParent"></select>
+        </div>
+
+        <div class="mb-3 d-none" id="convertIdeaDateGroup">
+          <label for="convertIdeaDate" class="form-label">Date</label>
+          <input type="date" class="form-control" id="convertIdeaDate">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="doConvertIdeaBtn">Convert</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .idea-tree-header, .idea-row, .idea-folder-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 112px;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .idea-row, .idea-folder-header {
+    padding: 6px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+
+  .idea-row:hover, .idea-folder-header:hover {
+    background: #f8f9fa;
+  }
+
+  .idea-row, .idea-folder-header {
+    cursor: move;
+  }
+
+  .idea-folder-header.idea-drop-target {
+    background: #e7f3ff;
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+  }
+
+  #ideasList.idea-drop-target-root {
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+    border-radius: 4px;
+  }
+
+  .idea-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .idea-folder-toggle {
+    cursor: pointer;
+    width: 1rem;
+    flex: none;
+    display: inline-block;
+    text-align: center;
+    color: #666;
+    transition: transform 0.15s ease;
+  }
+
+  .idea-folder-node.expanded > .idea-folder-header .idea-folder-toggle {
+    transform: rotate(90deg);
+  }
+
+  .idea-folder-node-children {
+    display: none;
+  }
+
+  .idea-folder-node.expanded > .idea-folder-node-children {
+    display: block;
+  }
+
+  .idea-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .idea-notes {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .idea-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+
+  .idea-item-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .idea-item-row input[type="text"] {
+    flex: 1;
+  }
+</style>
+
+<script src="/js/brainstorming.js"></script>

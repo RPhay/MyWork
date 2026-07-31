@@ -344,4 +344,41 @@ export async function createMssqlSchema(pool) {
       CONSTRAINT fk_to_do_items_to_do FOREIGN KEY (to_do_id) REFERENCES to_dos(id) ON DELETE CASCADE
     )
   `);
+
+  await createTableIfNotExists(pool, 'idea_folders', `
+    CREATE TABLE idea_folders (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      name NVARCHAR(255) NOT NULL,
+      parent_id INT NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_idea_folders_parent FOREIGN KEY (parent_id) REFERENCES idea_folders(id) ON DELETE CASCADE
+    )
+  `);
+  await createUpdatedAtTrigger(pool, 'idea_folders');
+
+  await createTableIfNotExists(pool, 'ideas', `
+    CREATE TABLE ideas (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      title NVARCHAR(255) NOT NULL,
+      notes NVARCHAR(MAX),
+      folder_id INT NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_ideas_folder FOREIGN KEY (folder_id) REFERENCES idea_folders(id) ON DELETE SET NULL
+    )
+  `);
+  await createUpdatedAtTrigger(pool, 'ideas');
+
+  await createTableIfNotExists(pool, 'idea_items', `
+    CREATE TABLE idea_items (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      idea_id INT NOT NULL,
+      text NVARCHAR(500) NOT NULL,
+      is_done BIT DEFAULT 0,
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_idea_items_idea FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE
+    )
+  `);
 }

@@ -8,6 +8,8 @@ import yearsRouter from './api/years.js';
 import workItemTemplatesRouter from './api/workItemTemplates.js';
 import toDosRouter from './api/toDos.js';
 import toDoFoldersRouter from './api/toDoFolders.js';
+import ideasRouter from './api/ideas.js';
+import ideaFoldersRouter from './api/ideaFolders.js';
 import databaseConfigRouter from './api/databaseConfig.js';
 import backupRouter from './api/backup.js';
 import { readVersion } from '../utils/version.js';
@@ -24,6 +26,8 @@ router.use('/api/years', yearsRouter);
 router.use('/api/work-item-templates', workItemTemplatesRouter);
 router.use('/api/to-dos', toDosRouter);
 router.use('/api/to-do-folders', toDoFoldersRouter);
+router.use('/api/ideas', ideasRouter);
+router.use('/api/idea-folders', ideaFoldersRouter);
 router.use('/api/database-config', databaseConfigRouter);
 router.use('/api/backup', backupRouter);
 

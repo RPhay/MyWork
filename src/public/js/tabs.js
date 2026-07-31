@@ -172,6 +172,9 @@ class TabManager {
       case 'todos':
         if (typeof loadToDos !== 'undefined') loadToDos();
         break;
+      case 'brainstorming':
+        if (typeof loadIdeas !== 'undefined') loadIdeas();
+        break;
       case 'priority-board':
         if (typeof loadBoard !== 'undefined') loadBoard();
         break;

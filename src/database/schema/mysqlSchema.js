@@ -443,4 +443,43 @@ export async function createMysqlSchema(connection) {
       FOREIGN KEY (to_do_id) REFERENCES to_dos(id) ON DELETE CASCADE
     )
   `);
+
+  // Create idea_folders table (Brainstorming tab; supports sub-folders via parent_id,
+  // structurally identical to to_do_folders)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS idea_folders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      parent_id INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (parent_id) REFERENCES idea_folders(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create ideas table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS ideas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      notes LONGTEXT,
+      folder_id INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (folder_id) REFERENCES idea_folders(id) ON DELETE SET NULL
+    )
+  `);
+
+  // Create idea_items table (an idea's checklist of 1-n sub-items)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS idea_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      idea_id INT NOT NULL,
+      text VARCHAR(500) NOT NULL,
+      is_done BOOLEAN DEFAULT FALSE,
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE
+    )
+  `);
 }

@@ -26,6 +26,7 @@ window.APP_ICONS = {
   goal: 'bi-bullseye',
   template: 'bi-clipboard-plus',
   todo: 'bi-check2-square',
+  idea: 'bi-lightbulb',
 };
 
 // Utility functions
