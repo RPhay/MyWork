@@ -43,6 +43,11 @@
           Backup &amp; Restore
         </button>
       </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="contexts-tab" data-tab="contexts" type="button" role="tab">
+          Contexts
+        </button>
+      </li>
     </ul>
 
     <!-- Tab Content -->
@@ -60,6 +65,11 @@
       <!-- Backup & Restore Tab -->
       <div id="tab-backup" class="tab-content-pane">
         <%- include('../tabs/backup.ejs') %>
+      </div>
+
+      <!-- Contexts Tab -->
+      <div id="tab-contexts" class="tab-content-pane">
+        <%- include('../tabs/contexts.ejs') %>
       </div>
     </div>
   </div>

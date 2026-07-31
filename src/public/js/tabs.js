@@ -165,6 +165,9 @@ class TabManager {
       case 'database-config':
         if (typeof loadDatabaseConfig !== 'undefined') loadDatabaseConfig();
         break;
+      case 'contexts':
+        if (typeof loadContexts !== 'undefined') loadContexts();
+        break;
       case 'templates':
         if (typeof loadTemplates !== 'undefined') loadTemplates();
         if (typeof loadTemplateRightPanel !== 'undefined') loadTemplateRightPanel();

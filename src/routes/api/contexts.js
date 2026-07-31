@@ -1,0 +1,62 @@
+import express from 'express';
+import * as contextService from '../../services/contextService.js';
+import logger from '../../utils/logger.js';
+
+const router = express.Router();
+
+// Get all contexts
+router.get('/', async (req, res) => {
+  try {
+    const contexts = await contextService.getAllContexts();
+    res.json({ success: true, data: contexts });
+  } catch (error) {
+    logger.error('Error fetching contexts:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get single context
+router.get('/:id', async (req, res) => {
+  try {
+    const context = await contextService.getContextById(req.params.id);
+    res.json({ success: true, data: context });
+  } catch (error) {
+    logger.error('Error fetching context:', error);
+    res.status(error.statusCode || 404).json({ success: false, message: error.message });
+  }
+});
+
+// Create context
+router.post('/', async (req, res) => {
+  try {
+    const context = await contextService.createContext(req.body);
+    res.status(201).json({ success: true, message: 'Context created', data: context });
+  } catch (error) {
+    logger.error('Error creating context:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// Update context
+router.put('/:id', async (req, res) => {
+  try {
+    const context = await contextService.updateContext(req.params.id, req.body);
+    res.json({ success: true, message: 'Context updated', data: context });
+  } catch (error) {
+    logger.error('Error updating context:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// Delete context
+router.delete('/:id', async (req, res) => {
+  try {
+    await contextService.deleteContext(req.params.id);
+    res.json({ success: true, message: 'Context deleted' });
+  } catch (error) {
+    logger.error('Error deleting context:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+export default router;

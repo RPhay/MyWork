@@ -482,4 +482,23 @@ export async function createMysqlSchema(connection) {
       FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE
     )
   `);
+
+  // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
+  // distinct from the "areas" table, which backs the unrelated Categories tab)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS contexts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed a starting context so the app is never contextless out of the box.
+  // It's a normal, renamable/deletable-if-not-last row, not a protected special case.
+  const [existingContexts] = await connection.query('SELECT COUNT(*) as cnt FROM contexts');
+  if (existingContexts[0].cnt === 0) {
+    await connection.query('INSERT INTO contexts (name, order_index) VALUES (?, ?)', ['Default', 0]);
+  }
 }

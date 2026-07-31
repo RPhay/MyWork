@@ -10,6 +10,7 @@ import toDosRouter from './api/toDos.js';
 import toDoFoldersRouter from './api/toDoFolders.js';
 import ideasRouter from './api/ideas.js';
 import ideaFoldersRouter from './api/ideaFolders.js';
+import contextsRouter from './api/contexts.js';
 import databaseConfigRouter from './api/databaseConfig.js';
 import backupRouter from './api/backup.js';
 import { readVersion } from '../utils/version.js';
@@ -28,6 +29,7 @@ router.use('/api/to-dos', toDosRouter);
 router.use('/api/to-do-folders', toDoFoldersRouter);
 router.use('/api/ideas', ideasRouter);
 router.use('/api/idea-folders', ideaFoldersRouter);
+router.use('/api/contexts', contextsRouter);
 router.use('/api/database-config', databaseConfigRouter);
 router.use('/api/backup', backupRouter);
 

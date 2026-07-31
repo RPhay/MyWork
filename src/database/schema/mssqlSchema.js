@@ -381,4 +381,21 @@ export async function createMssqlSchema(pool) {
       CONSTRAINT fk_idea_items_idea FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE
     )
   `);
+
+  await createTableIfNotExists(pool, 'contexts', `
+    CREATE TABLE contexts (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      name NVARCHAR(255) NOT NULL UNIQUE,
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
+    )
+  `);
+  await createUpdatedAtTrigger(pool, 'contexts');
+
+  // Seed a starting context so the app is never contextless out of the box.
+  const contextCountResult = await pool.request().query('SELECT COUNT(*) as cnt FROM contexts');
+  if (contextCountResult.recordset[0].cnt === 0) {
+    await pool.request().input('name', 'Default').query('INSERT INTO contexts (name, order_index) VALUES (@name, 0)');
+  }
 }
