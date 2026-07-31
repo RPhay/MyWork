@@ -11,11 +11,22 @@ let currentDragType = null;
 const ASSOCIATION_PATHS = { priority: 'priorities', goal: 'goals', area: 'areas' };
 const STATUS_CYCLE = ['Not Started', 'In Progress', 'Complete'];
 
+// Formats a minute total as "2h 15m" / "45m", or '' for zero/falsy so callers
+// can drop it from the UI entirely rather than show "0m".
+function formatMinutesTotal(minutes) {
+  if (!minutes) return '';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours === 0) return `${mins}m`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+}
+
 // Builds a month-grid calendar's HTML. Shared by the main Dailies calendar and any
 // other calendar (e.g. the Move/Clone modal) that needs the same visual widget
 // without touching the main page's selected-date state. `selected` is either a
 // single date string (single-select) or a Set of date strings (multi-select).
-function buildCalendarHtml(year, month, selected) {
+function buildCalendarHtml(year, month, selected, dayTotals) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const daysInMonth = lastDay.getDate();
@@ -45,11 +56,16 @@ function buildCalendarHtml(year, month, selected) {
     const isToday = dateStr === todayStr;
     const isSelected = selected instanceof Set ? selected.has(dateStr) : dateStr === selected;
 
-    let cellStyle = 'cursor: pointer; text-align: center; padding: 4px; height: 36px; vertical-align: middle; ';
+    let cellStyle = 'cursor: pointer; text-align: center; padding: 4px; height: 36px; vertical-align: middle; position: relative; ';
     if (isToday) cellStyle += 'background: #e7f3ff; font-weight: bold; border: 2px solid #007bff;';
     else if (isSelected) cellStyle += 'background: #007bff; color: white; font-weight: bold;';
 
-    html += `<td style="${cellStyle}" data-date="${dateStr}" title="${dateStr}">${day}</td>`;
+    const dayLabel = formatMinutesTotal(dayTotals && dayTotals.get(dateStr));
+    const timeBadge = dayLabel
+      ? `<span style="position: absolute; top: 1px; right: 2px; font-size: 0.6rem; opacity: 0.75; line-height: 1;">${dayLabel}</span>`
+      : '';
+
+    html += `<td style="${cellStyle}" data-date="${dateStr}" title="${dateStr}">${day}${timeBadge}</td>`;
 
     if ((day + startingDayOfWeek) % 7 === 0 && day < daysInMonth) {
       html += '</tr><tr>';
@@ -68,6 +84,11 @@ function buildCalendarHtml(year, month, selected) {
   return html;
 }
 
+// Per-day time totals are fetched for whichever month is currently in view and
+// injected into the next render; kept outside renderCalendar so a fetch in
+// flight doesn't block the (synchronous) initial paint.
+let calendarDayTotals = new Map();
+
 function renderCalendar() {
   const selectedDate = document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
 
@@ -77,7 +98,35 @@ function renderCalendar() {
     calendarViewMonth = initial.getMonth();
   }
 
-  document.getElementById('calendar').innerHTML = buildCalendarHtml(calendarViewYear, calendarViewMonth, selectedDate);
+  document.getElementById('calendar').innerHTML = buildCalendarHtml(calendarViewYear, calendarViewMonth, selectedDate, calendarDayTotals);
+  loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
+}
+
+async function loadCalendarDayTotals(year, month) {
+  const pad = n => String(n).padStart(2, '0');
+  const startDate = `${year}-${pad(month + 1)}-01`;
+  const endDate = `${year}-${pad(month + 1)}-${pad(new Date(year, month + 1, 0).getDate())}`;
+
+  try {
+    const response = await fetch(`/api/work/range?startDate=${startDate}&endDate=${endDate}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    if (!result.success) return;
+
+    // The view may have moved on to a different month by the time this resolves.
+    if (year !== calendarViewYear || month !== calendarViewMonth) return;
+
+    calendarDayTotals = new Map();
+    for (const item of result.data) {
+      const dateStr = item.date.slice(0, 10);
+      calendarDayTotals.set(dateStr, (calendarDayTotals.get(dateStr) || 0) + (item.time_box_minutes || 0));
+    }
+
+    const selectedDate = document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
+    document.getElementById('calendar').innerHTML = buildCalendarHtml(calendarViewYear, calendarViewMonth, selectedDate, calendarDayTotals);
+  } catch (error) {
+    console.error('Error loading calendar day totals:', error);
+  }
 }
 
 function changeCalendarMonth(delta) {
@@ -113,6 +162,12 @@ function updateDateDisplay() {
   const date = new Date(dateStr + 'T00:00:00');
   const formatted = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   document.getElementById('selectedDateDisplay').textContent = formatted;
+}
+
+function updateDailyTimeTotal() {
+  const totalMinutes = currentWorkItems.reduce((sum, item) => sum + (item.time_box_minutes || 0), 0);
+  const label = formatMinutesTotal(totalMinutes);
+  document.getElementById('dailyTimeTotal').textContent = label ? `(${label} tracked)` : '';
 }
 
 function renderWorkItemsList(items) {
@@ -188,6 +243,7 @@ async function loadWorkItems() {
     if (result.success) {
       currentWorkItems = result.data;
       renderWorkItemsList(result.data);
+      updateDailyTimeTotal();
     } else {
       container.innerHTML = '<p class="text-center text-danger">Error loading work items</p>';
     }
