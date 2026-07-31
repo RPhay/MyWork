@@ -1,0 +1,477 @@
+let expandedPriorities = new Set();
+let allPriorities = [];
+
+function renderPriorityNode(priority, byParent, depth) {
+  const children = byParent.get(priority.id) || [];
+  const hasChildren = children.length > 0;
+  const isExpanded = expandedPriorities.has(String(priority.id));
+
+  const childrenHtml = hasChildren
+    ? `<div class="priority-node-children">${children.map(c => renderPriorityNode(c, byParent, depth + 1)).join('')}</div>`
+    : '';
+
+  const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${a.path || a.name}</span>`).join('');
+  const goalBadges = (priority.goals || []).map(g => `<span class="badge bg-info text-dark"><i class="bi ${APP_ICONS.goal}"></i> ${g.name}</span>`).join('');
+
+  return `
+    <div class="priority-node ${isExpanded ? 'expanded' : ''}" data-priority-id="${priority.id}">
+      <div class="priority-node-header" draggable="true">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          ${hasChildren
+            ? '<i class="bi bi-chevron-right priority-toggle" data-action="toggle-expand"></i>'
+            : '<span class="priority-toggle"></span>'}
+          <i class="bi ${APP_ICONS.project} text-muted"></i>
+          <span class="priority-title">${priority.title}</span>
+        </span>
+        <span class="priority-badges">${areaBadges || '<span class="text-muted small">-</span>'}</span>
+        <span class="priority-badges">${goalBadges || '<span class="text-muted small">-</span>'}</span>
+        <span class="priority-actions">
+          <button class="btn btn-sm btn-info" data-action="edit" data-id="${priority.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-danger" data-action="delete" data-id="${priority.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
+        </span>
+      </div>
+      ${childrenHtml}
+    </div>
+  `;
+}
+
+function renderPrioritiesList(priorities) {
+  const container = document.getElementById('prioritiesList');
+
+  if (!priorities || priorities.length === 0) {
+    container.innerHTML = '<p class="text-center text-muted">No projects yet</p>';
+    return;
+  }
+
+  const byParent = app.groupByParent(priorities);
+  const topLevel = byParent.get(null) || [];
+
+  if (topLevel.length === 0) {
+    container.innerHTML = '<p class="text-center text-muted">No projects yet</p>';
+    return;
+  }
+
+  container.innerHTML = topLevel.map(p => renderPriorityNode(p, byParent, 0)).join('');
+}
+
+async function loadPriorities() {
+  const container = document.getElementById('prioritiesList');
+  container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
+
+  try {
+    const response = await fetch('/api/priorities');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+
+    if (result.success) {
+      allPriorities = result.data;
+      renderPrioritiesList(allPriorities);
+    } else {
+      container.innerHTML = '<p class="text-center text-danger">Error loading projects</p>';
+    }
+  } catch (error) {
+    console.error('Error loading priorities:', error);
+    container.innerHTML = '<p class="text-center text-danger">Error loading projects</p>';
+  }
+}
+
+async function loadPriorityRightPanel() {
+  // Categories (areas)
+  try {
+    const response = await fetch('/api/areas');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const div = document.getElementById('projCategoriesListRight');
+
+    if (result.success && result.data.length > 0) {
+      div.innerHTML = app.flattenTree(result.data).map(a => `
+        <div class="area-item" draggable="true" data-type="area" data-id="${a.id}" data-name="${app.escapeHtml(a.name)}" style="margin-left: ${a.depth * 14}px;">
+          <span><i class="bi ${APP_ICONS.area}"></i> ${a.name}</span>
+          <small class="text-muted">→</small>
+        </div>
+      `).join('');
+      setupDragListeners();
+    } else {
+      div.innerHTML = '<small class="text-muted">No categories</small>';
+    }
+  } catch (error) {
+    console.error('Error loading categories:', error);
+  }
+
+  // Goals
+  try {
+    const year = window.APP_CONFIG?.currentYear || new Date().getFullYear();
+    const response = await fetch(`/api/goals/year/${year}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const div = document.getElementById('projGoalsListRight');
+
+    if (result.success && result.data.length > 0) {
+      div.innerHTML = result.data.map(g => `
+        <div class="goal-item" draggable="true" data-type="goal" data-id="${g.id}" data-name="${app.escapeHtml(g.name)}">
+          <span><i class="bi ${APP_ICONS.goal}"></i> ${g.name}</span>
+          <small class="text-muted">→</small>
+        </div>
+      `).join('');
+      setupDragListeners();
+    } else {
+      div.innerHTML = '<small class="text-muted">No goals</small>';
+    }
+  } catch (error) {
+    console.error('Error loading goals:', error);
+  }
+}
+
+function initProjRightPanelTabs() {
+  document.getElementById('projRightPanelTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-panel-tab]');
+    if (!btn) return;
+
+    document.querySelectorAll('#projRightPanelTabs [data-panel-tab]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const target = btn.dataset.panelTab;
+    document.querySelectorAll('#tab-my-priorities .right-panel-list').forEach(panel => {
+      panel.classList.toggle('d-none', panel.dataset.panel !== target);
+    });
+  });
+}
+
+async function linkCategoryOrGoalToPriority(priorityId, type, id) {
+  const path = type === 'area' ? 'areas' : type === 'goal' ? 'goals' : null;
+  if (!path) return;
+
+  try {
+    const response = await fetch(`/api/priorities/${priorityId}/${path}/${id}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    const result = await response.json();
+    if (result.success) {
+      loadPriorities();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error linking to project:', error);
+    app.notify('Error linking to project', 'danger');
+  }
+}
+
+function getDescendantIds(priorityId) {
+  const descendants = new Set();
+  const byParent = app.groupByParent(allPriorities);
+  const queue = [Number(priorityId)];
+
+  while (queue.length > 0) {
+    const current = queue.pop();
+    (byParent.get(current) || []).forEach(child => {
+      if (!descendants.has(child.id)) {
+        descendants.add(child.id);
+        queue.push(child.id);
+      }
+    });
+  }
+
+  return descendants;
+}
+
+function openNewPriorityForm() {
+  document.getElementById('priorityId').value = '';
+  document.getElementById('priorityForm').reset();
+}
+
+async function savePriority() {
+  const priorityId = document.getElementById('priorityId').value;
+
+  // parent_id, area_ids, and goal_ids are intentionally omitted here - they're
+  // only ever changed via drag-and-drop (reparenting, and linking categories/goals
+  // from the right panel), never through this form, so a plain edit must leave
+  // them untouched.
+  const data = {
+    title: document.getElementById('priorityTitle').value,
+    notes: document.getElementById('priorityNotes').value
+  };
+
+  try {
+    const url = priorityId ? `/api/priorities/${priorityId}` : '/api/priorities';
+    const method = priorityId ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Project saved!', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('priorityModal')).hide();
+      loadPriorities();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error saving project', 'danger');
+  }
+}
+
+async function editPriority(priorityId) {
+  try {
+    const response = await fetch(`/api/priorities/${priorityId}`);
+    const result = await response.json();
+    const priority = result.data;
+
+    document.getElementById('priorityId').value = priority.id;
+    document.getElementById('priorityTitle').value = priority.title;
+    document.getElementById('priorityNotes').value = priority.notes;
+
+    const modal = new bootstrap.Modal(document.getElementById('priorityModal'));
+    modal.show();
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error loading project', 'danger');
+  }
+}
+
+async function deletePriority(priorityId) {
+  const hasChildren = getDescendantIds(priorityId).size > 0;
+  const message = hasChildren
+    ? 'This project has sub-projects that will also be deleted. Delete anyway?'
+    : 'Delete this project?';
+
+  if (!await app.confirm(message)) return;
+
+  try {
+    const response = await fetch(`/api/priorities/${priorityId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Project deleted', 'success');
+      loadPriorities();
+    } else {
+      app.notify('Error deleting project', 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error deleting project', 'danger');
+  }
+}
+
+function togglePriorityNode(nodeEl) {
+  const id = String(nodeEl.dataset.priorityId);
+  if (expandedPriorities.has(id)) {
+    expandedPriorities.delete(id);
+    nodeEl.classList.remove('expanded');
+  } else {
+    expandedPriorities.add(id);
+    nodeEl.classList.add('expanded');
+  }
+}
+
+async function reparentPriority(priorityId, newParentId) {
+  try {
+    const response = await fetch(`/api/priorities/${priorityId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ parent_id: newParentId })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      if (newParentId) expandedPriorities.add(String(newParentId));
+      loadPriorities();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error moving project:', error);
+    app.notify('Error moving project', 'danger');
+  }
+}
+
+function clearDropTargets(container) {
+  container.querySelectorAll('.priority-drop-target').forEach(el => el.classList.remove('priority-drop-target'));
+  container.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
+    el.classList.remove('drop-indicator-before', 'drop-indicator-after');
+  });
+  container.classList.remove('priority-drop-target-root');
+}
+
+async function reorderPrioritySibling(draggedId, targetId, position) {
+  const dragged = allPriorities.find(p => String(p.id) === String(draggedId));
+  const target = allPriorities.find(p => String(p.id) === String(targetId));
+  if (!dragged || !target) return;
+
+  const parentKey = target.parent_id || null;
+  const byParent = app.groupByParent(allPriorities);
+  const siblingIds = (byParent.get(parentKey) || [])
+    .map(p => String(p.id))
+    .filter(id => id !== String(draggedId));
+
+  let insertIndex = siblingIds.indexOf(String(targetId));
+  if (position === 'after') insertIndex += 1;
+  siblingIds.splice(insertIndex, 0, String(draggedId));
+
+  try {
+    // Dropping between siblings under a different parent than the dragged
+    // item's current one also reparents it, same as dropping directly onto a project.
+    if ((dragged.parent_id || null) !== parentKey) {
+      await fetch(`/api/priorities/${draggedId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ parent_id: parentKey })
+      });
+    }
+
+    const response = await fetch('/api/priorities/reorder-siblings', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ orderedIds: siblingIds })
+    });
+    const result = await response.json();
+    if (result.success) {
+      loadPriorities();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error reordering project:', error);
+    app.notify('Error reordering project', 'danger');
+  }
+}
+
+function initPrioritiesEventListeners() {
+  document.getElementById('addPriorityBtn').addEventListener('click', openNewPriorityForm);
+  document.getElementById('savePriorityBtn').addEventListener('click', savePriority);
+
+  const container = document.getElementById('prioritiesList');
+
+  container.addEventListener('dragstart', (e) => {
+    const header = e.target.closest('.priority-node-header');
+    if (!header) return;
+    const node = header.closest('.priority-node');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('priority-id', node.dataset.priorityId);
+    header.classList.add('dragging-item');
+  });
+
+  container.addEventListener('dragend', (e) => {
+    const header = e.target.closest('.priority-node-header');
+    if (header) header.classList.remove('dragging-item');
+    clearDropTargets(container);
+  });
+
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const header = e.target.closest('.priority-node-header');
+    clearDropTargets(container);
+    const isInternalDrag = e.dataTransfer.types.includes('priority-id');
+
+    if (header) {
+      if (isInternalDrag) {
+        const zone = app.getTreeDropZone(e, header);
+        if (zone === 'nest') {
+          header.classList.add('priority-drop-target');
+        } else {
+          header.classList.add(zone === 'before' ? 'drop-indicator-before' : 'drop-indicator-after');
+        }
+      } else {
+        // Dropping a category/goal chip onto a project associates it
+        header.classList.add('priority-drop-target');
+      }
+    } else if (isInternalDrag) {
+      container.classList.add('priority-drop-target-root');
+    }
+  });
+
+  container.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const header = e.target.closest('.priority-node-header');
+    const priorityDraggedId = e.dataTransfer.getData('priority-id');
+
+    if (priorityDraggedId) {
+      const zone = header ? app.getTreeDropZone(e, header) : null;
+      clearDropTargets(container);
+
+      const targetId = header ? header.closest('.priority-node').dataset.priorityId : null;
+      if (targetId && String(targetId) === String(priorityDraggedId)) return;
+
+      if (!targetId) {
+        reparentPriority(priorityDraggedId, null);
+      } else if (zone === 'nest') {
+        reparentPriority(priorityDraggedId, targetId);
+      } else {
+        reorderPrioritySibling(priorityDraggedId, targetId, zone);
+      }
+      return;
+    }
+
+    // External chip drop (category/goal from the right panel) - associates it
+    // onto whichever project/sub-project row it was dropped on.
+    clearDropTargets(container);
+    const type = e.dataTransfer.getData('type');
+    const id = e.dataTransfer.getData('id');
+    if (!type || !id || !header) return;
+
+    const priorityId = header.closest('.priority-node').dataset.priorityId;
+    linkCategoryOrGoalToPriority(priorityId, type, id);
+  });
+
+  container.addEventListener('click', (e) => {
+    const actionBtn = e.target.closest('[data-action="edit"], [data-action="delete"]');
+    if (actionBtn) {
+      if (actionBtn.dataset.action === 'edit') editPriority(actionBtn.dataset.id);
+      else if (actionBtn.dataset.action === 'delete') deletePriority(actionBtn.dataset.id);
+      return;
+    }
+
+    const toggleIcon = e.target.closest('[data-action="toggle-expand"]');
+    if (toggleIcon) {
+      togglePriorityNode(toggleIcon.closest('.priority-node'));
+    }
+  });
+
+  container.addEventListener('dblclick', (e) => {
+    if (e.target.closest('[data-action]')) return;
+    const header = e.target.closest('.priority-node-header');
+    if (!header) return;
+    editPriority(header.closest('.priority-node').dataset.priorityId);
+  });
+}
+
+function initPriorities() {
+  // #priorityModal can be opened from other tabs (e.g. the Dailies right panel).
+  // Left inside the #tab-my-priorities pane, it's a descendant of a display:none
+  // ancestor whenever that tab isn't active, so Bootstrap's backdrop would show but
+  // the dialog itself never could - move it to the body so it always renders.
+  document.body.appendChild(document.getElementById('priorityModal'));
+
+  initPrioritiesEventListeners();
+  initProjRightPanelTabs();
+  loadPriorities();
+  loadPriorityRightPanel();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPriorities);
+} else {
+  initPriorities();
+}

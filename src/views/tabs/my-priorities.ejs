@@ -1,27 +1,45 @@
-<div class="row mb-4">
-  <div class="col-md-12 text-end">
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#priorityModal" onclick="openNewPriorityForm()">
-      + Add Priority
-    </button>
-  </div>
-</div>
+<div class="row" style="min-height: 60vh;">
+  <!-- Main Column: Projects -->
+  <div class="col-md-9" style="overflow-y: auto;">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0">Projects</h6>
+      <button class="btn btn-primary" id="addPriorityBtn" data-bs-toggle="modal" data-bs-target="#priorityModal">
+        + Add Project
+      </button>
+    </div>
 
-<div class="table-responsive">
-  <table class="table table-hover" id="prioritiesTable">
-    <thead class="table-light">
-      <tr>
-        <th width="40"></th>
-        <th>Title</th>
-        <th>Data Source</th>
-        <th width="100">Actions</th>
-      </tr>
-    </thead>
-    <tbody id="prioritiesTableBody" class="sortable-priorities">
-      <tr>
-        <td colspan="4" class="text-center text-muted">No priorities yet</td>
-      </tr>
-    </tbody>
-  </table>
+    <p class="text-muted small mb-2">Drop a project on another to make it a sub-project, between two projects to reorder it there, or onto empty space to make it top-level. Drag a category or goal from the right onto a project to associate it.</p>
+
+    <div class="priority-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
+      <span>Title</span>
+      <span>Categories</span>
+      <span>Goals</span>
+      <span>Actions</span>
+    </div>
+
+    <div id="prioritiesList">
+      <p class="text-center text-muted">No projects yet</p>
+    </div>
+  </div>
+
+  <!-- Right Column: Categories & Goals -->
+  <div class="col-md-3" style="overflow-y: auto; border-left: 1px solid #dee2e6; padding-left: 15px;">
+    <ul class="nav nav-tabs nav-fill mb-2" id="projRightPanelTabs" style="font-size: 0.8rem;">
+      <li class="nav-item">
+        <button class="nav-link active px-1" data-panel-tab="categories" type="button">Categories</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link px-1" data-panel-tab="goals" type="button">Goals</button>
+      </li>
+    </ul>
+
+    <div id="projCategoriesListRight" class="right-panel-list" data-panel="categories">
+      <small class="text-muted">No categories</small>
+    </div>
+    <div id="projGoalsListRight" class="right-panel-list d-none" data-panel="goals">
+      <small class="text-muted">No goals</small>
+    </div>
+  </div>
 </div>
 
 <!-- Priority Modal -->
@@ -29,7 +47,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Priority Form</h5>
+        <h5 class="modal-title">Project Form</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -43,22 +61,6 @@
           </div>
 
           <div class="mb-3">
-            <label for="prioritySource" class="form-label">Data Source</label>
-            <select class="form-select" id="prioritySource" name="source_id">
-              <option value="">-- None --</option>
-              <option value="1">Outlook Calendar</option>
-              <option value="2">Azure DevOps</option>
-              <option value="3">GitHub Commits</option>
-              <option value="4">Outlook Email</option>
-              <option value="5">Azure DevOps Commits</option>
-              <option value="6">MS Teams Messages</option>
-              <option value="7">Daily Notes</option>
-              <option value="8">OneNote Priorities</option>
-              <option value="9">ServiceNow</option>
-            </select>
-          </div>
-
-          <div class="mb-3">
             <label for="priorityNotes" class="form-label">Notes</label>
             <textarea class="form-control" id="priorityNotes" name="notes" rows="4"></textarea>
           </div>
@@ -66,169 +68,102 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="savePriority()">Save Priority</button>
+        <button type="button" class="btn btn-primary" id="savePriorityBtn">Save Project</button>
       </div>
     </div>
   </div>
 </div>
 
-<script>
-async function loadPriorities() {
-  const tbody = document.getElementById('prioritiesTableBody');
-  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>';
-
-  try {
-    const response = await fetch('/api/priorities');
-    const result = await response.json();
-
-    if (result.success && result.data.length > 0) {
-      tbody.innerHTML = result.data.map(priority => `
-        <tr data-priority-id="${priority.id}">
-          <td class="drag-handle" style="cursor: move; color: #999;">⋮⋮</td>
-          <td>${priority.title}</td>
-          <td>${priority.source_id ? 'Source #' + priority.source_id : '-'}</td>
-          <td>
-            <button class="btn btn-sm btn-info" onclick="editPriority(${priority.id})">Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="deletePriority(${priority.id})">Delete</button>
-          </td>
-        </tr>
-      `).join('');
-    } else {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No priorities yet</td></tr>';
-    }
-
-    // Initialize drag-and-drop after loading
-    initSortable();
-  } catch (error) {
-    console.error('Error loading priorities:', error);
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading priorities</td></tr>';
+<style>
+  .priority-tree-header, .priority-node-header {
+    display: grid;
+    grid-template-columns: 1fr 160px 160px 84px;
+    align-items: center;
+    gap: 8px;
   }
-}
 
-function initSortable() {
-  const sortableElement = document.querySelector('.sortable-priorities');
-  if (sortableElement && window.Sortable) {
-    if (window.sortableInstance) {
-      window.sortableInstance.destroy();
-    }
-    window.sortableInstance = Sortable.create(sortableElement, {
-      handle: '.drag-handle',
-      ghostClass: 'sortable-ghost',
-      animation: 150,
-      onEnd: function(evt) {
-        updatePriorityOrder(evt.item.dataset.priorityId, evt.newIndex);
-      }
-    });
+  .priority-tree-header span:not(:first-child) {
+    text-align: left;
   }
-}
 
-function openNewPriorityForm() {
-  document.getElementById('priorityId').value = '';
-  document.getElementById('priorityForm').reset();
-}
-
-async function savePriority() {
-  const priorityId = document.getElementById('priorityId').value;
-
-  const data = {
-    title: document.getElementById('priorityTitle').value,
-    source_id: document.getElementById('prioritySource').value || null,
-    notes: document.getElementById('priorityNotes').value
-  };
-
-  try {
-    const url = priorityId ? `/api/priorities/${priorityId}` : '/api/priorities';
-    const method = priorityId ? 'PUT' : 'POST';
-
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Priority saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('priorityModal')).hide();
-      loadPriorities();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving priority', 'danger');
+  .priority-node-header {
+    padding: 6px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    cursor: move;
   }
-}
 
-async function editPriority(priorityId) {
-  try {
-    const response = await fetch(`/api/priorities/${priorityId}`);
-    const result = await response.json();
-    const priority = result.data;
-
-    document.getElementById('priorityId').value = priority.id;
-    document.getElementById('priorityTitle').value = priority.title;
-    document.getElementById('prioritySource').value = priority.source_id || '';
-    document.getElementById('priorityNotes').value = priority.notes;
-
-    const modal = new bootstrap.Modal(document.getElementById('priorityModal'));
-    modal.show();
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading priority', 'danger');
+  .priority-node-header:hover {
+    background: #f8f9fa;
   }
-}
 
-async function deletePriority(priorityId) {
-  if (!await app.confirm('Delete this priority?')) return;
-
-  try {
-    const response = await fetch(`/api/priorities/${priorityId}`, {
-      method: 'DELETE',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Priority deleted', 'success');
-      loadPriorities();
-    } else {
-      app.notify('Error deleting priority', 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error deleting priority', 'danger');
+  .priority-node-header.dragging-item {
+    opacity: 0.5;
   }
-}
 
-async function updatePriorityOrder(priorityId, newPosition) {
-  try {
-    const response = await fetch(`/api/priorities/${priorityId}/reorder`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ newIndex: newPosition })
-    });
-
-    const result = await response.json();
-    if (!result.success) {
-      loadPriorities(); // Reload if update failed
-    }
-  } catch (error) {
-    console.error('Error reordering:', error);
-    loadPriorities();
+  .priority-node-header.priority-drop-target {
+    background: #e7f3ff;
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
   }
-}
 
-// Load priorities on page load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', loadPriorities);
-} else {
-  loadPriorities();
-}
-</script>
+  #prioritiesList.priority-drop-target-root {
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+    border-radius: 4px;
+  }
+
+  .priority-title-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .priority-title-cell .priority-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .priority-toggle {
+    cursor: pointer;
+    width: 1rem;
+    flex: none;
+    display: inline-block;
+    text-align: center;
+    color: #666;
+    transition: transform 0.15s ease;
+  }
+
+  .priority-node.expanded > .priority-node-header .priority-toggle {
+    transform: rotate(90deg);
+  }
+
+  .priority-title {
+    font-weight: 500;
+  }
+
+  .priority-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .priority-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+
+  .priority-node-children {
+    display: none;
+  }
+
+  .priority-node.expanded > .priority-node-children {
+    display: block;
+  }
+</style>
+
+<script src="/js/priorities.js"></script>

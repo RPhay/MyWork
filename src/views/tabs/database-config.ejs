@@ -1,0 +1,123 @@
+<div class="row">
+  <div class="col-md-12">
+    <h4>Database Configuration</h4>
+    <p class="text-muted">
+      Store connection details for MySQL and MSSQL/Azure SQL. Passwords are encrypted at
+      rest and are never sent back to the browser once saved. The tool currently always
+      runs on MySQL - the "active" selection below just records which one you intend to
+      use; it doesn't switch the app's live connection yet.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>MySQL</span>
+        <span>
+          <span class="badge bg-success d-none" id="mysqlActiveBadge">Active</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="setMysqlActiveBtn">Set Active</button>
+        </span>
+      </div>
+      <div class="card-body">
+        <form id="mysqlConfigForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-2">
+            <label for="mysqlHost" class="form-label">Host *</label>
+            <input type="text" class="form-control" id="mysqlHost" placeholder="localhost" required>
+          </div>
+
+          <div class="mb-2">
+            <label for="mysqlPort" class="form-label">Port</label>
+            <input type="number" class="form-control" id="mysqlPort" placeholder="3306">
+          </div>
+
+          <div class="mb-2">
+            <label for="mysqlDatabase" class="form-label">Database Name</label>
+            <input type="text" class="form-control" id="mysqlDatabase">
+          </div>
+
+          <div class="mb-2">
+            <label for="mysqlUser" class="form-label">User *</label>
+            <input type="text" class="form-control" id="mysqlUser" required>
+          </div>
+
+          <div class="mb-2">
+            <label for="mysqlPassword" class="form-label">Password</label>
+            <input type="password" class="form-control" id="mysqlPassword" autocomplete="new-password">
+            <div class="form-text" id="mysqlPasswordHint"></div>
+          </div>
+        </form>
+
+        <div id="mysqlTestResult" class="small mb-2"></div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" id="testMysqlBtn">Test Connection</button>
+          <button type="button" class="btn btn-primary btn-sm" id="saveMysqlBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>MSSQL / Azure SQL</span>
+        <span>
+          <span class="badge bg-success d-none" id="mssqlActiveBadge">Active</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="setMssqlActiveBtn">Set Active</button>
+        </span>
+      </div>
+      <div class="card-body">
+        <form id="mssqlConfigForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-2">
+            <label for="mssqlHost" class="form-label">Server *</label>
+            <input type="text" class="form-control" id="mssqlHost" placeholder="yourserver.database.windows.net" required>
+          </div>
+
+          <div class="mb-2">
+            <label for="mssqlPort" class="form-label">Port</label>
+            <input type="number" class="form-control" id="mssqlPort" placeholder="1433">
+          </div>
+
+          <div class="mb-2">
+            <label for="mssqlDatabase" class="form-label">Database Name</label>
+            <input type="text" class="form-control" id="mssqlDatabase">
+          </div>
+
+          <div class="mb-2">
+            <label for="mssqlUser" class="form-label">User *</label>
+            <input type="text" class="form-control" id="mssqlUser" required>
+          </div>
+
+          <div class="mb-2">
+            <label for="mssqlPassword" class="form-label">Password</label>
+            <input type="password" class="form-control" id="mssqlPassword" autocomplete="new-password">
+            <div class="form-text" id="mssqlPasswordHint"></div>
+          </div>
+
+          <div class="mb-2 form-check">
+            <input type="checkbox" class="form-check-input" id="mssqlEncrypt" checked>
+            <label class="form-check-label" for="mssqlEncrypt">Encrypt connection (required for Azure SQL)</label>
+          </div>
+
+          <div class="mb-2 form-check">
+            <input type="checkbox" class="form-check-input" id="mssqlTrustCert">
+            <label class="form-check-label" for="mssqlTrustCert">Trust server certificate</label>
+          </div>
+        </form>
+
+        <div id="mssqlTestResult" class="small mb-2"></div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" id="testMssqlBtn">Test Connection</button>
+          <button type="button" class="btn btn-primary btn-sm" id="saveMssqlBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/databaseConfig.js"></script>

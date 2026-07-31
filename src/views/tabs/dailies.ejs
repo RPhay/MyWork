@@ -1,64 +1,59 @@
-<div class="row mb-3">
-  <div class="col-md-12">
-    <div class="btn-group" role="group">
-      <input type="radio" class="btn-check" name="viewMode" id="dayView" value="day" checked onchange="changeViewMode('day')">
-      <label class="btn btn-outline-primary" for="dayView">Day View</label>
-
-      <input type="radio" class="btn-check" name="viewMode" id="weekView" value="week" onchange="changeViewMode('week')">
-      <label class="btn btn-outline-primary" for="weekView">Week View</label>
-    </div>
-  </div>
-</div>
-
 <div class="row" style="height: 70vh;">
   <!-- Left Column: Calendar -->
   <div class="col-md-3" style="overflow-y: auto; border-right: 1px solid #dee2e6; padding: 20px;">
     <div id="calendar" style="font-size: 0.9rem;"></div>
-
-    <div class="d-grid gap-2 mt-4">
-      <button class="btn btn-sm btn-outline-secondary" onclick="previousDate()">← Previous</button>
-      <button class="btn btn-sm btn-primary" onclick="today()">Today</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="nextDate()">Next →</button>
-    </div>
   </div>
 
   <!-- Middle Column: Work Items -->
   <div class="col-md-6" style="overflow-y: auto;">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6>Work Items for <span id="selectedDateDisplay"></span></h6>
-      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#workModal" onclick="openNewWorkForm()">
+      <button class="btn btn-sm btn-primary" id="addWorkItemBtn" data-bs-toggle="modal" data-bs-target="#workModal">
         + Add
       </button>
     </div>
 
-    <div class="table-responsive">
-      <table class="table table-sm table-hover">
-        <thead class="table-light">
-          <tr>
-            <th>Title</th>
-            <th>Status</th>
-            <th width="80">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="workItemsTableBody">
-          <tr>
-            <td colspan="3" class="text-center text-muted">No work items</td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="work-item-tree-header text-muted small fw-bold border-bottom pb-1 mb-2">
+      <span>Title</span>
+      <span>Oh!</span>
+      <span>Status</span>
+      <span>Time Box</span>
+      <span>Actions</span>
+    </div>
+
+    <div id="workItemsList">
+      <p class="text-center text-muted">No work items</p>
     </div>
   </div>
 
-  <!-- Right Column: Priorities & Goals -->
-  <div class="col-md-3" style="overflow-y: auto; border-left: 1px solid #dee2e6;">
-    <h6 class="mb-3">My Priorities</h6>
-    <div id="prioritiesListRight" class="mb-4" style="max-height: 250px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
-      <small class="text-muted">Loading...</small>
-    </div>
+  <!-- Right Column: Priorities, Goals & Areas -->
+  <div class="col-md-3" style="overflow-y: auto; border-left: 1px solid #dee2e6; padding-left: 15px;">
+    <ul class="nav nav-tabs nav-fill mb-2" id="rightPanelTabs" style="font-size: 0.8rem;">
+      <li class="nav-item">
+        <button class="nav-link active px-1" data-panel-tab="priorities" type="button">Projects</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link px-1" data-panel-tab="goals" type="button">Goals</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link px-1" data-panel-tab="areas" type="button">Categories</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link px-1" data-panel-tab="templates" type="button">Templates</button>
+      </li>
+    </ul>
 
-    <h6 class="mb-3">My Goals</h6>
-    <div id="goalsListRight" class="mb-4" style="max-height: 250px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
-      <small class="text-muted">Loading...</small>
+    <div id="prioritiesListRight" class="right-panel-list" data-panel="priorities">
+      <small class="text-muted">No priorities</small>
+    </div>
+    <div id="goalsListRight" class="right-panel-list d-none" data-panel="goals">
+      <small class="text-muted">No goals</small>
+    </div>
+    <div id="areasListRight" class="right-panel-list d-none" data-panel="areas">
+      <small class="text-muted">No categories</small>
+    </div>
+    <div id="templatesListRight" class="right-panel-list d-none" data-panel="templates">
+      <small class="text-muted">No templates</small>
     </div>
   </div>
 </div>
@@ -77,11 +72,6 @@
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
           <div class="mb-3">
-            <label for="workDate" class="form-label">Date *</label>
-            <input type="date" class="form-control" id="workDate" name="date" required>
-          </div>
-
-          <div class="mb-3">
             <label for="workTitle" class="form-label">Title *</label>
             <input type="text" class="form-control" id="workTitle" name="title" required>
           </div>
@@ -92,33 +82,14 @@
           </div>
 
           <div class="mb-3">
-            <label for="workGoals" class="form-label">Associated Goals</label>
-            <select class="form-select" id="workGoals" name="goals" multiple>
-              <!-- Goals will be loaded via AJAX -->
-            </select>
+            <label for="workNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="workNotes" name="notes" rows="3"></textarea>
           </div>
 
           <div class="mb-3">
-            <label for="workPriorities" class="form-label">Associated Priorities</label>
-            <select class="form-select" id="workPriorities" name="priorities" multiple>
-              <!-- Priorities will be loaded via AJAX -->
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label for="workSource" class="form-label">Data Source</label>
-            <select class="form-select" id="workSource" name="source_id">
-              <option value="">-- None --</option>
-              <option value="1">Outlook Calendar</option>
-              <option value="2">Azure DevOps</option>
-              <option value="3">GitHub Commits</option>
-              <option value="4">Outlook Email</option>
-              <option value="5">Azure DevOps Commits</option>
-              <option value="6">MS Teams Messages</option>
-              <option value="7">Daily Notes</option>
-              <option value="8">OneNote Priorities</option>
-              <option value="9">ServiceNow</option>
-            </select>
+            <label class="form-label d-block">Oh!</label>
+            <input type="hidden" id="workEmoji" name="emoji">
+            <button type="button" class="btn btn-outline-secondary emoji-field-btn text-muted" id="workEmojiBtn" data-action="pick-emoji-field" data-input="workEmoji">Pick an emoji</button>
           </div>
 
           <div class="mb-3">
@@ -129,387 +100,337 @@
               <option value="Complete">Complete</option>
             </select>
           </div>
+
+          <div class="mb-3">
+            <label for="workTimeBox" class="form-label">Time Box</label>
+            <select class="form-select" id="workTimeBox">
+              <option value="">No time box</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">60 minutes</option>
+              <option value="custom">Custom...</option>
+            </select>
+            <input type="number" class="form-control mt-2 d-none" id="workTimeBoxCustom" name="time_box_minutes" min="1" step="1" placeholder="Minutes">
+          </div>
         </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="saveWorkItem()">Save Work</button>
+        <button type="button" class="btn btn-primary" id="saveWorkBtn">Save Work</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Work Item Context Menu -->
+<div id="workItemContextMenu" class="context-menu d-none">
+  <button type="button" class="context-menu-item" data-menu-action="edit-notes"><i class="bi bi-sticky"></i> Add/Edit Notes</button>
+  <button type="button" class="context-menu-item" data-menu-action="create-todo"><i class="bi bi-check2-square"></i> Create To Do</button>
+  <button type="button" class="context-menu-item" data-menu-action="move-to"><i class="bi bi-calendar-event"></i> Move To...</button>
+  <button type="button" class="context-menu-item" data-menu-action="clone-to"><i class="bi bi-calendar-plus"></i> Clone To...</button>
+</div>
+
+<!-- Calendar Drop Menu (shown after dropping a work item onto a calendar day) -->
+<div id="calendarDropMenu" class="context-menu d-none">
+  <button type="button" class="context-menu-item" data-drop-action="move"><i class="bi bi-calendar-event"></i> Move Work Item to Date</button>
+  <button type="button" class="context-menu-item" data-drop-action="copy"><i class="bi bi-calendar-plus"></i> Copy Work Item to Date</button>
+</div>
+
+<!-- Emoji Picker Popover (shown by clicking the "Oh!" cell on a work item) -->
+<%
+  const emojiCategories = [
+    { key: 'work', label: 'Work', icon: 'bi-briefcase', emojis: ['✅','🔥','⭐','🚀','⚠️','🐛','💡','📌','🎯','⏰','📞','✈️','🏠','💰','📊','🎉','👍','❌','❓','📝','🧠','🤝','🚧','🧪','📦','🔒','☕','🏆','🐢','⚡'] },
+    { key: 'smileys', label: 'Smileys', icon: 'bi-emoji-smile', emojis: ['😀','😃','😄','😁','😆','😅','😂','🙂','😊','😇','🙃','😉','😌','😍','🥰','😘','😋','😎','🤩','🥳','😴','🤔','😐','😑','🙄','😬','😢','😭','😡','🤯'] },
+    { key: 'nature', label: 'Nature', icon: 'bi-tree', emojis: ['☀️','🌤️','⛅','🌧️','⛈️','❄️','🌈','🌙','🌊','💧','🌱','🌳','🌴','🌵','🍀','🌸','🌻','🍁','🌍','🌎','🌛','🦋','🐝','⚡'] },
+    { key: 'food', label: 'Food', icon: 'bi-cup-hot', emojis: ['☕','🍵','🍺','🍷','🥤','🍎','🍌','🍕','🍔','🍟','🌮','🌯','🍩','🍪','🍰','🎂','🍿','🥗','🍳','🍜','🍣','🍫','🍬','🍯'] },
+    { key: 'objects', label: 'Objects', icon: 'bi-tools', emojis: ['📅','📆','🗓️','📈','📉','📋','📎','✂️','🖊️','✏️','📐','📏','🔍','🔑','🔨','🛠️','⚙️','🔧','🧰','📁','📂','🗂️','📤','📥','💻','📱','🖥️','🔗'] },
+    { key: 'people', label: 'People', icon: 'bi-people', emojis: ['👍','👎','👏','🙌','🤝','🙏','💪','✌️','🤞','🤟','👌','🤙','💯','👀','🎓','🤷','🙋','🤦'] },
+  ];
+%>
+<div id="emojiPickerPopover" class="context-menu d-none">
+  <ul class="nav nav-tabs nav-fill emoji-picker-tabs" id="emojiPickerTabs">
+    <% emojiCategories.forEach((cat, i) => { %>
+      <li class="nav-item">
+        <button class="nav-link px-1 <%= i === 0 ? 'active' : '' %>" data-emoji-tab="<%= cat.key %>" type="button" title="<%= cat.label %>">
+          <i class="bi <%= cat.icon %>"></i>
+        </button>
+      </li>
+    <% }) %>
+  </ul>
+  <% emojiCategories.forEach((cat, i) => { %>
+    <div class="emoji-picker-grid <%= i === 0 ? '' : 'd-none' %>" data-emoji-panel="<%= cat.key %>">
+      <% if (i === 0) { %>
+        <button type="button" class="emoji-picker-btn" data-emoji="" title="No emoji">
+          <i class="bi bi-slash-circle text-muted"></i>
+        </button>
+      <% } %>
+      <% cat.emojis.forEach(emoji => { %>
+        <button type="button" class="emoji-picker-btn" data-emoji="<%= emoji %>"><%= emoji %></button>
+      <% }) %>
+    </div>
+  <% }) %>
+</div>
+
+<!-- Work Item Notes Modal -->
+<div class="modal fade" id="workNotesModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Notes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="workNotesModalId">
+        <textarea class="form-control" id="workNotesModalText" rows="6"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveWorkNotesBtn">Save Notes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Move/Clone Work Item Modal -->
+<div class="modal fade" id="moveCloneModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="moveCloneModalTitle">Move Work Item</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="moveCloneWorkId">
+        <input type="hidden" id="moveCloneMode">
+        <p class="text-muted small mb-2" id="moveCloneHint">Select a date.</p>
+        <div id="moveCloneCalendar" style="font-size: 0.9rem;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmMoveCloneBtn">Move</button>
       </div>
     </div>
   </div>
 </div>
 
 <style>
-  .priority-item, .goal-item {
-    padding: 8px;
-    margin-bottom: 5px;
-    background: #f8f9fa;
+  .context-menu {
+    position: fixed;
+    z-index: 1085;
+    background: #fff;
     border: 1px solid #dee2e6;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 4px;
+    min-width: 180px;
+  }
+
+  .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    background: none;
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    border-radius: 4px;
+  }
+
+  .context-menu-item:hover {
+    background: #f1f3f5;
+  }
+
+  .priority-item, .goal-item, .area-item, .template-item {
+    padding: 3px 6px;
+    margin-bottom: 2px;
+    background: #f8f9fa;
     border-radius: 3px;
     cursor: move;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    line-height: 1.3;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
 
-  .priority-item:hover, .goal-item:hover {
+  .priority-item:hover, .goal-item:hover, .area-item:hover, .template-item:hover {
     background: #e9ecef;
+  }
+
+  .calendar-drop-target {
+    background: #e7f3ff !important;
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+  }
+
+  #workItemsList {
+    min-height: 50vh;
+  }
+
+  #workItemsList.work-items-drop-target {
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+    border-radius: 4px;
+    background: #f0f7ff;
+  }
+
+  .right-panel-list {
+    padding-top: 4px;
   }
 
   .dragging-item {
     opacity: 0.5;
     background: #fff3cd;
   }
+
+  .work-item {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+
+  .work-item-tree-header, .work-item-header {
+    display: grid;
+    grid-template-columns: 1fr 40px 100px 70px 84px;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .work-item-header {
+    padding: 8px 10px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .work-item-title-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .work-item-title-cell .work-item-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .work-item-header .badge {
+    justify-self: start;
+  }
+
+  .work-item-emoji {
+    text-align: center;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+    min-height: 1.2rem;
+  }
+
+  .work-item-emoji:hover {
+    background: #e9ecef;
+  }
+
+  .emoji-picker-tabs {
+    font-size: 0.75rem;
+    margin-bottom: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .emoji-picker-tabs .nav-link {
+    padding: 4px 6px;
+  }
+
+  .emoji-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 2px;
+    max-width: 260px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .emoji-picker-btn {
+    border: none;
+    background: none;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .emoji-picker-btn:hover {
+    background: #f1f3f5;
+  }
+
+  .emoji-field-btn {
+    font-size: 1.1rem;
+    line-height: 1;
+    min-width: 60px;
+  }
+
+  .work-item-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+
+  .work-item-header:hover {
+    background: #f8f9fa;
+  }
+
+  .work-item.drag-over > .work-item-header {
+    background: #e7f3ff;
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+  }
+
+  .work-item-toggle {
+    width: 1rem;
+    display: inline-block;
+    text-align: center;
+    color: #666;
+    transition: transform 0.15s ease;
+  }
+
+  .work-item.expanded .work-item-toggle {
+    transform: rotate(90deg);
+  }
+
+  .work-item-children {
+    display: none;
+    padding: 4px 10px 8px 2.25rem;
+  }
+
+  .work-item.expanded .work-item-children {
+    display: block;
+  }
+
+  .child-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    border-radius: 3px;
+  }
+
+  .child-item:hover {
+    background: #f8f9fa;
+  }
+
+  .child-item .child-remove {
+    margin-left: auto;
+    opacity: 0.6;
+  }
+
+  .child-item .child-remove:hover {
+    opacity: 1;
+  }
 </style>
 
-<script>
-let currentViewMode = 'day';
-
-function renderCalendar() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const daysInMonth = lastDay.getDate();
-  const startingDayOfWeek = firstDay.getDay();
-
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-  let html = `<h5 style="text-align: center; margin-bottom: 15px;">${monthNames[month]} ${year}</h5>`;
-  html += '<table class="table table-bordered" style="margin-bottom: 0; font-size: 0.95rem;">';
-  html += '<tr style="background: #f8f9fa;"><th style="text-align: center;">Sun</th><th style="text-align: center;">Mon</th><th style="text-align: center;">Tue</th><th style="text-align: center;">Wed</th><th style="text-align: center;">Thu</th><th style="text-align: center;">Fri</th><th style="text-align: center;">Sat</th></tr>';
-  html += '<tr>';
-
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    html += '<td style="background: #fafafa;">&nbsp;</td>';
-  }
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month, day);
-    const dateStr = date.toISOString().split('T')[0];
-    const isToday = dateStr === new Date().toISOString().split('T')[0];
-    const isSelected = dateStr === (document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0]);
-
-    let cellStyle = 'cursor: pointer; text-align: center; padding: 8px; height: 40px; vertical-align: middle; ';
-    if (isToday) cellStyle += 'background: #e7f3ff; font-weight: bold; border: 2px solid #007bff;';
-    else if (isSelected) cellStyle += 'background: #007bff; color: white; font-weight: bold;';
-
-    html += `<td style="${cellStyle}" onclick="selectDate('${dateStr}')" title="${dateStr}">${day}</td>`;
-
-    if ((day + startingDayOfWeek) % 7 === 0 && day < daysInMonth) {
-      html += '</tr><tr>';
-    }
-  }
-
-  // Fill remaining cells
-  const totalCells = startingDayOfWeek + daysInMonth;
-  const remainingCells = 7 - (totalCells % 7);
-  if (remainingCells < 7) {
-    for (let i = 0; i < remainingCells; i++) {
-      html += '<td style="background: #fafafa;">&nbsp;</td>';
-    }
-  }
-
-  html += '</tr></table>';
-  document.getElementById('calendar').innerHTML = html;
-}
-
-function selectDate(dateStr) {
-  // Create hidden input if it doesn't exist
-  let dateInput = document.getElementById('selectedDate');
-  if (!dateInput) {
-    dateInput = document.createElement('input');
-    dateInput.type = 'hidden';
-    dateInput.id = 'selectedDate';
-    document.body.appendChild(dateInput);
-  }
-  dateInput.value = dateStr;
-  loadWorkItems();
-  renderCalendar();
-  updateDateDisplay();
-}
-
-function updateDateDisplay() {
-  const dateInput = document.getElementById('selectedDate');
-  const dateStr = dateInput?.value || new Date().toISOString().split('T')[0];
-  const date = new Date(dateStr + 'T00:00:00');
-  const formatted = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-  document.getElementById('selectedDateDisplay').textContent = formatted;
-}
-
-function changeViewMode(mode) {
-  currentViewMode = mode;
-  loadWorkItems();
-}
-
-async function loadWorkItems() {
-  const dateInput = document.getElementById('selectedDate');
-  if (!dateInput || !dateInput.value) {
-    const today = new Date().toISOString().split('T')[0];
-    selectDate(today);
-    return;
-  }
-
-  const date = dateInput.value;
-  const tbody = document.getElementById('workItemsTableBody');
-
-  tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Loading...</td></tr>';
-
-  try {
-    const response = await fetch(`/api/work/date/${date}`);
-    const result = await response.json();
-
-    if (result.success && result.data.length > 0) {
-      tbody.innerHTML = result.data.map(item => `
-        <tr>
-          <td>${item.title}</td>
-          <td><span class="badge bg-${item.status === 'Complete' ? 'success' : item.status === 'In Progress' ? 'warning' : 'secondary'}">${item.status}</span></td>
-          <td>
-            <button class="btn btn-sm btn-info" onclick="editWorkItem(${item.id})">Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteWorkItem(${item.id})">Del</button>
-          </td>
-        </tr>
-      `).join('');
-    } else {
-      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No work items</td></tr>';
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading</td></tr>';
-  }
-}
-
-async function loadPrioritiesAndGoals() {
-  // Load priorities
-  try {
-    const prioResponse = await fetch('/api/priorities');
-    const prioResult = await prioResponse.json();
-    const prioritiesDiv = document.getElementById('prioritiesListRight');
-
-    if (prioResult.success && prioResult.data.length > 0) {
-      prioritiesDiv.innerHTML = prioResult.data.map(p => `
-        <div class="priority-item" draggable="true" data-type="priority" data-id="${p.id}" onmouseenter="this.style.backgroundColor='#e9ecef'" onmouseleave="this.style.backgroundColor='#f8f9fa'">
-          <span>${p.title}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `).join('');
-      setupDragListeners();
-    } else {
-      prioritiesDiv.innerHTML = '<small class="text-muted">No priorities</small>';
-    }
-  } catch (error) {
-    console.error('Error loading priorities:', error);
-  }
-
-  // Load goals
-  try {
-    const year = new Date().getFullYear();
-    const goalResponse = await fetch(`/api/goals/year/${year}`);
-    const goalResult = await goalResponse.json();
-    const goalsDiv = document.getElementById('goalsListRight');
-
-    if (goalResult.success && goalResult.data.length > 0) {
-      goalsDiv.innerHTML = goalResult.data.map(g => `
-        <div class="goal-item" draggable="true" data-type="goal" data-id="${g.id}" onmouseenter="this.style.backgroundColor='#e9ecef'" onmouseleave="this.style.backgroundColor='#f8f9fa'">
-          <span>${g.name}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `).join('');
-      setupDragListeners();
-    } else {
-      goalsDiv.innerHTML = '<small class="text-muted">No goals</small>';
-    }
-  } catch (error) {
-    console.error('Error loading goals:', error);
-  }
-}
-
-function setupDragListeners() {
-  const draggables = document.querySelectorAll('[draggable="true"]');
-  draggables.forEach(item => {
-    item.addEventListener('dragstart', (e) => {
-      e.dataTransfer.effectAllowed = 'copy';
-      e.dataTransfer.setData('type', item.dataset.type);
-      e.dataTransfer.setData('id', item.dataset.id);
-      e.dataTransfer.setData('name', item.textContent.trim());
-      item.classList.add('dragging-item');
-    });
-
-    item.addEventListener('dragend', (e) => {
-      item.classList.remove('dragging-item');
-    });
-  });
-}
-
-function previousDate() {
-  const dateInput = document.getElementById('selectedDate') || (() => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.id = 'selectedDate';
-    input.value = new Date().toISOString().split('T')[0];
-    document.body.appendChild(input);
-    return input;
-  })();
-
-  const date = new Date(dateInput.value);
-  date.setDate(date.getDate() - 1);
-  dateInput.value = date.toISOString().split('T')[0];
-  loadWorkItems();
-  renderCalendar();
-  updateDateDisplay();
-}
-
-function nextDate() {
-  const dateInput = document.getElementById('selectedDate') || (() => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.id = 'selectedDate';
-    input.value = new Date().toISOString().split('T')[0];
-    document.body.appendChild(input);
-    return input;
-  })();
-
-  const date = new Date(dateInput.value);
-  date.setDate(date.getDate() + 1);
-  dateInput.value = date.toISOString().split('T')[0];
-  loadWorkItems();
-  renderCalendar();
-  updateDateDisplay();
-}
-
-function today() {
-  const dateInput = document.getElementById('selectedDate') || (() => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.id = 'selectedDate';
-    document.body.appendChild(input);
-    return input;
-  })();
-
-  dateInput.value = new Date().toISOString().split('T')[0];
-  loadWorkItems();
-  renderCalendar();
-  updateDateDisplay();
-}
-
-function openNewWorkForm() {
-  document.getElementById('workId').value = '';
-  const dateInput = document.getElementById('selectedDate');
-  document.getElementById('workDate').value = dateInput?.value || new Date().toISOString().split('T')[0];
-  document.getElementById('workForm').reset();
-}
-
-async function saveWorkItem() {
-  const workId = document.getElementById('workId').value;
-
-  const data = {
-    date: document.getElementById('workDate').value,
-    title: document.getElementById('workTitle').value,
-    description: document.getElementById('workDescription').value,
-    status: document.getElementById('workStatus').value,
-    goal_ids: Array.from(document.getElementById('workGoals').selectedOptions).map(opt => opt.value),
-    priority_ids: Array.from(document.getElementById('workPriorities').selectedOptions).map(opt => opt.value),
-    source_id: document.getElementById('workSource').value || null
-  };
-
-  try {
-    const url = workId ? `/api/work/${workId}` : '/api/work';
-    const method = workId ? 'PUT' : 'POST';
-
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Work item saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('workModal')).hide();
-      loadWorkItems();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving work item', 'danger');
-  }
-}
-
-async function editWorkItem(workId) {
-  try {
-    const response = await fetch(`/api/work/${workId}`);
-    const result = await response.json();
-    const item = result.data;
-
-    document.getElementById('workId').value = item.id;
-    document.getElementById('workDate').value = item.date;
-    document.getElementById('workTitle').value = item.title;
-    document.getElementById('workDescription').value = item.description;
-    document.getElementById('workStatus').value = item.status;
-
-    const modal = new bootstrap.Modal(document.getElementById('workModal'));
-    modal.show();
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading work item', 'danger');
-  }
-}
-
-async function deleteWorkItem(workId) {
-  if (!await app.confirm('Delete this work item?')) return;
-
-  try {
-    const response = await fetch(`/api/work/${workId}`, {
-      method: 'DELETE',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Work item deleted', 'success');
-      loadWorkItems();
-    } else {
-      app.notify('Error deleting work item', 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error deleting work item', 'danger');
-  }
-}
-
-// Initialize on page load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    const today = new Date().toISOString().split('T')[0];
-    const dateInput = document.createElement('input');
-    dateInput.type = 'hidden';
-    dateInput.id = 'selectedDate';
-    dateInput.value = today;
-    document.body.appendChild(dateInput);
-
-    renderCalendar();
-    updateDateDisplay();
-    loadWorkItems();
-    loadPrioritiesAndGoals();
-  });
-} else {
-  const today = new Date().toISOString().split('T')[0];
-  const dateInput = document.createElement('input');
-  dateInput.type = 'hidden';
-  dateInput.id = 'selectedDate';
-  dateInput.value = today;
-  document.body.appendChild(dateInput);
-
-  renderCalendar();
-  updateDateDisplay();
-  loadWorkItems();
-  loadPrioritiesAndGoals();
-}
-</script>
+<script src="/js/dailies.js"></script>

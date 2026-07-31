@@ -1,0 +1,226 @@
+<div class="row mb-2">
+  <div class="col-md-12 text-end">
+    <button class="btn btn-outline-secondary" id="addFolderBtn" data-bs-toggle="modal" data-bs-target="#folderModal">
+      + Add Folder
+    </button>
+    <button class="btn btn-primary" id="addToDoBtn" data-bs-toggle="modal" data-bs-target="#toDoModal">
+      + Add To Do
+    </button>
+  </div>
+</div>
+
+<p class="text-muted small mb-2">Drag a to do onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+
+<div class="todo-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
+  <span>Title</span>
+  <span>Notes</span>
+  <span>Actions</span>
+</div>
+
+<div id="toDosList">
+  <p class="text-center text-muted">No to dos yet</p>
+</div>
+
+<!-- Folder Modal -->
+<div class="modal fade" id="folderModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Folder Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="folderForm">
+          <input type="hidden" id="folderId" name="folderId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="folderName" class="form-label">Name *</label>
+            <input type="text" class="form-control" id="folderName" name="name" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveFolderBtn">Save Folder</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- To Do Modal -->
+<div class="modal fade" id="toDoModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">To Do Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="toDoForm">
+          <input type="hidden" id="toDoId" name="toDoId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="toDoTitle" class="form-label">Title *</label>
+            <input type="text" class="form-control" id="toDoTitle" name="title" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="toDoNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="toDoNotes" name="notes" rows="4"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Items</label>
+            <div id="toDoItemsList"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="addToDoItemBtn">
+              <i class="bi bi-plus-lg"></i> Add Item
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveToDoBtn">Save To Do</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Convert To Do Modal -->
+<div class="modal fade" id="convertToDoModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Convert To Do</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Converting: <strong id="convertToDoTitle"></strong></p>
+
+        <div class="mb-3">
+          <label for="convertType" class="form-label">Convert To</label>
+          <select class="form-select" id="convertType">
+            <option value="project">Project</option>
+            <option value="sub-project">Sub-Project</option>
+            <option value="area">Category</option>
+            <option value="sub-area">Sub-Category</option>
+            <option value="work-item">Work Item</option>
+          </select>
+        </div>
+
+        <div class="mb-3 d-none" id="convertParentGroup">
+          <label for="convertParent" class="form-label">Parent</label>
+          <select class="form-select" id="convertParent"></select>
+        </div>
+
+        <div class="mb-3 d-none" id="convertDateGroup">
+          <label for="convertDate" class="form-label">Date</label>
+          <input type="date" class="form-control" id="convertDate">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="doConvertBtn">Convert</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .todo-tree-header, .todo-row, .todo-folder-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 112px;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .todo-row, .todo-folder-header {
+    padding: 6px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+
+  .todo-row:hover, .todo-folder-header:hover {
+    background: #f8f9fa;
+  }
+
+  .todo-row, .todo-folder-header {
+    cursor: move;
+  }
+
+  .todo-folder-header.todo-drop-target {
+    background: #e7f3ff;
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+  }
+
+  #toDosList.todo-drop-target-root {
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+    border-radius: 4px;
+  }
+
+  .todo-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .todo-folder-toggle {
+    cursor: pointer;
+    width: 1rem;
+    flex: none;
+    display: inline-block;
+    text-align: center;
+    color: #666;
+    transition: transform 0.15s ease;
+  }
+
+  .todo-folder-node.expanded > .todo-folder-header .todo-folder-toggle {
+    transform: rotate(90deg);
+  }
+
+  .todo-folder-node-children {
+    display: none;
+  }
+
+  .todo-folder-node.expanded > .todo-folder-node-children {
+    display: block;
+  }
+
+  .todo-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .todo-notes {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .todo-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+
+  .todo-item-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .todo-item-row input[type="text"] {
+    flex: 1;
+  }
+</style>
+
+<script src="/js/todos.js"></script>

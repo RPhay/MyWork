@@ -16,6 +16,28 @@ router.get('/year/:year', async (req, res) => {
   }
 });
 
+// Reorder goals (drag-and-drop reorder within the Yearly Goals list)
+router.patch('/reorder', async (req, res) => {
+  try {
+    await goalService.reorderGoals(req.body.orderedIds);
+    res.json({ success: true, message: 'Goals reordered' });
+  } catch (error) {
+    logger.error('Error reordering goals:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// Update just the status (used by single-click status cycling)
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const goal = await goalService.updateGoalStatus(req.params.id, req.body.status);
+    res.json({ success: true, message: 'Status updated', data: goal });
+  } catch (error) {
+    logger.error('Error updating goal status:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // Get single goal
 router.get('/:id', async (req, res) => {
   try {
@@ -34,7 +56,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ success: true, message: 'Goal created', data: goal });
   } catch (error) {
     logger.error('Error creating goal:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -45,7 +67,7 @@ router.put('/:id', async (req, res) => {
     res.json({ success: true, message: 'Goal updated', data: goal });
   } catch (error) {
     logger.error('Error updating goal:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -56,7 +78,7 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true, message: 'Goal deleted' });
   } catch (error) {
     logger.error('Error deleting goal:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

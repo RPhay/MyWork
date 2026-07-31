@@ -30,9 +30,15 @@ class TabManager {
       loadPrioritiesAndGoals();
     }
 
-    // Initialize Priorities tab if it exists
+    // Initialize Projects tab if it exists
     if (typeof loadPriorities !== 'undefined') {
       loadPriorities();
+      loadPriorityRightPanel();
+    }
+
+    // Initialize Areas tab if it exists
+    if (typeof loadAreas !== 'undefined') {
+      loadAreas();
     }
 
     // Initialize Goals tab if it exists
@@ -40,9 +46,30 @@ class TabManager {
       loadYearlyGoals();
     }
 
-    // Initialize Settings tab if it exists
+    // Initialize Data Sources tab if it exists
     if (typeof loadSources !== 'undefined') {
       loadSources();
+    }
+
+    // Initialize Database Configuration tab if it exists
+    if (typeof loadDatabaseConfig !== 'undefined') {
+      loadDatabaseConfig();
+    }
+
+    // Initialize Templates tab if it exists
+    if (typeof loadTemplates !== 'undefined') {
+      loadTemplates();
+      loadTemplateRightPanel();
+    }
+
+    // Initialize To Dos tab if it exists
+    if (typeof loadToDos !== 'undefined') {
+      loadToDos();
+    }
+
+    // Initialize Priorities tab if it exists
+    if (typeof loadBoard !== 'undefined') {
+      loadBoard();
     }
   }
 
@@ -58,11 +85,11 @@ class TabManager {
   }
 
   switchTab(tabName) {
-    // Update URL without reload
+    // Update URL without reload (preserve whichever page we're on, e.g. / or /settings)
     window.history.pushState(
       { tab: tabName },
       '',
-      `/?tab=${tabName}`
+      `${window.location.pathname}?tab=${tabName}`
     );
 
     // Show the tab
@@ -106,15 +133,49 @@ class TabManager {
   setupUrlSync() {
     // Handle browser back/forward
     window.addEventListener('popstate', (e) => {
-      const tab = e.state?.tab || 'dailies';
+      const tab = e.state?.tab || window.APP_CONFIG?.activeTab || 'dailies';
       this.showTab(tab);
     });
   }
 
   loadTabData(tabName) {
-    // Tab data is loaded via individual tab scripts
-    // This method can be used to coordinate loading across tabs
+    // Re-fetch this tab's data every time it's switched to, so content reflects
+    // whatever changed elsewhere while the tab wasn't active (not just what was
+    // loaded once at page load).
     console.log('Loading tab data for:', tabName);
+
+    switch (tabName) {
+      case 'dailies':
+        if (typeof loadWorkItems !== 'undefined') loadWorkItems();
+        if (typeof loadPrioritiesAndGoals !== 'undefined') loadPrioritiesAndGoals();
+        break;
+      case 'my-priorities':
+        if (typeof loadPriorities !== 'undefined') loadPriorities();
+        if (typeof loadPriorityRightPanel !== 'undefined') loadPriorityRightPanel();
+        break;
+      case 'areas':
+        if (typeof loadAreas !== 'undefined') loadAreas();
+        break;
+      case 'yearly-goals':
+        if (typeof loadYearlyGoals !== 'undefined') loadYearlyGoals();
+        break;
+      case 'data-sources':
+        if (typeof loadSources !== 'undefined') loadSources();
+        break;
+      case 'database-config':
+        if (typeof loadDatabaseConfig !== 'undefined') loadDatabaseConfig();
+        break;
+      case 'templates':
+        if (typeof loadTemplates !== 'undefined') loadTemplates();
+        if (typeof loadTemplateRightPanel !== 'undefined') loadTemplateRightPanel();
+        break;
+      case 'todos':
+        if (typeof loadToDos !== 'undefined') loadToDos();
+        break;
+      case 'priority-board':
+        if (typeof loadBoard !== 'undefined') loadBoard();
+        break;
+    }
   }
 
   static getInstance() {

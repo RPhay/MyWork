@@ -17,7 +17,14 @@ const app = express();
 
 // Security middleware
 if (config.security.helmet) {
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'script-src': ["'self'", 'https://cdn.jsdelivr.net'],
+      },
+    },
+  }));
 }
 
 // Logging middleware

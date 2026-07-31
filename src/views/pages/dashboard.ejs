@@ -4,10 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MyWork Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"
+    integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
   <link rel="stylesheet" href="/css/main.css">
 </head>
-<body>
+<body
+  data-active-tab="<%= activeTab || 'dailies' %>"
+  data-current-year="<%= currentYear %>"
+  data-csrf-token="<%= csrfToken %>"
+  data-version="<%= version %>"
+>
   <%- include('../components/navbar.ejs') %>
 
   <div class="container-fluid mt-4">
@@ -17,22 +25,37 @@
     <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="dailies-tab" data-tab="dailies" type="button" role="tab">
-          Dailies
+          <i class="bi bi-calendar-day"></i> Dailies
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="my-priorities-tab" data-tab="my-priorities" type="button" role="tab">
-          My Priorities
+          <i class="bi bi-folder2"></i> Projects
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="priority-board-tab" data-tab="priority-board" type="button" role="tab">
+          <i class="bi bi-kanban"></i> Priorities
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="areas-tab" data-tab="areas" type="button" role="tab">
+          <i class="bi bi-diagram-3"></i> Categories
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="yearly-goals-tab" data-tab="yearly-goals" type="button" role="tab">
-          Yearly Goals
+          <i class="bi bi-bullseye"></i> Yearly Goals
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="settings-tab" data-tab="settings" type="button" role="tab">
-          Settings
+        <button class="nav-link" id="templates-tab" data-tab="templates" type="button" role="tab">
+          <i class="bi bi-clipboard-plus"></i> Templates
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="todos-tab" data-tab="todos" type="button" role="tab">
+          To Dos
         </button>
       </li>
     </ul>
@@ -44,9 +67,19 @@
         <%- include('../tabs/dailies.ejs') %>
       </div>
 
-      <!-- My Priorities Tab -->
+      <!-- Projects Tab -->
       <div id="tab-my-priorities" class="tab-content-pane">
         <%- include('../tabs/my-priorities.ejs') %>
+      </div>
+
+      <!-- Priorities Tab -->
+      <div id="tab-priority-board" class="tab-content-pane">
+        <%- include('../tabs/priority-board.ejs') %>
+      </div>
+
+      <!-- Areas Tab -->
+      <div id="tab-areas" class="tab-content-pane">
+        <%- include('../tabs/areas.ejs') %>
       </div>
 
       <!-- Yearly Goals Tab -->
@@ -54,37 +87,24 @@
         <%- include('../tabs/yearly-goals.ejs') %>
       </div>
 
-      <!-- Settings Tab -->
-      <div id="tab-settings" class="tab-content-pane">
-        <%- include('../tabs/settings.ejs') %>
+      <!-- Templates Tab -->
+      <div id="tab-templates" class="tab-content-pane">
+        <%- include('../tabs/templates.ejs') %>
+      </div>
+
+      <!-- To Dos Tab -->
+      <div id="tab-todos" class="tab-content-pane">
+        <%- include('../tabs/todos.ejs') %>
       </div>
     </div>
   </div>
 
   <%- include('../partials/footer.ejs') %>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/sortablejs@latest/Sortable.min.js"></script>
-  <script>
-    window.APP_CONFIG = {
-      activeTab: '<%= activeTab || 'dailies' %>',
-      currentYear: <%= currentYear %>,
-      csrfToken: '<%= csrfToken %>',
-      version: '<%= version %>'
-    };
-
-    // Display version immediately
-    console.log('[APP] APP_CONFIG version:', window.APP_CONFIG.version);
-    if (window.APP_CONFIG.version) {
-      const versionText = ' - v' + window.APP_CONFIG.version;
-      const navVersion = document.getElementById('navVersion');
-      console.log('[APP] navVersion element:', navVersion);
-      if (navVersion) {
-        navVersion.textContent = versionText;
-        console.log('[APP] Version set to:', versionText);
-      }
-    }
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"
+    integrity="sha384-BSxuMLxX+FCbTdYec3TbXlnMGEEM2QXTFdtDaveen71o+jswm2J36+xFqp8k4VHM" crossorigin="anonymous"></script>
   <script src="/js/main.js"></script>
   <script src="/js/tabs.js"></script>
   <script src="/js/forms.js"></script>

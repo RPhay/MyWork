@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyWork Settings</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"
+    integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body
+  data-active-tab="<%= activeTab || 'data-sources' %>"
+  data-current-year="<%= currentYear %>"
+  data-csrf-token="<%= csrfToken %>"
+  data-version="<%= version %>"
+>
+  <%- include('../components/navbar.ejs') %>
+
+  <div class="container-fluid mt-4">
+    <%- include('../components/alerts.ejs') %>
+
+    <div class="d-flex align-items-center mb-3">
+      <a href="/" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+      <h4 class="mb-0">Settings</h4>
+    </div>
+
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="data-sources-tab" data-tab="data-sources" type="button" role="tab">
+          Data Sources
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="database-config-tab" data-tab="database-config" type="button" role="tab">
+          Database Configuration
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="backup-tab" data-tab="backup" type="button" role="tab">
+          Backup &amp; Restore
+        </button>
+      </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="mainTabContent">
+      <!-- Data Sources Tab -->
+      <div id="tab-data-sources" class="tab-content-pane">
+        <%- include('../tabs/data-sources.ejs') %>
+      </div>
+
+      <!-- Database Configuration Tab -->
+      <div id="tab-database-config" class="tab-content-pane">
+        <%- include('../tabs/database-config.ejs') %>
+      </div>
+
+      <!-- Backup & Restore Tab -->
+      <div id="tab-backup" class="tab-content-pane">
+        <%- include('../tabs/backup.ejs') %>
+      </div>
+    </div>
+  </div>
+
+  <%- include('../partials/footer.ejs') %>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/tabs.js"></script>
+  <script src="/js/forms.js"></script>
+</body>
+</html>

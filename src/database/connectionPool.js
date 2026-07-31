@@ -4,6 +4,33 @@ import logger from '../utils/logger.js';
 
 let pool;
 
+// mysql2 connection failures often surface as an AggregateError with an empty
+// top-level message, so callers see "Error: " with no detail. Translate known
+// error codes into a clear, human-readable message before it reaches the API response.
+function describeDbError(error) {
+  const code = error.code || error.errors?.[0]?.code;
+
+  switch (code) {
+    case 'ECONNREFUSED':
+      return 'Unable to connect to the database. Please verify the database server is running and reachable.';
+    case 'ETIMEDOUT':
+      return 'The database connection timed out. Please try again in a moment.';
+    case 'ER_ACCESS_DENIED_ERROR':
+      return 'Database access was denied. Check the configured database credentials.';
+    case 'ER_BAD_DB_ERROR':
+      return 'The configured database does not exist. Run the database setup script.';
+    case 'ER_NO_SUCH_TABLE':
+      return 'A required database table is missing. Run the database setup script.';
+    case 'ER_DUP_ENTRY':
+      return 'A record with that value already exists.';
+    case 'ER_NO_REFERENCED_ROW':
+    case 'ER_NO_REFERENCED_ROW_2':
+      return 'That references a record which does not exist.';
+    default:
+      return error.message || 'An unexpected database error occurred.';
+  }
+}
+
 async function getPool() {
   if (pool) {
     return pool;
@@ -37,7 +64,10 @@ async function query(sql, values = []) {
     return results;
   } catch (error) {
     logger.error('Database query error:', { sql, error });
-    throw error;
+    const dbError = new Error(describeDbError(error));
+    dbError.code = error.code || error.errors?.[0]?.code;
+    dbError.cause = error;
+    throw dbError;
   }
 }
 

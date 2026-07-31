@@ -32,11 +32,12 @@ const config = {
     csrf: process.env.CSRF_ENABLED === 'true',
     helmet: process.env.HELMET_ENABLED !== 'false',
     cors: process.env.CORS_ENABLED === 'true',
+    configEncryptionKey: process.env.CONFIG_ENCRYPTION_KEY || '',
   },
   rateLimit: {
     enabled: process.env.RATE_LIMIT_ENABLED !== 'false',
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '2000', 10),
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',

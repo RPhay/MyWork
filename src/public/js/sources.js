@@ -1,103 +1,10 @@
-<div class="row">
-  <div class="col-md-12">
-    <h4>Data Sources</h4>
-    <p class="text-muted">Configure and manage your data sources</p>
-  </div>
-</div>
-
-<div class="row mb-4">
-  <div class="col-md-12 text-end">
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#sourceModal" onclick="openNewSourceForm()">
-      + Add Data Source
-    </button>
-  </div>
-</div>
-
-<div class="row">
-  <div class="col-md-12">
-    <div class="table-responsive">
-      <table class="table table-hover">
-        <thead class="table-light">
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Enabled</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="sourcesTableBody">
-          <tr>
-            <td colspan="5" class="text-center text-muted">No data sources configured</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- Source Modal -->
-<div class="modal fade" id="sourceModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Data Source Form</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form id="sourceForm">
-          <input type="hidden" id="sourceId" name="sourceId">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-          <div class="mb-3">
-            <label for="sourceName" class="form-label">Name *</label>
-            <input type="text" class="form-control" id="sourceName" name="name" required>
-          </div>
-
-          <div class="mb-3">
-            <label for="sourceType" class="form-label">Type *</label>
-            <select class="form-select" id="sourceType" name="type" required onchange="updateSourceConfig()">
-              <option value="">-- Select Source Type --</option>
-              <option value="outlook-calendar">Outlook Calendar</option>
-              <option value="azure-devops">Azure DevOps</option>
-              <option value="github">GitHub Commits</option>
-              <option value="outlook-email">Outlook Email</option>
-              <option value="azure-devops-commits">Azure DevOps Commits</option>
-              <option value="teams">MS Teams Messages</option>
-              <option value="daily-notes">Daily Notes</option>
-              <option value="onenote">OneNote Priorities</option>
-              <option value="servicenow">ServiceNow</option>
-            </select>
-          </div>
-
-          <div id="sourceConfigFields">
-            <!-- Dynamic configuration fields will be added here -->
-          </div>
-
-          <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" id="sourceEnabled" name="enabled" checked>
-            <label class="form-check-label" for="sourceEnabled">
-              Enabled
-            </label>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="testSourceConnection()">Test Connection</button>
-        <button type="button" class="btn btn-success" onclick="saveSource()">Save Source</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
 async function loadSources() {
   const tbody = document.getElementById('sourcesTableBody');
   tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>';
 
   try {
     const response = await fetch('/api/sources');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
 
     if (result.success && result.data.length > 0) {
@@ -106,10 +13,10 @@ async function loadSources() {
           <td>${source.name}</td>
           <td>${source.type}</td>
           <td><span class="badge bg-secondary">${source.status}</span></td>
-          <td><input type="checkbox" ${source.enabled ? 'checked' : ''} onchange="toggleSource(${source.id}, this.checked)"></td>
+          <td><input type="checkbox" ${source.enabled ? 'checked' : ''} data-action="toggle" data-id="${source.id}"></td>
           <td>
-            <button class="btn btn-sm btn-info" onclick="editSource(${source.id})">Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteSource(${source.id})">Delete</button>
+            <button class="btn btn-sm btn-info" data-action="edit" data-id="${source.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-danger" data-action="delete" data-id="${source.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
           </td>
         </tr>
       `).join('');
@@ -304,10 +211,39 @@ async function toggleSource(sourceId, enabled) {
   }
 }
 
-// Load sources on page load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', loadSources);
-} else {
+function initSourcesEventListeners() {
+  document.getElementById('addSourceBtn').addEventListener('click', openNewSourceForm);
+  document.getElementById('sourceType').addEventListener('change', updateSourceConfig);
+  document.getElementById('testSourceBtn').addEventListener('click', testSourceConnection);
+  document.getElementById('saveSourceBtn').addEventListener('click', saveSource);
+
+  document.getElementById('sourcesTableBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'edit') editSource(btn.dataset.id);
+    else if (btn.dataset.action === 'delete') deleteSource(btn.dataset.id);
+  });
+
+  document.getElementById('sourcesTableBody').addEventListener('change', (e) => {
+    const checkbox = e.target.closest('[data-action="toggle"]');
+    if (checkbox) toggleSource(checkbox.dataset.id, checkbox.checked);
+  });
+
+  document.getElementById('sourcesTableBody').addEventListener('dblclick', (e) => {
+    if (e.target.closest('[data-action="toggle"]')) return;
+    const row = e.target.closest('tr');
+    const editBtn = row?.querySelector('[data-action="edit"]');
+    if (editBtn) editSource(editBtn.dataset.id);
+  });
+}
+
+function initSources() {
+  initSourcesEventListeners();
   loadSources();
 }
-</script>
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initSources);
+} else {
+  initSources();
+}

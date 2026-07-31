@@ -22,7 +22,9 @@
       "Bash(npm run *)",
       "Bash(curl -s \"http://localhost:3000/\")",
       "Bash(open -a \"Google Chrome\" \"http://localhost:3000\")",
-      "Bash(git commit -m 'Add Playwright debug tests and logging for version display *)"
+      "Bash(git commit -m 'Add Playwright debug tests and logging for version display *)",
+      "Bash(git push *)",
+      "Bash(git credential-osxkeychain *)"
     ]
   }
 }

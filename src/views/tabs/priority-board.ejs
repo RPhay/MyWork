@@ -1,0 +1,253 @@
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h6 class="mb-0"><i class="bi bi-kanban"></i> Priorities</h6>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="priorityViewTabs">
+  <li class="nav-item">
+    <button class="nav-link active" data-view-tab="weekly" type="button">Weekly Priorities</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-view-tab="all" type="button">All Priorities</button>
+  </li>
+</ul>
+
+<!-- Weekly Priorities -->
+<div class="priority-view-pane" data-view="weekly">
+  <p class="text-muted small mb-2">
+    Drag a project from the right to add it to this week's priorities. Drop between two
+    projects (here or on All Priorities) to reorder - order stays in sync across both tabs.
+  </p>
+
+  <div class="row" style="min-height: 55vh;">
+    <div class="col-md-9" style="overflow-y: auto;">
+      <div id="weeklyPrioritiesList">
+        <p class="text-center text-muted">No weekly priorities yet - drag projects in from the right.</p>
+      </div>
+    </div>
+    <div class="col-md-3" style="overflow-y: auto; border-left: 1px solid #dee2e6; padding-left: 15px;">
+      <h6 class="small text-muted text-uppercase mb-2">All Projects</h6>
+      <div id="allProjectsListRight">
+        <small class="text-muted">No projects</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- All Priorities -->
+<div class="priority-view-pane d-none" data-view="all">
+  <p class="text-muted small mb-3">
+    Drag a strip between bays to change its status, or within a bay to resequence it.
+    Click the chevron to reveal sub-projects. Double-click a strip to edit it.
+  </p>
+
+  <div class="row g-3 priority-board-row">
+    <div class="col-md-4">
+      <div class="priority-bay-header">Not Started</div>
+      <div class="priority-bay" data-status="Not Started" id="bay-Not Started">
+        <p class="text-center text-muted small">No projects</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="priority-bay-header">In Progress</div>
+      <div class="priority-bay" data-status="In Progress" id="bay-In Progress">
+        <p class="text-center text-muted small">No projects</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="priority-bay-header">Complete</div>
+      <div class="priority-bay" data-status="Complete" id="bay-Complete">
+        <p class="text-center text-muted small">No projects</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Strip Edit Modal -->
+<div class="modal fade" id="stripModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="stripForm">
+          <input type="hidden" id="stripId" name="stripId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="stripTitle" class="form-label">Title *</label>
+            <input type="text" class="form-control" id="stripTitle" name="title" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="stripNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="stripNotes" name="notes" rows="4"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="stripStatus" class="form-label">Status</label>
+            <select class="form-select" id="stripStatus" name="status">
+              <option value="Not Started">Not Started</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Complete">Complete</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveStripBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .priority-bay-header {
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #495057;
+    margin-bottom: 6px;
+    padding: 0 4px;
+  }
+
+  .priority-bay {
+    min-height: 55vh;
+    background: #f1f3f5;
+    border-radius: 6px;
+    padding: 8px;
+  }
+
+  .priority-bay.bay-drop-target {
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+    background: #e7f3ff;
+  }
+
+  .priority-strip {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-left: 4px solid #6c757d;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+
+  #bay-In\ Progress .priority-strip {
+    border-left-color: #ffc107;
+  }
+
+  #bay-Complete .priority-strip {
+    border-left-color: #198754;
+  }
+
+  .priority-strip.dragging-item {
+    opacity: 0.5;
+  }
+
+  .priority-strip-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    cursor: move;
+  }
+
+  .priority-strip-toggle {
+    width: 1rem;
+    flex: none;
+    display: inline-block;
+    text-align: center;
+    color: #666;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .priority-strip.expanded > .priority-strip-header .priority-strip-toggle {
+    transform: rotate(90deg);
+  }
+
+  .priority-strip-title {
+    flex: 1;
+    font-weight: 500;
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .priority-strip-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .priority-strip-actions {
+    display: flex;
+    gap: 2px;
+  }
+
+  .priority-strip-children {
+    display: none;
+    padding: 2px 8px 6px 8px;
+    border-top: 1px dashed #dee2e6;
+  }
+
+  .priority-strip.expanded > .priority-strip-children {
+    display: block;
+  }
+
+  .priority-strip-child {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 20px;
+    font-size: 0.8rem;
+    border-radius: 3px;
+  }
+
+  .priority-strip-child:hover {
+    background: #f8f9fa;
+  }
+
+  .weekly-priority-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    cursor: move;
+  }
+
+  .weekly-priority-row:hover {
+    background: #f8f9fa;
+  }
+
+  .weekly-priority-row.dragging-item {
+    opacity: 0.5;
+  }
+
+  .weekly-priority-title {
+    flex: 1;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #weeklyPrioritiesList {
+    min-height: 50vh;
+  }
+
+  #weeklyPrioritiesList.weekly-drop-target-root {
+    outline: 2px dashed #007bff;
+    outline-offset: -2px;
+    border-radius: 4px;
+  }
+</style>
+
+<script src="/js/priority-board.js"></script>

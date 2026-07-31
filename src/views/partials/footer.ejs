@@ -3,21 +3,3 @@
     <p class="text-muted mb-0">&copy; 2026 MyWork. All rights reserved.</p>
   </div>
 </footer>
-
-<script>
-  function displayVersion() {
-    if (window.APP_CONFIG?.version) {
-      const versionText = ' - v' + window.APP_CONFIG.version;
-      const navVersion = document.getElementById('navVersion');
-      if (navVersion) {
-        navVersion.textContent = versionText;
-      }
-    }
-  }
-
-  // Run immediately and on DOM ready
-  displayVersion();
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', displayVersion);
-  }
-</script>
