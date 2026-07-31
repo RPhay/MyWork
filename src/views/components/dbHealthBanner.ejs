@@ -1,0 +1,7 @@
+<% if (typeof dbHealth !== 'undefined' && dbHealth && dbHealth.connected && dbHealth.schemaExists === false) { %>
+  <div class="alert alert-danger rounded-0 mb-0 text-center py-2" role="alert">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    MyWork's database schema hasn't been created yet - the app won't work correctly until you do.
+    <a href="/setup" class="alert-link">Go to Database Setup</a>
+  </div>
+<% } %>

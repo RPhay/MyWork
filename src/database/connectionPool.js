@@ -124,6 +124,14 @@ async function deleteRecord(sql, values = []) {
   }
 }
 
+// Used by setupService when resuming a first-run setup where the connection
+// already succeeded (page reload, schema creation not yet done) - lets it
+// reuse the live config to create the schema without asking the user to
+// re-enter host/user/password they already gave on a previous step.
+function getCurrentConfig() {
+  return { ...currentConfig };
+}
+
 async function closePool() {
   if (pool) {
     await pool.end();
@@ -131,4 +139,4 @@ async function closePool() {
   }
 }
 
-export { getPool, query, queryOne, insert, update, deleteRecord, closePool, reconfigure };
+export { getPool, query, queryOne, insert, update, deleteRecord, closePool, reconfigure, getCurrentConfig };

@@ -77,6 +77,29 @@ export async function applyContextDatabaseConnection(contextId) {
   }
 }
 
+// Used by the first-run /setup flow, before any context (or even the
+// `contexts` table) necessarily exists yet - just points the live pool at
+// whatever the user entered and caches it the same way
+// applyContextDatabaseConnection does, so it survives the next restart via
+// applyCachedConnectionAtBoot. Unlike applyContextDatabaseConnection, this
+// throws on failure - the setup page needs to know if it didn't work.
+export async function applyBootstrapConnection(liveConfig) {
+  await connectionPool.reconfigure(liveConfig);
+  logger.info('Applied bootstrap database connection', { host: liveConfig.host, database: liveConfig.database });
+
+  const store = readStore();
+  writeStore({
+    ...store,
+    lastLiveConfig: {
+      host: liveConfig.host,
+      port: liveConfig.port,
+      database: liveConfig.database,
+      user: liveConfig.user,
+      passwordEnc: liveConfig.password ? encrypt(liveConfig.password) : null,
+    },
+  });
+}
+
 // Called once at process startup, before anything queries a database at all.
 // Contexts can each point at an entirely different physical database, so
 // there's a chicken-and-egg problem: figuring out "which context is active"

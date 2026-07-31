@@ -11,6 +11,7 @@ import logger from './utils/logger.js';
 import { ValidationError, AppError } from './config/errors.js';
 import indexRouter from './routes/index.js';
 import { readVersion } from './utils/version.js';
+import { checkDbHealth } from './utils/dbHealth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -104,6 +105,26 @@ app.use((req, res, next) => {
     req.session.flashInfo = undefined;
   }
 
+  next();
+});
+
+// First-run database gate: page loads (not API calls, which already surface
+// their own connection errors via connectionPool.js) redirect to /setup
+// until a database connection actually works. Once connected, res.locals
+// .dbHealth carries whether the schema exists too, for the persistent
+// banner on normal pages (see components/dbHealthBanner.ejs) - that case is
+// deliberately not force-redirected, just flagged, so declining to create
+// the schema doesn't trap the user on /setup forever.
+app.use(async (req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path.startsWith('/setup') || req.path === '/health') {
+    return next();
+  }
+
+  const health = await checkDbHealth();
+  res.locals.dbHealth = health;
+  if (!health.connected) {
+    return res.redirect('/setup');
+  }
   next();
 });
 

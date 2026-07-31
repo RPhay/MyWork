@@ -15,7 +15,9 @@ import activeContextRouter from './api/activeContext.js';
 import contextDatabaseConfigRouter from './api/contextDatabaseConfig.js';
 import contextTabSettingsRouter from './api/contextTabSettings.js';
 import backupRouter from './api/backup.js';
+import setupRouter from './api/setup.js';
 import { readVersion } from '../utils/version.js';
+import { checkDbHealth } from '../utils/dbHealth.js';
 
 const router = express.Router();
 
@@ -36,6 +38,18 @@ router.use('/api/active-context', activeContextRouter);
 router.use('/api/context-database-config', contextDatabaseConfigRouter);
 router.use('/api/context-tab-settings', contextTabSettingsRouter);
 router.use('/api/backup', backupRouter);
+router.use('/api/setup', setupRouter);
+
+// First-run bootstrap page: gets the app pointed at a working database and
+// schema before contexts (or anything else) can exist. Redirects itself back
+// to / once both are in place, so it's never shown once set up.
+router.get('/setup', async (req, res) => {
+  const health = await checkDbHealth(true);
+  if (health.connected && health.schemaExists) {
+    return res.redirect('/');
+  }
+  res.render('pages/setup', { title: 'MyWork Setup', health });
+});
 
 // Dashboard route
 router.get('/', (req, res) => {
@@ -48,6 +62,7 @@ router.get('/', (req, res) => {
     currentYear,
     activeTab: tab,
     version,
+    dbHealth: res.locals.dbHealth,
   });
 });
 
@@ -67,6 +82,7 @@ router.get('/settings', (req, res) => {
     currentYear,
     activeTab: tab,
     version,
+    dbHealth: res.locals.dbHealth,
   });
 });
 
