@@ -1,7 +1,10 @@
 <div class="row mb-3">
   <div class="col-md-12">
     <h4>Contexts</h4>
-    <p class="text-muted">Define top-level contexts (e.g. Work, Life, Hobbies) and configure each one's database, data sources, backup, and which tabs it shows.</p>
+    <p class="text-muted">
+      Define top-level contexts (e.g. Work, Life, Hobbies) and configure each
+      one's database, data sources, backup, and which tabs it shows.
+    </p>
   </div>
 </div>
 
@@ -10,11 +13,26 @@
   <div class="col-md-4 contexts-left-pane">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <h6 class="mb-0">Contexts</h6>
-      <button class="btn btn-sm btn-primary" id="addContextBtn" data-bs-toggle="modal" data-bs-target="#contextModal">
-        + Add
-      </button>
+      <div class="d-flex gap-1">
+        <button
+          class="btn btn-sm btn-outline-secondary"
+          id="addContextFolderBtn"
+        >
+          + Folder
+        </button>
+        <button
+          class="btn btn-sm btn-primary"
+          id="addContextBtn"
+          data-bs-toggle="modal"
+          data-bs-target="#contextModal"
+        >
+          + Context
+        </button>
+      </div>
     </div>
-    <p class="text-muted small">Click a context to configure it on the right. Drag to reorder.</p>
+    <p class="text-muted small">
+      Click a context to configure it. Drag to reorder or drop into a folder.
+    </p>
     <div id="contextsList"></div>
   </div>
 
@@ -28,116 +46,217 @@
       <h5 id="contextPanelTitle" class="mb-2"></h5>
 
       <div class="mb-3">
-        <label class="form-label d-block">Owner <span class="text-danger">*</span></label>
+        <label class="form-label d-block"
+          >Owner <span class="text-danger">*</span></label
+        >
         <div class="d-flex gap-2 align-items-center">
-          <select class="form-select form-select-sm" id="contextOwnerSelect" style="max-width: 220px;">
+          <select
+            class="form-select form-select-sm"
+            id="contextOwnerSelect"
+            style="max-width: 220px"
+          >
             <option value="">Unassigned</option>
           </select>
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="addContextOwnerBtn">+ New User</button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            id="addContextOwnerBtn"
+          >
+            + New User
+          </button>
         </div>
         <div id="contextOwnerWarning" class="text-danger small mt-1 d-none">
-          <i class="bi bi-exclamation-triangle"></i> This context has no owner - it can't be activated until you assign one.
+          <i class="bi bi-exclamation-triangle"></i> This context has no owner -
+          it can't be activated until you assign one.
         </div>
       </div>
 
       <ul class="nav nav-tabs mb-3" id="contextSubTabs">
         <li class="nav-item" data-subtab="tabs" draggable="true">
-          <button class="nav-link active" data-subtab="tabs" type="button">Tabs</button>
+          <button class="nav-link active" data-subtab="tabs" type="button">
+            Tabs
+          </button>
         </li>
         <li class="nav-item" data-subtab="database" draggable="true">
-          <button class="nav-link" data-subtab="database" type="button">Database</button>
+          <button class="nav-link" data-subtab="database" type="button">
+            Database
+          </button>
         </li>
         <li class="nav-item" data-subtab="sources" draggable="true">
-          <button class="nav-link" data-subtab="sources" type="button">Data Sources</button>
+          <button class="nav-link" data-subtab="sources" type="button">
+            Data Sources
+          </button>
         </li>
         <li class="nav-item" data-subtab="backup" draggable="true">
-          <button class="nav-link" data-subtab="backup" type="button">Backup &amp; Restore</button>
+          <button class="nav-link" data-subtab="backup" type="button">
+            Backup &amp; Restore
+          </button>
         </li>
       </ul>
 
       <!-- Tabs sub-panel: which main-app tabs show for this context -->
       <div class="context-subtab-pane" data-subtab-pane="tabs">
-        <p class="text-muted small">Dailies always shows first and can't be hidden. Reorder the rest by dragging them directly on the main tab bar - this just controls which ones show for this context.</p>
+        <p class="text-muted small">
+          Dailies always shows first and can't be hidden. Reorder the rest by
+          dragging them directly on the main tab bar - this just controls which
+          ones show for this context.
+        </p>
         <div id="contextTabsList"></div>
       </div>
 
       <!-- Database sub-panel: this context's own DB connection(s) -->
       <div class="context-subtab-pane d-none" data-subtab-pane="database">
         <p class="text-muted small">
-          This context's own database connection. Contexts can point at different databases entirely -
-          switching to this context in the navbar switches the live connection to whichever profile is
-          selected below.
+          This context's own database connection. Contexts can point at
+          different databases entirely - switching to this context in the navbar
+          switches the live connection to whichever profile is selected below.
         </p>
 
         <div class="btn-group mb-3" role="group" aria-label="Database type">
-          <input type="radio" class="btn-check" name="contextDbType" id="contextDbTypeMysql" value="mysql" autocomplete="off" checked>
-          <label class="btn btn-outline-secondary btn-sm" for="contextDbTypeMysql">MySQL / MariaDB</label>
+          <input
+            type="radio"
+            class="btn-check"
+            name="contextDbType"
+            id="contextDbTypeMysql"
+            value="mysql"
+            autocomplete="off"
+            checked
+          />
+          <label
+            class="btn btn-outline-secondary btn-sm"
+            for="contextDbTypeMysql"
+            >MySQL / MariaDB</label
+          >
 
-          <input type="radio" class="btn-check" name="contextDbType" id="contextDbTypeMssql" value="mssql" autocomplete="off">
-          <label class="btn btn-outline-secondary btn-sm" for="contextDbTypeMssql">MSSQL (Azure)</label>
+          <input
+            type="radio"
+            class="btn-check"
+            name="contextDbType"
+            id="contextDbTypeMssql"
+            value="mssql"
+            autocomplete="off"
+          />
+          <label
+            class="btn btn-outline-secondary btn-sm"
+            for="contextDbTypeMssql"
+            >MSSQL (Azure)</label
+          >
         </div>
 
-        <div id="contextMssqlNotice" class="alert alert-info py-2 px-3 small d-none">
+        <div
+          id="contextMssqlNotice"
+          class="alert alert-info py-2 px-3 small d-none"
+        >
           <i class="bi bi-info-circle"></i>
-          MSSQL support targets Azure SQL with a SQL login (username/password) - the connection is always
-          encrypted. Other Azure authentication types (Azure AD, managed identity, etc.) aren't supported yet.
+          MSSQL support targets Azure SQL with a SQL login (username/password) -
+          the connection is always encrypted. Other Azure authentication types
+          (Azure AD, managed identity, etc.) aren't supported yet.
         </div>
 
         <form id="contextDbForm">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
           <div data-db-fields="mysql">
             <div class="row g-2">
               <div class="col-md-8">
-                <label for="contextDbHostMysql" class="form-label">Host *</label>
-                <input type="text" class="form-control" id="contextDbHostMysql" placeholder="localhost">
+                <label for="contextDbHostMysql" class="form-label"
+                  >Host *</label
+                >
+                <input
+                  type="text"
+                  class="form-control"
+                  id="contextDbHostMysql"
+                  placeholder="localhost"
+                />
               </div>
               <div class="col-md-4">
                 <label for="contextDbPortMysql" class="form-label">Port</label>
-                <input type="number" class="form-control" id="contextDbPortMysql" placeholder="3306">
+                <input
+                  type="number"
+                  class="form-control"
+                  id="contextDbPortMysql"
+                  placeholder="3306"
+                />
               </div>
             </div>
             <div class="mb-2 mt-2">
-              <label for="contextDbNameMysql" class="form-label">Database Name</label>
-              <input type="text" class="form-control" id="contextDbNameMysql">
+              <label for="contextDbNameMysql" class="form-label"
+                >Database Name</label
+              >
+              <input type="text" class="form-control" id="contextDbNameMysql" />
             </div>
             <div class="mb-2">
               <label for="contextDbUserMysql" class="form-label">User *</label>
-              <input type="text" class="form-control" id="contextDbUserMysql">
+              <input type="text" class="form-control" id="contextDbUserMysql" />
             </div>
             <div class="mb-2">
-              <label for="contextDbPasswordMysql" class="form-label">Password</label>
-              <input type="password" class="form-control" id="contextDbPasswordMysql" autocomplete="new-password">
+              <label for="contextDbPasswordMysql" class="form-label"
+                >Password</label
+              >
+              <input
+                type="password"
+                class="form-control"
+                id="contextDbPasswordMysql"
+                autocomplete="new-password"
+              />
             </div>
           </div>
 
           <div data-db-fields="mssql" class="d-none">
             <div class="row g-2">
               <div class="col-md-8">
-                <label for="contextDbHostMssql" class="form-label">Host *</label>
-                <input type="text" class="form-control" id="contextDbHostMssql" placeholder="localhost">
+                <label for="contextDbHostMssql" class="form-label"
+                  >Host *</label
+                >
+                <input
+                  type="text"
+                  class="form-control"
+                  id="contextDbHostMssql"
+                  placeholder="localhost"
+                />
               </div>
               <div class="col-md-4">
                 <label for="contextDbPortMssql" class="form-label">Port</label>
-                <input type="number" class="form-control" id="contextDbPortMssql" placeholder="1433">
+                <input
+                  type="number"
+                  class="form-control"
+                  id="contextDbPortMssql"
+                  placeholder="1433"
+                />
               </div>
             </div>
             <div class="mb-2 mt-2">
-              <label for="contextDbNameMssql" class="form-label">Database Name</label>
-              <input type="text" class="form-control" id="contextDbNameMssql">
+              <label for="contextDbNameMssql" class="form-label"
+                >Database Name</label
+              >
+              <input type="text" class="form-control" id="contextDbNameMssql" />
             </div>
             <div class="mb-2">
               <label for="contextDbUserMssql" class="form-label">User *</label>
-              <input type="text" class="form-control" id="contextDbUserMssql">
+              <input type="text" class="form-control" id="contextDbUserMssql" />
             </div>
             <div class="mb-2">
-              <label for="contextDbPasswordMssql" class="form-label">Password</label>
-              <input type="password" class="form-control" id="contextDbPasswordMssql" autocomplete="new-password">
+              <label for="contextDbPasswordMssql" class="form-label"
+                >Password</label
+              >
+              <input
+                type="password"
+                class="form-control"
+                id="contextDbPasswordMssql"
+                autocomplete="new-password"
+              />
             </div>
           </div>
 
           <div class="d-flex align-items-center gap-2 mt-2">
-            <button type="button" class="btn btn-primary btn-sm" id="saveContextDbBtn" disabled>Save</button>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              id="saveContextDbBtn"
+              disabled
+            >
+              Save
+            </button>
             <span id="contextDbStatus" class="small"></span>
           </div>
         </form>
@@ -146,14 +265,22 @@
       <!-- Data Sources sub-panel: reuses the existing Data Sources feature as-is,
            which already operates on the active context -->
       <div class="context-subtab-pane d-none" data-subtab-pane="sources">
-        <p class="text-muted small">Shows data sources for whichever context is currently <strong>active</strong> (top-right switcher), not necessarily the one selected on the left.</p>
+        <p class="text-muted small">
+          Shows data sources for whichever context is currently
+          <strong>active</strong> (top-right switcher), not necessarily the one
+          selected on the left.
+        </p>
         <%- include('./data-sources.ejs') %>
       </div>
 
       <!-- Backup & Restore sub-panel: reuses the existing feature as-is, which
            already operates on the active context's database -->
       <div class="context-subtab-pane d-none" data-subtab-pane="backup">
-        <p class="text-muted small">Exports/imports whichever context is currently <strong>active</strong> (top-right switcher), not necessarily the one selected on the left.</p>
+        <p class="text-muted small">
+          Exports/imports whichever context is currently
+          <strong>active</strong> (top-right switcher), not necessarily the one
+          selected on the left.
+        </p>
         <%- include('./backup.ejs') %>
       </div>
     </div>
@@ -166,26 +293,108 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">New Context</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
       </div>
       <div class="modal-body">
         <form id="contextForm">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <div class="mb-3">
             <label for="contextName" class="form-label">Name *</label>
-            <input type="text" class="form-control" id="contextName" name="name" required>
+            <input
+              type="text"
+              class="form-control"
+              id="contextName"
+              name="name"
+              required
+            />
           </div>
         </form>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveContextBtn">Create</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" id="saveContextBtn">
+          Create
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Context Folder Modal (create / rename) -->
+<div class="modal fade" id="contextFolderModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="contextFolderModalTitle">New Folder</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="contextFolderId" />
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <div class="mb-3">
+          <label for="contextFolderName" class="form-label"
+            >Folder Name *</label
+          >
+          <input
+            type="text"
+            class="form-control"
+            id="contextFolderName"
+            required
+          />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" id="saveContextFolderBtn">
+          Save
+        </button>
       </div>
     </div>
   </div>
 </div>
 
 <style>
+  .context-folder-node {
+    margin-bottom: 4px;
+  }
+
+  .context-folder-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #fff;
+  }
+
+  .context-folder-header:hover {
+    background: #f8f9fa;
+  }
+
+  .context-folder-header.drag-over {
+    background: #d1ecf1;
+    border-color: #0dcaf0;
+  }
+
+  .context-folder-children {
+    margin-left: 18px;
+    margin-top: 4px;
+  }
+
   .context-row {
     display: flex;
     align-items: center;

@@ -1,8 +1,72 @@
-# Carry-on notes — Contexts / per-context settings feature
+# Carry-on notes — Home Pool / Default DB fix
 
-Where we left off for the night. Read this first before continuing the
-"Contexts" work tomorrow — it's a big, partially-built feature spanning
-schema, several services, and a rebuilt Settings page.
+## The problem
+
+Switching the active context to one that has a custom DB configured calls
+`applyContextDatabaseConnection` → `connectionPool.reconfigure()`. This
+replaces the **single live pool** with the context's own DB. Because `contexts`
+is a plain table in whatever the live DB is, the context list in Settings now
+shows only what's in that secondary DB — the "home" contexts (e.g. CLEAResult)
+disappear.
+
+## The fix — two pools
+
+Introduce a permanent **home pool** (`src/database/homePool.js`) that holds a
+connection to the machine's primary DB (`.env.local` / first-run setup
+credentials). It is **never reconfigured**. A separate **content pool**
+(`connectionPool.js`, unchanged) is the switchable one that activates per
+context.
+
+**Services split by pool:**
+
+| Uses home pool | Uses content pool |
+|---|---|
+| `contextService.js` | `workItemService.js` |
+| `contextFolderService.js` | `priorityService.js` |
+| `userService.js` | `goalService.js` |
+| `contextTabSettingsService.js` | `areaService.js` |
+| `activeContextService.js` | `sourceService.js` |
+| | `toDoService.js` / `toDoFolderService.js` |
+| | `ideaService.js` / `ideaFolderService.js` |
+| | `workItemTemplateService.js` |
+| | `yearService.js` |
+| | `backupService.js` |
+
+**`homePool.js`** — mirrors `connectionPool.js`'s `query / queryOne / insert /
+update / deleteRecord` API but reads `config.database.*` once at startup and
+never calls `reconfigure`. It always targets the home DB.
+
+**`activeContextService.applyContextDatabaseConnection`** — continues to
+reconfigure `connectionPool.js` (content pool) only. Does NOT touch homePool.
+
+**`applyCachedConnectionAtBoot`** — continues to restore the content pool
+from `data/active-context.json`. If the file is absent, content pool defaults
+to the home DB (same connection) — no setup required.
+
+## "Default" context badge
+
+A context is "default" (home-pool context) when it has **no custom DB host
+saved** (`db_host IS NULL`). Show a `bi-house-fill` icon badge on such rows in
+the contexts list. The text title stays the same; the icon appears in
+`contextRowHtml()` in `contexts.js` alongside the owner badge.
+
+## Files to create/modify
+
+- **Create** `src/database/homePool.js` — permanent pool, reads `config.database.*`
+- **Modify** `src/services/contextService.js` — import from homePool
+- **Modify** `src/services/contextFolderService.js` — import from homePool
+- **Modify** `src/services/userService.js` — import from homePool
+- **Modify** `src/services/contextTabSettingsService.js` — import from homePool
+- **Modify** `src/services/activeContextService.js` — import homePool for
+  structural reads; content pool reconfigure unchanged
+- **Modify** `src/public/js/contexts.js` — add home-badge icon in `contextRowHtml()`
+
+## Current status
+
+Design complete. Not yet implemented. Start with `homePool.js`, then update
+the service imports one by one, test that contexts remain visible after
+switching to a context with a different DB, then add the badge.
+
 
 ## The feature, as scoped
 

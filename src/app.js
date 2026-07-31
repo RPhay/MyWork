@@ -1,59 +1,63 @@
-import express from 'express';
-import session from 'express-session';
-import csrf from 'csurf';
-import rateLimit from 'express-rate-limit';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import config from './config/environment.js';
-import logger from './utils/logger.js';
-import { ValidationError, AppError } from './config/errors.js';
-import indexRouter from './routes/index.js';
-import { readVersion } from './utils/version.js';
-import { checkDbHealth } from './utils/dbHealth.js';
+import express from "express";
+import session from "express-session";
+import csrf from "csurf";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
+import morgan from "morgan";
+import path from "path";
+import { fileURLToPath } from "url";
+import config from "./config/environment.js";
+import logger from "./utils/logger.js";
+import { ValidationError, AppError } from "./config/errors.js";
+import indexRouter from "./routes/index.js";
+import { readVersion } from "./utils/version.js";
+import { checkDbHealth } from "./utils/dbHealth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 // Security middleware
 if (config.security.helmet) {
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        'script-src': ["'self'", 'https://cdn.jsdelivr.net'],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          "script-src": ["'self'", "https://cdn.jsdelivr.net"],
+        },
       },
-    },
-  }));
+    }),
+  );
 }
 
 // Logging middleware
-app.use(morgan('dev'));
+app.use(morgan("dev"));
 
 // View engine setup
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views"));
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: false }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: false }));
 
 // Static files
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
 // Session middleware
-app.use(session({
-  secret: config.session.secret,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: config.app.env === 'production', // HTTPS only in production
-    httpOnly: true,
-    sameSite: 'strict',
-    maxAge: config.session.timeout,
-  },
-}));
+app.use(
+  session({
+    secret: config.session.secret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: config.app.env === "production", // HTTPS only in production
+      httpOnly: true,
+      sameSite: "strict",
+      maxAge: config.session.timeout,
+    },
+  }),
+);
 
 // CSRF protection middleware
 if (config.security.csrf) {
@@ -64,12 +68,12 @@ if (config.security.csrf) {
 const globalLimiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.maxRequests,
-  message: 'Too many requests from this IP, please try again later.',
+  message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
     // Skip rate limiting for static files and health checks
-    return req.path === '/health' || req.path.startsWith('/public');
+    return req.path === "/health" || req.path.startsWith("/public");
   },
 });
 
@@ -84,7 +88,8 @@ if (config.rateLimit.enabled) {
 // (e.g. a fresh install with no .env.local yet) leaving this unset makes
 // EJS throw "csrfToken is not defined" and 500 the whole page.
 app.use((req, res, next) => {
-  res.locals.csrfToken = (config.security.csrf && req.csrfToken) ? req.csrfToken() : '';
+  res.locals.csrfToken =
+    config.security.csrf && req.csrfToken ? req.csrfToken() : "";
   next();
 });
 
@@ -111,43 +116,43 @@ app.use((req, res, next) => {
   next();
 });
 
-// First-run database gate: page loads (not API calls, which already surface
-// their own connection errors via connectionPool.js) redirect to /setup
-// until a database connection actually works. Once connected, res.locals
-// .dbHealth carries whether the schema exists too, for the persistent
-// banner on normal pages (see components/dbHealthBanner.ejs) - that case is
-// deliberately not force-redirected, just flagged, so declining to create
-// the schema doesn't trap the user on /setup forever.
+// First-run database gate: page loads (not API calls) redirect to /setup
+// until both a working database connection and schema exist.
 app.use(async (req, res, next) => {
-  if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path.startsWith('/setup') || req.path === '/health') {
+  if (
+    req.method !== "GET" ||
+    req.path.startsWith("/api/") ||
+    req.path.startsWith("/setup") ||
+    req.path === "/health"
+  ) {
     return next();
   }
 
   const health = await checkDbHealth();
   res.locals.dbHealth = health;
-  if (!health.connected) {
-    return res.redirect('/setup');
+  if (!health.connected || !health.schemaExists) {
+    return res.redirect("/setup");
   }
   next();
 });
 
 // Routes
-app.use('/', indexRouter);
+app.use("/", indexRouter);
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date() });
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date() });
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).render('404', { title: 'Not Found' });
+  res.status(404).render("404", { title: "Not Found" });
 });
 
 // Error handling middleware (must be last)
 app.use((err, req, res, next) => {
   // Log error
-  logger.error('Unhandled error:', {
+  logger.error("Unhandled error:", {
     error: err.message,
     stack: err.stack,
     path: req.path,
@@ -157,38 +162,39 @@ app.use((err, req, res, next) => {
 
   // Handle specific error types
   if (err instanceof ValidationError) {
-    return res.status(err.statusCode).render('error', {
-      title: 'Validation Error',
+    return res.status(err.statusCode).render("error", {
+      title: "Validation Error",
       message: err.message,
       statusCode: err.statusCode,
     });
   }
 
   if (err instanceof AppError) {
-    return res.status(err.statusCode).render('error', {
-      title: 'Error',
+    return res.status(err.statusCode).render("error", {
+      title: "Error",
       message: err.message,
       statusCode: err.statusCode,
     });
   }
 
   // CSRF token errors
-  if (err.code === 'EBADCSRFTOKEN') {
-    return res.status(403).render('error', {
-      title: 'CSRF Error',
-      message: 'CSRF validation failed',
+  if (err.code === "EBADCSRFTOKEN") {
+    return res.status(403).render("error", {
+      title: "CSRF Error",
+      message: "CSRF validation failed",
       statusCode: 403,
     });
   }
 
   // Default error handler
   const statusCode = err.statusCode || 500;
-  const message = config.app.env === 'production'
-    ? 'An unexpected error occurred'
-    : err.message;
+  const message =
+    config.app.env === "production"
+      ? "An unexpected error occurred"
+      : err.message;
 
-  res.status(statusCode).render('error', {
-    title: 'Error',
+  res.status(statusCode).render("error", {
+    title: "Error",
     message,
     statusCode,
   });

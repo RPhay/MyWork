@@ -1,5 +1,6 @@
-import * as db from '../database/connectionPool.js';
-import { mysqlSchemaExists } from '../database/schema/mysqlSchema.js';
+import * as db from "../database/connectionPool.js";
+import { mysqlSchemaExists } from "../database/schema/mysqlSchema.js";
+import { mssqlSchemaExists } from "../database/schema/mssqlSchema.js";
 
 // Cheap, cached health check used to gate whether the app can render normally
 // or needs to send the user to /setup. Cached briefly so the gate middleware
@@ -15,13 +16,19 @@ export async function checkDbHealth(force = false) {
 
   let result;
   try {
+    const config = db.getCurrentConfig();
     const pool = await db.getPool();
-    const connection = await pool.getConnection();
-    try {
-      const schemaExists = await mysqlSchemaExists(connection);
+    if (config.type === "mssql") {
+      const schemaExists = await mssqlSchemaExists(pool);
       result = { connected: true, schemaExists, error: null };
-    } finally {
-      connection.release();
+    } else {
+      const connection = await pool.getConnection();
+      try {
+        const schemaExists = await mysqlSchemaExists(connection);
+        result = { connected: true, schemaExists, error: null };
+      } finally {
+        connection.release();
+      }
     }
   } catch (error) {
     result = { connected: false, schemaExists: null, error: error.message };

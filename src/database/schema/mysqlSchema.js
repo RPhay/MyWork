@@ -5,8 +5,8 @@
 
 async function columnExists(connection, table, column) {
   const [rows] = await connection.query(
-    'SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
-    [table, column]
+    "SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+    [table, column],
   );
   return rows[0].cnt > 0;
 }
@@ -15,17 +15,19 @@ async function dropForeignKeysOnColumn(connection, table, column) {
   const [rows] = await connection.query(
     `SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL`,
-    [table, column]
+    [table, column],
   );
   for (const row of rows) {
-    await connection.query(`ALTER TABLE \`${table}\` DROP FOREIGN KEY \`${row.CONSTRAINT_NAME}\``);
+    await connection.query(
+      `ALTER TABLE \`${table}\` DROP FOREIGN KEY \`${row.CONSTRAINT_NAME}\``,
+    );
   }
 }
 
 async function indexExists(connection, table, indexName) {
   const [rows] = await connection.query(
-    'SELECT COUNT(*) as cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
-    [table, indexName]
+    "SELECT COUNT(*) as cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?",
+    [table, indexName],
   );
   return rows[0].cnt > 0;
 }
@@ -34,7 +36,7 @@ async function indexExists(connection, table, indexName) {
 // already been created in the connection's current database.
 export async function mysqlSchemaExists(connection) {
   const [rows] = await connection.query(
-    "SELECT COUNT(*) as cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_items'"
+    "SELECT COUNT(*) as cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_items'",
   );
   return rows[0].cnt > 0;
 }
@@ -66,17 +68,27 @@ export async function createMysqlSchema(connection) {
 
   // A prior revision briefly reused this table for Areas; remove those columns
   // if present so categories stays the plain goal-grouping table it always was.
-  if (await columnExists(connection, 'categories', 'description')) {
-    await connection.query('ALTER TABLE categories DROP COLUMN description');
+  if (await columnExists(connection, "categories", "description")) {
+    await connection.query("ALTER TABLE categories DROP COLUMN description");
   }
-  if (await columnExists(connection, 'categories', 'updated_at')) {
-    await connection.query('ALTER TABLE categories DROP COLUMN updated_at');
+  if (await columnExists(connection, "categories", "updated_at")) {
+    await connection.query("ALTER TABLE categories DROP COLUMN updated_at");
   }
 
   // Seed the standard goal categories so they're selectable out of the box
-  const standardCategories = ['Financial', 'Impact', 'M&A', 'Operational Excellence', 'Other', 'People', 'Technology Excellence'];
+  const standardCategories = [
+    "Financial",
+    "Impact",
+    "M&A",
+    "Operational Excellence",
+    "Other",
+    "People",
+    "Technology Excellence",
+  ];
   for (const name of standardCategories) {
-    await connection.query('INSERT IGNORE INTO categories (name) VALUES (?)', [name]);
+    await connection.query("INSERT IGNORE INTO categories (name) VALUES (?)", [
+      name,
+    ]);
   }
 
   // Create areas table (user-managed, associated with priorities; supports sub-areas via parent_id)
@@ -94,15 +106,17 @@ export async function createMysqlSchema(connection) {
   `);
 
   // Backfill parent_id for pre-existing areas tables
-  if (!(await columnExists(connection, 'areas', 'parent_id'))) {
+  if (!(await columnExists(connection, "areas", "parent_id"))) {
     await connection.query(
-      'ALTER TABLE areas ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES areas(id) ON DELETE CASCADE'
+      "ALTER TABLE areas ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES areas(id) ON DELETE CASCADE",
     );
   }
 
   // Backfill order_index for pre-existing areas tables
-  if (!(await columnExists(connection, 'areas', 'order_index'))) {
-    await connection.query('ALTER TABLE areas ADD COLUMN order_index INT DEFAULT 0');
+  if (!(await columnExists(connection, "areas", "order_index"))) {
+    await connection.query(
+      "ALTER TABLE areas ADD COLUMN order_index INT DEFAULT 0",
+    );
   }
 
   // Create years table (selectable years for Yearly Goals)
@@ -115,7 +129,9 @@ export async function createMysqlSchema(connection) {
   `);
 
   // Seed the current year so the dropdown isn't empty on a fresh install
-  await connection.query('INSERT IGNORE INTO years (year) VALUES (?)', [new Date().getFullYear()]);
+  await connection.query("INSERT IGNORE INTO years (year) VALUES (?)", [
+    new Date().getFullYear(),
+  ]);
 
   // Create goals table
   await connection.query(`
@@ -138,8 +154,10 @@ export async function createMysqlSchema(connection) {
   `);
 
   // Backfill order_index for pre-existing goals tables
-  if (!(await columnExists(connection, 'goals', 'order_index'))) {
-    await connection.query('ALTER TABLE goals ADD COLUMN order_index INT DEFAULT 0');
+  if (!(await columnExists(connection, "goals", "order_index"))) {
+    await connection.query(
+      "ALTER TABLE goals ADD COLUMN order_index INT DEFAULT 0",
+    );
   }
 
   // Create goal_categories junction table
@@ -175,27 +193,31 @@ export async function createMysqlSchema(connection) {
   `);
 
   // Backfill is_weekly for pre-existing priorities tables
-  if (!(await columnExists(connection, 'priorities', 'is_weekly'))) {
-    await connection.query('ALTER TABLE priorities ADD COLUMN is_weekly BOOLEAN DEFAULT FALSE');
+  if (!(await columnExists(connection, "priorities", "is_weekly"))) {
+    await connection.query(
+      "ALTER TABLE priorities ADD COLUMN is_weekly BOOLEAN DEFAULT FALSE",
+    );
   }
 
   // Backfill status for pre-existing priorities tables
-  if (!(await columnExists(connection, 'priorities', 'status'))) {
-    await connection.query("ALTER TABLE priorities ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Not Started'");
+  if (!(await columnExists(connection, "priorities", "status"))) {
+    await connection.query(
+      "ALTER TABLE priorities ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Not Started'",
+    );
   }
 
   // Backfill parent_id for pre-existing priorities tables
-  if (!(await columnExists(connection, 'priorities', 'parent_id'))) {
+  if (!(await columnExists(connection, "priorities", "parent_id"))) {
     await connection.query(
-      'ALTER TABLE priorities ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES priorities(id) ON DELETE CASCADE'
+      "ALTER TABLE priorities ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES priorities(id) ON DELETE CASCADE",
     );
   }
 
   // A prior revision linked priorities to the categories table via category_id;
   // drop it now that priorities link to the dedicated areas table instead.
-  if (await columnExists(connection, 'priorities', 'category_id')) {
-    await dropForeignKeysOnColumn(connection, 'priorities', 'category_id');
-    await connection.query('ALTER TABLE priorities DROP COLUMN category_id');
+  if (await columnExists(connection, "priorities", "category_id")) {
+    await dropForeignKeysOnColumn(connection, "priorities", "category_id");
+    await connection.query("ALTER TABLE priorities DROP COLUMN category_id");
   }
 
   // Create priority_areas junction table (a project can span multiple areas)
@@ -224,13 +246,13 @@ export async function createMysqlSchema(connection) {
 
   // A prior revision linked a priority to a single area via area_id. Migrate any
   // existing values into the new many-to-many priority_areas table, then drop it.
-  if (await columnExists(connection, 'priorities', 'area_id')) {
+  if (await columnExists(connection, "priorities", "area_id")) {
     await connection.query(`
       INSERT IGNORE INTO priority_areas (priority_id, area_id)
       SELECT id, area_id FROM priorities WHERE area_id IS NOT NULL
     `);
-    await dropForeignKeysOnColumn(connection, 'priorities', 'area_id');
-    await connection.query('ALTER TABLE priorities DROP COLUMN area_id');
+    await dropForeignKeysOnColumn(connection, "priorities", "area_id");
+    await connection.query("ALTER TABLE priorities DROP COLUMN area_id");
   }
 
   // Create work_items table (time_box_minutes: 15/30/45/60, or NULL for freeform;
@@ -254,23 +276,29 @@ export async function createMysqlSchema(connection) {
   `);
 
   // Backfill notes for pre-existing work_items tables
-  if (!(await columnExists(connection, 'work_items', 'notes'))) {
-    await connection.query('ALTER TABLE work_items ADD COLUMN notes LONGTEXT');
+  if (!(await columnExists(connection, "work_items", "notes"))) {
+    await connection.query("ALTER TABLE work_items ADD COLUMN notes LONGTEXT");
   }
 
   // Backfill emoji ("Oh!") for pre-existing work_items tables
-  if (!(await columnExists(connection, 'work_items', 'emoji'))) {
-    await connection.query('ALTER TABLE work_items ADD COLUMN emoji VARCHAR(16)');
+  if (!(await columnExists(connection, "work_items", "emoji"))) {
+    await connection.query(
+      "ALTER TABLE work_items ADD COLUMN emoji VARCHAR(16)",
+    );
   }
 
   // Backfill time_box_minutes for pre-existing work_items tables
-  if (!(await columnExists(connection, 'work_items', 'time_box_minutes'))) {
-    await connection.query('ALTER TABLE work_items ADD COLUMN time_box_minutes INT');
+  if (!(await columnExists(connection, "work_items", "time_box_minutes"))) {
+    await connection.query(
+      "ALTER TABLE work_items ADD COLUMN time_box_minutes INT",
+    );
   }
 
   // Backfill order_index for pre-existing work_items tables
-  if (!(await columnExists(connection, 'work_items', 'order_index'))) {
-    await connection.query('ALTER TABLE work_items ADD COLUMN order_index INT DEFAULT 0');
+  if (!(await columnExists(connection, "work_items", "order_index"))) {
+    await connection.query(
+      "ALTER TABLE work_items ADD COLUMN order_index INT DEFAULT 0",
+    );
   }
 
   // Create work_goal_associations junction table
@@ -339,18 +367,26 @@ export async function createMysqlSchema(connection) {
   `);
 
   // Backfill time_box_minutes for pre-existing work_item_templates tables
-  if (!(await columnExists(connection, 'work_item_templates', 'time_box_minutes'))) {
-    await connection.query('ALTER TABLE work_item_templates ADD COLUMN time_box_minutes INT');
+  if (
+    !(await columnExists(connection, "work_item_templates", "time_box_minutes"))
+  ) {
+    await connection.query(
+      "ALTER TABLE work_item_templates ADD COLUMN time_box_minutes INT",
+    );
   }
 
   // Backfill emoji ("Oh!") for pre-existing work_item_templates tables
-  if (!(await columnExists(connection, 'work_item_templates', 'emoji'))) {
-    await connection.query('ALTER TABLE work_item_templates ADD COLUMN emoji VARCHAR(16)');
+  if (!(await columnExists(connection, "work_item_templates", "emoji"))) {
+    await connection.query(
+      "ALTER TABLE work_item_templates ADD COLUMN emoji VARCHAR(16)",
+    );
   }
 
   // Backfill order_index for pre-existing work_item_templates tables
-  if (!(await columnExists(connection, 'work_item_templates', 'order_index'))) {
-    await connection.query('ALTER TABLE work_item_templates ADD COLUMN order_index INT DEFAULT 0');
+  if (!(await columnExists(connection, "work_item_templates", "order_index"))) {
+    await connection.query(
+      "ALTER TABLE work_item_templates ADD COLUMN order_index INT DEFAULT 0",
+    );
   }
 
   // Create template_areas junction table
@@ -415,9 +451,9 @@ export async function createMysqlSchema(connection) {
   `);
 
   // Backfill folder_id for pre-existing to_dos tables
-  if (!(await columnExists(connection, 'to_dos', 'folder_id'))) {
+  if (!(await columnExists(connection, "to_dos", "folder_id"))) {
     await connection.query(
-      'ALTER TABLE to_dos ADD COLUMN folder_id INT, ADD FOREIGN KEY (folder_id) REFERENCES to_do_folders(id) ON DELETE SET NULL'
+      "ALTER TABLE to_dos ADD COLUMN folder_id INT, ADD FOREIGN KEY (folder_id) REFERENCES to_do_folders(id) ON DELETE SET NULL",
     );
   }
 
@@ -485,6 +521,19 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Folders for grouping contexts (optional; contexts can sit at root or inside a folder)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS context_folders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      parent_id INT,
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (parent_id) REFERENCES context_folders(id) ON DELETE CASCADE
+    )
+  `);
+
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
   // distinct from the "areas" table, which backs the unrelated Categories tab)
   await connection.query(`
@@ -499,9 +548,14 @@ export async function createMysqlSchema(connection) {
 
   // Seed a starting context so the app is never contextless out of the box.
   // It's a normal, renamable/deletable-if-not-last row, not a protected special case.
-  const [existingContexts] = await connection.query('SELECT COUNT(*) as cnt FROM contexts');
+  const [existingContexts] = await connection.query(
+    "SELECT COUNT(*) as cnt FROM contexts",
+  );
   if (existingContexts[0].cnt === 0) {
-    await connection.query('INSERT INTO contexts (name, order_index) VALUES (?, ?)', ['Default', 0]);
+    await connection.query(
+      "INSERT INTO contexts (name, order_index) VALUES (?, ?)",
+      ["Default", 0],
+    );
   }
 
   // Every context belongs to exactly one user, once someone's logged in as
@@ -510,7 +564,7 @@ export async function createMysqlSchema(connection) {
   // first person to log in after upgrading claims every unclaimed context
   // (see userService.js#findOrCreateUser), so this self-heals on first
   // login rather than needing a real migration/backfill decision here.
-  if (!(await columnExists(connection, 'contexts', 'user_id'))) {
+  if (!(await columnExists(connection, "contexts", "user_id"))) {
     await connection.query(`
       ALTER TABLE contexts
         ADD COLUMN user_id INT NULL,
@@ -521,7 +575,7 @@ export async function createMysqlSchema(connection) {
   // Each context owns its own database connection (contexts can point at
   // entirely different physical databases, not just filter rows within a
   // shared one) and its own sub-tab ordering for the Settings > Contexts panel.
-  if (!(await columnExists(connection, 'contexts', 'db_host'))) {
+  if (!(await columnExists(connection, "contexts", "db_host"))) {
     await connection.query(`
       ALTER TABLE contexts
         ADD COLUMN db_host VARCHAR(255),
@@ -538,7 +592,7 @@ export async function createMysqlSchema(connection) {
   // configured, tested, and schema-created independently, and db_type selects
   // which one is live - see connectionPool.js). The unprefixed db_* columns above are the MySQL/MariaDB
   // profile; these mssql_* columns are the separate MSSQL one.
-  if (!(await columnExists(connection, 'contexts', 'db_type'))) {
+  if (!(await columnExists(connection, "contexts", "db_type"))) {
     await connection.query(`
       ALTER TABLE contexts
         ADD COLUMN db_type VARCHAR(10) DEFAULT 'mysql',
@@ -547,6 +601,14 @@ export async function createMysqlSchema(connection) {
         ADD COLUMN mssql_name VARCHAR(255),
         ADD COLUMN mssql_user VARCHAR(255),
         ADD COLUMN mssql_password_enc TEXT
+    `);
+  }
+
+  if (!(await columnExists(connection, "contexts", "folder_id"))) {
+    await connection.query(`
+      ALTER TABLE contexts
+        ADD COLUMN folder_id INT,
+        ADD FOREIGN KEY (folder_id) REFERENCES context_folders(id) ON DELETE SET NULL
     `);
   }
 
@@ -572,17 +634,30 @@ export async function createMysqlSchema(connection) {
   // tables alike. Existing rows backfill to whichever context was created
   // first (order_index/id ASC) - normally "Default", but not assumed by name
   // since it's renamable.
-  const [[firstContext]] = await connection.query('SELECT id FROM contexts ORDER BY order_index ASC, id ASC LIMIT 1');
+  const [[firstContext]] = await connection.query(
+    "SELECT id FROM contexts ORDER BY order_index ASC, id ASC LIMIT 1",
+  );
   const contextTables = [
-    'sources', 'areas', 'priorities', 'goals', 'work_items',
-    'work_item_templates', 'to_do_folders', 'to_dos', 'idea_folders', 'ideas',
+    "sources",
+    "areas",
+    "priorities",
+    "goals",
+    "work_items",
+    "work_item_templates",
+    "to_do_folders",
+    "to_dos",
+    "idea_folders",
+    "ideas",
   ];
   for (const table of contextTables) {
-    if (!(await columnExists(connection, table, 'context_id'))) {
+    if (!(await columnExists(connection, table, "context_id"))) {
       await connection.query(
-        `ALTER TABLE ${table} ADD COLUMN context_id INT, ADD FOREIGN KEY (context_id) REFERENCES contexts(id)`
+        `ALTER TABLE ${table} ADD COLUMN context_id INT, ADD FOREIGN KEY (context_id) REFERENCES contexts(id)`,
       );
-      await connection.query(`UPDATE ${table} SET context_id = ? WHERE context_id IS NULL`, [firstContext.id]);
+      await connection.query(
+        `UPDATE ${table} SET context_id = ? WHERE context_id IS NULL`,
+        [firstContext.id],
+      );
     }
   }
 
@@ -590,16 +665,22 @@ export async function createMysqlSchema(connection) {
   // (e.g. only one area could ever be named "Meetings" across the whole app).
   // Widen them to be per-context so the same name can exist in different
   // contexts without colliding.
-  if (await indexExists(connection, 'areas', 'name')) {
-    await connection.query('ALTER TABLE areas DROP INDEX `name`');
-    await connection.query('ALTER TABLE areas ADD UNIQUE KEY unique_context_name (context_id, name)');
+  if (await indexExists(connection, "areas", "name")) {
+    await connection.query("ALTER TABLE areas DROP INDEX `name`");
+    await connection.query(
+      "ALTER TABLE areas ADD UNIQUE KEY unique_context_name (context_id, name)",
+    );
   }
-  if (await indexExists(connection, 'priorities', 'title')) {
-    await connection.query('ALTER TABLE priorities DROP INDEX `title`');
-    await connection.query('ALTER TABLE priorities ADD UNIQUE KEY unique_context_title (context_id, title)');
+  if (await indexExists(connection, "priorities", "title")) {
+    await connection.query("ALTER TABLE priorities DROP INDEX `title`");
+    await connection.query(
+      "ALTER TABLE priorities ADD UNIQUE KEY unique_context_title (context_id, title)",
+    );
   }
-  if (await indexExists(connection, 'goals', 'unique_year_name')) {
-    await connection.query('ALTER TABLE goals DROP INDEX unique_year_name');
-    await connection.query('ALTER TABLE goals ADD UNIQUE KEY unique_context_year_name (context_id, year, name)');
+  if (await indexExists(connection, "goals", "unique_year_name")) {
+    await connection.query("ALTER TABLE goals DROP INDEX unique_year_name");
+    await connection.query(
+      "ALTER TABLE goals ADD UNIQUE KEY unique_context_year_name (context_id, year, name)",
+    );
   }
 }

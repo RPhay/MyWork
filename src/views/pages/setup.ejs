@@ -1,85 +1,207 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= title %></title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
-    integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"
-    integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
-  <style>
-    body { background: #f8f9fa; }
-    .setup-card { max-width: 520px; margin: 6vh auto; }
-  </style>
-</head>
-<body
-  data-csrf-token="<%= csrfToken %>"
-  data-initial-connected="<%= health.connected %>"
-  data-initial-schema-exists="<%= health.schemaExists %>"
->
-  <div class="setup-card">
-    <div class="text-center mb-4">
-      <h2>MyWork Setup</h2>
-      <p class="text-muted">Let's get connected to a MySQL / MariaDB database before anything else.</p>
-    </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= title %></title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM"
+      crossorigin="anonymous"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+      rel="stylesheet"
+      integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+"
+      crossorigin="anonymous"
+    />
+    <style>
+      body {
+        background: #f8f9fa;
+      }
+      .setup-card {
+        max-width: 520px;
+        margin: 6vh auto;
+      }
+    </style>
+  </head>
+  <body
+    data-csrf-token="<%= csrfToken %>"
+    data-initial-connected="<%= health.connected %>"
+    data-initial-schema-exists="<%= health.schemaExists %>"
+  >
+    <div class="setup-card">
+      <div class="text-center mb-4">
+        <h2>MyWork Setup</h2>
+        <p class="text-muted">
+          Connect MyWork to a database before anything else.
+        </p>
+      </div>
 
-    <div class="card">
-      <div class="card-body">
-
-        <!-- Step 1: connection form -->
-        <div id="setupConnectStep">
-          <form id="setupForm">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <div class="row g-2">
-              <div class="col-md-8">
-                <label for="setupHost" class="form-label">Host *</label>
-                <input type="text" class="form-control" id="setupHost" placeholder="localhost">
-              </div>
-              <div class="col-md-4">
-                <label for="setupPort" class="form-label">Port</label>
-                <input type="number" class="form-control" id="setupPort" placeholder="3306">
-              </div>
-            </div>
-            <div class="mb-2 mt-2">
-              <label for="setupDatabase" class="form-label">Database Name</label>
-              <input type="text" class="form-control" id="setupDatabase" placeholder="MyWork">
-            </div>
-            <div class="mb-2">
-              <label for="setupUser" class="form-label">User *</label>
-              <input type="text" class="form-control" id="setupUser">
-            </div>
-            <div class="mb-3">
-              <label for="setupPassword" class="form-label">Password</label>
-              <input type="password" class="form-control" id="setupPassword" autocomplete="new-password">
-            </div>
-          </form>
-          <div id="setupConnectStatus" class="small mb-2"></div>
-          <button type="button" class="btn btn-primary" id="setupConnectBtn">Connect</button>
+      <div class="card">
+        <div class="card-header p-0">
+          <ul class="nav nav-tabs card-header-tabs px-3" id="setupDbTypeTabs">
+            <li class="nav-item">
+              <button class="nav-link active" data-db-type="mysql">
+                MySQL / MariaDB
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" data-db-type="mssql">
+                SQL Server (MSSQL)
+              </button>
+            </li>
+          </ul>
         </div>
-
-        <!-- Step 2: schema prompt (shown after a successful connect if the schema is missing) -->
-        <div id="setupSchemaStep" class="d-none">
-          <div class="alert alert-success py-2 px-3 small">
-            <i class="bi bi-check-circle"></i> Connected successfully.
+        <div class="card-body">
+          <!-- Step 1: connection form -->
+          <div id="setupConnectStep">
+            <!-- MySQL / MariaDB fields -->
+            <div id="mysqlForm">
+              <form>
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <div class="row g-2">
+                  <div class="col-md-8">
+                    <label for="setupHost" class="form-label">Host *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="setupHost"
+                      placeholder="localhost"
+                    />
+                  </div>
+                  <div class="col-md-4">
+                    <label for="setupPort" class="form-label">Port</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="setupPort"
+                      placeholder="3306"
+                    />
+                  </div>
+                </div>
+                <div class="mb-2 mt-2">
+                  <label for="setupDatabase" class="form-label"
+                    >Database Name</label
+                  >
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="setupDatabase"
+                    placeholder="MyWork"
+                  />
+                </div>
+                <div class="mb-2">
+                  <label for="setupUser" class="form-label">User *</label>
+                  <input type="text" class="form-control" id="setupUser" />
+                </div>
+                <div class="mb-3">
+                  <label for="setupPassword" class="form-label">Password</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="setupPassword"
+                    autocomplete="new-password"
+                  />
+                </div>
+              </form>
+            </div>
+            <!-- MSSQL / Azure SQL fields -->
+            <div id="mssqlForm" class="d-none">
+              <form>
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <div class="row g-2">
+                  <div class="col-md-8">
+                    <label for="mssqlHost" class="form-label">Server *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="mssqlHost"
+                      placeholder="server.database.windows.net"
+                    />
+                  </div>
+                  <div class="col-md-4">
+                    <label for="mssqlPort" class="form-label">Port</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="mssqlPort"
+                      placeholder="1433"
+                    />
+                  </div>
+                </div>
+                <div class="mb-2 mt-2">
+                  <label for="mssqlDatabase" class="form-label"
+                    >Database Name</label
+                  >
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="mssqlDatabase"
+                    placeholder="MyWork"
+                  />
+                </div>
+                <div class="mb-2">
+                  <label for="mssqlUser" class="form-label">User *</label>
+                  <input type="text" class="form-control" id="mssqlUser" />
+                </div>
+                <div class="mb-3">
+                  <label for="mssqlPassword" class="form-label">Password</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="mssqlPassword"
+                    autocomplete="new-password"
+                  />
+                </div>
+                <p class="text-muted small mb-2">
+                  Connects with TLS encryption (Azure SQL / SQL Server 2016+).
+                </p>
+              </form>
+            </div>
+            <div id="setupConnectStatus" class="small mb-2"></div>
+            <button type="button" class="btn btn-primary" id="setupConnectBtn">
+              Connect
+            </button>
           </div>
-          <p>The MyWork schema wasn't found on this database. Create it now?</p>
-          <div id="setupSchemaStatus" class="small mb-2"></div>
-          <button type="button" class="btn btn-primary" id="setupCreateSchemaBtn">Create Schema</button>
-          <button type="button" class="btn btn-outline-secondary" id="setupSkipBtn">Skip for now</button>
-        </div>
 
-        <!-- Step 3: all set -->
-        <div id="setupDoneStep" class="d-none">
-          <div class="alert alert-success py-2 px-3 small mb-0">
-            <i class="bi bi-check-circle"></i> All set - redirecting to MyWork…
+          <!-- Step 2: schema prompt (shown after a successful connect if the schema is missing) -->
+          <div id="setupSchemaStep" class="d-none">
+            <div class="alert alert-success py-2 px-3 small">
+              <i class="bi bi-check-circle"></i> Connected successfully.
+            </div>
+            <p>
+              The MyWork schema wasn't found on this database. Create it now?
+            </p>
+            <div id="setupSchemaStatus" class="small mb-2"></div>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="setupCreateSchemaBtn"
+            >
+              Create Schema
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline-secondary"
+              id="setupSkipBtn"
+            >
+              Skip for now
+            </button>
+          </div>
+
+          <!-- Step 3: all set -->
+          <div id="setupDoneStep" class="d-none">
+            <div class="alert alert-success py-2 px-3 small mb-0">
+              <i class="bi bi-check-circle"></i> All set - redirecting to
+              MyWork…
+            </div>
           </div>
         </div>
-
       </div>
     </div>
-  </div>
 
-  <script src="/js/setup.js"></script>
-</body>
+    <script src="/js/setup.js"></script>
+  </body>
 </html>

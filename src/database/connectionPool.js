@@ -1,11 +1,11 @@
-import mysql from 'mysql2/promise.js';
-import mssql from 'mssql';
-import config from '../config/environment.js';
-import logger from '../utils/logger.js';
+import mysql from "mysql2/promise.js";
+import mssql from "mssql";
+import config from "../config/environment.js";
+import logger from "../utils/logger.js";
 
 let pool;
 let currentConfig = {
-  type: 'mysql',
+  type: config.database.type || "mysql",
   host: config.database.host,
   port: config.database.port,
   user: config.database.user,
@@ -20,42 +20,42 @@ function describeDbError(error) {
   const code = error.code || error.errors?.[0]?.code;
 
   switch (code) {
-    case 'ECONNREFUSED':
-      return 'Unable to connect to the database. Please verify the database server is running and reachable.';
-    case 'ETIMEDOUT':
-    case 'ETIMEOUT':
-      return 'The database connection timed out. Please try again in a moment.';
-    case 'ER_ACCESS_DENIED_ERROR':
-      return 'Database access was denied. Check the configured database credentials.';
-    case 'ELOGIN':
-      return 'Database login failed. Check the configured database credentials.';
-    case 'ER_BAD_DB_ERROR':
-    case 'ER_DBACCESS_DENIED_ERROR':
-      return 'The configured database does not exist or is not accessible to this login. Run the database setup script.';
-    case 'ER_NO_SUCH_TABLE':
-      return 'A required database table is missing. Run the database setup script.';
-    case 'ER_DUP_ENTRY':
-      return 'A record with that value already exists.';
-    case 'ER_NO_REFERENCED_ROW':
-    case 'ER_NO_REFERENCED_ROW_2':
-      return 'That references a record which does not exist.';
-    case 'ER_ROW_IS_REFERENCED':
-    case 'ER_ROW_IS_REFERENCED_2':
-      return 'That is still in use by other records and cannot be deleted.';
-    case 'EREQUEST': {
+    case "ECONNREFUSED":
+      return "Unable to connect to the database. Please verify the database server is running and reachable.";
+    case "ETIMEDOUT":
+    case "ETIMEOUT":
+      return "The database connection timed out. Please try again in a moment.";
+    case "ER_ACCESS_DENIED_ERROR":
+      return "Database access was denied. Check the configured database credentials.";
+    case "ELOGIN":
+      return "Database login failed. Check the configured database credentials.";
+    case "ER_BAD_DB_ERROR":
+    case "ER_DBACCESS_DENIED_ERROR":
+      return "The configured database does not exist or is not accessible to this login. Run the database setup script.";
+    case "ER_NO_SUCH_TABLE":
+      return "A required database table is missing. Run the database setup script.";
+    case "ER_DUP_ENTRY":
+      return "A record with that value already exists.";
+    case "ER_NO_REFERENCED_ROW":
+    case "ER_NO_REFERENCED_ROW_2":
+      return "That references a record which does not exist.";
+    case "ER_ROW_IS_REFERENCED":
+    case "ER_ROW_IS_REFERENCED_2":
+      return "That is still in use by other records and cannot be deleted.";
+    case "EREQUEST": {
       // MSSQL wraps the actual SQL Server error number here rather than a code string.
       switch (error.number) {
         case 2601:
         case 2627:
-          return 'A record with that value already exists.';
+          return "A record with that value already exists.";
         case 547:
-          return 'That references or is referenced by a record that does not exist, or is still in use.';
+          return "That references or is referenced by a record that does not exist, or is still in use.";
         default:
-          return error.message || 'An unexpected database error occurred.';
+          return error.message || "An unexpected database error occurred.";
       }
     }
     default:
-      return error.message || 'An unexpected database error occurred.';
+      return error.message || "An unexpected database error occurred.";
   }
 }
 
@@ -75,18 +75,20 @@ function describeDbError(error) {
 // the EXISTS check, once for the INSERT) so the later `?` -> `@pN` pass can
 // stay a single, generic, position-based translation.
 function rewriteInsertIgnoreForMssql(sqlText, values) {
-  const match = sqlText.match(/^\s*INSERT IGNORE INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)\s*$/i);
+  const match = sqlText.match(
+    /^\s*INSERT IGNORE INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)\s*$/i,
+  );
   if (!match) return { sql: sqlText, values };
 
   const table = match[1];
-  const columns = match[2].split(',').map(c => c.trim());
+  const columns = match[2].split(",").map((c) => c.trim());
   const placeholderCount = (match[3].match(/\?/g) || []).length;
   if (columns.length !== placeholderCount || columns.length !== values.length) {
     return { sql: sqlText, values };
   }
 
-  const whereClause = columns.map(c => `${c} = ?`).join(' AND ');
-  const rewrittenSql = `IF NOT EXISTS (SELECT 1 FROM ${table} WHERE ${whereClause}) INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
+  const whereClause = columns.map((c) => `${c} = ?`).join(" AND ");
+  const rewrittenSql = `IF NOT EXISTS (SELECT 1 FROM ${table} WHERE ${whereClause}) INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`;
   return { sql: rewrittenSql, values: [...values, ...values] };
 }
 
@@ -105,10 +107,15 @@ function toNamedParams(sqlText, values) {
 
 async function executeMssql(sqlText, values) {
   const rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
-  const { translatedSql, params } = toNamedParams(rewritten.sql, rewritten.values);
+  const { translatedSql, params } = toNamedParams(
+    rewritten.sql,
+    rewritten.values,
+  );
 
   const isInsert = /\bINSERT\s+INTO\b/i.test(translatedSql);
-  const finalSql = isInsert ? `${translatedSql}; SELECT SCOPE_IDENTITY() AS insertId;` : translatedSql;
+  const finalSql = isInsert
+    ? `${translatedSql}; SELECT SCOPE_IDENTITY() AS insertId;`
+    : translatedSql;
 
   const p = await getPool();
   const request = p.request();
@@ -120,9 +127,12 @@ async function executeMssql(sqlText, values) {
   const affectedRows = (result.rowsAffected && result.rowsAffected[0]) || 0;
 
   if (isInsert) {
-    const insertId = result.recordset && result.recordset[0] && result.recordset[0].insertId != null
-      ? Math.trunc(Number(result.recordset[0].insertId))
-      : 0;
+    const insertId =
+      result.recordset &&
+      result.recordset[0] &&
+      result.recordset[0].insertId != null
+        ? Math.trunc(Number(result.recordset[0].insertId))
+        : 0;
     return Object.assign([], { insertId, affectedRows });
   }
 
@@ -136,7 +146,7 @@ async function getPool() {
     return pool;
   }
 
-  if (currentConfig.type === 'mssql') {
+  if (currentConfig.type === "mssql") {
     const mssqlPool = new mssql.ConnectionPool({
       server: currentConfig.host,
       port: currentConfig.port ? Number(currentConfig.port) : 1433,
@@ -150,11 +160,11 @@ async function getPool() {
       options: { encrypt: true, trustServerCertificate: false },
       pool: { max: config.database.poolMax, min: config.database.poolMin },
     });
-    mssqlPool.on('error', (err) => {
-      logger.error('Pool error:', err);
+    mssqlPool.on("error", (err) => {
+      logger.error("Pool error:", err);
     });
     pool = await mssqlPool.connect();
-    logger.info('Database connection pool created (MSSQL)');
+    logger.info("Database connection pool created (MSSQL)");
     return pool;
   }
 
@@ -171,11 +181,11 @@ async function getPool() {
     keepAliveInitialDelayMs: 0,
   });
 
-  pool.on('error', (err) => {
-    logger.error('Pool error:', err);
+  pool.on("error", (err) => {
+    logger.error("Pool error:", err);
   });
 
-  logger.info('Database connection pool created');
+  logger.info("Database connection pool created");
   return pool;
 }
 
@@ -185,27 +195,31 @@ async function getPool() {
 // opens a fresh one against the new target.
 async function reconfigure(newConfig) {
   if (pool) {
-    if (currentConfig.type === 'mssql') {
+    if (currentConfig.type === "mssql") {
       await pool.close();
     } else {
       await pool.end();
     }
     pool = undefined;
   }
-  currentConfig = { type: 'mysql', ...newConfig };
-  logger.info('Database connection pool reconfigured', { type: currentConfig.type, host: newConfig.host, database: newConfig.database });
+  currentConfig = { type: "mysql", ...newConfig };
+  logger.info("Database connection pool reconfigured", {
+    type: currentConfig.type,
+    host: newConfig.host,
+    database: newConfig.database,
+  });
 }
 
 async function query(sqlText, values = []) {
   try {
-    if (currentConfig.type === 'mssql') {
+    if (currentConfig.type === "mssql") {
       return await executeMssql(sqlText, values);
     }
     const p = await getPool();
     const [results] = await p.execute(sqlText, values);
     return results;
   } catch (error) {
-    logger.error('Database query error:', { sql: sqlText, error });
+    logger.error("Database query error:", { sql: sqlText, error });
     const dbError = new Error(describeDbError(error));
     dbError.code = error.code || error.errors?.[0]?.code;
     dbError.cause = error;
@@ -223,7 +237,7 @@ async function insert(sqlText, values = []) {
     const results = await query(sqlText, values);
     return results.insertId;
   } catch (error) {
-    logger.error('Insert error:', error);
+    logger.error("Insert error:", error);
     throw error;
   }
 }
@@ -233,7 +247,7 @@ async function update(sqlText, values = []) {
     const results = await query(sqlText, values);
     return results.affectedRows;
   } catch (error) {
-    logger.error('Update error:', error);
+    logger.error("Update error:", error);
     throw error;
   }
 }
@@ -243,7 +257,7 @@ async function deleteRecord(sqlText, values = []) {
     const results = await query(sqlText, values);
     return results.affectedRows;
   } catch (error) {
-    logger.error('Delete error:', error);
+    logger.error("Delete error:", error);
     throw error;
   }
 }
@@ -258,13 +272,23 @@ function getCurrentConfig() {
 
 async function closePool() {
   if (pool) {
-    if (currentConfig.type === 'mssql') {
+    if (currentConfig.type === "mssql") {
       await pool.close();
     } else {
       await pool.end();
     }
-    logger.info('Database connection pool closed');
+    logger.info("Database connection pool closed");
   }
 }
 
-export { getPool, query, queryOne, insert, update, deleteRecord, closePool, reconfigure, getCurrentConfig };
+export {
+  getPool,
+  query,
+  queryOne,
+  insert,
+  update,
+  deleteRecord,
+  closePool,
+  reconfigure,
+  getCurrentConfig,
+};

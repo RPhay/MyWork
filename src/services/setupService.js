@@ -1,10 +1,18 @@
-import mysql from 'mysql2/promise.js';
-import { mysqlSchemaExists, createMysqlSchema } from '../database/schema/mysqlSchema.js';
-import { applyBootstrapConnection } from './activeContextService.js';
-import { getCurrentConfig } from '../database/connectionPool.js';
-import { invalidateDbHealthCache } from '../utils/dbHealth.js';
-import { validateIdentifier } from '../utils/validateIdentifier.js';
-import { ValidationError } from '../config/errors.js';
+import mysql from "mysql2/promise.js";
+import mssql from "mssql";
+import {
+  mysqlSchemaExists,
+  createMysqlSchema,
+} from "../database/schema/mysqlSchema.js";
+import {
+  mssqlSchemaExists,
+  createMssqlSchema as createMssqlSchemaInDb,
+} from "../database/schema/mssqlSchema.js";
+import { applyBootstrapConnection } from "./activeContextService.js";
+import { getCurrentConfig, reconfigure } from "../database/connectionPool.js";
+import { invalidateDbHealthCache } from "../utils/dbHealth.js";
+import { validateIdentifier } from "../utils/validateIdentifier.js";
+import { ValidationError } from "../config/errors.js";
 
 // First-run bootstrap: get MyWork pointed at *a* working MySQL/MariaDB server
 // and schema before anything else (contexts, tabs, etc.) can exist. Mirrors
@@ -24,23 +32,30 @@ async function attemptConnection(options) {
 
 export async function testConnection(data) {
   if (!data.host || !data.user) {
-    throw new ValidationError('Host and user are required');
+    throw new ValidationError("Host and user are required");
   }
 
   const baseOptions = {
     host: data.host,
     port: data.port ? Number(data.port) : 3306,
     user: data.user,
-    password: data.password || '',
+    password: data.password || "",
     connectTimeout: 5000,
   };
 
   if (data.database) {
-    const attempt = await attemptConnection({ ...baseOptions, database: data.database });
+    const attempt = await attemptConnection({
+      ...baseOptions,
+      database: data.database,
+    });
     if (attempt.connection) {
       try {
         const schemaExists = await mysqlSchemaExists(attempt.connection);
-        return { success: true, message: 'Connected successfully', schemaExists };
+        return {
+          success: true,
+          message: "Connected successfully",
+          schemaExists,
+        };
       } finally {
         await attempt.connection.end();
       }
@@ -51,12 +66,15 @@ export async function testConnection(data) {
 
   const attempt = await attemptConnection(baseOptions);
   if (attempt.error) {
-    return { success: false, message: attempt.error.message || 'Connection failed' };
+    return {
+      success: false,
+      message: attempt.error.message || "Connection failed",
+    };
   }
   await attempt.connection.end();
   return {
     success: true,
-    message: 'Connected successfully',
+    message: "Connected successfully",
     schemaExists: data.database ? false : null,
   };
 }
@@ -74,7 +92,7 @@ export async function connectAndActivate(data) {
     host: data.host,
     port: data.port ? Number(data.port) : 3306,
     user: data.user,
-    password: data.password || '',
+    password: data.password || "",
     database: data.database || undefined,
   });
   invalidateDbHealthCache();
@@ -90,9 +108,11 @@ export async function createSchema(data) {
   const effective = data && data.host ? data : getCurrentConfig();
 
   if (!effective.database) {
-    throw new ValidationError('A database name is required to create the schema');
+    throw new ValidationError(
+      "A database name is required to create the schema",
+    );
   }
-  validateIdentifier(effective.database, 'Database name');
+  validateIdentifier(effective.database, "Database name");
 
   let connection;
   try {
@@ -100,10 +120,12 @@ export async function createSchema(data) {
       host: effective.host,
       port: effective.port ? Number(effective.port) : 3306,
       user: effective.user,
-      password: effective.password || '',
+      password: effective.password || "",
       connectTimeout: 10000,
     });
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${effective.database}\``);
+    await connection.query(
+      `CREATE DATABASE IF NOT EXISTS \`${effective.database}\``,
+    );
     await connection.query(`USE \`${effective.database}\``);
     await createMysqlSchema(connection);
   } finally {
@@ -115,5 +137,111 @@ export async function createSchema(data) {
   // health immediately after this reflects the new schema.
   invalidateDbHealthCache();
 
-  return { success: true, message: 'Schema created successfully' };
+  return { success: true, message: "Schema created successfully" };
+}
+
+// MSSQL: test only (no live pool swap - connectionPool.js is mysql2-only).
+function mssqlConnectOptions(data, database) {
+  return {
+    server: data.host,
+    port: data.port ? Number(data.port) : 1433,
+    user: data.user,
+    password: data.password || "",
+    database,
+    connectionTimeout: 5000,
+    options: { encrypt: true, trustServerCertificate: false },
+  };
+}
+
+export async function testMssqlConnection(data) {
+  if (!data.host || !data.user) {
+    throw new ValidationError("Server and user are required");
+  }
+
+  let result;
+
+  if (data.database) {
+    try {
+      const pool = await mssql.connect(
+        mssqlConnectOptions(data, data.database),
+      );
+      try {
+        const schemaExists = await mssqlSchemaExists(pool);
+        result = {
+          success: true,
+          message: "Connected successfully",
+          schemaExists,
+        };
+      } finally {
+        await pool.close();
+      }
+    } catch {
+      // Database may not exist yet - fall through to server-only test.
+    }
+  }
+
+  if (!result) {
+    try {
+      const pool = await mssql.connect(mssqlConnectOptions(data, undefined));
+      await pool.close();
+      result = {
+        success: true,
+        message: "Connected successfully",
+        schemaExists: data.database ? false : null,
+      };
+    } catch (error) {
+      return { success: false, message: error.message || "Connection failed" };
+    }
+  }
+
+  if (result.success) {
+    const liveConfig = {
+      type: "mssql",
+      host: data.host,
+      port: data.port ? Number(data.port) : 1433,
+      user: data.user,
+      password: data.password || "",
+      database: data.database || undefined,
+    };
+    await applyBootstrapConnection(liveConfig);
+    invalidateDbHealthCache();
+  }
+
+  return result;
+}
+
+export async function createMssqlSchemaForSetup(data) {
+  if (!data.database) {
+    throw new ValidationError(
+      "A database name is required to create the schema",
+    );
+  }
+  validateIdentifier(data.database, "Database name");
+
+  let pool;
+  try {
+    // Connect directly to the target DB - skipping master avoids permission
+    // errors on Azure SQL where regular logins can't touch master.
+    pool = await mssql.connect(mssqlConnectOptions(data, data.database));
+    await createMssqlSchemaInDb(pool);
+  } finally {
+    if (pool) {
+      try {
+        await pool.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  const liveConfig = {
+    type: "mssql",
+    host: data.host,
+    port: data.port ? Number(data.port) : 1433,
+    user: data.user,
+    password: data.password || "",
+    database: data.database,
+  };
+  await applyBootstrapConnection(liveConfig);
+  invalidateDbHealthCache();
+  return { success: true, message: "Schema created successfully" };
 }
