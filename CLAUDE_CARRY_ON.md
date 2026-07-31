@@ -178,8 +178,10 @@ order:
    filtering itself shouldn't have changed, but worth a quick smoke test
    (switch context in the navbar, confirm work items/areas/etc. still filter
    correctly) since `setActiveContextId()`'s internals changed.
-4. Git status has NOT been checked/committed yet as of this note — that's
-   the very next step after writing this file.
+4. ~~Git status has NOT been checked/committed yet~~ — done: committed as
+   `db7a46f` ("WIP: Per-context database config, tab visibility, and
+   split-pane Settings") and pushed to `origin/main`. Pull this down on the
+   other machine before continuing.
 
 ## Gotchas worth remembering
 
