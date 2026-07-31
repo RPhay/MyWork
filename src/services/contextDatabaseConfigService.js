@@ -9,10 +9,10 @@ import * as db from '../database/connectionPool.js';
 // Each context can save a profile for both MySQL/MariaDB and MSSQL (the
 // Database sub-panel has a type toggle so either can be filled in, tested,
 // and have its schema created independently, without losing the other's
-// values). Only MySQL/MariaDB is ever the *live* backend though -
-// connectionPool.js has no MSSQL query path, so db_type just records which
-// one the toggle was last left on for this context; it does not change what
-// the app actually queries through. See getLiveConnectionConfig below.
+// values). db_type selects which profile is the *live* one when this
+// context is active - connectionPool.js's query translation supports both.
+// MSSQL here specifically means Azure SQL with SQL-login auth (the only
+// MSSQL auth type supported so far - see connectionPool.js).
 
 const VALID_TYPES = ['mysql', 'mssql'];
 
@@ -149,7 +149,9 @@ function mssqlConnectOptions(data, password, database) {
     password,
     database,
     connectionTimeout: 5000,
-    options: { trustServerCertificate: true, encrypt: false },
+    // Azure SQL requires encrypted connections and a trusted (CA-signed) cert -
+    // this app only targets Azure SQL with SQL-login auth for MSSQL.
+    options: { encrypt: true, trustServerCertificate: false },
   };
 }
 
@@ -231,21 +233,33 @@ export async function createDbSchema(contextId, type, data) {
   return { success: true, message: 'Schema created successfully' };
 }
 
-// Resolves a context's saved MySQL/MariaDB profile into a ready-to-use
-// connection config for connectionPool.reconfigure(). MySQL/MariaDB only,
-// regardless of db_type - MSSQL has no live query path (see file header).
-// Returns null if the context has no complete profile saved yet, so the
-// caller can decide what to fall back to.
+// Resolves a context's saved profile - whichever type its toggle is
+// currently set to - into a ready-to-use connection config for
+// connectionPool.reconfigure(). Returns null if that profile isn't complete
+// yet, so the caller can decide what to fall back to.
 export async function getLiveConnectionConfig(contextId) {
   const context = await getContextRow(contextId);
-  if (!context.db_host || !context.db_user || !context.db_name) return null;
+  const type = VALID_TYPES.includes(context.db_type) ? context.db_type : 'mysql';
 
-  const password = resolvePassword(context.db_password_enc, undefined);
+  if (type === 'mssql') {
+    if (!context.mssql_host || !context.mssql_user || !context.mssql_name) return null;
+    return {
+      type: 'mssql',
+      host: context.mssql_host,
+      port: context.mssql_port || 1433,
+      user: context.mssql_user,
+      password: resolvePassword(context.mssql_password_enc, undefined),
+      database: context.mssql_name,
+    };
+  }
+
+  if (!context.db_host || !context.db_user || !context.db_name) return null;
   return {
+    type: 'mysql',
     host: context.db_host,
     port: context.db_port || 3306,
     user: context.db_user,
-    password,
+    password: resolvePassword(context.db_password_enc, undefined),
     database: context.db_name,
   };
 }

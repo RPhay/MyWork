@@ -52,8 +52,8 @@
       <div class="context-subtab-pane d-none" data-subtab-pane="database">
         <p class="text-muted small">
           This context's own database connection. Contexts can point at different databases entirely -
-          switching to this context in the navbar switches the live connection to whatever's saved as its
-          MySQL/MariaDB profile below.
+          switching to this context in the navbar switches the live connection to whichever profile is
+          selected below.
         </p>
 
         <div class="btn-group mb-3" role="group" aria-label="Database type">
@@ -61,14 +61,13 @@
           <label class="btn btn-outline-secondary btn-sm" for="contextDbTypeMysql">MySQL / MariaDB</label>
 
           <input type="radio" class="btn-check" name="contextDbType" id="contextDbTypeMssql" value="mssql" autocomplete="off">
-          <label class="btn btn-outline-secondary btn-sm" for="contextDbTypeMssql">MSSQL</label>
+          <label class="btn btn-outline-secondary btn-sm" for="contextDbTypeMssql">MSSQL (Azure)</label>
         </div>
 
-        <div id="contextMssqlNotice" class="alert alert-warning py-2 px-3 small d-none">
-          <i class="bi bi-exclamation-triangle"></i>
-          MSSQL isn't yet a supported live backend - not ready for prime time. You can save, test, and
-          create the schema here, but this context will keep querying through its MySQL/MariaDB profile
-          regardless of this toggle.
+        <div id="contextMssqlNotice" class="alert alert-info py-2 px-3 small d-none">
+          <i class="bi bi-info-circle"></i>
+          MSSQL support targets Azure SQL with a SQL login (username/password) - the connection is always
+          encrypted. Other Azure authentication types (Azure AD, managed identity, etc.) aren't supported yet.
         </div>
 
         <form id="contextDbForm">

@@ -64,6 +64,7 @@ export async function applyContextDatabaseConnection(contextId) {
       writeStore({
         ...store,
         lastLiveConfig: {
+          type: liveConfig.type || 'mysql',
           host: liveConfig.host,
           port: liveConfig.port,
           database: liveConfig.database,
@@ -91,6 +92,7 @@ export async function applyBootstrapConnection(liveConfig) {
   writeStore({
     ...store,
     lastLiveConfig: {
+      type: liveConfig.type || 'mysql',
       host: liveConfig.host,
       port: liveConfig.port,
       database: liveConfig.database,
@@ -115,13 +117,14 @@ export async function applyCachedConnectionAtBoot() {
 
   try {
     await connectionPool.reconfigure({
+      type: store.lastLiveConfig.type || 'mysql',
       host: store.lastLiveConfig.host,
       port: store.lastLiveConfig.port,
       user: store.lastLiveConfig.user,
       database: store.lastLiveConfig.database,
       password: store.lastLiveConfig.passwordEnc ? decrypt(store.lastLiveConfig.passwordEnc) : '',
     });
-    logger.info('Reconnected to last active context\'s database', { host: store.lastLiveConfig.host, database: store.lastLiveConfig.database });
+    logger.info('Reconnected to last active context\'s database', { type: store.lastLiveConfig.type || 'mysql', host: store.lastLiveConfig.host, database: store.lastLiveConfig.database });
   } catch (error) {
     logger.error('Could not reconnect to last active context\'s database, falling back to .env.local:', error);
   }

@@ -39,16 +39,29 @@ export async function saveTabSettings(contextId, settings) {
 
   const validKeys = new Set(CONFIGURABLE_TABS.map(t => t.key));
 
+  // Plain exists-check + insert-or-update rather than an upsert (MySQL's
+  // ON DUPLICATE KEY UPDATE has no MSSQL equivalent, and this only ever
+  // touches ~7 rows at a time, so the extra round trip is negligible).
   for (let i = 0; i < settings.length; i++) {
     const { key, visible } = settings[i];
     if (!validKeys.has(key)) continue;
 
-    await db.query(
-      `INSERT INTO context_tab_settings (context_id, tab_key, visible, order_index)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE visible = VALUES(visible), order_index = VALUES(order_index)`,
-      [contextId, key, visible !== false, i]
+    const existing = await db.queryOne(
+      'SELECT id FROM context_tab_settings WHERE context_id = ? AND tab_key = ?',
+      [contextId, key]
     );
+
+    if (existing) {
+      await db.update(
+        'UPDATE context_tab_settings SET visible = ?, order_index = ? WHERE id = ?',
+        [visible !== false, i, existing.id]
+      );
+    } else {
+      await db.insert(
+        'INSERT INTO context_tab_settings (context_id, tab_key, visible, order_index) VALUES (?, ?, ?, ?)',
+        [contextId, key, visible !== false, i]
+      );
+    }
   }
 
   return getTabSettings(contextId);

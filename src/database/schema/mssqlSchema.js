@@ -108,7 +108,15 @@ export async function createMssqlSchema(pool) {
       order_index INT DEFAULT 0,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_areas_parent FOREIGN KEY (parent_id) REFERENCES areas(id) ON DELETE CASCADE
+      -- NO ACTION, not CASCADE: SQL Server rejects a self-referencing cascade
+      -- here because areas is also the target of other cascading FKs
+      -- (priority_areas, template_areas, work_area_associations) - "may
+      -- cause cycles or multiple cascade paths". Deleting an area with
+      -- children fails with a clear FK-violation error instead of
+      -- recursively deleting them (a real behavior difference from MySQL,
+      -- which does cascade this - not worth a recursive app-level delete
+      -- for this edge case today).
+      CONSTRAINT fk_areas_parent FOREIGN KEY (parent_id) REFERENCES areas(id) ON DELETE NO ACTION
     )
   `);
   await createUpdatedAtTrigger(pool, 'areas');
@@ -173,7 +181,8 @@ export async function createMssqlSchema(pool) {
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       CONSTRAINT fk_priorities_source FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL,
-      CONSTRAINT fk_priorities_parent FOREIGN KEY (parent_id) REFERENCES priorities(id) ON DELETE CASCADE
+      -- NO ACTION, not CASCADE - see the matching note on fk_areas_parent above.
+      CONSTRAINT fk_priorities_parent FOREIGN KEY (parent_id) REFERENCES priorities(id) ON DELETE NO ACTION
     )
   `);
   await createUpdatedAtTrigger(pool, 'priorities');
@@ -321,7 +330,8 @@ export async function createMssqlSchema(pool) {
       parent_id INT NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_to_do_folders_parent FOREIGN KEY (parent_id) REFERENCES to_do_folders(id) ON DELETE CASCADE
+      -- NO ACTION, not CASCADE - see the note on fk_areas_parent above.
+      CONSTRAINT fk_to_do_folders_parent FOREIGN KEY (parent_id) REFERENCES to_do_folders(id) ON DELETE NO ACTION
     )
   `);
   await createUpdatedAtTrigger(pool, 'to_do_folders');
@@ -358,7 +368,8 @@ export async function createMssqlSchema(pool) {
       parent_id INT NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_idea_folders_parent FOREIGN KEY (parent_id) REFERENCES idea_folders(id) ON DELETE CASCADE
+      -- NO ACTION, not CASCADE - see the note on fk_areas_parent above.
+      CONSTRAINT fk_idea_folders_parent FOREIGN KEY (parent_id) REFERENCES idea_folders(id) ON DELETE NO ACTION
     )
   `);
   await createUpdatedAtTrigger(pool, 'idea_folders');
