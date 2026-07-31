@@ -74,4 +74,8 @@ if (-not (Test-ServerUp)) {
 }
 
 Write-Host "Opening $Url in Chrome..."
-Start-Process "open" -ArgumentList "-a", "Google Chrome", $Url
+# Start-Process -ArgumentList re-joins array elements into a single command
+# string and re-splits it, so "Google Chrome" loses its quoting and `open`
+# sees -a, Google, Chrome, <url> as four separate args (and tries to open
+# "Chrome" as a file). The call operator passes each argument through as-is.
+& open -a "Google Chrome" $Url
