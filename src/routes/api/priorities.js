@@ -1,5 +1,6 @@
 import express from 'express';
 import * as priorityService from '../../services/priorityService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -7,7 +8,8 @@ const router = express.Router();
 // Get all priorities
 router.get('/', async (req, res) => {
   try {
-    const priorities = await priorityService.getAllPriorities();
+    const contextId = await activeContextService.getActiveContextId();
+    const priorities = await priorityService.getAllPriorities(contextId);
     res.json({ success: true, data: priorities });
   } catch (error) {
     logger.error('Error fetching priorities:', error);
@@ -29,7 +31,8 @@ router.get('/:id', async (req, res) => {
 // Create priority
 router.post('/', async (req, res) => {
   try {
-    const priority = await priorityService.createPriority(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const priority = await priorityService.createPriority(req.body, contextId);
     res.status(201).json({ success: true, message: 'Priority created', data: priority });
   } catch (error) {
     logger.error('Error creating priority:', error);

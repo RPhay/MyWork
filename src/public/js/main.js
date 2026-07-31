@@ -249,20 +249,16 @@ const app = {
 
   // Active context (top-right switcher). Client-side only for now via
   // localStorage - nothing is filtered by this yet, it just remembers the pick.
-  getActiveContextId() {
-    return localStorage.getItem('mywork_active_context_id');
-  },
-
-  setActiveContextId(id) {
-    localStorage.setItem('mywork_active_context_id', id);
-  },
 };
 
 // Make app globally accessible
 window.app = app;
 
-// Top-right context switcher (navbar.ejs, present on every page). Fetches the
-// context list, restores/defaults the active one, and lets clicking switch it.
+// Top-right context switcher (navbar.ejs, present on every page). The active
+// context is authoritative on the server (persists across page loads/tabs,
+// same idea as the active database profile), not client-side state - so
+// switching reloads the page, ensuring every tab's data (which all filter by
+// the active context server-side) is refetched under the new one.
 async function initContextSwitcher() {
   const btn = document.getElementById('contextSwitcherBtn');
   const label = document.getElementById('contextSwitcherLabel');
@@ -270,38 +266,52 @@ async function initContextSwitcher() {
   if (!btn) return;
 
   try {
-    const response = await fetch('/api/contexts');
-    const result = await response.json();
-    const contexts = (result.success && result.data) || [];
+    const [contextsResponse, activeResponse] = await Promise.all([
+      fetch('/api/contexts'),
+      fetch('/api/active-context'),
+    ]);
+    const contextsResult = await contextsResponse.json();
+    const activeResult = await activeResponse.json();
+    const contexts = (contextsResult.success && contextsResult.data) || [];
+    const active = activeResult.success ? activeResult.data : null;
 
-    if (contexts.length === 0) {
+    if (contexts.length === 0 || !active) {
       label.textContent = 'No contexts';
       return;
-    }
-
-    const activeId = app.getActiveContextId();
-    let active = contexts.find(c => String(c.id) === String(activeId));
-    if (!active) {
-      active = contexts[0];
-      app.setActiveContextId(active.id);
     }
 
     label.textContent = active.name;
 
     menu.innerHTML = contexts.map(c => `
       <li>
-        <button type="button" class="dropdown-item ${String(c.id) === String(active.id) ? 'active' : ''}" data-context-id="${c.id}">
+        <button type="button" class="dropdown-item ${c.id === active.id ? 'active' : ''}" data-context-id="${c.id}">
           ${app.escapeHtml(c.name)}
         </button>
       </li>
     `).join('');
 
     menu.querySelectorAll('[data-context-id]').forEach(item => {
-      item.addEventListener('click', () => {
-        app.setActiveContextId(item.dataset.contextId);
-        label.textContent = item.textContent.trim();
-        menu.querySelectorAll('[data-context-id]').forEach(el => el.classList.remove('active'));
-        item.classList.add('active');
+      item.addEventListener('click', async () => {
+        if (item.classList.contains('active')) return;
+        try {
+          const response = await fetch('/api/active-context', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+            },
+            body: JSON.stringify({ id: item.dataset.contextId })
+          });
+          const result = await response.json();
+          if (!result.success) {
+            app.notify('Error: ' + result.message, 'danger');
+            return;
+          }
+          window.location.reload();
+        } catch (error) {
+          console.error('Error switching context:', error);
+          app.notify('Error switching context', 'danger');
+        }
       });
     });
   } catch (error) {

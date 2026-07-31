@@ -1,5 +1,6 @@
 import express from 'express';
 import * as sourceService from '../../services/sourceService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -7,7 +8,8 @@ const router = express.Router();
 // Get all sources
 router.get('/', async (req, res) => {
   try {
-    const sources = await sourceService.getAllSources();
+    const contextId = await activeContextService.getActiveContextId();
+    const sources = await sourceService.getAllSources(contextId);
     res.json({ success: true, data: sources });
   } catch (error) {
     logger.error('Error fetching sources:', error);
@@ -29,7 +31,8 @@ router.get('/:id', async (req, res) => {
 // Create source
 router.post('/', async (req, res) => {
   try {
-    const source = await sourceService.createSource(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const source = await sourceService.createSource(req.body, contextId);
     res.status(201).json({ success: true, message: 'Source created', data: source });
   } catch (error) {
     logger.error('Error creating source:', error);

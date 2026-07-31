@@ -1,5 +1,6 @@
 import express from 'express';
 import * as workItemService from '../../services/workItemService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -7,7 +8,8 @@ const router = express.Router();
 // Get work items by date
 router.get('/date/:date', async (req, res) => {
   try {
-    const items = await workItemService.getWorkItemsByDate(req.params.date);
+    const contextId = await activeContextService.getActiveContextId();
+    const items = await workItemService.getWorkItemsByDate(req.params.date, contextId);
     res.json({ success: true, data: items });
   } catch (error) {
     logger.error('Error fetching work items:', error);
@@ -19,7 +21,8 @@ router.get('/date/:date', async (req, res) => {
 router.get('/range', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const items = await workItemService.getWorkItemsByDateRange(startDate, endDate);
+    const contextId = await activeContextService.getActiveContextId();
+    const items = await workItemService.getWorkItemsByDateRange(startDate, endDate, contextId);
     res.json({ success: true, data: items });
   } catch (error) {
     logger.error('Error fetching work items:', error);
@@ -31,7 +34,8 @@ router.get('/range', async (req, res) => {
 router.patch('/reorder', async (req, res) => {
   try {
     const { date, orderedIds } = req.body;
-    const items = await workItemService.reorderWorkItems(date, orderedIds);
+    const contextId = await activeContextService.getActiveContextId();
+    const items = await workItemService.reorderWorkItems(date, orderedIds, contextId);
     res.json({ success: true, message: 'Work items reordered', data: items });
   } catch (error) {
     logger.error('Error reordering work items:', error);
@@ -53,7 +57,8 @@ router.get('/:id', async (req, res) => {
 // Create work item
 router.post('/', async (req, res) => {
   try {
-    const item = await workItemService.createWorkItem(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const item = await workItemService.createWorkItem(req.body, contextId);
     res.status(201).json({ success: true, message: 'Work item created', data: item });
   } catch (error) {
     logger.error('Error creating work item:', error);

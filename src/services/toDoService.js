@@ -33,8 +33,8 @@ async function replaceItems(toDoId, items) {
   }
 }
 
-export async function getAllToDos() {
-  const toDos = await db.query('SELECT * FROM to_dos ORDER BY created_at DESC');
+export async function getAllToDos(contextId) {
+  const toDos = await db.query('SELECT * FROM to_dos WHERE context_id = ? ORDER BY created_at DESC', [contextId]);
   return attachItems(toDos);
 }
 
@@ -47,7 +47,7 @@ export async function getToDoById(id) {
   return withItems;
 }
 
-export async function createToDo(data) {
+export async function createToDo(data, contextId) {
   const { title, notes, folder_id, items } = data;
 
   if (!title) {
@@ -55,8 +55,8 @@ export async function createToDo(data) {
   }
 
   const toDoId = await db.insert(
-    'INSERT INTO to_dos (title, notes, folder_id) VALUES (?, ?, ?)',
-    [title, notes ?? null, folder_id || null]
+    'INSERT INTO to_dos (title, notes, folder_id, context_id) VALUES (?, ?, ?, ?)',
+    [title, notes ?? null, folder_id || null, contextId]
   );
 
   if (items !== undefined) {

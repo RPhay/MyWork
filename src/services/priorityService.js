@@ -39,8 +39,8 @@ async function attachAssociations(priorities) {
   }));
 }
 
-export async function getAllPriorities() {
-  const priorities = await db.query('SELECT * FROM priorities ORDER BY order_index ASC');
+export async function getAllPriorities(contextId) {
+  const priorities = await db.query('SELECT * FROM priorities WHERE context_id = ? ORDER BY order_index ASC', [contextId]);
   return attachAssociations(priorities);
 }
 
@@ -85,7 +85,7 @@ async function setGoalAssociations(priorityId, goalIds) {
   }
 }
 
-export async function createPriority(data) {
+export async function createPriority(data, contextId) {
   const { title, source_id, parent_id, notes, area_ids, goal_ids, status } = data;
 
   if (!title) {
@@ -93,14 +93,14 @@ export async function createPriority(data) {
   }
 
   // Get the max order index
-  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM priorities');
+  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM priorities WHERE context_id = ?', [contextId]);
   const nextOrder = (result?.maxOrder || 0) + 1;
 
   let priorityId;
   try {
     priorityId = await db.insert(
-      'INSERT INTO priorities (title, source_id, parent_id, notes, status, order_index) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, source_id || null, parent_id || null, notes ?? null, status || 'Not Started', nextOrder]
+      'INSERT INTO priorities (title, source_id, parent_id, notes, status, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [title, source_id || null, parent_id || null, notes ?? null, status || 'Not Started', nextOrder, contextId]
     );
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {

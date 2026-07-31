@@ -1,5 +1,6 @@
 import express from 'express';
 import * as ideaFolderService from '../../services/ideaFolderService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -7,7 +8,8 @@ const router = express.Router();
 // Get all folders
 router.get('/', async (req, res) => {
   try {
-    const folders = await ideaFolderService.getAllFolders();
+    const contextId = await activeContextService.getActiveContextId();
+    const folders = await ideaFolderService.getAllFolders(contextId);
     res.json({ success: true, data: folders });
   } catch (error) {
     logger.error('Error fetching idea folders:', error);
@@ -29,7 +31,8 @@ router.get('/:id', async (req, res) => {
 // Create folder
 router.post('/', async (req, res) => {
   try {
-    const folder = await ideaFolderService.createFolder(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const folder = await ideaFolderService.createFolder(req.body, contextId);
     res.status(201).json({ success: true, message: 'Folder created', data: folder });
   } catch (error) {
     logger.error('Error creating idea folder:', error);

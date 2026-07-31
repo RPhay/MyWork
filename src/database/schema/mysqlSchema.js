@@ -501,4 +501,41 @@ export async function createMysqlSchema(connection) {
   if (existingContexts[0].cnt === 0) {
     await connection.query('INSERT INTO contexts (name, order_index) VALUES (?, ?)', ['Default', 0]);
   }
+
+  // Every content entity belongs to exactly one context. Added here (after
+  // contexts exists) rather than in each table's own CREATE statement, so
+  // this same block works identically for fresh installs and pre-existing
+  // tables alike. Existing rows backfill to whichever context was created
+  // first (order_index/id ASC) - normally "Default", but not assumed by name
+  // since it's renamable.
+  const [[firstContext]] = await connection.query('SELECT id FROM contexts ORDER BY order_index ASC, id ASC LIMIT 1');
+  const contextTables = [
+    'sources', 'areas', 'priorities', 'goals', 'work_items',
+    'work_item_templates', 'to_do_folders', 'to_dos', 'idea_folders', 'ideas',
+  ];
+  for (const table of contextTables) {
+    if (!(await columnExists(connection, table, 'context_id'))) {
+      await connection.query(
+        `ALTER TABLE ${table} ADD COLUMN context_id INT, ADD FOREIGN KEY (context_id) REFERENCES contexts(id)`
+      );
+      await connection.query(`UPDATE ${table} SET context_id = ? WHERE context_id IS NULL`, [firstContext.id]);
+    }
+  }
+
+  // A few uniqueness constraints predate contexts and were scoped globally
+  // (e.g. only one area could ever be named "Meetings" across the whole app).
+  // Widen them to be per-context so the same name can exist in different
+  // contexts without colliding.
+  if (await indexExists(connection, 'areas', 'name')) {
+    await connection.query('ALTER TABLE areas DROP INDEX `name`');
+    await connection.query('ALTER TABLE areas ADD UNIQUE KEY unique_context_name (context_id, name)');
+  }
+  if (await indexExists(connection, 'priorities', 'title')) {
+    await connection.query('ALTER TABLE priorities DROP INDEX `title`');
+    await connection.query('ALTER TABLE priorities ADD UNIQUE KEY unique_context_title (context_id, title)');
+  }
+  if (await indexExists(connection, 'goals', 'unique_year_name')) {
+    await connection.query('ALTER TABLE goals DROP INDEX unique_year_name');
+    await connection.query('ALTER TABLE goals ADD UNIQUE KEY unique_context_year_name (context_id, year, name)');
+  }
 }

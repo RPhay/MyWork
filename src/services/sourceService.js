@@ -1,8 +1,8 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 
-export async function getAllSources() {
-  return await db.query('SELECT * FROM sources ORDER BY created_at ASC');
+export async function getAllSources(contextId) {
+  return await db.query('SELECT * FROM sources WHERE context_id = ? ORDER BY created_at ASC', [contextId]);
 }
 
 export async function getSourceById(id) {
@@ -13,7 +13,7 @@ export async function getSourceById(id) {
   return source;
 }
 
-export async function createSource(data) {
+export async function createSource(data, contextId) {
   const { name, type, config, enabled } = data;
 
   if (!name || !type) {
@@ -21,8 +21,8 @@ export async function createSource(data) {
   }
 
   const sourceId = await db.insert(
-    'INSERT INTO sources (name, type, config, enabled, status) VALUES (?, ?, ?, ?, ?)',
-    [name, type, JSON.stringify(config || {}), enabled !== false, 'not_configured']
+    'INSERT INTO sources (name, type, config, enabled, status, context_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [name, type, JSON.stringify(config || {}), enabled !== false, 'not_configured', contextId]
   );
 
   return getSourceById(sourceId);

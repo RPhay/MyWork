@@ -1,5 +1,6 @@
 import express from 'express';
 import * as ideaService from '../../services/ideaService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -7,7 +8,8 @@ const router = express.Router();
 // Get all ideas
 router.get('/', async (req, res) => {
   try {
-    const ideas = await ideaService.getAllIdeas();
+    const contextId = await activeContextService.getActiveContextId();
+    const ideas = await ideaService.getAllIdeas(contextId);
     res.json({ success: true, data: ideas });
   } catch (error) {
     logger.error('Error fetching ideas:', error);
@@ -29,7 +31,8 @@ router.get('/:id', async (req, res) => {
 // Create idea
 router.post('/', async (req, res) => {
   try {
-    const idea = await ideaService.createIdea(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const idea = await ideaService.createIdea(req.body, contextId);
     res.status(201).json({ success: true, message: 'Idea created', data: idea });
   } catch (error) {
     logger.error('Error creating idea:', error);

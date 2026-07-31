@@ -47,8 +47,8 @@ async function attachAssociations(templates) {
   }));
 }
 
-export async function getAllTemplates() {
-  const templates = await db.query('SELECT * FROM work_item_templates ORDER BY order_index ASC, title ASC');
+export async function getAllTemplates(contextId) {
+  const templates = await db.query('SELECT * FROM work_item_templates WHERE context_id = ? ORDER BY order_index ASC, title ASC', [contextId]);
   return attachAssociations(templates);
 }
 
@@ -68,19 +68,19 @@ async function setAssociations(table, column, templateId, ids) {
   }
 }
 
-export async function createTemplate(data) {
+export async function createTemplate(data, contextId) {
   const { title, description, emoji, source_id, status, area_ids, goal_ids, priority_ids, time_box_minutes } = data;
 
   if (!title) {
     throw new ValidationError('Template title is required');
   }
 
-  const orderResult = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_item_templates');
+  const orderResult = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_item_templates WHERE context_id = ?', [contextId]);
   const nextOrder = (orderResult?.maxOrder ?? -1) + 1;
 
   const templateId = await db.insert(
-    'INSERT INTO work_item_templates (title, description, emoji, source_id, status, time_box_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [title, description ?? null, emoji ?? null, source_id || null, status || 'Not Started', normalizeTimeBox(time_box_minutes), nextOrder]
+    'INSERT INTO work_item_templates (title, description, emoji, source_id, status, time_box_minutes, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [title, description ?? null, emoji ?? null, source_id || null, status || 'Not Started', normalizeTimeBox(time_box_minutes), nextOrder, contextId]
   );
 
   if (Array.isArray(area_ids) && area_ids.length > 0) {
@@ -212,12 +212,12 @@ export async function instantiateTemplate(templateId, date) {
 
   const template = await getTemplateById(templateId);
 
-  const orderResult = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ?', [date]);
+  const orderResult = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?', [date, template.context_id]);
   const nextOrder = (orderResult?.maxOrder ?? -1) + 1;
 
   const workItemId = await db.insert(
-    'INSERT INTO work_items (date, title, description, emoji, status, time_box_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [date, template.title, template.description, template.emoji, template.status || 'Not Started', template.time_box_minutes, nextOrder]
+    'INSERT INTO work_items (date, title, description, emoji, status, time_box_minutes, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [date, template.title, template.description, template.emoji, template.status || 'Not Started', template.time_box_minutes, nextOrder, template.context_id]
   );
 
   for (const area of template.areas) {

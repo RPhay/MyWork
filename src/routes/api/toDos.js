@@ -1,5 +1,6 @@
 import express from 'express';
 import * as toDoService from '../../services/toDoService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -7,7 +8,8 @@ const router = express.Router();
 // Get all to-dos
 router.get('/', async (req, res) => {
   try {
-    const toDos = await toDoService.getAllToDos();
+    const contextId = await activeContextService.getActiveContextId();
+    const toDos = await toDoService.getAllToDos(contextId);
     res.json({ success: true, data: toDos });
   } catch (error) {
     logger.error('Error fetching to-dos:', error);
@@ -29,7 +31,8 @@ router.get('/:id', async (req, res) => {
 // Create to-do
 router.post('/', async (req, res) => {
   try {
-    const toDo = await toDoService.createToDo(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const toDo = await toDoService.createToDo(req.body, contextId);
     res.status(201).json({ success: true, message: 'To do created', data: toDo });
   } catch (error) {
     logger.error('Error creating to-do:', error);

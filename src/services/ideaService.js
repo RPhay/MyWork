@@ -33,8 +33,8 @@ async function replaceItems(ideaId, items) {
   }
 }
 
-export async function getAllIdeas() {
-  const ideas = await db.query('SELECT * FROM ideas ORDER BY created_at DESC');
+export async function getAllIdeas(contextId) {
+  const ideas = await db.query('SELECT * FROM ideas WHERE context_id = ? ORDER BY created_at DESC', [contextId]);
   return attachItems(ideas);
 }
 
@@ -47,7 +47,7 @@ export async function getIdeaById(id) {
   return withItems;
 }
 
-export async function createIdea(data) {
+export async function createIdea(data, contextId) {
   const { title, notes, folder_id, items } = data;
 
   if (!title) {
@@ -55,8 +55,8 @@ export async function createIdea(data) {
   }
 
   const ideaId = await db.insert(
-    'INSERT INTO ideas (title, notes, folder_id) VALUES (?, ?, ?)',
-    [title, notes ?? null, folder_id || null]
+    'INSERT INTO ideas (title, notes, folder_id, context_id) VALUES (?, ?, ?, ?)',
+    [title, notes ?? null, folder_id || null, contextId]
   );
 
   if (items !== undefined) {

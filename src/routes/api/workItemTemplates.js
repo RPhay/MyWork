@@ -1,5 +1,6 @@
 import express from 'express';
 import * as templateService from '../../services/workItemTemplateService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -7,7 +8,8 @@ const router = express.Router();
 // Get all templates
 router.get('/', async (req, res) => {
   try {
-    const templates = await templateService.getAllTemplates();
+    const contextId = await activeContextService.getActiveContextId();
+    const templates = await templateService.getAllTemplates(contextId);
     res.json({ success: true, data: templates });
   } catch (error) {
     logger.error('Error fetching templates:', error);
@@ -40,7 +42,8 @@ router.get('/:id', async (req, res) => {
 // Create template
 router.post('/', async (req, res) => {
   try {
-    const template = await templateService.createTemplate(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const template = await templateService.createTemplate(req.body, contextId);
     res.status(201).json({ success: true, message: 'Template created', data: template });
   } catch (error) {
     logger.error('Error creating template:', error);

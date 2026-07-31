@@ -61,30 +61,30 @@ async function attachAssociations(items) {
   }));
 }
 
-export async function getWorkItemsByDate(date) {
+export async function getWorkItemsByDate(date, contextId) {
   const items = await db.query(
-    'SELECT * FROM work_items WHERE date = ? ORDER BY order_index ASC, created_at ASC',
-    [date]
+    'SELECT * FROM work_items WHERE date = ? AND context_id = ? ORDER BY order_index ASC, created_at ASC',
+    [date, contextId]
   );
   return attachAssociations(items);
 }
 
-export async function getWorkItemsByDateRange(startDate, endDate) {
+export async function getWorkItemsByDateRange(startDate, endDate, contextId) {
   const items = await db.query(
-    'SELECT * FROM work_items WHERE date >= ? AND date <= ? ORDER BY date ASC, order_index ASC, created_at ASC',
-    [startDate, endDate]
+    'SELECT * FROM work_items WHERE date >= ? AND date <= ? AND context_id = ? ORDER BY date ASC, order_index ASC, created_at ASC',
+    [startDate, endDate, contextId]
   );
   return attachAssociations(items);
 }
 
-export async function reorderWorkItems(date, orderedIds) {
+export async function reorderWorkItems(date, orderedIds, contextId) {
   for (let i = 0; i < orderedIds.length; i++) {
     await db.update(
       'UPDATE work_items SET order_index = ? WHERE id = ? AND date = ?',
       [i, orderedIds[i], date]
     );
   }
-  return getWorkItemsByDate(date);
+  return getWorkItemsByDate(date, contextId);
 }
 
 export async function getWorkItemById(id) {
@@ -96,19 +96,19 @@ export async function getWorkItemById(id) {
   return withAssociations;
 }
 
-export async function createWorkItem(data) {
+export async function createWorkItem(data, contextId) {
   const { date, title, description, notes, emoji, status, goal_ids, priority_ids, source_id, time_box_minutes } = data;
 
   if (!date || !title) {
     throw new ValidationError('Date and title are required');
   }
 
-  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ?', [date]);
+  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?', [date, contextId]);
   const nextOrder = (result?.maxOrder ?? -1) + 1;
 
   const workItemId = await db.insert(
-    'INSERT INTO work_items (date, title, description, notes, emoji, status, time_box_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [date, title, description ?? null, notes ?? null, emoji ?? null, status || 'Not Started', normalizeTimeBox(time_box_minutes), nextOrder]
+    'INSERT INTO work_items (date, title, description, notes, emoji, status, time_box_minutes, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [date, title, description ?? null, notes ?? null, emoji ?? null, status || 'Not Started', normalizeTimeBox(time_box_minutes), nextOrder, contextId]
   );
 
   // Add goal associations
@@ -247,8 +247,8 @@ export async function updateWorkItemTimeBox(id, timeBoxMinutes) {
   return getWorkItemById(id);
 }
 
-async function nextOrderIndexForDate(date) {
-  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ?', [date]);
+async function nextOrderIndexForDate(date, contextId) {
+  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?', [date, contextId]);
   return (result?.maxOrder ?? -1) + 1;
 }
 
@@ -257,7 +257,8 @@ export async function moveWorkItem(id, date) {
     throw new ValidationError('Date is required');
   }
 
-  const nextOrder = await nextOrderIndexForDate(date);
+  const existing = await getWorkItemById(id);
+  const nextOrder = await nextOrderIndexForDate(date, existing.context_id);
   await db.update('UPDATE work_items SET date = ?, order_index = ? WHERE id = ?', [date, nextOrder, id]);
   return getWorkItemById(id);
 }
@@ -268,11 +269,11 @@ export async function cloneWorkItem(id, date) {
   }
 
   const original = await getWorkItemById(id);
-  const nextOrder = await nextOrderIndexForDate(date);
+  const nextOrder = await nextOrderIndexForDate(date, original.context_id);
 
   const newId = await db.insert(
-    'INSERT INTO work_items (date, title, description, notes, emoji, status, time_box_minutes, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [date, original.title, original.description, original.notes, original.emoji, 'Not Started', original.time_box_minutes, nextOrder]
+    'INSERT INTO work_items (date, title, description, notes, emoji, status, time_box_minutes, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [date, original.title, original.description, original.notes, original.emoji, 'Not Started', original.time_box_minutes, nextOrder, original.context_id]
   );
 
   for (const p of original.priorities) {

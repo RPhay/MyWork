@@ -23,10 +23,10 @@ async function attachCategories(goals) {
   }));
 }
 
-export async function getGoalsByYear(year) {
+export async function getGoalsByYear(year, contextId) {
   const goals = await db.query(
-    'SELECT * FROM goals WHERE year = ? ORDER BY order_index ASC, due_date ASC',
-    [year]
+    'SELECT * FROM goals WHERE year = ? AND context_id = ? ORDER BY order_index ASC, due_date ASC',
+    [year, contextId]
   );
   return attachCategories(goals || []);
 }
@@ -43,21 +43,21 @@ export async function getGoalById(id) {
   return withCategories;
 }
 
-export async function createGoal(data) {
+export async function createGoal(data, contextId) {
   const { year, name, description, measurements, goal_updates, status, due_date, categories } = data;
 
   if (!name) {
     throw new ValidationError('Goal name is required');
   }
 
-  const orderResult = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM goals');
+  const orderResult = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM goals WHERE context_id = ?', [contextId]);
   const nextOrder = (orderResult?.maxOrder ?? -1) + 1;
 
   let goalId;
   try {
     goalId = await db.insert(
-      'INSERT INTO goals (year, name, description, measurements, goal_updates, status, due_date, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [year, name, description ?? null, measurements ?? null, goal_updates ?? null, status || 'Not Started', due_date || null, nextOrder]
+      'INSERT INTO goals (year, name, description, measurements, goal_updates, status, due_date, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [year, name, description ?? null, measurements ?? null, goal_updates ?? null, status || 'Not Started', due_date || null, nextOrder, contextId]
     );
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {

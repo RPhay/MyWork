@@ -33,6 +33,9 @@ function describeDbError(error) {
     case 'ER_NO_REFERENCED_ROW':
     case 'ER_NO_REFERENCED_ROW_2':
       return 'That references a record which does not exist.';
+    case 'ER_ROW_IS_REFERENCED':
+    case 'ER_ROW_IS_REFERENCED_2':
+      return 'That is still in use by other records and cannot be deleted.';
     default:
       return error.message || 'An unexpected database error occurred.';
   }

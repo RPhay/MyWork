@@ -1,5 +1,6 @@
 import express from 'express';
 import * as areaService from '../../services/areaService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -7,7 +8,8 @@ const router = express.Router();
 // Get all areas
 router.get('/', async (req, res) => {
   try {
-    const areas = await areaService.getAllAreas();
+    const contextId = await activeContextService.getActiveContextId();
+    const areas = await areaService.getAllAreas(contextId);
     res.json({ success: true, data: areas });
   } catch (error) {
     logger.error('Error fetching areas:', error);
@@ -19,7 +21,8 @@ router.get('/', async (req, res) => {
 // under the same parent, rather than onto one which nests it instead)
 router.patch('/reorder-siblings', async (req, res) => {
   try {
-    const areas = await areaService.reorderAreasAmongSiblings(req.body.orderedIds);
+    const contextId = await activeContextService.getActiveContextId();
+    const areas = await areaService.reorderAreasAmongSiblings(req.body.orderedIds, contextId);
     res.json({ success: true, message: 'Categories reordered', data: areas });
   } catch (error) {
     logger.error('Error reordering sibling categories:', error);
@@ -41,7 +44,8 @@ router.get('/:id', async (req, res) => {
 // Create area
 router.post('/', async (req, res) => {
   try {
-    const area = await areaService.createArea(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const area = await areaService.createArea(req.body, contextId);
     res.status(201).json({ success: true, message: 'Area created', data: area });
   } catch (error) {
     logger.error('Error creating area:', error);

@@ -1,8 +1,8 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 
-export async function getAllFolders() {
-  return await db.query('SELECT * FROM to_do_folders ORDER BY name ASC');
+export async function getAllFolders(contextId) {
+  return await db.query('SELECT * FROM to_do_folders WHERE context_id = ? ORDER BY name ASC', [contextId]);
 }
 
 export async function getFolderById(id) {
@@ -31,7 +31,7 @@ async function getDescendantIds(id) {
   return descendants;
 }
 
-export async function createFolder(data) {
+export async function createFolder(data, contextId) {
   const { name, parent_id } = data;
 
   if (!name) {
@@ -39,8 +39,8 @@ export async function createFolder(data) {
   }
 
   const folderId = await db.insert(
-    'INSERT INTO to_do_folders (name, parent_id) VALUES (?, ?)',
-    [name, parent_id || null]
+    'INSERT INTO to_do_folders (name, parent_id, context_id) VALUES (?, ?, ?)',
+    [name, parent_id || null, contextId]
   );
 
   return getFolderById(folderId);

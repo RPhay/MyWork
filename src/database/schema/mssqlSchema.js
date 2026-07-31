@@ -34,6 +34,13 @@ async function createIndexIfNotExists(pool, indexName, tableName, ddl) {
   }
 }
 
+async function columnExists(pool, tableName, columnName) {
+  const result = await pool.request().query(
+    `SELECT COUNT(*) as cnt FROM sys.columns WHERE object_id = OBJECT_ID('${tableName}') AND name = '${columnName}'`
+  );
+  return result.recordset[0].cnt > 0;
+}
+
 async function createTriggerIfNotExists(pool, triggerName, ddl) {
   const result = await pool.request().query(`SELECT COUNT(*) as cnt FROM sys.triggers WHERE name = '${triggerName}'`);
   if (result.recordset[0].cnt === 0) {
@@ -95,7 +102,7 @@ export async function createMssqlSchema(pool) {
   await createTableIfNotExists(pool, 'areas', `
     CREATE TABLE areas (
       id INT IDENTITY(1,1) PRIMARY KEY,
-      name NVARCHAR(255) NOT NULL UNIQUE,
+      name NVARCHAR(255) NOT NULL,
       description NVARCHAR(MAX),
       parent_id INT NULL,
       order_index INT DEFAULT 0,
@@ -135,8 +142,7 @@ export async function createMssqlSchema(pool) {
       due_date DATE NULL,
       order_index INT DEFAULT 0,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT unique_year_name UNIQUE (year, name)
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
     )
   `);
   await createUpdatedAtTrigger(pool, 'goals');
@@ -157,7 +163,7 @@ export async function createMssqlSchema(pool) {
   await createTableIfNotExists(pool, 'priorities', `
     CREATE TABLE priorities (
       id INT IDENTITY(1,1) PRIMARY KEY,
-      title NVARCHAR(255) NOT NULL UNIQUE,
+      title NVARCHAR(255) NOT NULL,
       source_id INT NULL,
       parent_id INT NULL,
       notes NVARCHAR(MAX),
@@ -398,4 +404,31 @@ export async function createMssqlSchema(pool) {
   if (contextCountResult.recordset[0].cnt === 0) {
     await pool.request().input('name', 'Default').query('INSERT INTO contexts (name, order_index) VALUES (@name, 0)');
   }
+
+  // Every content entity belongs to exactly one context - see mysqlSchema.js
+  // for the full rationale. Added after contexts exists so the FK is valid
+  // whether these tables were just created above or already existed.
+  const firstContextResult = await pool.request().query('SELECT TOP 1 id FROM contexts ORDER BY order_index ASC, id ASC');
+  const firstContextId = firstContextResult.recordset[0].id;
+  const contextTables = [
+    'sources', 'areas', 'priorities', 'goals', 'work_items',
+    'work_item_templates', 'to_do_folders', 'to_dos', 'idea_folders', 'ideas',
+  ];
+  for (const table of contextTables) {
+    if (!(await columnExists(pool, table, 'context_id'))) {
+      await pool.request().query(
+        `ALTER TABLE ${table} ADD context_id INT NULL CONSTRAINT fk_${table}_context FOREIGN KEY REFERENCES contexts(id)`
+      );
+      await pool.request().input('contextId', firstContextId).query(
+        `UPDATE ${table} SET context_id = @contextId WHERE context_id IS NULL`
+      );
+    }
+  }
+
+  // These three used to be uniquely constrained globally (e.g. only one area
+  // ever named "Meetings" in the whole app); widened to per-context now that
+  // context_id exists, so the same name can exist in different contexts.
+  await createIndexIfNotExists(pool, 'unique_context_name', 'areas', 'CREATE UNIQUE INDEX unique_context_name ON areas(context_id, name)');
+  await createIndexIfNotExists(pool, 'unique_context_title', 'priorities', 'CREATE UNIQUE INDEX unique_context_title ON priorities(context_id, title)');
+  await createIndexIfNotExists(pool, 'unique_context_year_name', 'goals', 'CREATE UNIQUE INDEX unique_context_year_name ON goals(context_id, year, name)');
 }

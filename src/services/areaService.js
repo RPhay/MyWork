@@ -1,8 +1,8 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError, ConflictError } from '../config/errors.js';
 
-export async function getAllAreas() {
-  return await db.query('SELECT * FROM areas ORDER BY order_index ASC, name ASC');
+export async function getAllAreas(contextId) {
+  return await db.query('SELECT * FROM areas WHERE context_id = ? ORDER BY order_index ASC, name ASC', [contextId]);
 }
 
 export async function getAreaById(id) {
@@ -31,20 +31,20 @@ async function getDescendantIds(id) {
   return descendants;
 }
 
-export async function createArea(data) {
+export async function createArea(data, contextId) {
   const { name, description, parent_id } = data;
 
   if (!name) {
     throw new ValidationError('Area name is required');
   }
 
-  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM areas');
+  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM areas WHERE context_id = ?', [contextId]);
   const nextOrder = (result?.maxOrder ?? -1) + 1;
 
   try {
     const areaId = await db.insert(
-      'INSERT INTO areas (name, description, parent_id, order_index) VALUES (?, ?, ?, ?)',
-      [name, description || null, parent_id || null, nextOrder]
+      'INSERT INTO areas (name, description, parent_id, order_index, context_id) VALUES (?, ?, ?, ?, ?)',
+      [name, description || null, parent_id || null, nextOrder, contextId]
     );
 
     return getAreaById(areaId);
@@ -116,10 +116,10 @@ export async function deleteArea(id) {
 
 // Used by the Categories tree: dragging a category between two siblings under
 // the same parent (rather than onto one, which nests it instead).
-export async function reorderAreasAmongSiblings(orderedIds) {
+export async function reorderAreasAmongSiblings(orderedIds, contextId) {
   for (let i = 0; i < orderedIds.length; i++) {
     await db.update('UPDATE areas SET order_index = ? WHERE id = ?', [i, orderedIds[i]]);
   }
 
-  return getAllAreas();
+  return getAllAreas(contextId);
 }

@@ -1,5 +1,6 @@
 import express from 'express';
 import * as goalService from '../../services/goalService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -8,7 +9,8 @@ const router = express.Router();
 router.get('/year/:year', async (req, res) => {
   try {
     const year = parseInt(req.params.year, 10);
-    const goals = await goalService.getGoalsByYear(year);
+    const contextId = await activeContextService.getActiveContextId();
+    const goals = await goalService.getGoalsByYear(year, contextId);
     res.json({ success: true, data: goals });
   } catch (error) {
     logger.error('Error fetching goals:', error);
@@ -52,7 +54,8 @@ router.get('/:id', async (req, res) => {
 // Create goal
 router.post('/', async (req, res) => {
   try {
-    const goal = await goalService.createGoal(req.body);
+    const contextId = await activeContextService.getActiveContextId();
+    const goal = await goalService.createGoal(req.body, contextId);
     res.status(201).json({ success: true, message: 'Goal created', data: goal });
   } catch (error) {
     logger.error('Error creating goal:', error);
