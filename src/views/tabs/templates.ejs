@@ -62,9 +62,16 @@
           <input type="hidden" id="templateId" name="templateId">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-          <div class="mb-3">
-            <label for="templateTitle" class="form-label">Title *</label>
-            <input type="text" class="form-control" id="templateTitle" name="title" required>
+          <div class="mb-3 d-flex gap-2 align-items-end">
+            <div class="flex-grow-1">
+              <label for="templateTitle" class="form-label">Title *</label>
+              <input type="text" class="form-control" id="templateTitle" name="title" required>
+            </div>
+            <div>
+              <label class="form-label d-block">Oh!</label>
+              <input type="hidden" id="templateEmoji" name="emoji">
+              <button type="button" class="btn btn-outline-secondary emoji-field-btn text-muted" id="templateEmojiBtn" data-action="pick-emoji-field" data-input="templateEmoji">Pick an emoji</button>
+            </div>
           </div>
 
           <div class="mb-3">
@@ -73,31 +80,23 @@
           </div>
 
           <div class="mb-3">
-            <label class="form-label d-block">Oh!</label>
-            <input type="hidden" id="templateEmoji" name="emoji">
-            <button type="button" class="btn btn-outline-secondary emoji-field-btn text-muted" id="templateEmojiBtn" data-action="pick-emoji-field" data-input="templateEmoji">Pick an emoji</button>
-          </div>
+            <label class="form-label d-block">Time Box</label>
+            <div class="d-flex flex-wrap gap-2" id="templateTimeBox">
+              <input type="radio" class="btn-check" name="templateTimeBoxBubble" id="templateTimeBoxNone" value="" autocomplete="off" checked>
+              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="templateTimeBoxNone">No time box</label>
 
-          <div class="mb-3">
-            <label for="templateStatus" class="form-label">Default Status</label>
-            <select class="form-select" id="templateStatus" name="status">
-              <option value="Not Started">Not Started</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Complete">Complete</option>
-            </select>
-          </div>
+              <input type="radio" class="btn-check" name="templateTimeBoxBubble" id="templateTimeBox15" value="15" autocomplete="off">
+              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="templateTimeBox15">15m</label>
 
-          <div class="mb-3">
-            <label for="templateTimeBox" class="form-label">Time Box</label>
-            <select class="form-select" id="templateTimeBox">
-              <option value="">No time box</option>
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="45">45 minutes</option>
-              <option value="60">60 minutes</option>
-              <option value="custom">Custom...</option>
-            </select>
-            <input type="number" class="form-control mt-2 d-none" id="templateTimeBoxCustom" name="time_box_minutes" min="1" step="1" placeholder="Minutes">
+              <input type="radio" class="btn-check" name="templateTimeBoxBubble" id="templateTimeBox30" value="30" autocomplete="off">
+              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="templateTimeBox30">30m</label>
+
+              <input type="radio" class="btn-check" name="templateTimeBoxBubble" id="templateTimeBox45" value="45" autocomplete="off">
+              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="templateTimeBox45">45m</label>
+
+              <input type="radio" class="btn-check" name="templateTimeBoxBubble" id="templateTimeBox60" value="60" autocomplete="off">
+              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="templateTimeBox60">60m</label>
+            </div>
           </div>
         </form>
       </div>

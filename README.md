@@ -12,7 +12,7 @@ A personal work management application for tracking dailies, priorities, and yea
 ## Tech Stack
 
 - **Backend**: Node.js 20+, Express.js
-- **Database**: MySQL 8.0+
+- **Database**: MySQL 8.0+ or MariaDB (any server speaking the MySQL wire protocol)
 - **Frontend**: EJS templating, Bootstrap 5
 - **Security**: express-session, CSRF protection, rate limiting
 - **Logging**: Winston
@@ -22,7 +22,7 @@ A personal work management application for tracking dailies, priorities, and yea
 ### Prerequisites
 
 - Node.js 20+
-- MySQL 8.0+
+- MySQL 8.0+ or MariaDB
 
 ### Setup
 

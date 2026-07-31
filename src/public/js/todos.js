@@ -24,6 +24,7 @@ function renderToDoRow(toDo, depth) {
       <span class="todo-name-cell">
         <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
         <span class="todo-folder-toggle"></span>
+        <i class="bi ${APP_ICONS.todo} text-muted" title="To Do"></i>
         <span class="todo-title">${toDo.title}</span>
         ${itemsBadge}
       </span>

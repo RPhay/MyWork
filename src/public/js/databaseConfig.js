@@ -115,7 +115,7 @@ async function testDatabaseConnection(type) {
       showTestResult(type, { success: true, message: 'Connected successfully - MyWork schema found.' });
     } else if (result.schemaExists === false) {
       showTestResult(type, { success: true, message: 'Connected successfully - MyWork schema was not found.' });
-      const label = type === 'mysql' ? 'MySQL' : 'MSSQL';
+      const label = type === 'mysql' ? 'MySQL / MariaDB' : 'MSSQL';
       if (await app.confirm(`The MyWork schema was not found in this ${label} database. Create it now?`)) {
         await createSchemaOnTarget(type);
       }
@@ -140,7 +140,7 @@ async function saveDatabaseProfile(type) {
     });
     const result = await response.json();
     if (result.success) {
-      app.notify(`${type === 'mysql' ? 'MySQL' : 'MSSQL'} connection profile saved!`, 'success');
+      app.notify(`${type === 'mysql' ? 'MySQL / MariaDB' : 'MSSQL'} connection profile saved!`, 'success');
       document.getElementById(`${type}Password`).value = '';
       populateProfileForm(type, result.data);
     } else {

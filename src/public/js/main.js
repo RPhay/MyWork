@@ -25,6 +25,7 @@ window.APP_ICONS = {
   area: 'bi-diagram-3',
   goal: 'bi-bullseye',
   template: 'bi-clipboard-plus',
+  todo: 'bi-check2-square',
 };
 
 // Utility functions

@@ -30,7 +30,7 @@
   <div class="col-md-3" style="overflow-y: auto; border-left: 1px solid #dee2e6; padding-left: 15px;">
     <ul class="nav nav-tabs nav-fill mb-2" id="rightPanelTabs" style="font-size: 0.8rem;">
       <li class="nav-item">
-        <button class="nav-link active px-1" data-panel-tab="priorities" type="button">Projects</button>
+        <button class="nav-link px-1" data-panel-tab="priorities" type="button">Projects</button>
       </li>
       <li class="nav-item">
         <button class="nav-link px-1" data-panel-tab="goals" type="button">Goals</button>
@@ -39,11 +39,11 @@
         <button class="nav-link px-1" data-panel-tab="areas" type="button">Categories</button>
       </li>
       <li class="nav-item">
-        <button class="nav-link px-1" data-panel-tab="templates" type="button">Templates</button>
+        <button class="nav-link active px-1" data-panel-tab="templates" type="button">Templates</button>
       </li>
     </ul>
 
-    <div id="prioritiesListRight" class="right-panel-list" data-panel="priorities">
+    <div id="prioritiesListRight" class="right-panel-list d-none" data-panel="priorities">
       <small class="text-muted">No priorities</small>
     </div>
     <div id="goalsListRight" class="right-panel-list d-none" data-panel="goals">
@@ -52,7 +52,7 @@
     <div id="areasListRight" class="right-panel-list d-none" data-panel="areas">
       <small class="text-muted">No categories</small>
     </div>
-    <div id="templatesListRight" class="right-panel-list d-none" data-panel="templates">
+    <div id="templatesListRight" class="right-panel-list" data-panel="templates">
       <small class="text-muted">No templates</small>
     </div>
   </div>

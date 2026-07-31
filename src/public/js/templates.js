@@ -145,59 +145,41 @@ async function loadTemplateRightPanel() {
   }
 }
 
-const TIME_BOX_PRESETS = ['', '15', '30', '45', '60'];
-
-function setTimeBoxField(selectId, customId, minutes) {
-  const select = document.getElementById(selectId);
-  const custom = document.getElementById(customId);
+function setTimeBoxField(groupId, minutes) {
   const value = minutes ? String(minutes) : '';
-
-  if (TIME_BOX_PRESETS.includes(value)) {
-    select.value = value;
-    custom.classList.add('d-none');
-    custom.value = '';
-  } else {
-    select.value = 'custom';
-    custom.classList.remove('d-none');
-    custom.value = value;
-  }
+  const input = document.querySelector(`#${groupId} input[value="${value}"]`);
+  if (input) input.checked = true;
 }
 
-function getTimeBoxField(selectId, customId) {
-  const select = document.getElementById(selectId);
-  if (select.value === 'custom') {
-    return document.getElementById(customId).value || null;
-  }
-  return select.value || null;
-}
-
-function initTimeBoxFieldToggle(selectId, customId) {
-  document.getElementById(selectId).addEventListener('change', (e) => {
-    const custom = document.getElementById(customId);
-    custom.classList.toggle('d-none', e.target.value !== 'custom');
-    if (e.target.value === 'custom') custom.focus();
-  });
+function getTimeBoxField(groupId) {
+  const checked = document.querySelector(`#${groupId} input:checked`);
+  return checked && checked.value ? checked.value : null;
 }
 
 function openNewTemplateForm() {
   document.getElementById('templateId').value = '';
   document.getElementById('templateForm').reset();
   updateEmojiFieldButton('templateEmojiBtn', '');
-  setTimeBoxField('templateTimeBox', 'templateTimeBoxCustom', null);
+  setTimeBoxField('templateTimeBox', null);
 }
 
 async function saveTemplate() {
   const templateId = document.getElementById('templateId').value;
 
   // area_ids/goal_ids/priority_ids are intentionally omitted here - they're only
-  // ever changed via drag-and-drop, never through this form.
+  // ever changed via drag-and-drop, never through this form. status is likewise
+  // omitted on edit so saving never overwrites a status set via the list's cycle
+  // badge; new templates always start at 'In Progress'.
   const data = {
     title: document.getElementById('templateTitle').value,
     description: document.getElementById('templateDescription').value,
     emoji: document.getElementById('templateEmoji').value,
-    status: document.getElementById('templateStatus').value,
-    time_box_minutes: getTimeBoxField('templateTimeBox', 'templateTimeBoxCustom')
+    time_box_minutes: getTimeBoxField('templateTimeBox')
   };
+
+  if (!templateId) {
+    data.status = 'In Progress';
+  }
 
   try {
     const url = templateId ? `/api/work-item-templates/${templateId}` : '/api/work-item-templates';
@@ -237,8 +219,7 @@ async function editTemplate(templateId) {
     document.getElementById('templateDescription').value = template.description || '';
     document.getElementById('templateEmoji').value = template.emoji || '';
     updateEmojiFieldButton('templateEmojiBtn', template.emoji || '');
-    document.getElementById('templateStatus').value = template.status || 'Not Started';
-    setTimeBoxField('templateTimeBox', 'templateTimeBoxCustom', template.time_box_minutes);
+    setTimeBoxField('templateTimeBox', template.time_box_minutes);
 
     const modal = new bootstrap.Modal(document.getElementById('templateModal'));
     modal.show();
@@ -396,7 +377,6 @@ function initTemplateRightPanelTabs() {
 function initTemplatesEventListeners() {
   document.getElementById('addTemplateBtn').addEventListener('click', openNewTemplateForm);
   document.getElementById('saveTemplateBtn').addEventListener('click', saveTemplate);
-  initTimeBoxFieldToggle('templateTimeBox', 'templateTimeBoxCustom');
 
   initTemplateRightPanelTabs();
 

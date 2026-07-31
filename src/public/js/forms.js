@@ -29,6 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// Enter inside a modal form implicitly submits it (no modal form intercepts
+// `submit`), which navigates the page and closes the modal. Block that unless
+// focus is on a button, where Enter should activate it as normal.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
+
+  const form = e.target.closest('.modal form');
+  if (!form) return;
+
+  if (e.target.matches('button, input[type="submit"], input[type="button"], a.btn')) return;
+
+  e.preventDefault();
+});
+
 // Form submission helper
 async function submitForm(formId, endpoint, options = {}) {
   const form = document.getElementById(formId);

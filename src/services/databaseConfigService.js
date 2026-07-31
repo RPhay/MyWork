@@ -35,7 +35,7 @@ function maskProfile(profile) {
 
 function assertValidType(type) {
   if (!VALID_TYPES.includes(type)) {
-    throw new ValidationError('Database type must be "mysql" or "mssql"');
+    throw new ValidationError('Database type must be "mysql" (covers MySQL and MariaDB) or "mssql"');
   }
 }
 

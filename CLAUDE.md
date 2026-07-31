@@ -1,0 +1,41 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+npm run dev              # Start dev server with hot reload (nodemon), http://localhost:3000
+npm start                # Start production server
+npm run db:init          # Create the MySQL database and tables (scripts/initDatabase.js)
+npm test                 # Run Jest tests (no unit tests exist yet; suite is currently empty)
+npm run test:watch       # Jest watch mode
+npx playwright test      # Run e2e tests (tests/e2e/*.spec.js); auto-starts `npm run dev` as needed
+npx playwright test tests/e2e/dailies.spec.js   # Run a single e2e spec
+npm run lint              # ESLint over src (no .eslintrc is checked in)
+npm run format            # Prettier --write src
+```
+
+`npm run db:migrate` (scripts/migrate.js) is a placeholder that just logs a message — there is no real migration runner. Schema changes go directly into `src/database/schema/mysqlSchema.js` / `mssqlSchema.js`, and `npm run db:init` re-applies the current schema.
+
+Local config: copy `.env.example` to `.env.local` (not `.env`). `CONFIG_ENCRYPTION_KEY` must be a 64-char hex string (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) — it's required for encrypting stored DB credentials in Settings and the app will throw when that feature path is used without it.
+
+## Credentials
+
+Never paste, print, or otherwise reproduce credential values (`.env.local` contents, `DB_PASSWORD`, API keys, tokens, connection strings, etc.) in conversation or command output. They stay local to the machine/file only, 100% of the time. When verifying or testing credentials, check presence/validity without echoing the value — e.g., attempt the actual connection and report success/failure by exit code, or mask the value if a file's structure needs to be shown.
+
+## Architecture
+
+**Layering**: `routes/api/*.js` → `services/*.js` → `database/connectionPool.js`. Routes only parse the request, call a service function, and shape the JSON response (`{ success, data|message }`); all query logic and validation lives in services. Services throw `ValidationError` / `NotFoundError` / etc. from `src/config/errors.js`, which routes catch and map to `error.statusCode`. Follow this pattern (see `src/routes/api/work.js` + `src/services/workItemService.js`) when adding endpoints rather than querying the DB from a route.
+
+**Two separate notions of "database"**:
+- `src/database/connectionPool.js` is the pool the app actually queries against at runtime. It is hardcoded to the `mysql2` driver regardless of any mssql configuration — `config.database.type` / `DB_TYPE` is not read by it. Since `mysql2` speaks the MySQL wire protocol, this same code path works against either a MySQL or a MariaDB server with no branching — there is no separate "mariadb" type anywhere in the codebase, and none should be added; `mysqlSchema.js` uses only standard DDL/SQL that both engines support identically.
+- `src/services/databaseConfigService.js` (behind Settings → Database Configuration) lets a user test connections and create schema against either MySQL/MariaDB (`type: 'mysql'`) or MSSQL, storing profiles encrypted at `data/db-connections.enc.json` via `src/utils/credentialCrypto.js`. This is for provisioning/testing a target database, not for switching what the running app queries — `mssqlSchema.js` exists but nothing in the live request path uses it.
+
+**Data model**: work items, priorities, goals, and areas are the core entities (`work_items`, `priorities`, `goals`, `areas` tables). Priorities and areas are self-referencing hierarchies (`parent_id`); `src/utils/hierarchyPath.js#buildPathMap` walks that into a flat `id -> "Parent\Child"` path map, used whenever a hierarchical label needs to be shown flat. Work items relate to priorities/goals/areas/sources through join tables (`work_*_associations`); `workItemService.js#attachAssociations` batch-loads and stitches these onto items after every read.
+
+**Tab-based frontend**: `src/views/pages/dashboard.ejs` and `settings.ejs` render all tabs' content into the DOM upfront (`src/views/tabs/*.ejs`); `src/public/js/tabs.js` handles switching between them client-side and syncing the `?tab=` query param, so there's no client-side router. Each tab generally has a matching `src/public/js/<tab>.js` file that owns its fetch calls against `/api/<resource>` and DOM updates.
+
+**Request pipeline** (`src/app.js`): helmet → morgan logging → body parsing → static → session → CSRF (`csurf`, session-based, gated by `CSRF_ENABLED`) → global rate limiter (skips `/health` and `/public`) → CSRF token exposed to views via `res.locals.csrfToken` → centralized error handler that renders `views/error.ejs`, special-casing `ValidationError`/`AppError`/CSRF failures.
+
+**Versioning**: `src/utils/version.js` derives a `[yyyy].[mm].[dd].[rev]` version string, persisted to `.version` (gitignored) and bumped via `updateVersion()`; `readVersion()` is what's passed into dashboard/settings views.
