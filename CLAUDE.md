@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Start of session
+
+Check whether `CLAUDE_CARRY_ON.md` exists in the repo root. If it does, it means work was left mid-stream at the end of a prior session — read it, then ask the user whether they want to carry on with what it describes before starting anything else. Don't assume; the user may want to do something unrelated instead.
+
 ## Commands
 
 ```bash
