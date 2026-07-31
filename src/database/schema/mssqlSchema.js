@@ -405,6 +405,32 @@ export async function createMssqlSchema(pool) {
     await pool.request().input('name', 'Default').query('INSERT INTO contexts (name, order_index) VALUES (@name, 0)');
   }
 
+  // Each context owns its own database connection and its own sub-tab
+  // ordering for the Settings > Contexts panel - see mysqlSchema.js.
+  if (!(await columnExists(pool, 'contexts', 'db_host'))) {
+    await pool.request().query(`
+      ALTER TABLE contexts ADD
+        db_host NVARCHAR(255) NULL,
+        db_port INT NULL,
+        db_name NVARCHAR(255) NULL,
+        db_user NVARCHAR(255) NULL,
+        db_password_enc NVARCHAR(MAX) NULL,
+        subtab_order NVARCHAR(MAX) NULL
+    `);
+  }
+
+  await createTableIfNotExists(pool, 'context_tab_settings', `
+    CREATE TABLE context_tab_settings (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      context_id INT NOT NULL,
+      tab_key NVARCHAR(100) NOT NULL,
+      visible BIT DEFAULT 1,
+      order_index INT DEFAULT 0,
+      CONSTRAINT fk_context_tab_settings_context FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
+      CONSTRAINT unique_context_tab UNIQUE (context_id, tab_key)
+    )
+  `);
+
   // Every content entity belongs to exactly one context - see mysqlSchema.js
   // for the full rationale. Added after contexts exists so the FK is valid
   // whether these tables were just created above or already existed.

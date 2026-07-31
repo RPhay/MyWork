@@ -247,8 +247,48 @@ const app = {
     });
   },
 
-  // Active context (top-right switcher). Client-side only for now via
-  // localStorage - nothing is filtered by this yet, it just remembers the pick.
+  // Generic drag-to-reorder for any tab strip (main app tabs, per-context
+  // sub-tabs, etc). `navEl` is the container holding the tab elements;
+  // `itemSelector` picks out the draggable items (must have `draggable="true"`
+  // in the markup already); `onReorder(orderedKeys)` fires on drop with the
+  // new order, reading each item's `data-tab` attribute (the same one that
+  // already identifies which tab it is). Purely a reordering gesture -
+  // selecting/activating a tab is left to existing click handlers, untouched.
+  bindTabDragReorder(navEl, itemSelector, onReorder) {
+    let draggingEl = null;
+
+    navEl.addEventListener('dragstart', (e) => {
+      const item = e.target.closest(itemSelector);
+      if (!item) return;
+      draggingEl = item;
+      e.dataTransfer.effectAllowed = 'move';
+      item.classList.add('dragging-tab');
+    });
+
+    navEl.addEventListener('dragend', () => {
+      if (draggingEl) draggingEl.classList.remove('dragging-tab');
+      draggingEl = null;
+    });
+
+    navEl.addEventListener('dragover', (e) => {
+      const item = e.target.closest(itemSelector);
+      if (!item || !draggingEl || item === draggingEl) return;
+      e.preventDefault();
+
+      const rect = item.getBoundingClientRect();
+      const before = e.clientX < rect.left + rect.width / 2;
+      item.parentNode.insertBefore(draggingEl, before ? item : item.nextSibling);
+    });
+
+    navEl.addEventListener('drop', (e) => {
+      const item = e.target.closest(itemSelector);
+      if (!item) return;
+      e.preventDefault();
+
+      const orderedKeys = Array.from(navEl.querySelectorAll(itemSelector)).map(el => el.dataset.tab);
+      onReorder(orderedKeys);
+    });
+  },
 };
 
 // Make app globally accessible

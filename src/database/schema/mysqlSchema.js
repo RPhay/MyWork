@@ -137,11 +137,6 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Backfill uniqueness for pre-existing goals tables
-  if (!(await indexExists(connection, 'goals', 'unique_year_name'))) {
-    await connection.query('ALTER TABLE goals ADD UNIQUE KEY unique_year_name (year, name)');
-  }
-
   // Backfill order_index for pre-existing goals tables
   if (!(await columnExists(connection, 'goals', 'order_index'))) {
     await connection.query('ALTER TABLE goals ADD COLUMN order_index INT DEFAULT 0');
@@ -194,11 +189,6 @@ export async function createMysqlSchema(connection) {
     await connection.query(
       'ALTER TABLE priorities ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES priorities(id) ON DELETE CASCADE'
     );
-  }
-
-  // Backfill uniqueness for pre-existing priorities tables
-  if (!(await indexExists(connection, 'priorities', 'title'))) {
-    await connection.query('ALTER TABLE priorities ADD UNIQUE KEY title (title)');
   }
 
   // A prior revision linked priorities to the categories table via category_id;
@@ -501,6 +491,37 @@ export async function createMysqlSchema(connection) {
   if (existingContexts[0].cnt === 0) {
     await connection.query('INSERT INTO contexts (name, order_index) VALUES (?, ?)', ['Default', 0]);
   }
+
+  // Each context owns its own database connection (contexts can point at
+  // entirely different physical databases, not just filter rows within a
+  // shared one) and its own sub-tab ordering for the Settings > Contexts panel.
+  if (!(await columnExists(connection, 'contexts', 'db_host'))) {
+    await connection.query(`
+      ALTER TABLE contexts
+        ADD COLUMN db_host VARCHAR(255),
+        ADD COLUMN db_port INT,
+        ADD COLUMN db_name VARCHAR(255),
+        ADD COLUMN db_user VARCHAR(255),
+        ADD COLUMN db_password_enc TEXT,
+        ADD COLUMN subtab_order TEXT
+    `);
+  }
+
+  // Per-context visibility/order for the main app's tabs. Dailies is always
+  // shown first and can't be hidden, so it's deliberately not represented here
+  // - the dashboard nav always pins it, then lays out whatever this table says
+  // for the rest.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS context_tab_settings (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      context_id INT NOT NULL,
+      tab_key VARCHAR(100) NOT NULL,
+      visible BOOLEAN DEFAULT TRUE,
+      order_index INT DEFAULT 0,
+      FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_context_tab (context_id, tab_key)
+    )
+  `);
 
   // Every content entity belongs to exactly one context. Added here (after
   // contexts exists) rather than in each table's own CREATE statement, so

@@ -15,6 +15,17 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Reorder contexts (drag-and-drop reorder within the list)
+router.patch('/reorder', async (req, res) => {
+  try {
+    const contexts = await contextService.reorderContexts(req.body.orderedIds);
+    res.json({ success: true, message: 'Contexts reordered', data: contexts });
+  } catch (error) {
+    logger.error('Error reordering contexts:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // Get single context
 router.get('/:id', async (req, res) => {
   try {

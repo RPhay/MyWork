@@ -10,6 +10,61 @@ class TabManager {
     this.showTab(this.currentTab);
     this.setupUrlSync();
     this.initializeTabContent();
+    this.applyContextTabConfig();
+  }
+
+  // Per-context tab visibility/order - dashboard.ejs only (Dailies is always
+  // shown first regardless, so it's excluded from both the fetched settings
+  // and the drag-reorder target). Settings' own top-level tabs are a separate,
+  // fixed-order tab strip and never go through this.
+  async applyContextTabConfig() {
+    const nav = document.getElementById('mainTabs');
+    const dailiesTab = document.getElementById('dailies-tab');
+    if (!nav || !dailiesTab) return;
+
+    try {
+      const activeResponse = await fetch('/api/active-context');
+      const activeResult = await activeResponse.json();
+      if (!activeResult.success) return;
+      const contextId = activeResult.data.id;
+
+      const settingsResponse = await fetch(`/api/context-tab-settings/${contextId}`);
+      const settingsResult = await settingsResponse.json();
+      if (!settingsResult.success) return;
+
+      const byKey = new Map(settingsResult.data.map(s => [s.key, s]));
+
+      Array.from(nav.querySelectorAll('li[data-tab]')).forEach(li => {
+        const setting = byKey.get(li.dataset.tab);
+        li.classList.toggle('d-none', !!setting && setting.visible === false);
+      });
+
+      // Reorder to match saved order_index, keeping Dailies first no matter what.
+      const ordered = settingsResult.data
+        .slice()
+        .sort((a, b) => a.order_index - b.order_index)
+        .map(s => nav.querySelector(`li[data-tab="${s.key}"]`))
+        .filter(Boolean);
+      ordered.forEach(li => nav.appendChild(li));
+
+      app.bindTabDragReorder(nav, 'li[data-tab]', async (orderedKeys) => {
+        try {
+          const settings = orderedKeys.map(key => ({ key, visible: byKey.get(key)?.visible !== false }));
+          await fetch(`/api/context-tab-settings/${contextId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+            },
+            body: JSON.stringify({ settings })
+          });
+        } catch (error) {
+          console.error('Error saving tab order:', error);
+        }
+      });
+    } catch (error) {
+      console.error('Error applying context tab config:', error);
+    }
   }
 
   initializeTabContent() {
@@ -74,7 +129,10 @@ class TabManager {
   }
 
   setupTabButtons() {
-    const tabButtons = document.querySelectorAll('[data-tab]');
+    // button[data-tab] specifically - some tab <li> wrappers also carry a
+    // data-tab attribute (for drag-reorder addressing), and matching those
+    // too would double-fire this handler on every click via event bubbling.
+    const tabButtons = document.querySelectorAll('button[data-tab]');
     tabButtons.forEach(button => {
       button.addEventListener('click', (e) => {
         e.preventDefault();

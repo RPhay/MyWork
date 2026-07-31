@@ -1,51 +1,118 @@
-<div class="row">
+<div class="row mb-3">
   <div class="col-md-12">
     <h4>Contexts</h4>
-    <p class="text-muted">Define top-level contexts (e.g. Work, Life, Hobbies, Family) for scoping the app to one at a time.</p>
-  </div>
-</div>
-
-<div class="row mb-4">
-  <div class="col-md-12 text-end">
-    <button class="btn btn-primary" id="addContextBtn" data-bs-toggle="modal" data-bs-target="#contextModal">
-      + Add Context
-    </button>
+    <p class="text-muted">Define top-level contexts (e.g. Work, Life, Hobbies) and configure each one's database, data sources, backup, and which tabs it shows.</p>
   </div>
 </div>
 
 <div class="row">
-  <div class="col-md-12">
-    <div class="table-responsive">
-      <table class="table table-hover">
-        <thead class="table-light">
-          <tr>
-            <th>Name</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="contextsTableBody">
-          <tr>
-            <td colspan="2" class="text-center text-muted">No contexts configured</td>
-          </tr>
-        </tbody>
-      </table>
+  <!-- Left: context list -->
+  <div class="col-md-4 contexts-left-pane">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0">Contexts</h6>
+      <button class="btn btn-sm btn-primary" id="addContextBtn" data-bs-toggle="modal" data-bs-target="#contextModal">
+        + Add
+      </button>
+    </div>
+    <p class="text-muted small">Click a context to configure it on the right. Drag to reorder.</p>
+    <div id="contextsList"></div>
+  </div>
+
+  <!-- Right: tabbed panel for whichever context is selected -->
+  <div class="col-md-8">
+    <div id="contextPanelEmpty" class="text-center text-muted mt-5">
+      <p>Select a context on the left to configure it.</p>
+    </div>
+
+    <div id="contextPanel" class="d-none">
+      <h5 id="contextPanelTitle" class="mb-3"></h5>
+
+      <ul class="nav nav-tabs mb-3" id="contextSubTabs">
+        <li class="nav-item" data-subtab="tabs" draggable="true">
+          <button class="nav-link active" data-subtab="tabs" type="button">Tabs</button>
+        </li>
+        <li class="nav-item" data-subtab="database" draggable="true">
+          <button class="nav-link" data-subtab="database" type="button">Database</button>
+        </li>
+        <li class="nav-item" data-subtab="sources" draggable="true">
+          <button class="nav-link" data-subtab="sources" type="button">Data Sources</button>
+        </li>
+        <li class="nav-item" data-subtab="backup" draggable="true">
+          <button class="nav-link" data-subtab="backup" type="button">Backup &amp; Restore</button>
+        </li>
+      </ul>
+
+      <!-- Tabs sub-panel: which main-app tabs show for this context -->
+      <div class="context-subtab-pane" data-subtab-pane="tabs">
+        <p class="text-muted small">Dailies always shows first and can't be hidden. Reorder the rest by dragging them directly on the main tab bar - this just controls which ones show for this context.</p>
+        <div id="contextTabsList"></div>
+      </div>
+
+      <!-- Database sub-panel: this context's own DB connection -->
+      <div class="context-subtab-pane d-none" data-subtab-pane="database">
+        <p class="text-muted small">
+          This context's own database connection. Contexts can point at different databases entirely -
+          switching to this context in the navbar switches the live connection to whatever's saved here.
+        </p>
+        <form id="contextDbForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="row g-2">
+            <div class="col-md-8">
+              <label for="contextDbHost" class="form-label">Host *</label>
+              <input type="text" class="form-control" id="contextDbHost" placeholder="localhost">
+            </div>
+            <div class="col-md-4">
+              <label for="contextDbPort" class="form-label">Port</label>
+              <input type="number" class="form-control" id="contextDbPort" placeholder="3306">
+            </div>
+          </div>
+          <div class="mb-2 mt-2">
+            <label for="contextDbName" class="form-label">Database Name</label>
+            <input type="text" class="form-control" id="contextDbName">
+          </div>
+          <div class="mb-2">
+            <label for="contextDbUser" class="form-label">User *</label>
+            <input type="text" class="form-control" id="contextDbUser">
+          </div>
+          <div class="mb-2">
+            <label for="contextDbPassword" class="form-label">Password</label>
+            <input type="password" class="form-control" id="contextDbPassword" autocomplete="new-password">
+            <div class="form-text" id="contextDbPasswordHint"></div>
+          </div>
+          <div id="contextDbTestResult" class="small mb-2"></div>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="testContextDbBtn">Test Connection</button>
+          <button type="button" class="btn btn-primary btn-sm" id="saveContextDbBtn">Save</button>
+        </form>
+      </div>
+
+      <!-- Data Sources sub-panel: reuses the existing Data Sources feature as-is,
+           which already operates on the active context -->
+      <div class="context-subtab-pane d-none" data-subtab-pane="sources">
+        <p class="text-muted small">Shows data sources for whichever context is currently <strong>active</strong> (top-right switcher), not necessarily the one selected on the left.</p>
+        <%- include('./data-sources.ejs') %>
+      </div>
+
+      <!-- Backup & Restore sub-panel: reuses the existing feature as-is, which
+           already operates on the active context's database -->
+      <div class="context-subtab-pane d-none" data-subtab-pane="backup">
+        <p class="text-muted small">Exports/imports whichever context is currently <strong>active</strong> (top-right switcher), not necessarily the one selected on the left.</p>
+        <%- include('./backup.ejs') %>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Context Modal -->
+<!-- Context Modal (create new) -->
 <div class="modal fade" id="contextModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Context Form</h5>
+        <h5 class="modal-title">New Context</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <form id="contextForm">
-          <input type="hidden" id="contextId" name="contextId">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
           <div class="mb-3">
             <label for="contextName" class="form-label">Name *</label>
             <input type="text" class="form-control" id="contextName" name="name" required>
@@ -54,10 +121,56 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveContextBtn">Save Context</button>
+        <button type="button" class="btn btn-primary" id="saveContextBtn">Create</button>
       </div>
     </div>
   </div>
 </div>
+
+<style>
+  .context-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
+
+  .context-row:hover {
+    background: #f8f9fa;
+  }
+
+  .context-row.selected {
+    background: #e7f3ff;
+    border-color: #007bff;
+  }
+
+  .context-row-title {
+    flex: 1;
+    font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .context-row-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .context-tab-visibility-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+</style>
 
 <script src="/js/contexts.js"></script>

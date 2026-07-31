@@ -1,24 +1,18 @@
 import app from './src/app.js';
 import config from './src/config/environment.js';
 import logger from './src/utils/logger.js';
-import { closePool, reconfigure } from './src/database/connectionPool.js';
-import { getActiveMysqlConnectionConfig } from './src/services/databaseConfigService.js';
+import { closePool } from './src/database/connectionPool.js';
+import { applyCachedConnectionAtBoot } from './src/services/activeContextService.js';
 
 const port = config.app.port;
 
-// If a MySQL/MariaDB profile is set active in Settings > Database Configuration,
-// it takes over as the live connection at every startup - .env.local is only
-// the fallback when no active profile is saved. Never blocks startup: falls
-// back to .env.local's default on any failure (e.g. CONFIG_ENCRYPTION_KEY unset).
-try {
-  const activeConfig = getActiveMysqlConnectionConfig();
-  if (activeConfig) {
-    await reconfigure(activeConfig);
-    logger.info('Using active MySQL/MariaDB profile from Database Configuration', { host: activeConfig.host, database: activeConfig.database });
-  }
-} catch (error) {
-  logger.error('Could not apply active database profile, falling back to .env.local:', error);
-}
+// Each context can point at its own database, so reconnect to whichever one
+// was live last time before anything else runs - see
+// activeContextService.applyCachedConnectionAtBoot for why. .env.local's
+// default is only ever used the very first time, before any context has gone
+// live. Never blocks startup: falls back to .env.local's default on any
+// failure (e.g. that database being unreachable right now).
+await applyCachedConnectionAtBoot();
 
 const server = app.listen(port, () => {
   logger.info(`${config.app.name} server running on port ${port}`);

@@ -12,7 +12,8 @@ import ideasRouter from './api/ideas.js';
 import ideaFoldersRouter from './api/ideaFolders.js';
 import contextsRouter from './api/contexts.js';
 import activeContextRouter from './api/activeContext.js';
-import databaseConfigRouter from './api/databaseConfig.js';
+import contextDatabaseConfigRouter from './api/contextDatabaseConfig.js';
+import contextTabSettingsRouter from './api/contextTabSettings.js';
 import backupRouter from './api/backup.js';
 import { readVersion } from '../utils/version.js';
 
@@ -32,7 +33,8 @@ router.use('/api/ideas', ideasRouter);
 router.use('/api/idea-folders', ideaFoldersRouter);
 router.use('/api/contexts', contextsRouter);
 router.use('/api/active-context', activeContextRouter);
-router.use('/api/database-config', databaseConfigRouter);
+router.use('/api/context-database-config', contextDatabaseConfigRouter);
+router.use('/api/context-tab-settings', contextTabSettingsRouter);
 router.use('/api/backup', backupRouter);
 
 // Dashboard route
@@ -57,7 +59,7 @@ router.get('/dashboard', (req, res) => {
 // Settings page
 router.get('/settings', (req, res) => {
   const currentYear = new Date().getFullYear();
-  const tab = req.query.tab || 'data-sources';
+  const tab = req.query.tab || 'contexts';
   const version = readVersion();
 
   res.render('pages/settings', {

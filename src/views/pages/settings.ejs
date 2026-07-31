@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/css/main.css">
 </head>
 <body
-  data-active-tab="<%= activeTab || 'data-sources' %>"
+  data-active-tab="<%= activeTab || 'contexts' %>"
   data-current-year="<%= currentYear %>"
   data-csrf-token="<%= csrfToken %>"
   data-version="<%= version %>"
@@ -29,21 +29,6 @@
     <!-- Tab Navigation -->
     <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="data-sources-tab" data-tab="data-sources" type="button" role="tab">
-          Data Sources
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="database-config-tab" data-tab="database-config" type="button" role="tab">
-          Database Configuration
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="backup-tab" data-tab="backup" type="button" role="tab">
-          Backup &amp; Restore
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
         <button class="nav-link" id="contexts-tab" data-tab="contexts" type="button" role="tab">
           Contexts
         </button>
@@ -52,22 +37,8 @@
 
     <!-- Tab Content -->
     <div class="tab-content" id="mainTabContent">
-      <!-- Data Sources Tab -->
-      <div id="tab-data-sources" class="tab-content-pane">
-        <%- include('../tabs/data-sources.ejs') %>
-      </div>
-
-      <!-- Database Configuration Tab -->
-      <div id="tab-database-config" class="tab-content-pane">
-        <%- include('../tabs/database-config.ejs') %>
-      </div>
-
-      <!-- Backup & Restore Tab -->
-      <div id="tab-backup" class="tab-content-pane">
-        <%- include('../tabs/backup.ejs') %>
-      </div>
-
-      <!-- Contexts Tab -->
+      <!-- Contexts Tab (Data Sources, Database Configuration, and Backup & Restore
+           now live inside it, per-context, rather than as separate top-level tabs) -->
       <div id="tab-contexts" class="tab-content-pane">
         <%- include('../tabs/contexts.ejs') %>
       </div>

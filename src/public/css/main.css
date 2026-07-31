@@ -156,6 +156,16 @@ footer {
   border-radius: 0.375rem;
 }
 
+/* Drag-to-reorder feedback for tab strips (main app tabs, per-context sub-tabs) */
+.dragging-tab {
+  opacity: 0.5;
+}
+
+.nav-tabs .nav-link[draggable="true"],
+.context-row[draggable="true"] {
+  cursor: grab;
+}
+
 /* Inline rename input (click, pause, click on a title) - sized to sit inline
    with the surrounding row text rather than looking like a full form field */
 .inline-rename-input {

@@ -1,8 +1,18 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 
+// The encrypted DB password blob must never reach the browser - callers only
+// learn whether one has been set. Everything else about the DB config
+// (host/port/name/user) isn't sensitive and stays visible.
+function maskContext(context) {
+  if (!context) return context;
+  const { db_password_enc, ...rest } = context;
+  return { ...rest, hasDbPassword: !!db_password_enc };
+}
+
 export async function getAllContexts() {
-  return await db.query('SELECT * FROM contexts ORDER BY order_index ASC, name ASC');
+  const rows = await db.query('SELECT * FROM contexts ORDER BY order_index ASC, name ASC');
+  return rows.map(maskContext);
 }
 
 export async function getContextById(id) {
@@ -10,7 +20,7 @@ export async function getContextById(id) {
   if (!context) {
     throw new NotFoundError('Context not found');
   }
-  return context;
+  return maskContext(context);
 }
 
 export async function createContext(data) {
@@ -70,6 +80,13 @@ export async function updateContext(id, data) {
   }
 
   return getContextById(id);
+}
+
+export async function reorderContexts(orderedIds) {
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db.update('UPDATE contexts SET order_index = ? WHERE id = ?', [i, orderedIds[i]]);
+  }
+  return getAllContexts();
 }
 
 export async function deleteContext(id) {
