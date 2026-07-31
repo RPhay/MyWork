@@ -53,8 +53,5 @@
   },
   "engines": {
     "node": ">=20.0.0"
-  },
-  "nodemonConfig": {
-    "ignore": ["data/*", "logs/*", ".version"]
   }
 }

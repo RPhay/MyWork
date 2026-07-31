@@ -5,8 +5,9 @@
       Store connection details for MySQL/MariaDB and MSSQL/Azure SQL. Passwords are encrypted
       at rest and are never sent back to the browser once saved. Setting a MySQL/MariaDB
       profile active tests it, then immediately switches the app's live database connection
-      to it. MSSQL/Azure SQL can't be switched to live yet - the app has no MSSQL query path -
-      so setting it active only records your intent.
+      to it - and it stays authoritative across restarts, overriding .env.local, until changed
+      here again. MSSQL/Azure SQL can't be switched to live yet - the app has no MSSQL query
+      path - so setting it active only records your intent.
     </p>
   </div>
 </div>

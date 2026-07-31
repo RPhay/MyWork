@@ -40,6 +40,16 @@ function assertValidType(type) {
   }
 }
 
+function buildLiveMysqlConfig(profile, password) {
+  return {
+    host: profile.host,
+    port: profile.port ? Number(profile.port) : 3306,
+    user: profile.user,
+    password,
+    database: profile.database,
+  };
+}
+
 export function getConnectionConfig() {
   const store = readStore();
   return {
@@ -47,6 +57,21 @@ export function getConnectionConfig() {
     mysql: maskProfile(store.mysql),
     mssql: maskProfile(store.mssql),
   };
+}
+
+// Resolves the saved "active" MySQL/MariaDB profile into a ready-to-use
+// connection config, for connectionPool to apply at process startup instead
+// of .env.local - so activating a profile stays authoritative across
+// restarts, not just until the next one. Returns null if no complete mysql
+// profile is active, so the caller can fall back to .env.local.
+export function getActiveMysqlConnectionConfig() {
+  const store = readStore();
+  if (store.activeType !== 'mysql') return null;
+
+  const profile = store.mysql;
+  if (!profile || !profile.host || !profile.user || !profile.database) return null;
+
+  return buildLiveMysqlConfig(profile, decrypt(profile.passwordEnc));
 }
 
 export function saveConnectionProfile(type, data) {
@@ -87,13 +112,7 @@ export async function setActiveType(type) {
       throw new ValidationError(`Cannot activate - connection test failed: ${testResult.message}`);
     }
 
-    await connectionPool.reconfigure({
-      host: profile.host,
-      port: profile.port ? Number(profile.port) : 3306,
-      user: profile.user,
-      password,
-      database: profile.database,
-    });
+    await connectionPool.reconfigure(buildLiveMysqlConfig(profile, password));
   }
 
   store.activeType = type;
