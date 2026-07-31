@@ -10,9 +10,9 @@ async function loadSources() {
     if (result.success && result.data.length > 0) {
       tbody.innerHTML = result.data.map(source => `
         <tr>
-          <td>${source.name}</td>
-          <td>${source.type}</td>
-          <td><span class="badge bg-secondary">${source.status}</span></td>
+          <td>${app.escapeHtml(source.name)}</td>
+          <td>${app.escapeHtml(source.type)}</td>
+          <td><span class="badge bg-secondary">${app.escapeHtml(source.status)}</span></td>
           <td><input type="checkbox" ${source.enabled ? 'checked' : ''} data-action="toggle" data-id="${source.id}"></td>
           <td>
             <button class="btn btn-sm btn-info" data-action="edit" data-id="${source.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>

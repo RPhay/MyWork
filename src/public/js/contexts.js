@@ -11,7 +11,7 @@ function renderContextsList() {
 
   container.innerHTML = allContexts.map(context => `
     <div class="context-row ${String(context.id) === String(selectedContextId) ? 'selected' : ''}" data-context-id="${context.id}" draggable="true">
-      <span class="context-row-title">${context.name}</span>
+      <span class="context-row-title">${app.escapeHtml(context.name)}</span>
       ${context.userName
         ? `<span class="badge bg-light text-dark border context-row-owner" title="Owner">${app.escapeHtml(context.userName)}</span>`
         : `<span class="badge bg-danger context-row-owner" title="No owner assigned - this context can't be activated"><i class="bi bi-exclamation-triangle"></i> No owner</span>`}

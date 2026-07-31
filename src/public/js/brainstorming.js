@@ -25,10 +25,10 @@ function renderIdeaRow(idea, depth) {
         <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
         <span class="idea-folder-toggle"></span>
         <i class="bi ${APP_ICONS.idea} text-muted" title="Idea"></i>
-        <span class="idea-title">${idea.title}</span>
+        <span class="idea-title">${app.escapeHtml(idea.title)}</span>
         ${itemsBadge}
       </span>
-      <span class="idea-notes text-muted">${idea.notes || '-'}</span>
+      <span class="idea-notes text-muted">${app.escapeHtml(idea.notes) || '-'}</span>
       <span class="idea-actions">
         <button class="btn btn-sm btn-outline-primary" data-action="convert" data-id="${idea.id}" title="Convert" aria-label="Convert"><i class="bi bi-arrow-right-circle"></i></button>
         <button class="btn btn-sm btn-info" data-action="edit" data-id="${idea.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
@@ -60,7 +60,7 @@ function renderIdeaFolderNode(folder, foldersByParent, ideasByFolder, depth) {
             ? '<i class="bi bi-chevron-right idea-folder-toggle" data-action="toggle-expand"></i>'
             : '<span class="idea-folder-toggle"></span>'}
           <i class="bi bi-folder-fill text-warning"></i>
-          <span class="idea-title">${folder.name}</span>
+          <span class="idea-title">${app.escapeHtml(folder.name)}</span>
         </span>
         <span></span>
         <span class="idea-actions">

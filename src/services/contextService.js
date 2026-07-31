@@ -1,13 +1,15 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 
-// The encrypted DB password blob must never reach the browser - callers only
+// The encrypted DB password blobs must never reach the browser - callers only
 // learn whether one has been set. Everything else about the DB config
-// (host/port/name/user) isn't sensitive and stays visible.
+// (host/port/name/user) isn't sensitive and stays visible. Both the
+// MySQL/MariaDB and MSSQL profiles have their own blob (see
+// contextDatabaseConfigService.js) - both get stripped here.
 function maskContext(context) {
   if (!context) return context;
-  const { db_password_enc, ...rest } = context;
-  return { ...rest, hasDbPassword: !!db_password_enc };
+  const { db_password_enc, mssql_password_enc, ...rest } = context;
+  return { ...rest, hasDbPassword: !!db_password_enc, hasMssqlPassword: !!mssql_password_enc };
 }
 
 async function attachUserNames(contexts) {

@@ -77,10 +77,19 @@ const app = {
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show mb-0 rounded-0 text-center`;
     alertDiv.setAttribute('role', 'alert');
-    alertDiv.innerHTML = `
-      <span>${message}</span>
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
+
+    // Built as DOM nodes rather than innerHTML - `message` routinely embeds
+    // user-controlled text (a title, a server error) and this runs on every
+    // call site across the app, so it can't assume the caller escaped it.
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close';
+    closeBtn.setAttribute('data-bs-dismiss', 'alert');
+    closeBtn.setAttribute('aria-label', 'Close');
+    alertDiv.appendChild(messageSpan);
+    alertDiv.appendChild(closeBtn);
 
     container.appendChild(alertDiv);
 

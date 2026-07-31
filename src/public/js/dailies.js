@@ -190,7 +190,7 @@ function renderWorkItemsList(items) {
       ? children.map(c => `
           <div class="child-item">
             <i class="bi ${c.icon} text-muted"></i>
-            <span>${c.label}</span>
+            <span>${app.escapeHtml(c.label)}</span>
             <button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="${c.type}" data-child-id="${c.id}" title="Remove" aria-label="Remove">
               <i class="bi bi-x-lg"></i>
             </button>
@@ -206,10 +206,10 @@ function renderWorkItemsList(items) {
           <span class="work-item-title-cell">
             <i class="bi bi-chevron-right work-item-toggle" data-action="toggle-expand" title="Expand/collapse"></i>
             <i class="bi ${APP_ICONS.workItem} text-muted" title="Work Item"></i>
-            <span class="work-item-title">${item.title}</span>
+            <span class="work-item-title">${app.escapeHtml(item.title)}</span>
             ${item.notes ? `<i class="bi bi-sticky text-muted" title="${app.escapeHtml(item.notes)}"></i>` : ''}
           </span>
-          <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${item.emoji || ''}</span>
+          <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || '')}</span>
           <span class="badge bg-${item.status === 'Complete' ? 'success' : item.status === 'In Progress' ? 'warning' : 'secondary'} work-item-status-badge" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
           <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ''}" title="Click to change time box">${item.time_box_minutes ? item.time_box_minutes + 'm' : 'No time box'}</span>
           <span class="work-item-actions">
@@ -333,7 +333,7 @@ async function loadPrioritiesAndGoals() {
       const prioPaths = buildDashPathMap(prioResult.data, 'title');
       prioritiesDiv.innerHTML = app.flattenTree(prioResult.data).map(p => `
         <div class="priority-item" draggable="true" data-type="priority" data-id="${p.id}" data-name="${app.escapeHtml(prioPaths.get(p.id))}" style="margin-left: ${p.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.project}"></i> ${p.title}</span>
+          <span><i class="bi ${APP_ICONS.project}"></i> ${app.escapeHtml(p.title)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');
@@ -356,7 +356,7 @@ async function loadPrioritiesAndGoals() {
     if (goalResult.success && goalResult.data.length > 0) {
       goalsDiv.innerHTML = goalResult.data.map(g => `
         <div class="goal-item" draggable="true" data-type="goal" data-id="${g.id}" data-name="${app.escapeHtml(g.name)}">
-          <span><i class="bi ${APP_ICONS.goal}"></i> ${g.name}</span>
+          <span><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');
@@ -379,7 +379,7 @@ async function loadPrioritiesAndGoals() {
       const areaPaths = buildDashPathMap(areaResult.data, 'name');
       areasDiv.innerHTML = app.flattenTree(areaResult.data).map(a => `
         <div class="area-item" draggable="true" data-type="area" data-id="${a.id}" data-name="${app.escapeHtml(areaPaths.get(a.id))}" style="margin-left: ${a.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.area}"></i> ${a.name}</span>
+          <span><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.name)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');
@@ -401,7 +401,7 @@ async function loadPrioritiesAndGoals() {
     if (templateResult.success && templateResult.data.length > 0) {
       templatesDiv.innerHTML = templateResult.data.map(t => `
         <div class="template-item" draggable="true" data-type="template" data-id="${t.id}">
-          <span><i class="bi ${APP_ICONS.template}"></i> ${t.title}</span>
+          <span><i class="bi ${APP_ICONS.template}"></i> ${app.escapeHtml(t.title)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');

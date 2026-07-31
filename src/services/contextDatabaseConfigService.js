@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise.js';
 import mssql from 'mssql';
 import { encrypt, decrypt } from '../utils/credentialCrypto.js';
+import { validateIdentifier } from '../utils/validateIdentifier.js';
 import { ValidationError, NotFoundError } from '../config/errors.js';
 import { mysqlSchemaExists, createMysqlSchema } from '../database/schema/mysqlSchema.js';
 import { mssqlSchemaExists, createMssqlSchema } from '../database/schema/mssqlSchema.js';
@@ -195,6 +196,7 @@ export async function createDbSchema(contextId, type, data) {
   if (!data.database) {
     throw new ValidationError('A database name is required to create the schema');
   }
+  validateIdentifier(data.database, 'Database name');
 
   const context = await getContextRow(contextId);
   const existingEnc = type === 'mssql' ? context.mssql_password_enc : context.db_password_enc;

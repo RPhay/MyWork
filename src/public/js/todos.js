@@ -25,10 +25,10 @@ function renderToDoRow(toDo, depth) {
         <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
         <span class="todo-folder-toggle"></span>
         <i class="bi ${APP_ICONS.todo} text-muted" title="To Do"></i>
-        <span class="todo-title">${toDo.title}</span>
+        <span class="todo-title">${app.escapeHtml(toDo.title)}</span>
         ${itemsBadge}
       </span>
-      <span class="todo-notes text-muted">${toDo.notes || '-'}</span>
+      <span class="todo-notes text-muted">${app.escapeHtml(toDo.notes) || '-'}</span>
       <span class="todo-actions">
         <button class="btn btn-sm btn-outline-primary" data-action="convert" data-id="${toDo.id}" title="Convert" aria-label="Convert"><i class="bi bi-arrow-right-circle"></i></button>
         <button class="btn btn-sm btn-info" data-action="edit" data-id="${toDo.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
@@ -60,7 +60,7 @@ function renderFolderNode(folder, foldersByParent, toDosByFolder, depth) {
             ? '<i class="bi bi-chevron-right todo-folder-toggle" data-action="toggle-expand"></i>'
             : '<span class="todo-folder-toggle"></span>'}
           <i class="bi bi-folder-fill text-warning"></i>
-          <span class="todo-title">${folder.name}</span>
+          <span class="todo-title">${app.escapeHtml(folder.name)}</span>
         </span>
         <span></span>
         <span class="todo-actions">

@@ -24,7 +24,7 @@ function renderChildRow(child) {
   return `
     <div class="priority-strip-child" style="padding-left: ${20 + (child.depth - 1) * 16}px;">
       <span class="badge bg-${statusBadgeColor(child.status)}" style="font-size: 0.65rem;">${child.status}</span>
-      <span>${child.title}</span>
+      <span>${app.escapeHtml(child.title)}</span>
       <button class="btn btn-sm btn-link p-0 ms-auto" data-action="edit" data-id="${child.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
     </div>
   `;
@@ -35,7 +35,7 @@ function renderStrip(priority, byParent) {
   const hasChildren = descendants.length > 0;
   const isExpanded = expandedStrips.has(String(priority.id));
 
-  const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${a.path || a.name}</span>`).join('');
+  const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.path || a.name)}</span>`).join('');
 
   const childrenHtml = hasChildren
     ? `<div class="priority-strip-children">${descendants.map(renderChildRow).join('')}</div>`
@@ -48,7 +48,7 @@ function renderStrip(priority, byParent) {
           ? '<i class="bi bi-chevron-right priority-strip-toggle" data-action="toggle-expand"></i>'
           : '<span class="priority-strip-toggle"></span>'}
         <i class="bi ${APP_ICONS.priorityBoard} text-muted"></i>
-        <span class="priority-strip-title">${priority.title}</span>
+        <span class="priority-strip-title">${app.escapeHtml(priority.title)}</span>
         <span class="priority-strip-badges">${areaBadges}</span>
         <span class="priority-strip-actions">
           <button class="btn btn-sm btn-link p-0" data-action="edit" data-id="${priority.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
@@ -320,7 +320,7 @@ function renderWeeklyPriorities() {
       <div class="weekly-priority-row" draggable="true" data-priority-id="${p.id}">
         <span class="weekly-priority-title">
           <i class="bi ${APP_ICONS.priorityBoard} text-muted"></i>
-          ${p.title}
+          ${app.escapeHtml(p.title)}
         </span>
         <span class="badge bg-${statusBadgeColor(p.status)}">${p.status}</span>
         <button class="btn btn-sm btn-danger" data-action="remove-weekly" data-id="${p.id}" title="Remove from Weekly Priorities" aria-label="Remove">
@@ -339,7 +339,7 @@ function renderWeeklyPriorities() {
   } else {
     rightPanel.innerHTML = app.flattenTree(topLevel).map(p => `
       <div class="priority-item" draggable="true" data-type="priority" data-id="${p.id}" data-name="${app.escapeHtml(p.title)}" style="margin-left: ${p.depth * 14}px;">
-        <span><i class="bi ${APP_ICONS.project}"></i> ${p.title}</span>
+        <span><i class="bi ${APP_ICONS.project}"></i> ${app.escapeHtml(p.title)}</span>
         <small class="text-muted">→</small>
       </div>
     `).join('');

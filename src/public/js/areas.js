@@ -19,9 +19,9 @@ function renderAreaNode(area, byParent, depth) {
             ? '<i class="bi bi-chevron-right area-toggle" data-action="toggle-expand"></i>'
             : '<span class="area-toggle"></span>'}
           <i class="bi ${APP_ICONS.area} text-muted"></i>
-          <span class="area-name">${area.name}</span>
+          <span class="area-name">${app.escapeHtml(area.name)}</span>
         </span>
-        <span class="area-description text-muted small">${area.description || ''}</span>
+        <span class="area-description text-muted small">${app.escapeHtml(area.description || '')}</span>
         <span class="area-actions">
           <button class="btn btn-sm btn-info" data-action="edit" data-id="${area.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-danger" data-action="delete" data-id="${area.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>

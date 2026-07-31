@@ -10,8 +10,8 @@ function renderPriorityNode(priority, byParent, depth) {
     ? `<div class="priority-node-children">${children.map(c => renderPriorityNode(c, byParent, depth + 1)).join('')}</div>`
     : '';
 
-  const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${a.path || a.name}</span>`).join('');
-  const goalBadges = (priority.goals || []).map(g => `<span class="badge bg-info text-dark"><i class="bi ${APP_ICONS.goal}"></i> ${g.name}</span>`).join('');
+  const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.path || a.name)}</span>`).join('');
+  const goalBadges = (priority.goals || []).map(g => `<span class="badge bg-info text-dark"><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>`).join('');
 
   return `
     <div class="priority-node ${isExpanded ? 'expanded' : ''}" data-priority-id="${priority.id}">
@@ -22,7 +22,7 @@ function renderPriorityNode(priority, byParent, depth) {
             ? '<i class="bi bi-chevron-right priority-toggle" data-action="toggle-expand"></i>'
             : '<span class="priority-toggle"></span>'}
           <i class="bi ${APP_ICONS.project} text-muted"></i>
-          <span class="priority-title">${priority.title}</span>
+          <span class="priority-title">${app.escapeHtml(priority.title)}</span>
         </span>
         <span class="priority-badges">${areaBadges || '<span class="text-muted small">-</span>'}</span>
         <span class="priority-badges">${goalBadges || '<span class="text-muted small">-</span>'}</span>
@@ -87,7 +87,7 @@ async function loadPriorityRightPanel() {
     if (result.success && result.data.length > 0) {
       div.innerHTML = app.flattenTree(result.data).map(a => `
         <div class="area-item" draggable="true" data-type="area" data-id="${a.id}" data-name="${app.escapeHtml(a.name)}" style="margin-left: ${a.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.area}"></i> ${a.name}</span>
+          <span><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.name)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');
@@ -110,7 +110,7 @@ async function loadPriorityRightPanel() {
     if (result.success && result.data.length > 0) {
       div.innerHTML = result.data.map(g => `
         <div class="goal-item" draggable="true" data-type="goal" data-id="${g.id}" data-name="${app.escapeHtml(g.name)}">
-          <span><i class="bi ${APP_ICONS.goal}"></i> ${g.name}</span>
+          <span><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');

@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import fs from 'fs';
+import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -6,6 +8,33 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
+
+// A hardcoded fallback session secret would mean every install that forgets
+// to set SESSION_SECRET signs cookies with the same publicly-known value
+// (it's sitting right here in the repo) - anyone could forge a valid
+// session. Falls back to a random secret generated once and cached in
+// data/ instead, so sessions still survive restarts without ever using a
+// known value. Set SESSION_SECRET explicitly for any multi-process/load-
+// balanced deployment, where every process needs the same secret.
+function getOrCreateSessionSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+
+  const secretPath = path.join(__dirname, '../../data/.session-secret');
+  try {
+    if (fs.existsSync(secretPath)) {
+      return fs.readFileSync(secretPath, 'utf8').trim();
+    }
+    const generated = crypto.randomBytes(48).toString('hex');
+    fs.mkdirSync(path.dirname(secretPath), { recursive: true });
+    fs.writeFileSync(secretPath, generated, { mode: 0o600 });
+    return generated;
+  } catch {
+    // Filesystem unavailable for some reason - a secret that's at least
+    // random and unique to this process is still far better than a
+    // hardcoded, publicly-known one, even though it won't survive a restart.
+    return crypto.randomBytes(48).toString('hex');
+  }
+}
 
 const config = {
   app: {
@@ -25,7 +54,7 @@ const config = {
     timeout: parseInt(process.env.DB_TIMEOUT || '30000', 10),
   },
   session: {
-    secret: process.env.SESSION_SECRET || 'default-secret-change-in-production',
+    secret: getOrCreateSessionSecret(),
     timeout: parseInt(process.env.SESSION_TIMEOUT || '1800000', 10),
   },
   security: {

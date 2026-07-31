@@ -1,5 +1,6 @@
 import * as db from '../database/connectionPool.js';
 import { ValidationError } from '../config/errors.js';
+import { validateIdentifier } from '../utils/validateIdentifier.js';
 
 // Every MyWork table, in FK-dependency order (parents before children). Import
 // disables FK checks anyway (so exact ordering isn't load-bearing for inserts),
@@ -89,7 +90,7 @@ export async function importDatabase(payload) {
       let maxId = 0;
 
       for (const row of rows) {
-        const columns = Object.keys(row);
+        const columns = Object.keys(row).map(c => validateIdentifier(c, `Column name in ${table}`));
         const placeholders = columns.map(() => '?').join(',');
         const values = columns.map(c => serializeValue(row[c]));
 

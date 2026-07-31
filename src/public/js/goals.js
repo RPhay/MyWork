@@ -76,8 +76,8 @@ async function loadYearlyGoals() {
       currentGoals = result.data;
       tbody.innerHTML = currentGoals.map(goal => `
         <tr draggable="true" data-goal-id="${goal.id}">
-          <td><i class="bi ${APP_ICONS.goal} text-muted"></i> <span class="goal-name">${goal.name}</span></td>
-          <td>${(goal.categories || []).map(c => c.name).join(', ') || '-'}</td>
+          <td><i class="bi ${APP_ICONS.goal} text-muted"></i> <span class="goal-name">${app.escapeHtml(goal.name)}</span></td>
+          <td>${(goal.categories || []).map(c => app.escapeHtml(c.name)).join(', ') || '-'}</td>
           <td><span class="badge bg-${goal.status === 'Complete' ? 'success' : goal.status === 'In Progress' ? 'warning' : 'secondary'} goal-status-badge" data-action="cycle-status" data-id="${goal.id}" title="Click to change status">${goal.status}</span></td>
           <td>${goal.due_date || '-'}</td>
           <td>
@@ -167,7 +167,7 @@ async function loadGoalCategoryOptions() {
     const result = await response.json();
     const categories = (result.success && result.data) || [];
 
-    select.innerHTML = categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    select.innerHTML = categories.map(c => `<option value="${c.id}">${app.escapeHtml(c.name)}</option>`).join('');
   } catch (error) {
     console.error('Error loading categories:', error);
   }

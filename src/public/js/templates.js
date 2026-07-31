@@ -15,7 +15,7 @@ function renderTemplateNode(template) {
     ? children.map(c => `
         <div class="template-child-item">
           <i class="bi ${c.icon} text-muted"></i>
-          <span>${c.label}</span>
+          <span>${app.escapeHtml(c.label)}</span>
           <button class="btn btn-sm btn-link text-danger template-child-remove p-0" data-action="unlink" data-type="${c.type}" data-child-id="${c.id}" title="Remove" aria-label="Remove">
             <i class="bi bi-x-lg"></i>
           </button>
@@ -29,9 +29,9 @@ function renderTemplateNode(template) {
         <span class="template-title-cell">
           <i class="bi bi-chevron-right template-node-toggle" data-action="toggle-expand" title="Expand/collapse"></i>
           <i class="bi ${APP_ICONS.template} text-muted" title="Template"></i>
-          <span class="template-title">${template.title}</span>
+          <span class="template-title">${app.escapeHtml(template.title)}</span>
         </span>
-        <span class="template-emoji" data-action="pick-emoji" data-id="${template.id}" title="Oh! Click to pick an emoji">${template.emoji || ''}</span>
+        <span class="template-emoji" data-action="pick-emoji" data-id="${template.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(template.emoji || '')}</span>
         <span class="badge bg-${template.status === 'Complete' ? 'success' : template.status === 'In Progress' ? 'warning' : 'secondary'} template-status-badge" data-action="cycle-status" data-id="${template.id}" title="Click to change status">${template.status}</span>
         <span class="badge bg-light text-dark border template-timebox-badge" data-action="cycle-timebox" data-id="${template.id}" data-minutes="${template.time_box_minutes || ''}" title="Click to change time box">${template.time_box_minutes ? template.time_box_minutes + 'm' : 'No time box'}</span>
         <span class="template-actions">
@@ -87,7 +87,7 @@ async function loadTemplateRightPanel() {
     if (result.success && result.data.length > 0) {
       div.innerHTML = app.flattenTree(result.data).map(p => `
         <div class="tpl-priority-item" draggable="true" data-type="priority" data-id="${p.id}" style="margin-left: ${p.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.project}"></i> ${p.title}</span>
+          <span><i class="bi ${APP_ICONS.project}"></i> ${app.escapeHtml(p.title)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');
@@ -110,7 +110,7 @@ async function loadTemplateRightPanel() {
     if (result.success && result.data.length > 0) {
       div.innerHTML = result.data.map(g => `
         <div class="tpl-goal-item" draggable="true" data-type="goal" data-id="${g.id}">
-          <span><i class="bi ${APP_ICONS.goal}"></i> ${g.name}</span>
+          <span><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');
@@ -132,7 +132,7 @@ async function loadTemplateRightPanel() {
     if (result.success && result.data.length > 0) {
       div.innerHTML = app.flattenTree(result.data).map(a => `
         <div class="tpl-area-item" draggable="true" data-type="area" data-id="${a.id}" style="margin-left: ${a.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.area}"></i> ${a.name}</span>
+          <span><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.name)}</span>
           <small class="text-muted">→</small>
         </div>
       `).join('');

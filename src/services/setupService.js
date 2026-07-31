@@ -3,6 +3,7 @@ import { mysqlSchemaExists, createMysqlSchema } from '../database/schema/mysqlSc
 import { applyBootstrapConnection } from './activeContextService.js';
 import { getCurrentConfig } from '../database/connectionPool.js';
 import { invalidateDbHealthCache } from '../utils/dbHealth.js';
+import { validateIdentifier } from '../utils/validateIdentifier.js';
 import { ValidationError } from '../config/errors.js';
 
 // First-run bootstrap: get MyWork pointed at *a* working MySQL/MariaDB server
@@ -91,6 +92,7 @@ export async function createSchema(data) {
   if (!effective.database) {
     throw new ValidationError('A database name is required to create the schema');
   }
+  validateIdentifier(effective.database, 'Database name');
 
   let connection;
   try {
