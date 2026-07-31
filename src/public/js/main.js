@@ -246,16 +246,77 @@ const app = {
       else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
     });
   },
+
+  // Active context (top-right switcher). Client-side only for now via
+  // localStorage - nothing is filtered by this yet, it just remembers the pick.
+  getActiveContextId() {
+    return localStorage.getItem('mywork_active_context_id');
+  },
+
+  setActiveContextId(id) {
+    localStorage.setItem('mywork_active_context_id', id);
+  },
 };
 
 // Make app globally accessible
 window.app = app;
 
+// Top-right context switcher (navbar.ejs, present on every page). Fetches the
+// context list, restores/defaults the active one, and lets clicking switch it.
+async function initContextSwitcher() {
+  const btn = document.getElementById('contextSwitcherBtn');
+  const label = document.getElementById('contextSwitcherLabel');
+  const menu = document.getElementById('contextSwitcherMenu');
+  if (!btn) return;
+
+  try {
+    const response = await fetch('/api/contexts');
+    const result = await response.json();
+    const contexts = (result.success && result.data) || [];
+
+    if (contexts.length === 0) {
+      label.textContent = 'No contexts';
+      return;
+    }
+
+    const activeId = app.getActiveContextId();
+    let active = contexts.find(c => String(c.id) === String(activeId));
+    if (!active) {
+      active = contexts[0];
+      app.setActiveContextId(active.id);
+    }
+
+    label.textContent = active.name;
+
+    menu.innerHTML = contexts.map(c => `
+      <li>
+        <button type="button" class="dropdown-item ${String(c.id) === String(active.id) ? 'active' : ''}" data-context-id="${c.id}">
+          ${app.escapeHtml(c.name)}
+        </button>
+      </li>
+    `).join('');
+
+    menu.querySelectorAll('[data-context-id]').forEach(item => {
+      item.addEventListener('click', () => {
+        app.setActiveContextId(item.dataset.contextId);
+        label.textContent = item.textContent.trim();
+        menu.querySelectorAll('[data-context-id]').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+      });
+    });
+  } catch (error) {
+    console.error('Error loading contexts:', error);
+    label.textContent = 'Context';
+  }
+}
+
 // Initialize on page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     console.log('MyWork application initialized');
+    initContextSwitcher();
   });
 } else {
   console.log('MyWork application initialized');
+  initContextSwitcher();
 }
