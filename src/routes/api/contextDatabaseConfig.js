@@ -27,9 +27,9 @@ router.put('/:contextId', async (req, res) => {
 });
 
 // Test connectivity without necessarily having saved the profile first
-router.post('/:contextId/test', async (req, res) => {
+router.post('/:contextId/test/:type', async (req, res) => {
   try {
-    const result = await contextDatabaseConfigService.testDbConnection(req.params.contextId, req.body);
+    const result = await contextDatabaseConfigService.testDbConnection(req.params.contextId, req.params.type, req.body);
     res.json(result);
   } catch (error) {
     logger.error('Error testing context database connection:', error);
@@ -38,9 +38,9 @@ router.post('/:contextId/test', async (req, res) => {
 });
 
 // Create the MyWork schema on the target database
-router.post('/:contextId/create-schema', async (req, res) => {
+router.post('/:contextId/create-schema/:type', async (req, res) => {
   try {
-    const result = await contextDatabaseConfigService.createDbSchema(req.params.contextId, req.body);
+    const result = await contextDatabaseConfigService.createDbSchema(req.params.contextId, req.params.type, req.body);
     res.json(result);
   } catch (error) {
     logger.error('Error creating context database schema:', error);

@@ -5,6 +5,7 @@ import { ValidationError } from '../config/errors.js';
 // disables FK checks anyway (so exact ordering isn't load-bearing for inserts),
 // but DELETE still runs in reverse of this order to avoid transient violations.
 const TABLES = [
+  'contexts',
   'sources',
   'categories',
   'areas',
@@ -26,6 +27,10 @@ const TABLES = [
   'to_do_folders',
   'to_dos',
   'to_do_items',
+  'idea_folders',
+  'ideas',
+  'idea_items',
+  'context_tab_settings',
 ];
 
 export async function exportDatabase() {

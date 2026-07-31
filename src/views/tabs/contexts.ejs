@@ -48,40 +48,86 @@
         <div id="contextTabsList"></div>
       </div>
 
-      <!-- Database sub-panel: this context's own DB connection -->
+      <!-- Database sub-panel: this context's own DB connection(s) -->
       <div class="context-subtab-pane d-none" data-subtab-pane="database">
         <p class="text-muted small">
           This context's own database connection. Contexts can point at different databases entirely -
-          switching to this context in the navbar switches the live connection to whatever's saved here.
+          switching to this context in the navbar switches the live connection to whatever's saved as its
+          MySQL/MariaDB profile below.
         </p>
+
+        <div class="btn-group mb-3" role="group" aria-label="Database type">
+          <input type="radio" class="btn-check" name="contextDbType" id="contextDbTypeMysql" value="mysql" autocomplete="off" checked>
+          <label class="btn btn-outline-secondary btn-sm" for="contextDbTypeMysql">MySQL / MariaDB</label>
+
+          <input type="radio" class="btn-check" name="contextDbType" id="contextDbTypeMssql" value="mssql" autocomplete="off">
+          <label class="btn btn-outline-secondary btn-sm" for="contextDbTypeMssql">MSSQL</label>
+        </div>
+
+        <div id="contextMssqlNotice" class="alert alert-warning py-2 px-3 small d-none">
+          <i class="bi bi-exclamation-triangle"></i>
+          MSSQL isn't yet a supported live backend - not ready for prime time. You can save, test, and
+          create the schema here, but this context will keep querying through its MySQL/MariaDB profile
+          regardless of this toggle.
+        </div>
+
         <form id="contextDbForm">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <div class="row g-2">
-            <div class="col-md-8">
-              <label for="contextDbHost" class="form-label">Host *</label>
-              <input type="text" class="form-control" id="contextDbHost" placeholder="localhost">
+
+          <div data-db-fields="mysql">
+            <div class="row g-2">
+              <div class="col-md-8">
+                <label for="contextDbHostMysql" class="form-label">Host *</label>
+                <input type="text" class="form-control" id="contextDbHostMysql" placeholder="localhost">
+              </div>
+              <div class="col-md-4">
+                <label for="contextDbPortMysql" class="form-label">Port</label>
+                <input type="number" class="form-control" id="contextDbPortMysql" placeholder="3306">
+              </div>
             </div>
-            <div class="col-md-4">
-              <label for="contextDbPort" class="form-label">Port</label>
-              <input type="number" class="form-control" id="contextDbPort" placeholder="3306">
+            <div class="mb-2 mt-2">
+              <label for="contextDbNameMysql" class="form-label">Database Name</label>
+              <input type="text" class="form-control" id="contextDbNameMysql">
+            </div>
+            <div class="mb-2">
+              <label for="contextDbUserMysql" class="form-label">User *</label>
+              <input type="text" class="form-control" id="contextDbUserMysql">
+            </div>
+            <div class="mb-2">
+              <label for="contextDbPasswordMysql" class="form-label">Password</label>
+              <input type="password" class="form-control" id="contextDbPasswordMysql" autocomplete="new-password">
             </div>
           </div>
-          <div class="mb-2 mt-2">
-            <label for="contextDbName" class="form-label">Database Name</label>
-            <input type="text" class="form-control" id="contextDbName">
+
+          <div data-db-fields="mssql" class="d-none">
+            <div class="row g-2">
+              <div class="col-md-8">
+                <label for="contextDbHostMssql" class="form-label">Host *</label>
+                <input type="text" class="form-control" id="contextDbHostMssql" placeholder="localhost">
+              </div>
+              <div class="col-md-4">
+                <label for="contextDbPortMssql" class="form-label">Port</label>
+                <input type="number" class="form-control" id="contextDbPortMssql" placeholder="1433">
+              </div>
+            </div>
+            <div class="mb-2 mt-2">
+              <label for="contextDbNameMssql" class="form-label">Database Name</label>
+              <input type="text" class="form-control" id="contextDbNameMssql">
+            </div>
+            <div class="mb-2">
+              <label for="contextDbUserMssql" class="form-label">User *</label>
+              <input type="text" class="form-control" id="contextDbUserMssql">
+            </div>
+            <div class="mb-2">
+              <label for="contextDbPasswordMssql" class="form-label">Password</label>
+              <input type="password" class="form-control" id="contextDbPasswordMssql" autocomplete="new-password">
+            </div>
           </div>
-          <div class="mb-2">
-            <label for="contextDbUser" class="form-label">User *</label>
-            <input type="text" class="form-control" id="contextDbUser">
+
+          <div class="d-flex align-items-center gap-2 mt-2">
+            <button type="button" class="btn btn-primary btn-sm" id="saveContextDbBtn" disabled>Save</button>
+            <span id="contextDbStatus" class="small"></span>
           </div>
-          <div class="mb-2">
-            <label for="contextDbPassword" class="form-label">Password</label>
-            <input type="password" class="form-control" id="contextDbPassword" autocomplete="new-password">
-            <div class="form-text" id="contextDbPasswordHint"></div>
-          </div>
-          <div id="contextDbTestResult" class="small mb-2"></div>
-          <button type="button" class="btn btn-outline-primary btn-sm" id="testContextDbBtn">Test Connection</button>
-          <button type="button" class="btn btn-primary btn-sm" id="saveContextDbBtn">Save</button>
         </form>
       </div>
 

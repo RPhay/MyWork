@@ -507,6 +507,26 @@ export async function createMysqlSchema(connection) {
     `);
   }
 
+  // A context can additionally save an MSSQL profile alongside its MySQL/MariaDB
+  // one (Settings > Contexts > Database has a type toggle so both can be
+  // configured, tested, and schema-created independently). Only MySQL/MariaDB
+  // is ever the *live* query backend, though - db_type just records which one
+  // the toggle was last left on; connectionPool.js has no MSSQL query path, so
+  // whichever type is selected here does not change what the app actually
+  // queries through. The unprefixed db_* columns above are the MySQL/MariaDB
+  // profile; these mssql_* columns are the separate MSSQL one.
+  if (!(await columnExists(connection, 'contexts', 'db_type'))) {
+    await connection.query(`
+      ALTER TABLE contexts
+        ADD COLUMN db_type VARCHAR(10) DEFAULT 'mysql',
+        ADD COLUMN mssql_host VARCHAR(255),
+        ADD COLUMN mssql_port INT,
+        ADD COLUMN mssql_name VARCHAR(255),
+        ADD COLUMN mssql_user VARCHAR(255),
+        ADD COLUMN mssql_password_enc TEXT
+    `);
+  }
+
   // Per-context visibility/order for the main app's tabs. Dailies is always
   // shown first and can't be hidden, so it's deliberately not represented here
   // - the dashboard nav always pins it, then lays out whatever this table says

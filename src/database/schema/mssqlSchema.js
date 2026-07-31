@@ -419,6 +419,20 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
+  // Separate MSSQL profile alongside the MySQL/MariaDB one above - see
+  // mysqlSchema.js for the full rationale (only MySQL/MariaDB is ever live).
+  if (!(await columnExists(pool, 'contexts', 'db_type'))) {
+    await pool.request().query(`
+      ALTER TABLE contexts ADD
+        db_type NVARCHAR(10) DEFAULT 'mysql',
+        mssql_host NVARCHAR(255) NULL,
+        mssql_port INT NULL,
+        mssql_name NVARCHAR(255) NULL,
+        mssql_user NVARCHAR(255) NULL,
+        mssql_password_enc NVARCHAR(MAX) NULL
+    `);
+  }
+
   await createTableIfNotExists(pool, 'context_tab_settings', `
     CREATE TABLE context_tab_settings (
       id INT IDENTITY(1,1) PRIMARY KEY,
