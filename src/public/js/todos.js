@@ -467,14 +467,14 @@ function updateConvertFormVisibility() {
   }
 }
 
-async function openConvertToDoForm(toDoId) {
+async function openConvertToDoForm(toDoId, presetType) {
   try {
     const response = await fetch(`/api/to-dos/${toDoId}`);
     const result = await response.json();
     convertingToDoData = result.data;
 
     document.getElementById('convertToDoTitle').textContent = convertingToDoData.title;
-    document.getElementById('convertType').value = 'project';
+    document.getElementById('convertType').value = presetType || 'project';
     document.getElementById('convertDate').value = new Date().toISOString().split('T')[0];
     updateConvertFormVisibility();
 
@@ -547,6 +547,48 @@ async function doConvertToDo() {
     console.error('Error converting to do:', error);
     app.notify('Error converting to do', 'danger');
   }
+}
+
+let todoContextMenuId = null;
+
+function showTodoContextMenu(x, y, toDoId) {
+  todoContextMenuId = toDoId;
+  const menu = document.getElementById('todoContextMenu');
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  menu.classList.remove('d-none');
+}
+
+function hideTodoContextMenu() {
+  todoContextMenuId = null;
+  document.getElementById('todoContextMenu').classList.add('d-none');
+}
+
+function initTodoContextMenu() {
+  const menu = document.getElementById('todoContextMenu');
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-convert-type]');
+    if (!btn || !todoContextMenuId) {
+      hideTodoContextMenu();
+      return;
+    }
+
+    const toDoId = todoContextMenuId;
+    const type = btn.dataset.convertType;
+    hideTodoContextMenu();
+    openConvertToDoForm(toDoId, type);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('d-none') && !menu.contains(e.target)) {
+      hideTodoContextMenu();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideTodoContextMenu();
+  });
 }
 
 function clearToDoDropTargets(container) {
@@ -701,6 +743,15 @@ function initToDosEventListeners() {
       editFolder(folderHeader.closest('.todo-folder-node').dataset.folderId);
     }
   });
+
+  container.addEventListener('contextmenu', (e) => {
+    const todoRow = e.target.closest('.todo-row');
+    if (!todoRow) return;
+    e.preventDefault();
+    showTodoContextMenu(e.clientX, e.clientY, todoRow.dataset.todoId);
+  });
+
+  initTodoContextMenu();
 }
 
 function initToDos() {

@@ -304,6 +304,37 @@ function hideAreaContextMenu() {
   document.getElementById('areaContextMenu').classList.add('d-none');
 }
 
+async function createTemplateFromArea(areaId) {
+  const area = allAreas.find(a => String(a.id) === String(areaId));
+  if (!area) return;
+
+  try {
+    const response = await fetch('/api/work-item-templates', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ title: area.name, status: 'In Progress' })
+    });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify('Error: ' + result.message, 'danger');
+      return;
+    }
+
+    await fetch(`/api/work-item-templates/${result.data.id}/areas/${areaId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+
+    app.notify(`Template "${area.name}" created - see the Templates tab`, 'success');
+  } catch (error) {
+    console.error('Error creating template from category:', error);
+    app.notify('Error creating template', 'danger');
+  }
+}
+
 function initAreaContextMenu() {
   const menu = document.getElementById('areaContextMenu');
 
@@ -321,6 +352,8 @@ function initAreaContextMenu() {
       openNewAreaForm(areaId);
       const modal = new bootstrap.Modal(document.getElementById('areaModal'));
       modal.show();
+    } else if (btn.dataset.menuAction === 'create-template') {
+      createTemplateFromArea(areaId);
     }
   });
 

@@ -21,6 +21,15 @@
   <p class="text-center text-muted">No to dos yet</p>
 </div>
 
+<!-- To Do Convert Context Menu (right-click a to do) -->
+<div id="todoContextMenu" class="context-menu d-none">
+  <button type="button" class="context-menu-item" data-convert-type="project"><i class="bi bi-folder2"></i> Convert to Project</button>
+  <button type="button" class="context-menu-item" data-convert-type="sub-project"><i class="bi bi-folder2"></i> Convert to Sub-Project</button>
+  <button type="button" class="context-menu-item" data-convert-type="area"><i class="bi bi-diagram-3"></i> Convert to Category</button>
+  <button type="button" class="context-menu-item" data-convert-type="sub-area"><i class="bi bi-diagram-3"></i> Convert to Sub-Category</button>
+  <button type="button" class="context-menu-item" data-convert-type="work-item"><i class="bi bi-card-checklist"></i> Convert to Work Item</button>
+</div>
+
 <!-- Folder Modal -->
 <div class="modal fade" id="folderModal" tabindex="-1">
   <div class="modal-dialog">

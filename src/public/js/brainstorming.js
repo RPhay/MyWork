@@ -152,22 +152,29 @@ function collectIdeaItemsFromEditor() {
     .filter(item => item.text);
 }
 
-function openNewIdeaForm() {
+function openNewIdeaForm(presetFolderId) {
   document.getElementById('ideaId').value = '';
   document.getElementById('ideaForm').reset();
+  document.getElementById('ideaPresetFolderId').value = presetFolderId || '';
   renderIdeaItemsEditor([]);
 }
 
 async function saveIdea() {
   const ideaId = document.getElementById('ideaId').value;
+  const presetFolderId = document.getElementById('ideaPresetFolderId').value;
 
-  // folder_id is intentionally omitted here - it's only ever changed via drag-and-drop,
-  // never through this form, so a plain title/notes edit must leave it untouched.
+  // folder_id is intentionally omitted on edit - it's only ever changed via
+  // drag-and-drop there, never through this form. On create, a preset folder
+  // (e.g. from a folder's "Add Idea Here" context menu) is included so the new
+  // idea lands directly in that folder instead of unfiled.
   const data = {
     title: document.getElementById('ideaTitle').value,
     notes: document.getElementById('ideaNotes').value,
     items: collectIdeaItemsFromEditor()
   };
+  if (!ideaId && presetFolderId) {
+    data.folder_id = presetFolderId;
+  }
 
   try {
     const url = ideaId ? `/api/ideas/${ideaId}` : '/api/ideas';
@@ -186,6 +193,7 @@ async function saveIdea() {
     if (result.success) {
       app.notify('Idea saved!', 'success');
       bootstrap.Modal.getInstance(document.getElementById('ideaModal')).hide();
+      if (!ideaId && presetFolderId) expandedIdeaFolders.add(String(presetFolderId));
       loadIdeas();
     } else {
       app.notify('Error: ' + result.message, 'danger');
@@ -451,14 +459,14 @@ function updateConvertIdeaFormVisibility() {
   }
 }
 
-async function openConvertIdeaForm(ideaId) {
+async function openConvertIdeaForm(ideaId, presetType) {
   try {
     const response = await fetch(`/api/ideas/${ideaId}`);
     const result = await response.json();
     convertingIdeaData = result.data;
 
     document.getElementById('convertIdeaTitle').textContent = convertingIdeaData.title;
-    document.getElementById('convertIdeaType').value = 'project';
+    document.getElementById('convertIdeaType').value = presetType || 'project';
     document.getElementById('convertIdeaDate').value = new Date().toISOString().split('T')[0];
     updateConvertIdeaFormVisibility();
 
@@ -531,6 +539,94 @@ async function doConvertIdea() {
     console.error('Error converting idea:', error);
     app.notify('Error converting idea', 'danger');
   }
+}
+
+let ideaContextMenuId = null;
+
+function showIdeaContextMenu(x, y, ideaId) {
+  ideaContextMenuId = ideaId;
+  const menu = document.getElementById('ideaContextMenu');
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  menu.classList.remove('d-none');
+}
+
+function hideIdeaContextMenu() {
+  ideaContextMenuId = null;
+  document.getElementById('ideaContextMenu').classList.add('d-none');
+}
+
+function initIdeaContextMenu() {
+  const menu = document.getElementById('ideaContextMenu');
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-convert-type]');
+    if (!btn || !ideaContextMenuId) {
+      hideIdeaContextMenu();
+      return;
+    }
+
+    const ideaId = ideaContextMenuId;
+    const type = btn.dataset.convertType;
+    hideIdeaContextMenu();
+    openConvertIdeaForm(ideaId, type);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('d-none') && !menu.contains(e.target)) {
+      hideIdeaContextMenu();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideIdeaContextMenu();
+  });
+}
+
+let ideaFolderContextMenuId = null;
+
+function showIdeaFolderContextMenu(x, y, folderId) {
+  ideaFolderContextMenuId = folderId;
+  const menu = document.getElementById('ideaFolderContextMenu');
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  menu.classList.remove('d-none');
+}
+
+function hideIdeaFolderContextMenu() {
+  ideaFolderContextMenuId = null;
+  document.getElementById('ideaFolderContextMenu').classList.add('d-none');
+}
+
+function initIdeaFolderContextMenu() {
+  const menu = document.getElementById('ideaFolderContextMenu');
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-menu-action]');
+    if (!btn || !ideaFolderContextMenuId) {
+      hideIdeaFolderContextMenu();
+      return;
+    }
+
+    const folderId = ideaFolderContextMenuId;
+    hideIdeaFolderContextMenu();
+
+    if (btn.dataset.menuAction === 'add-idea') {
+      openNewIdeaForm(folderId);
+      const modal = new bootstrap.Modal(document.getElementById('ideaModal'));
+      modal.show();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('d-none') && !menu.contains(e.target)) {
+      hideIdeaFolderContextMenu();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideIdeaFolderContextMenu();
+  });
 }
 
 function clearIdeaDropTargets(container) {
@@ -685,6 +781,23 @@ function initBrainstormingEventListeners() {
       editIdeaFolder(folderHeader.closest('.idea-folder-node').dataset.folderId);
     }
   });
+
+  container.addEventListener('contextmenu', (e) => {
+    const ideaRow = e.target.closest('.idea-row');
+    if (ideaRow) {
+      e.preventDefault();
+      showIdeaContextMenu(e.clientX, e.clientY, ideaRow.dataset.ideaId);
+      return;
+    }
+    const folderHeader = e.target.closest('.idea-folder-header');
+    if (folderHeader) {
+      e.preventDefault();
+      showIdeaFolderContextMenu(e.clientX, e.clientY, folderHeader.closest('.idea-folder-node').dataset.folderId);
+    }
+  });
+
+  initIdeaContextMenu();
+  initIdeaFolderContextMenu();
 }
 
 function initBrainstorming() {

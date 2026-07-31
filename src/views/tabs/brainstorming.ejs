@@ -21,6 +21,20 @@
   <p class="text-center text-muted">No ideas yet</p>
 </div>
 
+<!-- Idea Convert Context Menu (right-click an idea) -->
+<div id="ideaContextMenu" class="context-menu d-none">
+  <button type="button" class="context-menu-item" data-convert-type="project"><i class="bi bi-folder2"></i> Convert to Project</button>
+  <button type="button" class="context-menu-item" data-convert-type="sub-project"><i class="bi bi-folder2"></i> Convert to Sub-Project</button>
+  <button type="button" class="context-menu-item" data-convert-type="area"><i class="bi bi-diagram-3"></i> Convert to Category</button>
+  <button type="button" class="context-menu-item" data-convert-type="sub-area"><i class="bi bi-diagram-3"></i> Convert to Sub-Category</button>
+  <button type="button" class="context-menu-item" data-convert-type="work-item"><i class="bi bi-card-checklist"></i> Convert to Work Item</button>
+</div>
+
+<!-- Idea Folder Context Menu (right-click a folder) -->
+<div id="ideaFolderContextMenu" class="context-menu d-none">
+  <button type="button" class="context-menu-item" data-menu-action="add-idea"><i class="bi bi-lightbulb"></i> Add Idea Here</button>
+</div>
+
 <!-- Idea Folder Modal -->
 <div class="modal fade" id="ideaFolderModal" tabindex="-1">
   <div class="modal-dialog">
@@ -59,6 +73,7 @@
       <div class="modal-body">
         <form id="ideaForm">
           <input type="hidden" id="ideaId" name="ideaId">
+          <input type="hidden" id="ideaPresetFolderId">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
           <div class="mb-3">
