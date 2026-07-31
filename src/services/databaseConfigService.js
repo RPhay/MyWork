@@ -7,6 +7,7 @@ import { encrypt, decrypt } from '../utils/credentialCrypto.js';
 import { ValidationError } from '../config/errors.js';
 import { mysqlSchemaExists, createMysqlSchema } from '../database/schema/mysqlSchema.js';
 import { mssqlSchemaExists, createMssqlSchema } from '../database/schema/mssqlSchema.js';
+import * as connectionPool from '../database/connectionPool.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STORE_PATH = path.join(__dirname, '../../data/db-connections.enc.json');
@@ -65,9 +66,36 @@ export function saveConnectionProfile(type, data) {
   return maskProfile(store[type]);
 }
 
-export function setActiveType(type) {
+// Setting MySQL/MariaDB active actually switches the app's live connection
+// pool, verified with a fresh connection test first so a bad profile can't
+// break the running app. MSSQL has no query path anywhere in the app (every
+// service queries through connectionPool.js, which is MySQL-only), so it
+// can only ever record intent, not go live.
+export async function setActiveType(type) {
   assertValidType(type);
   const store = readStore();
+
+  if (type === 'mysql') {
+    const profile = store.mysql;
+    if (!profile || !profile.host || !profile.user || !profile.database) {
+      throw new ValidationError('Save a complete MySQL/MariaDB profile (host, user, database) before setting it active');
+    }
+
+    const password = resolvePassword('mysql', undefined);
+    const testResult = await testMysqlConnection(profile, password);
+    if (!testResult.success) {
+      throw new ValidationError(`Cannot activate - connection test failed: ${testResult.message}`);
+    }
+
+    await connectionPool.reconfigure({
+      host: profile.host,
+      port: profile.port ? Number(profile.port) : 3306,
+      user: profile.user,
+      password,
+      database: profile.database,
+    });
+  }
+
   store.activeType = type;
   writeStore(store);
   return { activeType: type };

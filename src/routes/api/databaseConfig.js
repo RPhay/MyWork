@@ -15,10 +15,12 @@ router.get('/', (req, res) => {
   }
 });
 
-// Set which database type the tool intends to use (informational for now)
-router.put('/active-type', (req, res) => {
+// Set which database type is active. For mysql this actually switches the
+// app's live connection pool (see setActiveType); for mssql it's informational
+// only, since the app has no MSSQL query path.
+router.put('/active-type', async (req, res) => {
   try {
-    const data = databaseConfigService.setActiveType(req.body.type);
+    const data = await databaseConfigService.setActiveType(req.body.type);
     res.json({ success: true, message: 'Active database type updated', data });
   } catch (error) {
     logger.error('Error setting active database type:', error);

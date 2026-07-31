@@ -165,7 +165,12 @@ async function setActiveDatabaseType(type) {
     const result = await response.json();
     if (result.success) {
       updateActiveBadges(result.data.activeType);
-      app.notify('Active database type updated', 'success');
+      app.notify(
+        type === 'mysql'
+          ? 'Live database connection switched to this MySQL/MariaDB profile'
+          : 'Active database type updated (MSSQL is not queryable yet, so this only records intent)',
+        'success'
+      );
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }

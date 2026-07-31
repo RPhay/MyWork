@@ -3,10 +3,10 @@
     <h4>Database Configuration</h4>
     <p class="text-muted">
       Store connection details for MySQL/MariaDB and MSSQL/Azure SQL. Passwords are encrypted
-      at rest and are never sent back to the browser once saved. The tool currently always
-      runs on MySQL/MariaDB (any server speaking the MySQL protocol) - the "active" selection
-      below just records which one you intend to use; it doesn't switch the app's live
-      connection yet.
+      at rest and are never sent back to the browser once saved. Setting a MySQL/MariaDB
+      profile active tests it, then immediately switches the app's live database connection
+      to it. MSSQL/Azure SQL can't be switched to live yet - the app has no MSSQL query path -
+      so setting it active only records your intent.
     </p>
   </div>
 </div>

@@ -3,6 +3,13 @@ import config from '../config/environment.js';
 import logger from '../utils/logger.js';
 
 let pool;
+let currentConfig = {
+  host: config.database.host,
+  port: config.database.port,
+  user: config.database.user,
+  password: config.database.password,
+  database: config.database.name,
+};
 
 // mysql2 connection failures often surface as an AggregateError with an empty
 // top-level message, so callers see "Error: " with no detail. Translate known
@@ -37,11 +44,7 @@ async function getPool() {
   }
 
   pool = mysql.createPool({
-    host: config.database.host,
-    port: config.database.port,
-    user: config.database.user,
-    password: config.database.password,
-    database: config.database.name,
+    ...currentConfig,
     waitForConnections: true,
     connectionLimit: config.database.poolMax,
     queueLimit: 0,
@@ -55,6 +58,18 @@ async function getPool() {
 
   logger.info('Database connection pool created');
   return pool;
+}
+
+// Switches the live pool to a different MySQL/MariaDB target - used when a
+// Settings > Database Configuration profile is set active. Closes the existing
+// pool; the next query lazily opens a fresh one against the new target.
+async function reconfigure(newConfig) {
+  if (pool) {
+    await pool.end();
+    pool = undefined;
+  }
+  currentConfig = { ...newConfig };
+  logger.info('Database connection pool reconfigured', { host: newConfig.host, database: newConfig.database });
 }
 
 async function query(sql, values = []) {
@@ -113,4 +128,4 @@ async function closePool() {
   }
 }
 
-export { getPool, query, queryOne, insert, update, deleteRecord, closePool };
+export { getPool, query, queryOne, insert, update, deleteRecord, closePool, reconfigure };
