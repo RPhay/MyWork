@@ -11,6 +11,77 @@ let currentDragType = null;
 const ASSOCIATION_PATHS = { priority: 'priorities', goal: 'goals', area: 'areas' };
 const STATUS_CYCLE = ['Not Started', 'In Progress', 'Complete'];
 
+// Parse iCalendar format calendar events
+function parseCalendarEvent(text) {
+  const lines = text.split(/[\r\n]+/).filter(line => line.trim());
+  const event = {
+    title: '',
+    description: '',
+    duration: null
+  };
+
+  let dtStart = null;
+  let dtEnd = null;
+
+  for (const line of lines) {
+    if (line.startsWith('SUMMARY:')) {
+      event.title = line.substring(8).trim();
+    } else if (line.startsWith('DESCRIPTION:')) {
+      event.description = line.substring(12).trim();
+    } else if (line.startsWith('DTSTART')) {
+      const match = line.match(/DTSTART(?:;[^:]*)?:(.+)/);
+      if (match) dtStart = parseICalDate(match[1]);
+    } else if (line.startsWith('DTEND')) {
+      const match = line.match(/DTEND(?:;[^:]*)?:(.+)/);
+      if (match) dtEnd = parseICalDate(match[1]);
+    }
+  }
+
+  if (dtStart && dtEnd) {
+    event.duration = Math.round((dtEnd - dtStart) / 60000);
+  }
+
+  return event;
+}
+
+function parseICalDate(dateStr) {
+  dateStr = dateStr.trim();
+  if (dateStr.includes('T')) {
+    return new Date(dateStr.replace(/Z$/, '+00:00'));
+  }
+  return new Date(dateStr);
+}
+
+async function createWorkItemFromCalendarEvent(event, date) {
+  const data = {
+    title: event.title,
+    description: event.description || '',
+    time_box_minutes: event.duration || null
+  };
+
+  try {
+    const response = await fetch('/api/work', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ ...data, date })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify(`Work item created from calendar event: ${event.title}`, 'success');
+      loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating work item from calendar event:', error);
+    app.notify('Error creating work item from calendar event', 'danger');
+  }
+}
+
 // Formats a minute total as "2h 15m" / "45m", or '' for zero/falsy so callers
 // can drop it from the UI entirely rather than show "0m".
 function formatMinutesTotal(minutes) {
@@ -1583,9 +1654,19 @@ function initDailiesEventListeners() {
   document.getElementById('calendar').addEventListener('dragover', (e) => {
     const dayCell = e.target.closest('[data-date]');
     document.querySelectorAll('#calendar .calendar-drop-target').forEach(el => el.classList.remove('calendar-drop-target'));
+
     if (dayCell) {
       e.preventDefault();
-      dayCell.classList.add('calendar-drop-target');
+
+      const types = Array.from(e.dataTransfer.types || []);
+      const hasCalendarData = types.includes('text/calendar') ||
+                              types.includes('text/plain') ||
+                              types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics'));
+      const hasInternalDrag = types.includes('type') && (e.dataTransfer.getData('type') === 'template' || e.dataTransfer.getData('type') === 'work-item');
+
+      if (hasCalendarData || hasInternalDrag) {
+        dayCell.classList.add('calendar-drop-target');
+      }
     }
   });
 
@@ -1604,12 +1685,43 @@ function initDailiesEventListeners() {
 
     const type = e.dataTransfer.getData('type');
     const id = e.dataTransfer.getData('id');
-    if (!id) return;
 
     if (type === 'template') {
       instantiateTemplateOnDate(id, dayCell.dataset.date);
+      return;
     } else if (type === 'work-item') {
       showCalendarDropMenu(e.clientX, e.clientY, id, dayCell.dataset.date);
+      return;
+    }
+
+    // Handle external calendar events from Outlook
+    const types = Array.from(e.dataTransfer.types || []);
+    const hasCalendarData = types.includes('text/calendar') ||
+                            types.includes('text/plain') ||
+                            types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics'));
+
+    if (hasCalendarData && !id) {
+      let calendarText = null;
+
+      if (e.dataTransfer.types.includes('text/calendar')) {
+        calendarText = e.dataTransfer.getData('text/calendar');
+      } else if (e.dataTransfer.types.includes('text/plain')) {
+        calendarText = e.dataTransfer.getData('text/plain');
+      } else {
+        for (const type of e.dataTransfer.types) {
+          if (type.toLowerCase().includes('calendar') || type.toLowerCase().includes('ics')) {
+            calendarText = e.dataTransfer.getData(type);
+            break;
+          }
+        }
+      }
+
+      if (calendarText && (calendarText.includes('BEGIN:VEVENT') || calendarText.includes('SUMMARY:'))) {
+        const event = parseCalendarEvent(calendarText);
+        if (event.title) {
+          createWorkItemFromCalendarEvent(event, dayCell.dataset.date);
+        }
+      }
     }
   });
 }

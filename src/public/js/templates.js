@@ -585,68 +585,55 @@ function initTemplatesEventListeners() {
   });
 
   container.addEventListener('dragover', (e) => {
-    // Check if this is a drag from outside (external source like Outlook)
-    // Look for calendar-related MIME types
+    const nodeEl = e.target.closest('.template-node');
+
+    // Check for internal template drag
+    if (nodeEl && e.dataTransfer.types.includes('template-id')) {
+      e.preventDefault();
+      return;
+    }
+
+    // Check if this is external calendar data
     const types = Array.from(e.dataTransfer.types || []);
     const hasCalendarData = types.includes('text/calendar') ||
                             types.includes('text/plain') ||
-                            types.some(t => t.toLowerCase().includes('calendar'));
+                            types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics'));
 
-    // Also accept if there's no specific internal type (likely external drag)
-    const hasInternalDragData = types.includes('template-id') ||
-                                types.includes('type');
-
-    if (hasCalendarData || (!hasInternalDragData && types.length > 0)) {
+    if (hasCalendarData || (!nodeEl && types.length > 0)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
-      container.style.backgroundColor = '#e3f2fd';
-      container.style.borderColor = '#2196f3';
-      container.style.borderWidth = '2px';
-      container.style.borderStyle = 'dashed';
-      container.style.borderRadius = '4px';
-      container.style.padding = '10px';
+      container.classList.add('templates-drop-target');
     }
   });
 
   container.addEventListener('dragleave', (e) => {
     if (!container.contains(e.relatedTarget)) {
-      container.style.backgroundColor = '';
-      container.style.borderColor = '';
-      container.style.borderWidth = '';
-      container.style.borderStyle = '';
-      container.style.borderRadius = '';
-      container.style.padding = '';
+      container.classList.remove('templates-drop-target');
     }
   });
 
   container.addEventListener('drop', async (e) => {
     const nodeEl = e.target.closest('.template-node');
+    container.classList.remove('templates-drop-target');
 
-    // Only handle calendar drops on empty area, not on existing templates
-    if (nodeEl) return;
+    // Template reordering (handled by separate handler below)
+    if (nodeEl && e.dataTransfer.types.includes('template-id')) {
+      return;
+    }
 
     e.preventDefault();
-    container.style.backgroundColor = '';
-    container.style.borderColor = '';
-    container.style.borderWidth = '';
-    container.style.borderStyle = '';
-    container.style.borderRadius = '';
-    container.style.padding = '';
 
+    // Handle calendar event drops
     const types = Array.from(e.dataTransfer.types || []);
     let calendarText = e.dataTransfer.getData('text/calendar') ||
                        e.dataTransfer.getData('text/plain') ||
                        e.dataTransfer.getData('text');
 
     if (!calendarText) {
-      console.log('No calendar text found. Available types:', types);
       return;
     }
 
-    console.log('Received drop with text:', calendarText.substring(0, 100));
-
     if (!calendarText.includes('BEGIN:VEVENT') && !calendarText.includes('SUMMARY:')) {
-      console.log('Text does not appear to be a calendar event');
       return;
     }
 
