@@ -649,6 +649,12 @@ function showDbConfigChoice() {
   document.getElementById("contextDbNoConfig").classList.remove("d-none");
   document.getElementById("contextDbConfigured").classList.add("d-none");
   document.getElementById("contextDbForm").classList.add("d-none");
+  // Disable schema update button when no DB is configured
+  const schemaBtn = document.getElementById("checkSchemaBtn");
+  if (schemaBtn) {
+    schemaBtn.disabled = true;
+    schemaBtn.title = "Configure a database connection first";
+  }
 }
 
 function showDbConfigured(dbType, config) {
@@ -663,6 +669,13 @@ function showDbConfigured(dbType, config) {
   document.getElementById("contextDbNoConfig").classList.add("d-none");
   document.getElementById("contextDbConfigured").classList.remove("d-none");
   document.getElementById("contextDbForm").classList.add("d-none");
+
+  // Enable schema update button when DB is configured
+  const schemaBtn = document.getElementById("checkSchemaBtn");
+  if (schemaBtn) {
+    schemaBtn.disabled = false;
+    schemaBtn.title = "Check and update database schema";
+  }
 }
 
 function showDbEditForm(dbType, config) {

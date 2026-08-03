@@ -33,24 +33,50 @@ function resolvePassword(existingEnc, submittedPassword) {
   }
 }
 
-// Parse db_config_json and decrypt password if present
+// Parse db_config_json and decrypt password if present, with fallback to old columns
 function parseDbConfig(context) {
-  if (!context.db_config_json) {
-    return null;
+  // Try new format first (db_config_json)
+  if (context.db_config_json) {
+    try {
+      const config = JSON.parse(context.db_config_json);
+      return {
+        host: config.host,
+        port: config.port,
+        database: config.database,
+        user: config.user,
+        hasPassword: !!config.password_enc,
+        password_enc: config.password_enc,
+      };
+    } catch {
+      // Fall through to old format fallback
+    }
   }
-  try {
-    const config = JSON.parse(context.db_config_json);
+
+  // Fallback to old column format for backwards compatibility
+  // (for machines that haven't yet run the schema migration)
+  if (context.db_type === 'mysql' && context.db_host) {
     return {
-      host: config.host,
-      port: config.port,
-      database: config.database,
-      user: config.user,
-      hasPassword: !!config.password_enc,
-      password_enc: config.password_enc,
+      host: context.db_host,
+      port: context.db_port,
+      database: context.db_name,
+      user: context.db_user,
+      hasPassword: !!context.db_password_enc,
+      password_enc: context.db_password_enc,
     };
-  } catch {
-    return null;
   }
+
+  if (context.db_type === 'mssql' && context.mssql_host) {
+    return {
+      host: context.mssql_host,
+      port: context.mssql_port,
+      database: context.mssql_name,
+      user: context.mssql_user,
+      hasPassword: !!context.mssql_password_enc,
+      password_enc: context.mssql_password_enc,
+    };
+  }
+
+  return null;
 }
 
 export async function getDbConfig(contextId) {
@@ -305,25 +331,51 @@ export async function getLiveConnectionConfig(contextId) {
   const context = await getContextRow(contextId);
   const dbType = VALID_TYPES.includes(context.db_type) ? context.db_type : null;
 
-  if (!dbType || !context.db_config_json) {
+  if (!dbType) {
     return null;
   }
 
-  try {
-    const config = JSON.parse(context.db_config_json);
-    if (!config.host || !config.user || !config.database) {
-      return null;
+  // Try new format first (db_config_json)
+  if (context.db_config_json) {
+    try {
+      const config = JSON.parse(context.db_config_json);
+      if (config.host && config.user && config.database) {
+        return {
+          type: dbType,
+          host: config.host,
+          port: config.port || (dbType === 'mssql' ? 1433 : 3306),
+          user: config.user,
+          password: resolvePassword(config.password_enc, undefined),
+          database: config.database,
+        };
+      }
+    } catch {
+      // Fall through to old format fallback
     }
-
-    return {
-      type: dbType,
-      host: config.host,
-      port: config.port || (dbType === 'mssql' ? 1433 : 3306),
-      user: config.user,
-      password: resolvePassword(config.password_enc, undefined),
-      database: config.database,
-    };
-  } catch {
-    return null;
   }
+
+  // Fallback to old column format for backwards compatibility
+  if (dbType === 'mysql' && context.db_host) {
+    return {
+      type: 'mysql',
+      host: context.db_host,
+      port: context.db_port || 3306,
+      user: context.db_user,
+      password: resolvePassword(context.db_password_enc, undefined),
+      database: context.db_name,
+    };
+  }
+
+  if (dbType === 'mssql' && context.mssql_host) {
+    return {
+      type: 'mssql',
+      host: context.mssql_host,
+      port: context.mssql_port || 1433,
+      user: context.mssql_user,
+      password: resolvePassword(context.mssql_password_enc, undefined),
+      database: context.mssql_name,
+    };
+  }
+
+  return null;
 }
