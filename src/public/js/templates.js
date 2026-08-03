@@ -697,8 +697,20 @@ function initTemplatesEventListeners() {
                             types.includes('text/html') ||
                             types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
 
+    // Check for email data (peek at content to detect emails)
+    let hasEmailData = false;
+    if ((types.includes('text/plain') || types.includes('text/html')) && !hasEmailData) {
+      try {
+        const textData = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text/html') || '';
+        hasEmailData = textData.includes('Subject:') || textData.includes('From:') ||
+                      (textData.includes('To:') && textData.includes('Date:'));
+      } catch (err) {
+        // Silently fail - some drag sources don't allow reading data during dragover
+      }
+    }
+
     // Allow drop on empty container for any external data (not template-id)
-    if (hasCalendarData || (!nodeEl && types.length > 0 && !types.includes('template-id'))) {
+    if (hasCalendarData || hasEmailData || (!nodeEl && types.length > 0 && !types.includes('template-id'))) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
       container.classList.add('templates-drop-target');

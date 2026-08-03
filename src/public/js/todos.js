@@ -864,7 +864,19 @@ function initToDosEventListeners() {
     const hasEmailOrCalendarData = types.includes('text/plain') || types.includes('text/html') || types.includes('text/calendar');
     const hasInternalDrag = types.some(t => t === 'type');
 
-    if (!hasEmailOrCalendarData && !hasInternalDrag) return;
+    // Check for email data specifically (peek at content)
+    let hasEmailData = false;
+    if ((types.includes('text/plain') || types.includes('text/html')) && !hasEmailData) {
+      try {
+        const textData = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text/html') || '';
+        hasEmailData = textData.includes('Subject:') || textData.includes('From:') ||
+                      (textData.includes('To:') && textData.includes('Date:'));
+      } catch (err) {
+        // Silently fail
+      }
+    }
+
+    if (!hasEmailOrCalendarData && !hasEmailData && !hasInternalDrag) return;
 
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
