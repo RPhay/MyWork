@@ -585,14 +585,24 @@ function initTemplatesEventListeners() {
   });
 
   container.addEventListener('dragover', (e) => {
-    if (e.target.closest('.template-node')) return;
+    // Check if this is a drag from outside (external source like Outlook)
+    // Look for calendar-related MIME types
+    const types = Array.from(e.dataTransfer.types || []);
+    const hasCalendarData = types.includes('text/calendar') ||
+                            types.includes('text/plain') ||
+                            types.some(t => t.toLowerCase().includes('calendar'));
 
-    const hasCalendarData = e.dataTransfer.types.includes('text/calendar') ||
-                            e.dataTransfer.types.includes('text/plain');
-    if (hasCalendarData) {
+    // Also accept if there's no specific internal type (likely external drag)
+    const hasInternalDragData = types.includes('template-id') ||
+                                types.includes('type');
+
+    if (hasCalendarData || (!hasInternalDragData && types.length > 0)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
-      container.style.backgroundColor = '#f0f8ff';
+      container.style.backgroundColor = '#e3f2fd';
+      container.style.borderColor = '#2196f3';
+      container.style.borderWidth = '2px';
+      container.style.borderStyle = 'dashed';
       container.style.borderRadius = '4px';
       container.style.padding = '10px';
     }
@@ -601,23 +611,42 @@ function initTemplatesEventListeners() {
   container.addEventListener('dragleave', (e) => {
     if (!container.contains(e.relatedTarget)) {
       container.style.backgroundColor = '';
+      container.style.borderColor = '';
+      container.style.borderWidth = '';
+      container.style.borderStyle = '';
       container.style.borderRadius = '';
       container.style.padding = '';
     }
   });
 
   container.addEventListener('drop', async (e) => {
-    if (e.target.closest('.template-node')) return;
+    const nodeEl = e.target.closest('.template-node');
+
+    // Only handle calendar drops on empty area, not on existing templates
+    if (nodeEl) return;
 
     e.preventDefault();
     container.style.backgroundColor = '';
+    container.style.borderColor = '';
+    container.style.borderWidth = '';
+    container.style.borderStyle = '';
     container.style.borderRadius = '';
     container.style.padding = '';
 
-    const calendarText = e.dataTransfer.getData('text/calendar') || e.dataTransfer.getData('text/plain');
-    if (!calendarText) return;
+    const types = Array.from(e.dataTransfer.types || []);
+    let calendarText = e.dataTransfer.getData('text/calendar') ||
+                       e.dataTransfer.getData('text/plain') ||
+                       e.dataTransfer.getData('text');
+
+    if (!calendarText) {
+      console.log('No calendar text found. Available types:', types);
+      return;
+    }
+
+    console.log('Received drop with text:', calendarText.substring(0, 100));
 
     if (!calendarText.includes('BEGIN:VEVENT') && !calendarText.includes('SUMMARY:')) {
+      console.log('Text does not appear to be a calendar event');
       return;
     }
 
@@ -628,7 +657,7 @@ function initTemplatesEventListeners() {
     }
 
     await createTemplateFromCalendarEvent(event);
-  }, true);
+  });
 }
 
 async function reorderTemplatesOnDrop(draggedId, targetId, position) {
