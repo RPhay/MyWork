@@ -28,6 +28,52 @@ function parseCalendarEvent(text) {
   return parseOutlookPlainTextFormat(text);
 }
 
+// Parse Outlook email data from drag-and-drop
+function parseOutlookEmail(text) {
+  const email = {
+    subject: '',
+    body: '',
+    sender: '',
+    cc: '',
+    attachments: []
+  };
+
+  const lines = text.split(/[\r\n]+/);
+  let bodyStart = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('Subject:')) {
+      email.subject = trimmed.substring(8).trim();
+    } else if (trimmed.startsWith('From:')) {
+      email.sender = trimmed.substring(5).trim();
+    } else if (trimmed.startsWith('Cc:')) {
+      email.cc = trimmed.substring(3).trim();
+    } else if (trimmed.startsWith('Attachments:')) {
+      const attachStr = trimmed.substring(12).trim();
+      if (attachStr) {
+        email.attachments = attachStr.split(/,\s*/).filter(a => a);
+      }
+    } else if (!line.startsWith('Subject:') && !line.startsWith('From:') &&
+               !line.startsWith('Cc:') && !line.startsWith('Date:') &&
+               !line.startsWith('To:') && !line.startsWith('Sent:') &&
+               line.trim() && bodyStart === -1) {
+      // First non-empty line after headers is start of body
+      bodyStart = i;
+      break;
+    }
+  }
+
+  // Collect body text
+  if (bodyStart >= 0) {
+    email.body = lines.slice(bodyStart).join('\n').trim();
+  }
+
+  return email;
+}
+
 function parseICalendarFormat(text) {
   const lines = text.split(/[\r\n]+/).filter(line => line.trim());
   const event = {
@@ -174,6 +220,108 @@ async function createWorkItemFromCalendarEvent(event, date) {
   } catch (error) {
     console.error('Error creating work item from calendar event:', error);
     app.notify('Error creating work item from calendar event', 'danger');
+  }
+}
+
+async function createWorkItemFromEmail(email, date) {
+  const description = [
+    email.sender ? `From: ${email.sender}` : '',
+    email.cc ? `Cc: ${email.cc}` : '',
+    email.attachments.length ? `Attachments: ${email.attachments.join(', ')}` : '',
+    email.body ? `\n${email.body}` : ''
+  ].filter(l => l).join('\n');
+
+  const data = {
+    title: email.subject || '(No subject)',
+    description: description.trim()
+  };
+
+  try {
+    const response = await fetch('/api/work', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ ...data, date })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify(`Work item created from email: ${email.subject}`, 'success');
+      loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating work item from email:', error);
+    app.notify('Error creating work item from email', 'danger');
+  }
+}
+
+async function createTemplateFromCalendarEvent(event) {
+  const data = {
+    title: event.title,
+    description: event.description || '',
+    time_box_minutes: event.duration || null
+  };
+
+  try {
+    const response = await fetch('/api/work-item-templates', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify(`Template created from calendar event: ${event.title}`, 'success');
+      if (typeof loadTemplates === 'function') loadTemplates();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating template from calendar event:', error);
+    app.notify('Error creating template from calendar event', 'danger');
+  }
+}
+
+async function createTemplateFromEmail(email) {
+  const description = [
+    email.sender ? `From: ${email.sender}` : '',
+    email.cc ? `Cc: ${email.cc}` : '',
+    email.attachments.length ? `Attachments: ${email.attachments.join(', ')}` : '',
+    email.body ? `\n${email.body}` : ''
+  ].filter(l => l).join('\n');
+
+  const data = {
+    title: email.subject || '(No subject)',
+    description: description.trim()
+  };
+
+  try {
+    const response = await fetch('/api/work-item-templates', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify(`Template created from email: ${email.subject}`, 'success');
+      if (typeof loadTemplates === 'function') loadTemplates();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating template from email:', error);
+    app.notify('Error creating template from email', 'danger');
   }
 }
 
@@ -1937,7 +2085,14 @@ function initDailiesEventListeners() {
         calendarText.includes('Organizer:')
       );
 
-      console.log('[Dailies] looksLikeCalendar:', looksLikeCalendar);
+      // Check if this looks like email data
+      const looksLikeEmail = calendarText && (
+        calendarText.includes('Subject:') ||
+        calendarText.includes('From:') ||
+        (calendarText.includes('To:') && calendarText.includes('Date:'))
+      );
+
+      console.log('[Dailies] looksLikeCalendar:', looksLikeCalendar, 'looksLikeEmail:', looksLikeEmail);
 
       if (looksLikeCalendar) {
         const event = parseCalendarEvent(calendarText);
@@ -1945,6 +2100,13 @@ function initDailiesEventListeners() {
         if (event.title) {
           console.log('[Dailies] Creating work item from calendar event:', event, 'date:', dayCell.dataset.date);
           createWorkItemFromCalendarEvent(event, dayCell.dataset.date);
+        }
+      } else if (looksLikeEmail) {
+        const email = parseOutlookEmail(calendarText);
+        console.log('[Dailies] Parsed email:', email);
+        if (email.subject) {
+          console.log('[Dailies] Creating work item from email:', email, 'date:', dayCell.dataset.date);
+          createWorkItemFromEmail(email, dayCell.dataset.date);
         }
       }
     }
