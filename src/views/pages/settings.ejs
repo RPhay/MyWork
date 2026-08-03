@@ -30,6 +30,11 @@
     <!-- Tab Navigation -->
     <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
       <li class="nav-item" role="presentation">
+        <button class="nav-link" id="system-database-tab" data-tab="system-database" type="button" role="tab">
+          System Database
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
         <button class="nav-link" id="contexts-tab" data-tab="contexts" type="button" role="tab">
           Contexts
         </button>
@@ -38,6 +43,10 @@
 
     <!-- Tab Content -->
     <div class="tab-content" id="mainTabContent">
+      <!-- System Database Tab (app-level configuration for MyWork data storage) -->
+      <div id="tab-system-database" class="tab-content-pane">
+        <div id="systemDatabasePanel"></div>
+      </div>
       <!-- Contexts Tab (Data Sources, Database Configuration, and Backup & Restore
            now live inside it, per-context, rather than as separate top-level tabs) -->
       <div id="tab-contexts" class="tab-content-pane">
@@ -53,5 +62,6 @@
   <script src="/js/main.js"></script>
   <script src="/js/tabs.js"></script>
   <script src="/js/forms.js"></script>
+  <script src="/js/systemDatabase.js"></script>
 </body>
 </html>
