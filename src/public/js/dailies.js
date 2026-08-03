@@ -2009,8 +2009,15 @@ function initDailiesEventListeners() {
       if (hasCalendarData || hasInternalDrag) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
-        dayCell.classList.add('calendar-drop-target');
-        console.log('[Dailies] Dragover - calendar drop zone active on', dayCell.dataset.date);
+        // Highlight all selected dates if multi-select is active, otherwise just the hovered date
+        const targetDates = calendarMultiSelectedDates.size > 0
+          ? Array.from(calendarMultiSelectedDates)
+          : [dayCell.dataset.date];
+        targetDates.forEach(date => {
+          const cell = document.querySelector(`#calendar [data-date="${date}"]`);
+          if (cell) cell.classList.add('calendar-drop-target');
+        });
+        console.log('[Dailies] Dragover - calendar drop zone active on', targetDates);
       }
     }
   });
@@ -2037,8 +2044,17 @@ function initDailiesEventListeners() {
     const type = e.dataTransfer.getData('type');
     const id = e.dataTransfer.getData('id');
 
+    // Determine target dates: use multi-select if available, otherwise just the dropped-on date
+    const targetDates = calendarMultiSelectedDates.size > 0
+      ? Array.from(calendarMultiSelectedDates).sort()
+      : [dayCell.dataset.date];
+    console.log('[Dailies] Target dates:', targetDates);
+
     if (type === 'template') {
-      instantiateTemplateOnDate(id, dayCell.dataset.date);
+      // Apply template instantiation to all selected dates
+      targetDates.forEach(date => {
+        instantiateTemplateOnDate(id, date);
+      });
       return;
     } else if (type === 'work-item') {
       showCalendarDropMenu(e.clientX, e.clientY, id, dayCell.dataset.date);
@@ -2098,15 +2114,19 @@ function initDailiesEventListeners() {
         const event = parseCalendarEvent(calendarText);
         console.log('[Dailies] Parsed calendar event:', event);
         if (event.title) {
-          console.log('[Dailies] Creating work item from calendar event:', event, 'date:', dayCell.dataset.date);
-          createWorkItemFromCalendarEvent(event, dayCell.dataset.date);
+          console.log('[Dailies] Creating work items from calendar event on dates:', targetDates);
+          targetDates.forEach(date => {
+            createWorkItemFromCalendarEvent(event, date);
+          });
         }
       } else if (looksLikeEmail) {
         const email = parseOutlookEmail(calendarText);
         console.log('[Dailies] Parsed email:', email);
         if (email.subject) {
-          console.log('[Dailies] Creating work item from email:', email, 'date:', dayCell.dataset.date);
-          createWorkItemFromEmail(email, dayCell.dataset.date);
+          console.log('[Dailies] Creating work items from email on dates:', targetDates);
+          targetDates.forEach(date => {
+            createWorkItemFromEmail(email, date);
+          });
         }
       }
     }

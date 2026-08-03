@@ -777,6 +777,18 @@ function initTemplatesEventListeners() {
 
     console.log('[Templates] Data preview:', calendarText.substring(0, 300));
 
+    // Check if this is an email
+    if (isEmailData(calendarText)) {
+      const email = parseOutlookEmail(calendarText);
+      console.log('[Templates] Parsed email:', email);
+      if (!email.subject) {
+        app.notify('Could not extract subject from email', 'warning');
+        return;
+      }
+      await createTemplateFromEmail(email);
+      return;
+    }
+
     // Check if this looks like calendar data (iCalendar format or Outlook plain text)
     const looksLikeCalendar = calendarText.includes('BEGIN:VEVENT') ||
                               calendarText.includes('DTSTART') ||
@@ -785,7 +797,7 @@ function initTemplatesEventListeners() {
                               calendarText.includes('Organizer:');
 
     if (!looksLikeCalendar) {
-      console.log('[Templates] Text does not appear to be a calendar event');
+      console.log('[Templates] Text does not appear to be a calendar event or email');
       return;
     }
 

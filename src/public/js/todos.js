@@ -861,12 +861,13 @@ function initToDosEventListeners() {
 
   container.addEventListener('dragover', (e) => {
     const types = Array.from(e.dataTransfer.types || []);
-    const hasEmailData = types.includes('text/plain') || types.includes('text/html');
+    const hasEmailOrCalendarData = types.includes('text/plain') || types.includes('text/html') || types.includes('text/calendar');
     const hasInternalDrag = types.some(t => t === 'type');
 
-    if (!hasEmailData && !hasInternalDrag) return;
+    if (!hasEmailOrCalendarData && !hasInternalDrag) return;
 
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
     const folderHeader = e.target.closest('.todo-folder-header');
     clearToDoDropTargets(container);
     if (folderHeader) {
@@ -896,23 +897,37 @@ function initToDosEventListeners() {
       return;
     }
 
-    // Handle external email drag-drop
+    // Handle external email/calendar drag-drop
     const types = Array.from(e.dataTransfer.types || []);
-    let emailText = null;
+    let dropText = null;
 
-    if (e.dataTransfer.types.includes('text/plain')) {
-      emailText = e.dataTransfer.getData('text/plain');
+    if (e.dataTransfer.types.includes('text/calendar')) {
+      dropText = e.dataTransfer.getData('text/calendar');
+    } else if (e.dataTransfer.types.includes('text/plain')) {
+      dropText = e.dataTransfer.getData('text/plain');
     } else if (e.dataTransfer.types.includes('text/html')) {
-      emailText = e.dataTransfer.getData('text/html');
+      dropText = e.dataTransfer.getData('text/html');
     }
 
-    if (emailText && emailText.trim().length > 0) {
-      console.log('[ToDos] Email dropped. Text length:', emailText.length);
-      const emailData = parseEmailData(emailText);
-      console.log('[ToDos] Parsed email:', emailData);
+    if (dropText && dropText.trim().length > 0) {
+      console.log('[ToDos] Item dropped. Text length:', dropText.length);
 
-      if (emailData.subject) {
-        await createToDoFromEmail(emailData, targetFolderId);
+      // Check if this is an email
+      if (isEmailData(dropText)) {
+        const emailData = parseOutlookEmail(dropText);
+        console.log('[ToDos] Parsed email:', emailData);
+        if (emailData.subject) {
+          // Map sender to from for compatibility with createToDoFromEmail
+          await createToDoFromEmail({ ...emailData, from: emailData.sender }, targetFolderId);
+        }
+      }
+      // Check if this is a calendar event
+      else if (dropText.includes('BEGIN:VEVENT') || dropText.includes('DTSTART') || dropText.includes('When:') || dropText.includes('Location:')) {
+        const calendarEvent = parseCalendarEvent(dropText);
+        console.log('[ToDos] Parsed calendar event:', calendarEvent);
+        if (calendarEvent.title) {
+          await createTodoFromCalendarEvent(calendarEvent);
+        }
       }
     }
   });
