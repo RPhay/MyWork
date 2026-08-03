@@ -57,6 +57,23 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Create source_auth table for storing encrypted auth credentials per source
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS source_auth (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      source_id INT NOT NULL,
+      auth_type VARCHAR(50) NOT NULL COMMENT 'credentials, sso_entra_id, sso_google, sso_github, api_key',
+      auth_data_enc LONGTEXT COMMENT 'Encrypted JSON with auth details (password, token, etc)',
+      auth_metadata JSON COMMENT 'Non-sensitive metadata (user_email, expiry_time, etc)',
+      authenticated_at TIMESTAMP,
+      expires_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_source_auth (source_id, auth_type)
+    )
+  `);
+
   // Create categories table (static, goal-only grouping - distinct from Areas)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS categories (
