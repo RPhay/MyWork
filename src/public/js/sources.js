@@ -77,16 +77,16 @@ function selectAuthMethod(authMethod) {
 
   try {
     const authModalEl = document.getElementById('sourceAuthModal');
-    const configModalEl = document.getElementById('sourceConfigModal');
+    const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
 
-    if (authModalEl && configModalEl) {
+    if (authModalEl && credentialsModalEl) {
       const authModal = bootstrap.Modal.getInstance(authModalEl);
       if (authModal) {
         authModal.hide();
         setTimeout(() => {
-          openSourceConfigForm();
-          const configModal = new bootstrap.Modal(configModalEl);
-          configModal.show();
+          openAuthCredentialsForm();
+          const credentialsModal = new bootstrap.Modal(credentialsModalEl);
+          credentialsModal.show();
         }, 300);
       }
     }
@@ -103,25 +103,50 @@ function openNewSourceForm() {
   updateSourceConfig();
 }
 
-function openSourceConfigForm() {
+function openAuthCredentialsForm() {
   document.getElementById('sourceId').value = '';
   document.getElementById('sourceType').value = currentSourceType || '';
   document.getElementById('authMethod').value = currentAuthMethod || '';
-  document.getElementById('sourceForm').reset();
-  updateSourceConfig();
+  document.getElementById('authForm').reset();
+
+  const typeNames = {
+    'teams': 'Microsoft Teams',
+    'outlook': 'Microsoft Outlook',
+    'azure-devops': 'Azure DevOps',
+    'github-enterprise': 'GitHub Enterprise',
+    'servicenow': 'ServiceNow'
+  };
+
+  const title = document.getElementById('authCredentialsTitle');
+  if (title) {
+    const authLabel = currentAuthMethod === 'sso' ? 'SSO' : 'Credentials';
+    title.textContent = `${typeNames[currentSourceType] || currentSourceType} - ${authLabel}`;
+  }
+
+  updateAuthCredentialsFields();
+
+  // Reset test message and disable save button
+  const testMsg = document.getElementById('testMessage');
+  if (testMsg) {
+    testMsg.style.display = 'none';
+  }
+  const saveBtn = document.getElementById('saveAuthBtn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+  }
 }
 
-function updateSourceConfig() {
+function updateAuthCredentialsFields() {
   const sourceType = document.getElementById('sourceType').value;
   const authMethod = document.getElementById('authMethod').value;
-  const configFields = document.getElementById('sourceConfigFields');
+  const fieldsContainer = document.getElementById('authCredentialsFields');
 
-  configFields.innerHTML = '';
+  fieldsContainer.innerHTML = '';
 
   const configs = {
     'teams': {
       'sso': [
-        { name: 'tenant_id', label: 'Tenant ID', type: 'text', placeholder: 'common or your organization ID', required: false },
+        { name: 'tenant_id', label: 'Tenant ID (optional)', type: 'text', placeholder: 'common or your organization ID', required: false },
       ],
       'credentials': [
         { name: 'username', label: 'Username', type: 'email', required: true },
@@ -130,7 +155,7 @@ function updateSourceConfig() {
     },
     'outlook': {
       'sso': [
-        { name: 'tenant_id', label: 'Tenant ID', type: 'text', placeholder: 'common or your organization ID', required: false },
+        { name: 'tenant_id', label: 'Tenant ID (optional)', type: 'text', placeholder: 'common or your organization ID', required: false },
       ],
       'credentials': [
         { name: 'username', label: 'Email Address', type: 'email', required: true },
@@ -172,63 +197,92 @@ function updateSourceConfig() {
     const div = document.createElement('div');
     div.className = 'mb-3';
     div.innerHTML = `
-      <label for="config_${field.name}" class="form-label">${field.label}${field.required ? ' *' : ''}</label>
-      <input type="${field.type}" class="form-control" id="config_${field.name}" name="config_${field.name}"
+      <label for="auth_${field.name}" class="form-label">${field.label}</label>
+      <input type="${field.type}" class="form-control" id="auth_${field.name}" name="auth_${field.name}"
              placeholder="${field.placeholder || ''}" ${field.required ? 'required' : ''}>
     `;
-    configFields.appendChild(div);
+    fieldsContainer.appendChild(div);
   });
 }
 
-async function testSourceConnection() {
-  const sourceId = document.getElementById('sourceId').value;
-  if (!sourceId) {
-    app.notify('Save the source first', 'warning');
-    return;
-  }
+async function testAuth() {
+  console.log('Testing authentication...');
+  const sourceType = document.getElementById('sourceType').value;
+  const authMethod = document.getElementById('authMethod').value;
+  const testMsg = document.getElementById('testMessage');
+
+  const authData = {};
+  document.querySelectorAll('#authCredentialsFields input').forEach(input => {
+    const key = input.id.replace('auth_', '');
+    authData[key] = input.value;
+  });
 
   try {
-    const response = await fetch(`/api/sources/${sourceId}/test`, {
+    const response = await fetch(`/api/sources/test-auth`, {
       method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({
+        type: sourceType,
+        authMethod: authMethod,
+        credentials: authData
+      })
     });
 
     const result = await response.json();
+    testMsg.style.display = 'block';
+
     if (result.success) {
-      app.notify('Connection test passed!', 'success');
+      testMsg.className = 'alert alert-success mt-3';
+      testMsg.textContent = '✓ Authentication successful!';
+      document.getElementById('saveAuthBtn').disabled = false;
     } else {
-      app.notify('Connection test failed: ' + result.message, 'danger');
+      testMsg.className = 'alert alert-danger mt-3';
+      testMsg.textContent = '✗ Authentication failed: ' + (result.message || 'Unknown error');
+      document.getElementById('saveAuthBtn').disabled = true;
     }
   } catch (error) {
     console.error('Error:', error);
-    app.notify('Error testing connection', 'danger');
+    testMsg.style.display = 'block';
+    testMsg.className = 'alert alert-danger mt-3';
+    testMsg.textContent = '✗ Error testing authentication';
+    document.getElementById('saveAuthBtn').disabled = true;
   }
 }
 
-async function saveSource() {
-  const sourceId = document.getElementById('sourceId').value;
+async function saveAuth() {
+  const sourceType = document.getElementById('sourceType').value;
+  const authMethod = document.getElementById('authMethod').value;
 
-  const data = {
-    name: document.getElementById('sourceName').value,
-    type: document.getElementById('sourceType').value,
-    authMethod: document.getElementById('authMethod').value,
-    enabled: document.getElementById('sourceEnabled').checked,
-    config: {}
-  };
-
-  // Collect config fields
-  const configInputs = document.querySelectorAll('#sourceConfigFields input');
-  configInputs.forEach(input => {
-    const key = input.id.replace('config_', '');
-    data.config[key] = input.value;
+  const authData = {};
+  document.querySelectorAll('#authCredentialsFields input').forEach(input => {
+    const key = input.id.replace('auth_', '');
+    authData[key] = input.value;
   });
 
-  try {
-    const url = sourceId ? `/api/sources/${sourceId}` : '/api/sources';
-    const method = sourceId ? 'PUT' : 'POST';
+  // Generate a default name based on provider and timestamp
+  const typeNames = {
+    'teams': 'Teams',
+    'outlook': 'Outlook',
+    'azure-devops': 'Azure DevOps',
+    'github-enterprise': 'GitHub',
+    'servicenow': 'ServiceNow'
+  };
+  const defaultName = `${typeNames[sourceType] || sourceType} (${new Date().toLocaleDateString()})`;
 
-    const response = await fetch(url, {
-      method,
+  const data = {
+    name: defaultName,
+    type: sourceType,
+    authMethod: authMethod,
+    enabled: true,
+    config: authData
+  };
+
+  try {
+    const response = await fetch('/api/sources', {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': window.APP_CONFIG?.csrfToken
@@ -239,7 +293,7 @@ async function saveSource() {
     const result = await response.json();
     if (result.success) {
       app.notify('Source saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('sourceConfigModal')).hide();
+      bootstrap.Modal.getInstance(document.getElementById('sourceAuthCredentialsModal')).hide();
       loadSources();
     } else {
       app.notify('Error: ' + result.message, 'danger');
@@ -256,30 +310,44 @@ async function editSource(sourceId) {
     const result = await response.json();
     const source = result.data;
 
-    document.getElementById('sourceId').value = source.id;
-    document.getElementById('sourceName').value = source.name;
-    document.getElementById('sourceType').value = source.type;
-    document.getElementById('authMethod').value = source.authMethod || '';
-    document.getElementById('sourceEnabled').checked = source.enabled;
+    document.getElementById('editSourceId').value = source.id;
+    document.getElementById('editSourceName').value = source.name;
+    document.getElementById('editSourceEnabled').checked = source.enabled;
 
-    currentSourceType = source.type;
-    currentAuthMethod = source.authMethod || '';
-
-    updateSourceConfig();
-
-    // Populate config fields
-    if (source.config) {
-      Object.keys(source.config).forEach(key => {
-        const input = document.getElementById(`config_${key}`);
-        if (input) input.value = source.config[key];
-      });
-    }
-
-    const modal = new bootstrap.Modal(document.getElementById('sourceConfigModal'));
+    const modal = new bootstrap.Modal(document.getElementById('editSourceModal'));
     modal.show();
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error loading source', 'danger');
+  }
+}
+
+async function updateSource() {
+  const sourceId = document.getElementById('editSourceId').value;
+  const name = document.getElementById('editSourceName').value;
+  const enabled = document.getElementById('editSourceEnabled').checked;
+
+  try {
+    const response = await fetch(`/api/sources/${sourceId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ name, enabled })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Source updated!', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('editSourceModal')).hide();
+      loadSources();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error updating source', 'danger');
   }
 }
 
@@ -327,9 +395,12 @@ async function toggleSource(sourceId, enabled) {
 }
 
 function initSourcesEventListeners() {
-  // Modal flow buttons
-  document.getElementById('testSourceBtn')?.addEventListener('click', testSourceConnection);
-  document.getElementById('saveSourceBtn')?.addEventListener('click', saveSource);
+  // Auth credential modal buttons
+  document.getElementById('testAuthBtn')?.addEventListener('click', testAuth);
+  document.getElementById('saveAuthBtn')?.addEventListener('click', saveAuth);
+
+  // Edit source modal button
+  document.getElementById('updateSourceBtn')?.addEventListener('click', updateSource);
 
   // Provider type buttons in sourceTypeModal
   document.querySelectorAll('.provider-btn').forEach(btn => {

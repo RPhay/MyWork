@@ -130,34 +130,58 @@
   </div>
 </div>
 
-<!-- Step 3: Configuration Form Modal -->
-<div class="modal fade" id="sourceConfigModal" tabindex="-1">
+<!-- Step 3: Authentication Credentials Modal -->
+<div class="modal fade" id="sourceAuthCredentialsModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Configure Data Source</h5>
+        <h5 class="modal-title" id="authCredentialsTitle">Enter Authentication Details</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <form id="sourceForm">
+        <form id="authForm">
           <input type="hidden" id="sourceId" name="sourceId">
           <input type="hidden" id="sourceType" name="type">
           <input type="hidden" id="authMethod" name="authMethod">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-          <div class="mb-3">
-            <label for="sourceName" class="form-label">Source Name *</label>
-            <input type="text" class="form-control" id="sourceName" name="name" placeholder="e.g., 'My Teams', 'Work Outlook'" required>
-            <small class="text-muted">A friendly name for this data source</small>
+          <div id="authCredentialsFields">
+            <!-- Dynamic credential fields will be added here -->
           </div>
 
-          <div id="sourceConfigFields">
-            <!-- Dynamic configuration fields will be added here -->
+          <div id="testMessage" class="alert mt-3" style="display: none;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="testAuthBtn">Test</button>
+        <button type="button" class="btn btn-success" id="saveAuthBtn" disabled>Save Source</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Source Modal -->
+<div class="modal fade" id="editSourceModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Source</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editSourceForm">
+          <input type="hidden" id="editSourceId" name="sourceId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="editSourceName" class="form-label">Source Name</label>
+            <input type="text" class="form-control" id="editSourceName" name="name" required>
           </div>
 
           <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" id="sourceEnabled" name="enabled" checked>
-            <label class="form-check-label" for="sourceEnabled">
+            <input type="checkbox" class="form-check-input" id="editSourceEnabled" name="enabled">
+            <label class="form-check-label" for="editSourceEnabled">
               Enabled
             </label>
           </div>
@@ -165,8 +189,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="testSourceBtn">Test Connection</button>
-        <button type="button" class="btn btn-success" id="saveSourceBtn">Save Source</button>
+        <button type="button" class="btn btn-primary" id="updateSourceBtn">Update</button>
       </div>
     </div>
   </div>
