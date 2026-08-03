@@ -62,7 +62,14 @@ async function saveYear() {
 let currentGoals = [];
 
 async function loadYearlyGoals() {
-  const year = document.getElementById('yearSelect').value;
+  const select = document.getElementById('yearSelect');
+
+  // If years haven't been loaded yet, load them first
+  if (select.options.length === 0) {
+    await loadYears();
+  }
+
+  const year = select.value;
   const tbody = document.getElementById('goalsTableBody');
 
   tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>';
@@ -381,7 +388,7 @@ async function initGoals() {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initGoals);
+  document.addEventListener('DOMContentLoaded', () => initGoals());
 } else {
   initGoals();
 }
