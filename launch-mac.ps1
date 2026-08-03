@@ -54,7 +54,10 @@ function Test-ServerUp {
 
 if (-not (Test-ServerUp)) {
     Write-Host "Starting dev server..."
-    Start-Process -FilePath "npm" -ArgumentList "run", "dev"
+    Start-Process -FilePath "npm" -ArgumentList "run", "dev" `
+        -NoNewWindow `
+        -RedirectStandardOutput "/tmp/mywork-dev.log" `
+        -RedirectStandardError "/tmp/mywork-dev-error.log"
 
     $upped = $false
     for ($i = 0; $i -lt 30; $i++) {
