@@ -1597,8 +1597,16 @@ function initWorkItemsListEventListeners() {
       }
     } else {
       // Dropping on empty space either reorders to the end, or (for a template) creates a new item
-      e.preventDefault();
-      container.classList.add('work-items-drop-target');
+      const types = Array.from(e.dataTransfer.types || []);
+      const hasCalendarData = types.includes('text/calendar') ||
+                              types.includes('text/plain') ||
+                              types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
+      const hasInternalDrag = currentDragType && !['work-item'].includes(currentDragType);
+
+      if (hasCalendarData || hasInternalDrag || types.length > 0) {
+        e.preventDefault();
+        container.classList.add('work-items-drop-target');
+      }
     }
   });
 
@@ -1612,14 +1620,12 @@ function initWorkItemsListEventListeners() {
     }
   });
 
-  container.addEventListener('drop', (e) => {
+  container.addEventListener('drop', async (e) => {
     e.preventDefault();
     container.classList.remove('work-items-drop-target');
 
     const type = e.dataTransfer.getData('type');
     const id = e.dataTransfer.getData('id');
-    if (!type || !id) return;
-
     const workItemEl = e.target.closest('.work-item');
 
     if (type === 'work-item') {
@@ -1630,21 +1636,69 @@ function initWorkItemsListEventListeners() {
       return;
     }
 
-    if (workItemEl) {
-      workItemEl.classList.remove('drag-over', 'drop-indicator-before', 'drop-indicator-after');
-      linkChild(workItemEl.dataset.workId, type, id);
+    if (type && id) {
+      if (workItemEl) {
+        workItemEl.classList.remove('drag-over', 'drop-indicator-before', 'drop-indicator-after');
+        linkChild(workItemEl.dataset.workId, type, id);
+        return;
+      }
+
+      // Dropped on empty space (not on an existing item)
+      const dateInput = document.getElementById('selectedDate');
+      const date = dateInput?.value || new Date().toISOString().split('T')[0];
+
+      if (type === 'template') {
+        instantiateTemplateOnDate(id, date);
+      } else if (type === 'priority' || type === 'goal' || type === 'area') {
+        const name = e.dataTransfer.getData('name');
+        createWorkItemFromChild(type, id, name, date);
+      }
       return;
     }
 
-    // Dropped on empty space (not on an existing item)
-    const dateInput = document.getElementById('selectedDate');
-    const date = dateInput?.value || new Date().toISOString().split('T')[0];
+    // Handle external calendar events from Outlook
+    const types = Array.from(e.dataTransfer.types || []);
+    console.log('[Dailies WorkItems] Drop detected. Types:', types);
 
-    if (type === 'template') {
-      instantiateTemplateOnDate(id, date);
-    } else if (type === 'priority' || type === 'goal' || type === 'area') {
-      const name = e.dataTransfer.getData('name');
-      createWorkItemFromChild(type, id, name, date);
+    let calendarText = null;
+
+    if (e.dataTransfer.types.includes('text/calendar')) {
+      calendarText = e.dataTransfer.getData('text/calendar');
+    } else if (e.dataTransfer.types.includes('text/plain')) {
+      calendarText = e.dataTransfer.getData('text/plain');
+    } else {
+      for (const t of e.dataTransfer.types) {
+        if (t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event')) {
+          calendarText = e.dataTransfer.getData(t);
+          break;
+        }
+      }
+    }
+
+    if (!calendarText) {
+      calendarText = e.dataTransfer.getData('text');
+    }
+
+    console.log('[Dailies WorkItems] Calendar text:', calendarText?.substring(0, 100));
+
+    // Check if this looks like calendar data
+    const looksLikeCalendar = calendarText && (
+      calendarText.includes('BEGIN:VEVENT') ||
+      calendarText.includes('DTSTART') ||
+      calendarText.includes('When:') ||
+      calendarText.includes('Location:') ||
+      calendarText.includes('Organizer:')
+    );
+
+    if (looksLikeCalendar) {
+      const event = parseCalendarEvent(calendarText);
+      console.log('[Dailies WorkItems] Parsed event:', event);
+
+      if (event.title) {
+        const dateInput = document.getElementById('selectedDate');
+        const date = dateInput?.value || new Date().toISOString().split('T')[0];
+        await createWorkItemFromCalendarEvent(event, date);
+      }
     }
   });
 }
@@ -1735,6 +1789,10 @@ function initWorkItemContextMenu() {
 }
 
 function initDailiesEventListeners() {
+  console.log('[Dailies] initDailiesEventListeners called');
+  const calendarEl = document.getElementById('calendar');
+  console.log('[Dailies] Calendar element found:', !!calendarEl);
+
   document.getElementById('addWorkItemBtn').addEventListener('click', openNewWorkForm);
   document.getElementById('saveWorkBtn').addEventListener('click', saveWorkItem);
 
@@ -1746,7 +1804,12 @@ function initDailiesEventListeners() {
   initCalendarDayContextMenu();
   initEmojiPicker();
 
-  document.getElementById('calendar').addEventListener('click', (e) => {
+  if (!calendarEl) {
+    console.error('[Dailies] Calendar element not found! Cannot attach event listeners.');
+    return;
+  }
+
+  calendarEl.addEventListener('click', (e) => {
     const navBtn = e.target.closest('[data-cal-nav]');
     if (navBtn) {
       changeCalendarMonth(navBtn.dataset.calNav === 'prev' ? -1 : 1);
@@ -1767,7 +1830,7 @@ function initDailiesEventListeners() {
     selectDate(dayCell.dataset.date);
   });
 
-  document.getElementById('calendar').addEventListener('contextmenu', (e) => {
+  calendarEl.addEventListener('contextmenu', (e) => {
     const dayCell = e.target.closest('[data-date]');
     if (!dayCell) return;
     e.preventDefault();
@@ -1781,7 +1844,7 @@ function initDailiesEventListeners() {
     showCalendarDayContextMenu(e.clientX, e.clientY, dates);
   });
 
-  document.getElementById('calendar').addEventListener('dragover', (e) => {
+  calendarEl.addEventListener('dragover', (e) => {
     const dayCell = e.target.closest('[data-date]');
     document.querySelectorAll('#calendar .calendar-drop-target').forEach(el => el.classList.remove('calendar-drop-target'));
 
@@ -1804,14 +1867,14 @@ function initDailiesEventListeners() {
     }
   });
 
-  document.getElementById('calendar').addEventListener('dragleave', (e) => {
+  calendarEl.addEventListener('dragleave', (e) => {
     const dayCell = e.target.closest('[data-date]');
     if (dayCell && !dayCell.contains(e.relatedTarget)) {
       dayCell.classList.remove('calendar-drop-target');
     }
   });
 
-  document.getElementById('calendar').addEventListener('drop', (e) => {
+  calendarEl.addEventListener('drop', (e) => {
     console.log('[Dailies] DROP EVENT FIRED on element:', e.target.tagName, e.target.className);
     const dayCell = e.target.closest('[data-date]');
     console.log('[Dailies] dayCell found:', !!dayCell);
