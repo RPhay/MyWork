@@ -24,6 +24,9 @@ if (config.security.helmet) {
         directives: {
           ...helmet.contentSecurityPolicy.getDefaultDirectives(),
           "script-src": ["'self'", "https://cdn.jsdelivr.net"],
+          "style-src": ["'self'", "https://cdn.jsdelivr.net"],
+          "connect-src": ["'self'", "https://cdn.jsdelivr.net"],
+          "font-src": ["'self'", "https://cdn.jsdelivr.net"],
         },
       },
     }),
