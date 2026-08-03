@@ -851,7 +851,10 @@ async function checkAndUpdateSchema() {
       `/api/contexts/${selectedContextId}/schema/update`,
       {
         method: "POST",
-        headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken }
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": window.APP_CONFIG?.csrfToken
+        }
       }
     );
 

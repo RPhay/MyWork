@@ -1,6 +1,11 @@
 import * as db from "../database/homePool.js";
 import { NotFoundError, ValidationError } from "../config/errors.js";
 import { VALID_CONTEXT_ICONS } from "../config/contextIcons.js";
+import * as dbConfigService from "./contextDatabaseConfigService.js";
+import { createMysqlSchema } from "../database/schema/mysqlSchema.js";
+import { createMssqlSchema } from "../database/schema/mssqlSchema.js";
+import mysql from "mysql2/promise.js";
+import mssql from "mssql";
 
 // The encrypted DB password blobs must never reach the browser - callers only
 // learn whether one has been set. Everything else about the DB config
@@ -155,4 +160,59 @@ export async function deleteContext(id) {
     [id],
   );
   return affectedRows > 0;
+}
+
+export async function checkAndUpdateContextSchema(contextId) {
+  const config = await dbConfigService.getLiveConnectionConfig(contextId);
+
+  if (!config) {
+    throw new ValidationError('Context has no database connection configured');
+  }
+
+  const result = {
+    message: 'Schema updated successfully',
+    tablesCreated: [],
+    columnsAdded: [],
+    indexesAdded: [],
+    errors: [],
+  };
+
+  try {
+    if (config.type === 'mysql') {
+      const connection = await mysql.createConnection({
+        host: config.host,
+        port: config.port,
+        user: config.user,
+        password: config.password,
+        database: config.database,
+      });
+
+      try {
+        await createMysqlSchema(connection);
+      } finally {
+        await connection.end();
+      }
+    } else if (config.type === 'mssql') {
+      const pool = await mssql.connect({
+        server: config.host,
+        port: config.port,
+        user: config.user,
+        password: config.password,
+        database: config.database,
+        options: { encrypt: true, trustServerCertificate: false },
+      });
+
+      try {
+        await createMssqlSchema(pool);
+      } finally {
+        await pool.close();
+      }
+    } else {
+      throw new ValidationError(`Unknown database type: ${config.type}`);
+    }
+  } catch (error) {
+    throw error;
+  }
+
+  return result;
 }

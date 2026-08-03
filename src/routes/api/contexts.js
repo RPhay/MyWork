@@ -70,4 +70,15 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Update context database schema
+router.post('/:id/schema/update', async (req, res) => {
+  try {
+    const result = await contextService.checkAndUpdateContextSchema(req.params.id);
+    res.json({ success: true, message: 'Schema updated', data: result });
+  } catch (error) {
+    logger.error('Error updating context schema:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;
