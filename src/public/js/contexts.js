@@ -15,6 +15,7 @@ function contextRowHtml(context) {
         <i class="bi ${context.icon || DEFAULT_CONTEXT_ICON}"></i>
       </button>
       <span class="context-row-title">${app.escapeHtml(context.name)}</span>
+      ${!context.db_host ? `<i class="bi bi-house-fill text-primary" title="Home database" style="font-size:.8rem;flex-shrink:0"></i>` : ""}
       ${
         context.userName
           ? `<span class="badge bg-light text-dark border context-row-owner" title="Owner">${app.escapeHtml(context.userName)}</span>`
@@ -46,7 +47,8 @@ function folderNodeHtml(folder, foldersByParent, contextsByFolder) {
 
   // A custom icon shows statically; without one, keep the folder-fill/folder-open-fill
   // toggle that reflects expand state (no open/closed variant exists for arbitrary icons).
-  const folderIconClass = folder.icon || `bi-folder${isExpanded ? "-open" : ""}-fill`;
+  const folderIconClass =
+    folder.icon || `bi-folder${isExpanded ? "-open" : ""}-fill`;
   const folderIconColorClass = folder.icon ? "" : " text-warning";
 
   return `
@@ -336,7 +338,11 @@ function initIconPicker() {
   });
 
   document.addEventListener("click", (e) => {
-    if (!popover.classList.contains("d-none") && !popover.contains(e.target) && !e.target.closest('[data-action="pick-icon"]')) {
+    if (
+      !popover.classList.contains("d-none") &&
+      !popover.contains(e.target) &&
+      !e.target.closest('[data-action="pick-icon"]')
+    ) {
       hideIconPicker();
     }
   });
@@ -927,7 +933,12 @@ function initContextsEventListeners() {
       }
       if (action === "pick-icon") {
         const rect = actionBtn.getBoundingClientRect();
-        showIconPicker(rect.left, rect.bottom + 4, actionBtn.dataset.entityType, id);
+        showIconPicker(
+          rect.left,
+          rect.bottom + 4,
+          actionBtn.dataset.entityType,
+          id,
+        );
         return;
       }
       return;

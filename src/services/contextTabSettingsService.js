@@ -1,36 +1,37 @@
-import * as db from '../database/connectionPool.js';
+import * as db from "../database/homePool.js";
 
 // Every main-app tab except Dailies, which is always shown first and can't be
 // hidden - so it's deliberately not part of this configurable set at all.
 export const CONFIGURABLE_TABS = [
-  { key: 'my-priorities', label: 'Projects' },
-  { key: 'priority-board', label: 'Priorities' },
-  { key: 'areas', label: 'Categories' },
-  { key: 'yearly-goals', label: 'Yearly Goals' },
-  { key: 'templates', label: 'Templates' },
-  { key: 'todos', label: 'To Dos' },
-  { key: 'brainstorming', label: 'Brainstorming' },
-  { key: 'reporting', label: 'Reporting' },
+  { key: "my-priorities", label: "Projects" },
+  { key: "priority-board", label: "Priorities" },
+  { key: "areas", label: "Categories" },
+  { key: "yearly-goals", label: "Yearly Goals" },
+  { key: "templates", label: "Templates" },
+  { key: "todos", label: "To Dos" },
+  { key: "brainstorming", label: "Brainstorming" },
+  { key: "reporting", label: "Reporting" },
 ];
 
 // Returns every configurable tab for a context, visible and in the order
 // saved - defaulting any tab that's never been explicitly configured yet to
 // visible, in the CONFIGURABLE_TABS declaration order.
 export async function getTabSettings(contextId) {
-  const rows = await db.query('SELECT tab_key, visible, order_index FROM context_tab_settings WHERE context_id = ?', [contextId]);
-  const byKey = new Map(rows.map(r => [r.tab_key, r]));
+  const rows = await db.query(
+    "SELECT tab_key, visible, order_index FROM context_tab_settings WHERE context_id = ?",
+    [contextId],
+  );
+  const byKey = new Map(rows.map((r) => [r.tab_key, r]));
 
-  return CONFIGURABLE_TABS
-    .map((tab, i) => {
-      const saved = byKey.get(tab.key);
-      return {
-        key: tab.key,
-        label: tab.label,
-        visible: saved ? !!saved.visible : true,
-        order_index: saved ? saved.order_index : i,
-      };
-    })
-    .sort((a, b) => a.order_index - b.order_index);
+  return CONFIGURABLE_TABS.map((tab, i) => {
+    const saved = byKey.get(tab.key);
+    return {
+      key: tab.key,
+      label: tab.label,
+      visible: saved ? !!saved.visible : true,
+      order_index: saved ? saved.order_index : i,
+    };
+  }).sort((a, b) => a.order_index - b.order_index);
 }
 
 // Replaces this context's tab settings wholesale - `settings` is the full
@@ -38,7 +39,7 @@ export async function getTabSettings(contextId) {
 export async function saveTabSettings(contextId, settings) {
   if (!Array.isArray(settings)) return getTabSettings(contextId);
 
-  const validKeys = new Set(CONFIGURABLE_TABS.map(t => t.key));
+  const validKeys = new Set(CONFIGURABLE_TABS.map((t) => t.key));
 
   // Plain exists-check + insert-or-update rather than an upsert (MySQL's
   // ON DUPLICATE KEY UPDATE has no MSSQL equivalent, and this only ever
@@ -48,19 +49,19 @@ export async function saveTabSettings(contextId, settings) {
     if (!validKeys.has(key)) continue;
 
     const existing = await db.queryOne(
-      'SELECT id FROM context_tab_settings WHERE context_id = ? AND tab_key = ?',
-      [contextId, key]
+      "SELECT id FROM context_tab_settings WHERE context_id = ? AND tab_key = ?",
+      [contextId, key],
     );
 
     if (existing) {
       await db.update(
-        'UPDATE context_tab_settings SET visible = ?, order_index = ? WHERE id = ?',
-        [visible !== false, i, existing.id]
+        "UPDATE context_tab_settings SET visible = ?, order_index = ? WHERE id = ?",
+        [visible !== false, i, existing.id],
       );
     } else {
       await db.insert(
-        'INSERT INTO context_tab_settings (context_id, tab_key, visible, order_index) VALUES (?, ?, ?, ?)',
-        [contextId, key, visible !== false, i]
+        "INSERT INTO context_tab_settings (context_id, tab_key, visible, order_index) VALUES (?, ?, ?, ?)",
+        [contextId, key, visible !== false, i],
       );
     }
   }

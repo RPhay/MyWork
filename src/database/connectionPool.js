@@ -2,6 +2,10 @@ import mysql from "mysql2/promise.js";
 import mssql from "mssql";
 import config from "../config/environment.js";
 import logger from "../utils/logger.js";
+import {
+  rewriteInsertIgnoreForMssql,
+  toNamedParams,
+} from "./mssqlTranslation.js";
 
 let pool;
 let currentConfig = {
@@ -66,44 +70,6 @@ function describeDbError(error) {
 // here, in one place. This covers every query pattern actually used in this
 // codebase - see connectionPool's test suite / the MSSQL smoke test for what
 // that covers.
-
-// `INSERT IGNORE INTO table (a, b, ...) VALUES (?, ?, ...)` has no direct
-// MSSQL equivalent. Every use of it in this codebase is a simple
-// association-table insert where the listed columns together are the natural
-// dedup key, so this rewrites it to a conditional insert with the same
-// values checked in a WHERE clause first. Values get duplicated (once for
-// the EXISTS check, once for the INSERT) so the later `?` -> `@pN` pass can
-// stay a single, generic, position-based translation.
-function rewriteInsertIgnoreForMssql(sqlText, values) {
-  const match = sqlText.match(
-    /^\s*INSERT IGNORE INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)\s*$/i,
-  );
-  if (!match) return { sql: sqlText, values };
-
-  const table = match[1];
-  const columns = match[2].split(",").map((c) => c.trim());
-  const placeholderCount = (match[3].match(/\?/g) || []).length;
-  if (columns.length !== placeholderCount || columns.length !== values.length) {
-    return { sql: sqlText, values };
-  }
-
-  const whereClause = columns.map((c) => `${c} = ?`).join(" AND ");
-  const rewrittenSql = `IF NOT EXISTS (SELECT 1 FROM ${table} WHERE ${whereClause}) INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`;
-  return { sql: rewrittenSql, values: [...values, ...values] };
-}
-
-// Positional `?` placeholders, in order, to MSSQL's named `@p0, @p1, ...`.
-function toNamedParams(sqlText, values) {
-  let i = 0;
-  const params = {};
-  const translatedSql = sqlText.replace(/\?/g, () => {
-    const name = `p${i}`;
-    params[name] = values[i];
-    i += 1;
-    return `@${name}`;
-  });
-  return { translatedSql, params };
-}
 
 async function executeMssql(sqlText, values) {
   const rewritten = rewriteInsertIgnoreForMssql(sqlText, values);

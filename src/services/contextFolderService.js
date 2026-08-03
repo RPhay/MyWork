@@ -1,4 +1,4 @@
-import * as db from "../database/connectionPool.js";
+import * as db from "../database/homePool.js";
 import { NotFoundError, ValidationError } from "../config/errors.js";
 import { VALID_CONTEXT_ICONS } from "../config/contextIcons.js";
 
