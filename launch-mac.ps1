@@ -53,27 +53,34 @@ function Test-ServerUp {
 }
 
 if (-not (Test-ServerUp)) {
-    Write-Host "Starting dev server..."
-    Start-Process -FilePath "npm" -ArgumentList "run", "dev" `
+    Write-Host "Starting dev server... (logs: /tmp/mywork-dev.log)"
+    $devProcess = Start-Process -FilePath "npm" -ArgumentList "run", "dev" `
         -NoNewWindow `
         -RedirectStandardOutput "/tmp/mywork-dev.log" `
-        -RedirectStandardError "/tmp/mywork-dev-error.log"
+        -RedirectStandardError "/tmp/mywork-dev-error.log" `
+        -PassThru
 
+    Write-Host "Waiting for server to start (up to 30 seconds)..."
     $upped = $false
     for ($i = 0; $i -lt 30; $i++) {
         Start-Sleep -Seconds 1
         if (Test-ServerUp) {
             $upped = $true
+            Write-Host "✓ Server is ready!"
             break
         }
+        if (-not $devProcess.HasExited) {
+            Write-Host "." -NoNewline
+        }
     }
+    Write-Host ""
 
     if (-not $upped) {
-        Write-Error "Server did not come up in time."
-        exit 1
+        Write-Host "⚠ Server is still starting (this sometimes takes a moment). Check logs at /tmp/mywork-dev.log"
+        Write-Host "You can continue and refresh the browser in a moment."
     }
 } else {
-    Write-Host "Server already running on port $Port."
+    Write-Host "✓ Server already running on port $Port."
 }
 
 Write-Host "Opening $Url in Chrome..."
