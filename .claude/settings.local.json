@@ -45,7 +45,8 @@
       "Bash(disown)",
       "Bash(git commit -m ' *)",
       "Bash(curl -s http://localhost:3000)",
-      "Bash(git commit -m 'Add comprehensive debugging for Outlook calendar drag-and-drop and open modal after template creation *)"
+      "Bash(git commit -m 'Add comprehensive debugging for Outlook calendar drag-and-drop and open modal after template creation *)",
+      "Bash(curl -s http://localhost:3000/api/context-database-config/1)"
     ]
   }
 }

@@ -629,11 +629,6 @@ async function loadContextTabsSubpanel(contextId) {
 // is ever the live query backend (see contextDatabaseConfigService.js).
 
 const DB_PASSWORD_PLACEHOLDER = "••••••••••••";
-let contextDbSnapshot = null;
-
-function dbFieldSuffix(type) {
-  return type === "mssql" ? "Mssql" : "Mysql";
-}
 
 function collectEditFormFields() {
   return {
@@ -969,20 +964,6 @@ function initContextsEventListeners() {
     .getElementById("addContextOwnerBtn")
     .addEventListener("click", addNewContextOwner);
 
-  document.querySelectorAll('input[name="contextDbType"]').forEach((radio) => {
-    radio.addEventListener("change", () => {
-      updateDbTypeVisibility();
-      updateSaveButtonState();
-      autoTestDbConnection();
-    });
-  });
-
-  document
-    .getElementById("contextDbForm")
-    .querySelectorAll('input[id^="contextDb"]')
-    .forEach((input) => {
-      input.addEventListener("input", updateSaveButtonState);
-    });
 
   const list = document.getElementById("contextsList");
 
