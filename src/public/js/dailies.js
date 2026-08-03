@@ -2002,7 +2002,9 @@ function initDailiesEventListeners() {
 
     if (dayCell) {
       const types = Array.from(e.dataTransfer.types || []);
-      console.log('[Dailies] Dragover on dayCell. Types:', types);
+      console.log('[Dailies] DRAGOVER EVENT - Types:', types);
+      console.log('[Dailies] dropEffect:', e.dataTransfer.dropEffect);
+      console.log('[Dailies] effectAllowed:', e.dataTransfer.effectAllowed);
 
       // Check if this is internal drag (template or work-item)
       const hasInternalDrag = types.includes('type') && (e.dataTransfer.getData('type') === 'template' || e.dataTransfer.getData('type') === 'work-item');
@@ -2012,8 +2014,10 @@ function initDailiesEventListeners() {
       const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
 
       console.log('[Dailies] hasInternalDrag:', hasInternalDrag, 'hasTextData:', hasTextData);
+      console.log('[Dailies] Accepting drag?', hasTextData || hasInternalDrag);
 
       if (hasTextData || hasInternalDrag) {
+        console.log('[Dailies] YES - preventing default and showing drop target');
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
         // Highlight all selected dates if multi-select is active, otherwise just the hovered date
@@ -2035,6 +2039,14 @@ function initDailiesEventListeners() {
       dayCell.classList.remove('calendar-drop-target');
     }
   });
+
+  // Catch-all dragover on document to see all drags
+  document.addEventListener('dragover', (e) => {
+    if (e.target.closest('#calendar')) {
+      const types = Array.from(e.dataTransfer.types || []);
+      console.log('[Document] Dragover on calendar area. Types:', types);
+    }
+  }, true);
 
   calendarEl.addEventListener('drop', (e) => {
     console.log('[Dailies] DROP EVENT FIRED on element:', e.target.tagName, e.target.className);
