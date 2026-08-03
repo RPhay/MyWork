@@ -374,6 +374,79 @@ function initTemplateRightPanelTabs() {
   });
 }
 
+function parseCalendarEvent(text) {
+  const lines = text.split(/[\r\n]+/).filter(line => line.trim());
+  const event = {
+    title: '',
+    description: '',
+    duration: null
+  };
+
+  let dtStart = null;
+  let dtEnd = null;
+
+  for (const line of lines) {
+    if (line.startsWith('SUMMARY:')) {
+      event.title = line.substring(8).trim();
+    } else if (line.startsWith('DESCRIPTION:')) {
+      event.description = line.substring(12).trim();
+    } else if (line.startsWith('DTSTART')) {
+      const match = line.match(/DTSTART(?:;[^:]*)?:(.+)/);
+      if (match) dtStart = parseICalDate(match[1]);
+    } else if (line.startsWith('DTEND')) {
+      const match = line.match(/DTEND(?:;[^:]*)?:(.+)/);
+      if (match) dtEnd = parseICalDate(match[1]);
+    }
+  }
+
+  if (dtStart && dtEnd) {
+    event.duration = Math.round((dtEnd - dtStart) / 60000);
+  }
+
+  return event;
+}
+
+async function createTemplateFromCalendarEvent(event) {
+  const data = {
+    title: event.title,
+    description: event.description || '',
+    time_box_minutes: event.duration || null,
+    status: 'In Progress'
+  };
+
+  try {
+    const response = await fetch('/api/work-item-templates', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify(`Template created from calendar event: ${event.title}`, 'success');
+      loadTemplates();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating template from calendar event:', error);
+    app.notify('Error creating template from calendar event', 'danger');
+  }
+}
+
+function parseICalDate(dateStr) {
+  dateStr = dateStr.trim();
+
+  if (dateStr.includes('T')) {
+    return new Date(dateStr.replace(/Z$/, '+00:00'));
+  }
+
+  return new Date(dateStr);
+}
+
 function initTemplatesEventListeners() {
   document.getElementById('addTemplateBtn').addEventListener('click', openNewTemplateForm);
   document.getElementById('saveTemplateBtn').addEventListener('click', saveTemplate);
@@ -510,6 +583,52 @@ function initTemplatesEventListeners() {
 
     linkTemplateChild(nodeEl.dataset.templateId, type, id);
   });
+
+  container.addEventListener('dragover', (e) => {
+    if (e.target.closest('.template-node')) return;
+
+    const hasCalendarData = e.dataTransfer.types.includes('text/calendar') ||
+                            e.dataTransfer.types.includes('text/plain');
+    if (hasCalendarData) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      container.style.backgroundColor = '#f0f8ff';
+      container.style.borderRadius = '4px';
+      container.style.padding = '10px';
+    }
+  });
+
+  container.addEventListener('dragleave', (e) => {
+    if (!container.contains(e.relatedTarget)) {
+      container.style.backgroundColor = '';
+      container.style.borderRadius = '';
+      container.style.padding = '';
+    }
+  });
+
+  container.addEventListener('drop', async (e) => {
+    if (e.target.closest('.template-node')) return;
+
+    e.preventDefault();
+    container.style.backgroundColor = '';
+    container.style.borderRadius = '';
+    container.style.padding = '';
+
+    const calendarText = e.dataTransfer.getData('text/calendar') || e.dataTransfer.getData('text/plain');
+    if (!calendarText) return;
+
+    if (!calendarText.includes('BEGIN:VEVENT') && !calendarText.includes('SUMMARY:')) {
+      return;
+    }
+
+    const event = parseCalendarEvent(calendarText);
+    if (!event.title) {
+      app.notify('Could not extract event title from calendar item', 'warning');
+      return;
+    }
+
+    await createTemplateFromCalendarEvent(event);
+  }, true);
 }
 
 async function reorderTemplatesOnDrop(draggedId, targetId, position) {
@@ -564,3 +683,13 @@ if (document.readyState === 'loading') {
 } else {
   initTemplates();
 }
+
+// Expose test function for calendar drag-and-drop simulation
+window.testCalendarDrop = async function() {
+  const event = {
+    title: 'Test Calendar Event',
+    description: 'This is a test event',
+    duration: 30
+  };
+  await createTemplateFromCalendarEvent(event);
+};
