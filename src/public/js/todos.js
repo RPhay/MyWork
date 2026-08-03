@@ -2,6 +2,82 @@ let expandedFolders = new Set();
 let allFolders = [];
 let allToDos = [];
 
+// Parse email data from drag event
+function parseEmailData(text) {
+  // Outlook typically sends email in format:
+  // Subject line
+  // From: sender@example.com
+  // Sent: date/time
+  // Body content...
+
+  const lines = text.split(/[\r\n]+/);
+  const email = {
+    subject: '',
+    from: '',
+    body: ''
+  };
+
+  let bodyStartIndex = 0;
+
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    const line = lines[i].trim();
+
+    // First non-empty line is usually the subject
+    if (!email.subject && line && !line.startsWith('From:') && !line.startsWith('Sent:')) {
+      email.subject = line;
+      bodyStartIndex = i + 1;
+    } else if (line.startsWith('From:')) {
+      email.from = line.substring(5).trim();
+    }
+  }
+
+  // Everything after metadata is body
+  if (bodyStartIndex < lines.length) {
+    email.body = lines.slice(bodyStartIndex)
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('Sent:'))
+      .join('\n')
+      .trim();
+  }
+
+  return email;
+}
+
+async function createToDoFromEmail(emailData, folderId = null) {
+  const title = emailData.subject || 'Email To Do';
+  const notes = emailData.from ? `From: ${emailData.from}` : '';
+
+  const toDoData = {
+    title: title,
+    notes: notes,
+    folder_id: folderId || null
+  };
+
+  try {
+    const response = await fetch('/api/to-dos', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(toDoData)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify(`To Do created from email: "${title}"`, 'success');
+      loadToDos();
+      // Open the edit modal so user can add more details
+      editToDo(result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating to do from email:', error);
+    app.notify('Error creating to do from email', 'danger');
+  }
+}
+
 function groupToDosByFolder(toDos) {
   const byFolder = new Map();
   toDos.forEach(t => {
@@ -688,6 +764,12 @@ function initToDosEventListeners() {
   });
 
   container.addEventListener('dragover', (e) => {
+    const types = Array.from(e.dataTransfer.types || []);
+    const hasEmailData = types.includes('text/plain') || types.includes('text/html');
+    const hasInternalDrag = types.some(t => t === 'type');
+
+    if (!hasEmailData && !hasInternalDrag) return;
+
     e.preventDefault();
     const folderHeader = e.target.closest('.todo-folder-header');
     clearToDoDropTargets(container);
@@ -698,21 +780,44 @@ function initToDosEventListeners() {
     }
   });
 
-  container.addEventListener('drop', (e) => {
+  container.addEventListener('drop', async (e) => {
     e.preventDefault();
+    clearToDoDropTargets(container);
+
     const type = e.dataTransfer.getData('type');
     const draggedId = e.dataTransfer.getData('id');
-    clearToDoDropTargets(container);
-    if (!type || !draggedId) return;
-
     const folderHeader = e.target.closest('.todo-folder-header');
     const targetFolderId = folderHeader ? folderHeader.closest('.todo-folder-node').dataset.folderId : null;
 
-    if (type === 'folder') {
-      if (targetFolderId && String(targetFolderId) === String(draggedId)) return;
-      reparentFolder(draggedId, targetFolderId);
-    } else if (type === 'todo') {
-      fileToDoIntoFolder(draggedId, targetFolderId);
+    // Handle internal drag-drop (folder/todo reordering)
+    if (type && draggedId) {
+      if (type === 'folder') {
+        if (targetFolderId && String(targetFolderId) === String(draggedId)) return;
+        reparentFolder(draggedId, targetFolderId);
+      } else if (type === 'todo') {
+        fileToDoIntoFolder(draggedId, targetFolderId);
+      }
+      return;
+    }
+
+    // Handle external email drag-drop
+    const types = Array.from(e.dataTransfer.types || []);
+    let emailText = null;
+
+    if (e.dataTransfer.types.includes('text/plain')) {
+      emailText = e.dataTransfer.getData('text/plain');
+    } else if (e.dataTransfer.types.includes('text/html')) {
+      emailText = e.dataTransfer.getData('text/html');
+    }
+
+    if (emailText && emailText.trim().length > 0) {
+      console.log('[ToDos] Email dropped. Text length:', emailText.length);
+      const emailData = parseEmailData(emailText);
+      console.log('[ToDos] Parsed email:', emailData);
+
+      if (emailData.subject) {
+        await createToDoFromEmail(emailData, targetFolderId);
+      }
     }
   });
 

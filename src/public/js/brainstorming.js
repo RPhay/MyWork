@@ -2,6 +2,82 @@ let expandedIdeaFolders = new Set();
 let allIdeaFolders = [];
 let allIdeas = [];
 
+// Parse email data from drag event
+function parseEmailData(text) {
+  // Outlook typically sends email in format:
+  // Subject line
+  // From: sender@example.com
+  // Sent: date/time
+  // Body content...
+
+  const lines = text.split(/[\r\n]+/);
+  const email = {
+    subject: '',
+    from: '',
+    body: ''
+  };
+
+  let bodyStartIndex = 0;
+
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    const line = lines[i].trim();
+
+    // First non-empty line is usually the subject
+    if (!email.subject && line && !line.startsWith('From:') && !line.startsWith('Sent:')) {
+      email.subject = line;
+      bodyStartIndex = i + 1;
+    } else if (line.startsWith('From:')) {
+      email.from = line.substring(5).trim();
+    }
+  }
+
+  // Everything after metadata is body
+  if (bodyStartIndex < lines.length) {
+    email.body = lines.slice(bodyStartIndex)
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('Sent:'))
+      .join('\n')
+      .trim();
+  }
+
+  return email;
+}
+
+async function createIdeaFromEmail(emailData, folderId = null) {
+  const title = emailData.subject || 'Email Idea';
+  const description = emailData.body || '';
+
+  const ideaData = {
+    title: title,
+    description: description,
+    folder_id: folderId || null
+  };
+
+  try {
+    const response = await fetch('/api/ideas', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(ideaData)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify(`Idea created from email: "${title}"`, 'success');
+      loadIdeas();
+      // Open the edit modal so user can add more details
+      editIdea(result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating idea from email:', error);
+    app.notify('Error creating idea from email', 'danger');
+  }
+}
+
 function groupIdeasByFolder(ideas) {
   const byFolder = new Map();
   ideas.forEach(i => {
@@ -726,6 +802,12 @@ function initBrainstormingEventListeners() {
   });
 
   container.addEventListener('dragover', (e) => {
+    const types = Array.from(e.dataTransfer.types || []);
+    const hasEmailData = types.includes('text/plain') || types.includes('text/html');
+    const hasInternalDrag = types.some(t => t === 'type');
+
+    if (!hasEmailData && !hasInternalDrag) return;
+
     e.preventDefault();
     const folderHeader = e.target.closest('.idea-folder-header');
     clearIdeaDropTargets(container);
@@ -736,21 +818,44 @@ function initBrainstormingEventListeners() {
     }
   });
 
-  container.addEventListener('drop', (e) => {
+  container.addEventListener('drop', async (e) => {
     e.preventDefault();
+    clearIdeaDropTargets(container);
+
     const type = e.dataTransfer.getData('type');
     const draggedId = e.dataTransfer.getData('id');
-    clearIdeaDropTargets(container);
-    if (!type || !draggedId) return;
-
     const folderHeader = e.target.closest('.idea-folder-header');
     const targetFolderId = folderHeader ? folderHeader.closest('.idea-folder-node').dataset.folderId : null;
 
-    if (type === 'folder') {
-      if (targetFolderId && String(targetFolderId) === String(draggedId)) return;
-      reparentIdeaFolder(draggedId, targetFolderId);
-    } else if (type === 'idea') {
-      fileIdeaIntoFolder(draggedId, targetFolderId);
+    // Handle internal drag-drop (folder/idea reordering)
+    if (type && draggedId) {
+      if (type === 'folder') {
+        if (targetFolderId && String(targetFolderId) === String(draggedId)) return;
+        reparentIdeaFolder(draggedId, targetFolderId);
+      } else if (type === 'idea') {
+        fileIdeaIntoFolder(draggedId, targetFolderId);
+      }
+      return;
+    }
+
+    // Handle external email drag-drop
+    const types = Array.from(e.dataTransfer.types || []);
+    let emailText = null;
+
+    if (e.dataTransfer.types.includes('text/plain')) {
+      emailText = e.dataTransfer.getData('text/plain');
+    } else if (e.dataTransfer.types.includes('text/html')) {
+      emailText = e.dataTransfer.getData('text/html');
+    }
+
+    if (emailText && emailText.trim().length > 0) {
+      console.log('[Brainstorming] Email dropped. Text length:', emailText.length);
+      const emailData = parseEmailData(emailText);
+      console.log('[Brainstorming] Parsed email:', emailData);
+
+      if (emailData.subject) {
+        await createIdeaFromEmail(emailData, targetFolderId);
+      }
     }
   });
 
