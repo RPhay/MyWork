@@ -836,7 +836,9 @@ async function saveContextDbConfig() {
       app.notify("Database config saved!", "success");
       loadContextDbSubpanel(selectedContextId);
     } else {
-      statusEl.innerHTML = `<span class="text-danger">Save failed: ${app.escapeHtml(saveResult.message)}</span>`;
+      const errorMsg = saveResult.details || saveResult.message || 'Unknown error';
+      statusEl.innerHTML = `<span class="text-danger">Save failed: ${app.escapeHtml(errorMsg)}</span>`;
+      console.error('Full error response:', saveResult);
     }
   } catch (error) {
     console.error("Error saving database config:", error);
