@@ -155,4 +155,5 @@ function setupURLDragDrop(type, containerId, getEntityIdFn) {
   });
 }
 
-export { renderLinksList, loadLinksForEntity, addLinkToEntity, setupURLDragDrop };
+// Functions are globally available when loaded as a regular script
+// export { renderLinksList, loadLinksForEntity, addLinkToEntity, setupURLDragDrop };
