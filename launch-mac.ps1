@@ -54,7 +54,7 @@ function Test-ServerUp {
 
 if (-not (Test-ServerUp)) {
     Write-Host "Starting dev server..."
-    Start-Process -FilePath "npm" -ArgumentList "run", "dev" -WindowStyle Hidden
+    Start-Process -FilePath "npm" -ArgumentList "run", "dev"
 
     $upped = $false
     for ($i = 0; $i -lt 30; $i++) {
