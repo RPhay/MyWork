@@ -43,31 +43,42 @@ function selectSourceType(sourceType) {
     'servicenow': 'ServiceNow'
   };
 
-  // Close type modal and open auth modal
-  const typeModal = bootstrap.Modal.getInstance(document.getElementById('sourceTypeModal'));
+  const typeModalEl = document.getElementById('sourceTypeModal');
+  const authModalEl = document.getElementById('sourceAuthModal');
+
+  // Close type modal
+  const typeModal = bootstrap.Modal.getOrCreateInstance(typeModalEl);
   typeModal.hide();
 
+  // Update auth modal title
   const authTitle = document.getElementById('authModalTitle');
   authTitle.textContent = `How would you like to authenticate with ${typeNames[sourceType] || sourceType}?`;
 
-  setTimeout(() => {
-    const authModal = new bootstrap.Modal(document.getElementById('sourceAuthModal'));
+  // Show auth modal after type modal closes
+  typeModalEl.addEventListener('hidden.bs.modal', function showAuthModal() {
+    const authModal = new bootstrap.Modal(authModalEl);
     authModal.show();
-  }, 200);
+    typeModalEl.removeEventListener('hidden.bs.modal', showAuthModal);
+  }, { once: true });
 }
 
 function selectAuthMethod(authMethod) {
   currentAuthMethod = authMethod;
 
-  // Close auth modal and open config modal
-  const authModal = bootstrap.Modal.getInstance(document.getElementById('sourceAuthModal'));
+  const authModalEl = document.getElementById('sourceAuthModal');
+  const configModalEl = document.getElementById('sourceConfigModal');
+
+  // Close auth modal
+  const authModal = bootstrap.Modal.getOrCreateInstance(authModalEl);
   authModal.hide();
 
-  setTimeout(() => {
+  // Show config modal after auth modal closes
+  authModalEl.addEventListener('hidden.bs.modal', function showConfigModal() {
     openSourceConfigForm();
-    const configModal = new bootstrap.Modal(document.getElementById('sourceConfigModal'));
+    const configModal = new bootstrap.Modal(configModalEl);
     configModal.show();
-  }, 200);
+    authModalEl.removeEventListener('hidden.bs.modal', showConfigModal);
+  }, { once: true });
 }
 
 function openNewSourceForm() {
