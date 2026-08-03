@@ -90,10 +90,14 @@ function showSystemDbConfigured(dbType, config) {
           <button type="button" class="btn btn-sm btn-secondary me-2" id="updateSystemDbBtn">
             <i class="bi bi-pencil"></i> Update Settings
           </button>
+          <button type="button" class="btn btn-sm btn-primary me-2" id="updateSystemDbSchemaBtn">
+            <i class="bi bi-arrow-repeat"></i> Check and Update Schema
+          </button>
           <button type="button" class="btn btn-sm btn-danger" id="removeSystemDbBtn">
             <i class="bi bi-trash"></i> Remove
           </button>
         </div>
+        <div id="systemDbSchemaStatus" class="mt-3"></div>
       </div>
     </div>
   `;
@@ -101,6 +105,7 @@ function showSystemDbConfigured(dbType, config) {
   document.getElementById("updateSystemDbBtn").addEventListener("click", async () => {
     showSystemDbEditForm(dbType, config);
   });
+  document.getElementById("updateSystemDbSchemaBtn").addEventListener("click", updateSystemDbSchema);
   document.getElementById("removeSystemDbBtn").addEventListener("click", removeSystemDbConfig);
 }
 
@@ -280,6 +285,52 @@ async function removeSystemDbConfig() {
   } catch (error) {
     console.error("Error removing system database config:", error);
     app.notify("Error removing configuration", "danger");
+  }
+}
+
+async function updateSystemDbSchema() {
+  const btn = document.getElementById("updateSystemDbSchemaBtn");
+  const statusEl = document.getElementById("systemDbSchemaStatus");
+
+  btn.disabled = true;
+  statusEl.innerHTML = '<div class="alert alert-info py-2 px-3 small"><i class="bi bi-hourglass-split"></i> Checking and updating schema...</div>';
+
+  try {
+    const response = await fetch('/api/system-database/schema/update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken,
+      },
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      statusEl.innerHTML = `
+        <div class="alert alert-success py-2 px-3 small">
+          <i class="bi bi-check-circle"></i> ${app.escapeHtml(result.data.message)}
+        </div>
+      `;
+      app.notify("System database schema updated successfully", "success");
+    } else {
+      statusEl.innerHTML = `
+        <div class="alert alert-danger py-2 px-3 small">
+          <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(result.message)}
+        </div>
+      `;
+      app.notify("Error: " + result.message, "danger");
+    }
+  } catch (error) {
+    console.error("Error updating schema:", error);
+    statusEl.innerHTML = `
+      <div class="alert alert-danger py-2 px-3 small">
+        <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(error.message)}
+      </div>
+    `;
+    app.notify("Error updating schema", "danger");
+  } finally {
+    btn.disabled = false;
   }
 }
 

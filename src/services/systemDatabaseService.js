@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import { encrypt, decrypt } from '../utils/credentialCrypto.js';
 import { ValidationError } from '../config/errors.js';
 import { getCurrentConfig } from '../database/connectionPool.js';
+import { createMysqlSchema } from '../database/schema/mysqlSchema.js';
+import { createMssqlSchema } from '../database/schema/mssqlSchema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_FILE = path.join(__dirname, '../..', 'data', 'system-db-config.enc.json');
@@ -194,4 +196,74 @@ export async function testSystemDbConnection(type, data) {
 
   const password = resolvePassword(existingEnc, data.password);
   return type === 'mssql' ? testMssqlConnection(data, password) : testMysqlConnection(data, password);
+}
+
+export async function updateSystemDbSchema() {
+  const config = loadSystemDbConfig();
+  const current = getCurrentConfig();
+
+  // Use saved config if available, otherwise use current environment config
+  const targetConfig = config || {
+    dbType: current.type || 'mysql',
+    host: current.host,
+    port: current.port,
+    database: current.database,
+    user: current.user,
+    password: current.password,
+  };
+
+  if (!targetConfig.host || !targetConfig.user || !targetConfig.database) {
+    throw new ValidationError('System database configuration is incomplete');
+  }
+
+  try {
+    if (targetConfig.dbType === 'mssql') {
+      const password = targetConfig.password_enc
+        ? resolvePassword(targetConfig.password_enc, undefined)
+        : targetConfig.password;
+
+      const pool = await mssql.connect({
+        server: targetConfig.host,
+        port: targetConfig.port ? Number(targetConfig.port) : 1433,
+        user: targetConfig.user,
+        password,
+        database: targetConfig.database,
+        options: { encrypt: true, trustServerCertificate: false },
+      });
+
+      try {
+        await createMssqlSchema(pool);
+      } finally {
+        await pool.close();
+      }
+    } else {
+      const password = targetConfig.password_enc
+        ? resolvePassword(targetConfig.password_enc, undefined)
+        : targetConfig.password;
+
+      const connection = await mysql.createConnection({
+        host: targetConfig.host,
+        port: targetConfig.port ? Number(targetConfig.port) : 3306,
+        user: targetConfig.user,
+        password,
+        database: targetConfig.database,
+      });
+
+      try {
+        await createMysqlSchema(connection);
+      } finally {
+        await connection.end();
+      }
+    }
+
+    return {
+      message: 'System database schema updated successfully',
+      tablesCreated: [],
+      columnsAdded: [],
+      indexesAdded: [],
+      errors: [],
+    };
+  } catch (error) {
+    throw new ValidationError(`Failed to update system database schema: ${error.message}`);
+  }
 }

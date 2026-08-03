@@ -37,4 +37,15 @@ router.post('/test/:type', async (req, res) => {
   }
 });
 
+// Check and update system database schema
+router.post('/schema/update', async (req, res) => {
+  try {
+    const result = await systemDatabaseService.updateSystemDbSchema();
+    res.json({ success: true, message: 'Schema updated', data: result });
+  } catch (error) {
+    logger.error('Error updating system database schema:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;
