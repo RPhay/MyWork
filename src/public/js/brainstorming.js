@@ -635,7 +635,7 @@ function clearIdeaDropTargets(container) {
 }
 
 function initBrainstormingEventListeners() {
-  document.getElementById('addIdeaBtn').addEventListener('click', openNewIdeaForm);
+  document.getElementById('addIdeaBtn').addEventListener('click', () => openNewIdeaForm());
   document.getElementById('saveIdeaBtn').addEventListener('click', saveIdea);
   document.getElementById('addIdeaFolderBtn').addEventListener('click', openNewIdeaFolderForm);
   document.getElementById('saveIdeaFolderBtn').addEventListener('click', saveIdeaFolder);
