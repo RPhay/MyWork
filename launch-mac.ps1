@@ -13,6 +13,15 @@ if (-not $IsMacOS) {
     exit 1
 }
 
+# --- Stop any existing dev server -----------------------------------------------
+
+$existingProcess = Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -like "*npm*run*dev*" -or $_.CommandLine -like "*node*"}
+if ($existingProcess) {
+    Write-Host "Stopping existing dev server..."
+    Stop-Process -InputObject $existingProcess -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+}
+
 # --- Dependencies ---------------------------------------------------------
 
 if (-not (Get-Command brew -ErrorAction SilentlyContinue)) {

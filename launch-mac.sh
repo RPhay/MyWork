@@ -15,6 +15,14 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
   exit 1
 fi
 
+# --- Stop any existing dev server -----------------------------------------------
+
+if pgrep -f "npm.*run.*dev" >/dev/null 2>&1; then
+  echo "Stopping existing dev server..."
+  pkill -f "npm.*run.*dev" || true
+  sleep 1
+fi
+
 # --- Dependencies ------------------------------------------------------
 
 if ! command -v node >/dev/null 2>&1; then
