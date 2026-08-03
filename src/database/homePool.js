@@ -12,6 +12,8 @@ import {
   rewriteInsertIgnoreForMssql,
   toNamedParams,
 } from "./mssqlTranslation.js";
+import { createMysqlSchema } from "./schema/mysqlSchema.js";
+import { createMssqlSchema } from "./schema/mssqlSchema.js";
 
 const homeConfig = {
   type: config.database.type || "mysql",
@@ -23,6 +25,7 @@ const homeConfig = {
 };
 
 let pool;
+let schemaInitialized = false;
 
 async function getPool() {
   if (pool) return pool;
@@ -41,6 +44,17 @@ async function getPool() {
     mssqlPool.on("error", (err) => logger.error("Home pool error:", err));
     pool = await mssqlPool.connect();
     logger.info("Home database pool created (MSSQL)");
+
+    // Initialize schema on first pool creation
+    if (!schemaInitialized) {
+      try {
+        await createMssqlSchema(pool);
+        schemaInitialized = true;
+      } catch (error) {
+        logger.error("Error initializing MSSQL schema:", error);
+      }
+    }
+
     return pool;
   }
 
@@ -58,6 +72,22 @@ async function getPool() {
   });
   pool.on("error", (err) => logger.error("Home pool error:", err));
   logger.info("Home database pool created (MySQL/MariaDB)");
+
+  // Initialize schema on first pool creation
+  if (!schemaInitialized) {
+    try {
+      const connection = await pool.getConnection();
+      try {
+        await createMysqlSchema(connection);
+        schemaInitialized = true;
+      } finally {
+        await connection.release();
+      }
+    } catch (error) {
+      logger.error("Error initializing MySQL schema:", error);
+    }
+  }
+
   return pool;
 }
 
