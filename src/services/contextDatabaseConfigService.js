@@ -6,6 +6,7 @@ import { ValidationError, NotFoundError } from '../config/errors.js';
 import { mysqlSchemaExists, createMysqlSchema } from '../database/schema/mysqlSchema.js';
 import { mssqlSchemaExists, createMssqlSchema } from '../database/schema/mssqlSchema.js';
 import * as db from '../database/connectionPool.js';
+import * as homePool from '../database/homePool.js';
 
 // Each context has exactly ONE database connection: either MySQL/MariaDB OR MSSQL.
 // If none is configured, db_type is null and db_config_json is null.
@@ -178,12 +179,12 @@ export async function saveDbConfig(contextId, data) {
     if (error.message && (error.message.includes('db_config_json') || error.message.includes('Unknown column'))) {
       // Column doesn't exist yet - try to add it, then retry the update
       try {
-        console.log('Attempting to add db_config_json column...');
-        await db.query(`
+        console.log('Attempting to add db_config_json column via homePool...');
+        await homePool.query(`
           ALTER TABLE contexts
           ADD COLUMN IF NOT EXISTS db_config_json TEXT COMMENT 'Encrypted JSON with active db connection config'
         `);
-        console.log('Column added successfully');
+        console.log('Column added successfully via homePool');
 
         // Retry the update now that column exists
         await db.update(
