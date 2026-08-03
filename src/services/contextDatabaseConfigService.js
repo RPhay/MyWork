@@ -34,6 +34,8 @@ function resolvePassword(existingEnc, submittedPassword) {
 }
 
 // Parse db_config_json and decrypt password if present, with fallback to old columns
+// Note: We don't throw on password decryption failure here - we just mark that a password exists.
+// If the password can't be decrypted, that error surfaces later when trying to use it.
 function parseDbConfig(context) {
   // Try new format first (db_config_json)
   if (context.db_config_json) {
