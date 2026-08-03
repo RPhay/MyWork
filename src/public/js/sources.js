@@ -34,7 +34,9 @@ let currentSourceType = null;
 let currentAuthMethod = null;
 
 function selectSourceType(sourceType) {
+  console.log('selectSourceType called with:', sourceType);
   currentSourceType = sourceType;
+
   const typeNames = {
     'teams': 'Microsoft Teams',
     'outlook': 'Microsoft Outlook',
@@ -43,42 +45,54 @@ function selectSourceType(sourceType) {
     'servicenow': 'ServiceNow'
   };
 
-  const typeModalEl = document.getElementById('sourceTypeModal');
-  const authModalEl = document.getElementById('sourceAuthModal');
+  try {
+    // Update auth modal title
+    const authTitle = document.getElementById('authModalTitle');
+    if (authTitle) {
+      authTitle.textContent = `How would you like to authenticate with ${typeNames[sourceType] || sourceType}?`;
+    }
 
-  // Close type modal
-  const typeModal = bootstrap.Modal.getOrCreateInstance(typeModalEl);
-  typeModal.hide();
+    // Hide type modal and show auth modal
+    const typeModalEl = document.getElementById('sourceTypeModal');
+    const authModalEl = document.getElementById('sourceAuthModal');
 
-  // Update auth modal title
-  const authTitle = document.getElementById('authModalTitle');
-  authTitle.textContent = `How would you like to authenticate with ${typeNames[sourceType] || sourceType}?`;
-
-  // Show auth modal after type modal closes
-  typeModalEl.addEventListener('hidden.bs.modal', function showAuthModal() {
-    const authModal = new bootstrap.Modal(authModalEl);
-    authModal.show();
-    typeModalEl.removeEventListener('hidden.bs.modal', showAuthModal);
-  }, { once: true });
+    if (typeModalEl && authModalEl) {
+      const typeModal = bootstrap.Modal.getInstance(typeModalEl);
+      if (typeModal) {
+        typeModal.hide();
+        setTimeout(() => {
+          const authModal = new bootstrap.Modal(authModalEl);
+          authModal.show();
+        }, 300);
+      }
+    }
+  } catch (error) {
+    console.error('Error in selectSourceType:', error);
+  }
 }
 
 function selectAuthMethod(authMethod) {
+  console.log('selectAuthMethod called with:', authMethod);
   currentAuthMethod = authMethod;
 
-  const authModalEl = document.getElementById('sourceAuthModal');
-  const configModalEl = document.getElementById('sourceConfigModal');
+  try {
+    const authModalEl = document.getElementById('sourceAuthModal');
+    const configModalEl = document.getElementById('sourceConfigModal');
 
-  // Close auth modal
-  const authModal = bootstrap.Modal.getOrCreateInstance(authModalEl);
-  authModal.hide();
-
-  // Show config modal after auth modal closes
-  authModalEl.addEventListener('hidden.bs.modal', function showConfigModal() {
-    openSourceConfigForm();
-    const configModal = new bootstrap.Modal(configModalEl);
-    configModal.show();
-    authModalEl.removeEventListener('hidden.bs.modal', showConfigModal);
-  }, { once: true });
+    if (authModalEl && configModalEl) {
+      const authModal = bootstrap.Modal.getInstance(authModalEl);
+      if (authModal) {
+        authModal.hide();
+        setTimeout(() => {
+          openSourceConfigForm();
+          const configModal = new bootstrap.Modal(configModalEl);
+          configModal.show();
+        }, 300);
+      }
+    }
+  } catch (error) {
+    console.error('Error in selectAuthMethod:', error);
+  }
 }
 
 function openNewSourceForm() {
@@ -316,6 +330,22 @@ function initSourcesEventListeners() {
   // Modal flow buttons
   document.getElementById('testSourceBtn')?.addEventListener('click', testSourceConnection);
   document.getElementById('saveSourceBtn')?.addEventListener('click', saveSource);
+
+  // Provider type buttons in sourceTypeModal
+  document.querySelectorAll('.provider-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      console.log('Provider button clicked:', btn.dataset.provider);
+      selectSourceType(btn.dataset.provider);
+    });
+  });
+
+  // Auth method buttons in sourceAuthModal
+  document.querySelectorAll('.auth-method-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      console.log('Auth method button clicked:', btn.dataset.method);
+      selectAuthMethod(btn.dataset.method);
+    });
+  });
 
   // Table actions
   document.getElementById('sourcesTableBody').addEventListener('click', (e) => {
