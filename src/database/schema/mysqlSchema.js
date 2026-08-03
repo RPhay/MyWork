@@ -509,6 +509,48 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Create to_do_links table (1-n links associated with to dos)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS to_do_links (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      to_do_id INT NOT NULL,
+      url VARCHAR(2048) NOT NULL,
+      title VARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (to_do_id) REFERENCES to_dos(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create idea_links table (1-n links associated with ideas)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS idea_links (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      idea_id INT NOT NULL,
+      url VARCHAR(2048) NOT NULL,
+      title VARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create priority_links table (1-n links associated with priorities/projects)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS priority_links (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      priority_id INT NOT NULL,
+      url VARCHAR(2048) NOT NULL,
+      title VARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE CASCADE
+    )
+  `);
+
   // Create users table - identity is deliberately minimal (name only, no
   // password): logging in with a name that doesn't exist yet creates it.
   // Good enough to keep each person's contexts (and everything under them)

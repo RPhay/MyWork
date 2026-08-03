@@ -22,6 +22,7 @@ import reportingRouter from "./api/reporting.js";
 import dayHighlightsRouter from "./api/dayHighlights.js";
 import ssoRouter from "./api/sso.js";
 import contextSsoRouter from "./api/contextSso.js";
+import linksRouter from "./api/links.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
 
@@ -51,6 +52,7 @@ router.use("/api/reporting", reportingRouter);
 router.use("/api/day-highlights", dayHighlightsRouter);
 router.use("/api/sso", ssoRouter);
 router.use("/api", contextSsoRouter);
+router.use("/api", linksRouter);
 
 // First-run bootstrap page: gets the app pointed at a working database and
 // schema before contexts (or anything else) can exist. Redirects itself back
