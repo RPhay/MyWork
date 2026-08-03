@@ -46,7 +46,13 @@
       "Bash(git commit -m ' *)",
       "Bash(curl -s http://localhost:3000)",
       "Bash(git commit -m 'Add comprehensive debugging for Outlook calendar drag-and-drop and open modal after template creation *)",
-      "Bash(curl -s http://localhost:3000/api/context-database-config/1)"
+      "Bash(curl -s http://localhost:3000/api/context-database-config/1)",
+      "Bash(sqlite3 data/mywork.db \"SELECT COUNT\\(*\\) FROM contexts;\")",
+      "Bash(curl -s http://localhost:3000/api/contexts)",
+      "Bash(curl -s http://localhost:3000/api/context-folders)",
+      "Bash(curl -s \"http://localhost:3000/api/context-folders?_=$\\(date +%s%N\\)\")",
+      "Bash(curl -s http://localhost:3000/settings)",
+      "Bash(curl -s \"http://localhost:3000/api/contexts\")"
     ]
   }
 }

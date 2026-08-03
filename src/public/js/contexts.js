@@ -675,7 +675,7 @@ function showDbEditForm(dbType, config) {
     document.getElementById("editDbPassword").value = DB_PASSWORD_PLACEHOLDER;
   }
 
-  document.getElementById("contextMssqlNotice").classList.toggle("d-none", !isMs sql);
+  document.getElementById("contextMssqlNotice").classList.toggle("d-none", !isMssql);
   document.getElementById("contextDbNoConfig").classList.add("d-none");
   document.getElementById("contextDbConfigured").classList.add("d-none");
   document.getElementById("contextDbForm").classList.remove("d-none");
