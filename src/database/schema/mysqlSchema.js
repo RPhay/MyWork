@@ -626,6 +626,24 @@ export async function createMysqlSchema(connection) {
     `);
   }
 
+  // SSO configuration per context (Microsoft Entra ID, etc.)
+  // sso_enabled: whether SSO is required for this context
+  // sso_provider: 'entra-id', 'google', etc.
+  // sso_*_enc: encrypted credentials
+  // sso_redirect_uri: OAuth redirect URI (not secret)
+  if (!(await columnExists(connection, "contexts", "sso_enabled"))) {
+    await connection.query(`
+      ALTER TABLE contexts
+        ADD COLUMN sso_enabled BOOLEAN DEFAULT FALSE,
+        ADD COLUMN sso_provider VARCHAR(50),
+        ADD COLUMN sso_tenant_id_enc TEXT,
+        ADD COLUMN sso_client_id_enc TEXT,
+        ADD COLUMN sso_client_secret_enc TEXT,
+        ADD COLUMN sso_redirect_uri VARCHAR(500),
+        ADD COLUMN sso_configured_at TIMESTAMP NULL
+    `);
+  }
+
   // Per-context visibility/order for the main app's tabs. Dailies is always
   // shown first and can't be hidden, so it's deliberately not represented here
   // - the dashboard nav always pins it, then lays out whatever this table says
@@ -639,6 +657,22 @@ export async function createMysqlSchema(connection) {
       order_index INT DEFAULT 0,
       FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
       UNIQUE KEY unique_context_tab (context_id, tab_key)
+    )
+  `);
+
+  // SSO user identities: maps Entra ID (or other SSO provider) users to MyWork users
+  // One row per user per provider, allows same person to be identified across contexts
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS sso_identities (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      provider VARCHAR(50) NOT NULL,
+      provider_id VARCHAR(500) NOT NULL,
+      provider_email VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_provider_identity (provider, provider_id)
     )
   `);
 
