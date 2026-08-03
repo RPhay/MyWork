@@ -48,27 +48,13 @@ router.post('/:contextId/create-schema/:type', async (req, res) => {
   }
 });
 
-// Activate a database connection (test and make it active)
-router.post('/:contextId/activate', async (req, res) => {
+// Remove a context's database connection
+router.delete('/:contextId', async (req, res) => {
   try {
-    const { dbType, mysql, mssql } = req.body;
-    const config = dbType === 'mysql' ? mysql : mssql;
-
-    // First test the connection
-    const testResult = await contextDatabaseConfigService.testDbConnection(req.params.contextId, dbType, config);
-    if (!testResult.success) {
-      return res.status(400).json({ success: false, message: `Connection test failed: ${testResult.message}` });
-    }
-
-    // Save the configuration
-    await contextDatabaseConfigService.saveContextDatabaseConfig(req.params.contextId, { mysql, mssql, dbType });
-
-    // Activate it by switching the pool
-    await contextDatabaseConfigService.setActiveDbType(req.params.contextId, dbType);
-
-    res.json({ success: true, message: `Database connection activated (${dbType})` });
+    await contextDatabaseConfigService.removeDbConfig(req.params.contextId);
+    res.json({ success: true, message: 'Database connection removed' });
   } catch (error) {
-    logger.error('Error activating database connection:', error);
+    logger.error('Error removing database connection:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });

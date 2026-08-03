@@ -635,209 +635,149 @@ function dbFieldSuffix(type) {
   return type === "mssql" ? "Mssql" : "Mysql";
 }
 
-function currentDbType() {
-  return (
-    document.querySelector('input[name="contextDbType"]:checked')?.value ||
-    "mysql"
-  );
-}
-
-function populateDbFieldsFor(type, profile) {
-  const suffix = dbFieldSuffix(type);
-  document.getElementById(`contextDbHost${suffix}`).value = profile.host || "";
-  document.getElementById(`contextDbPort${suffix}`).value = profile.port || "";
-  document.getElementById(`contextDbName${suffix}`).value =
-    profile.database || "";
-  document.getElementById(`contextDbUser${suffix}`).value = profile.user || "";
-  const pwInput = document.getElementById(`contextDbPassword${suffix}`);
-  pwInput.value = profile.hasPassword ? DB_PASSWORD_PLACEHOLDER : "";
-  pwInput.dataset.placeholder = profile.hasPassword
-    ? DB_PASSWORD_PLACEHOLDER
-    : "";
-}
-
-// Raw current field values, for dirty-checking and for populating a fresh
-// context cloned from this one (see cloneContextDbConfig).
-function collectDbFieldsFor(type) {
-  const suffix = dbFieldSuffix(type);
+function collectEditFormFields() {
   return {
-    host: document.getElementById(`contextDbHost${suffix}`).value,
-    port: document.getElementById(`contextDbPort${suffix}`).value || null,
-    database: document.getElementById(`contextDbName${suffix}`).value,
-    user: document.getElementById(`contextDbUser${suffix}`).value,
-    password: document.getElementById(`contextDbPassword${suffix}`).value,
+    host: document.getElementById("editDbHost").value,
+    port: document.getElementById("editDbPort").value || null,
+    database: document.getElementById("editDbDatabase").value,
+    user: document.getElementById("editDbUser").value,
+    password: document.getElementById("editDbPassword").value,
   };
 }
 
-// Same as above, but resolves an untouched masked-password field to
-// undefined so the server knows to keep the existing stored password rather
-// than overwriting it with the literal placeholder dots.
-function collectDbFieldsForSave(type) {
-  const fields = collectDbFieldsFor(type);
-  const pwInput = document.getElementById(
-    `contextDbPassword${dbFieldSuffix(type)}`,
-  );
-  if (
-    pwInput.dataset.placeholder &&
-    fields.password === pwInput.dataset.placeholder
-  ) {
-    fields.password = undefined;
-  }
-  return fields;
+function showDbConfigChoice() {
+  document.getElementById("contextDbNoConfig").classList.remove("d-none");
+  document.getElementById("contextDbConfigured").classList.add("d-none");
+  document.getElementById("contextDbForm").classList.add("d-none");
 }
 
-function snapshotDbForm() {
-  return JSON.stringify({
-    dbType: currentDbType(),
-    mysql: collectDbFieldsFor("mysql"),
-    mssql: collectDbFieldsFor("mssql"),
-  });
+function showDbConfigured(dbType, config) {
+  const typeLabel = dbType === "mssql" ? "MSSQL (Azure)" : "MySQL / MariaDB";
+  document.getElementById("currentDbTypeLabel").textContent = typeLabel;
+  document.getElementById("currentDbHost").textContent = config.host || "-";
+  document.getElementById("currentDbPort").textContent = config.port || "-";
+  document.getElementById("currentDbDatabase").textContent = config.database || "-";
+  document.getElementById("currentDbUser").textContent = config.user || "-";
+  document.getElementById("currentDbPassword").textContent = config.hasPassword ? "••••••••" : "(not set)";
+
+  document.getElementById("contextDbNoConfig").classList.add("d-none");
+  document.getElementById("contextDbConfigured").classList.remove("d-none");
+  document.getElementById("contextDbForm").classList.add("d-none");
 }
 
-function updateSaveButtonState() {
-  document.getElementById("saveContextDbBtn").disabled =
-    snapshotDbForm() === contextDbSnapshot;
-}
-
-function updateDbTypeVisibility() {
-  const type = currentDbType();
-  document.querySelectorAll("[data-db-fields]").forEach((el) => {
-    el.classList.toggle("d-none", el.dataset.dbFields !== type);
-  });
-  document
-    .getElementById("contextMssqlNotice")
-    .classList.toggle("d-none", type !== "mssql");
-}
-
-function removeCreateSchemaBtn() {
-  document.getElementById("contextCreateSchemaBtn")?.remove();
-}
-
-function renderDbStatus(result) {
-  const statusEl = document.getElementById("contextDbStatus");
-  removeCreateSchemaBtn();
-
-  if (!result.success) {
-    statusEl.innerHTML = `<i class="bi bi-x-circle text-danger"></i> <span class="text-danger">${app.escapeHtml(result.message || "Connection failed")}</span>`;
-    return;
+function showDbEditForm(dbType, config) {
+  document.getElementById("editingDbType").value = dbType;
+  const isMssql = dbType === "mssql";
+  document.getElementById("editDbHost").placeholder = isMssql ? "servername.database.windows.net" : "localhost";
+  document.getElementById("editDbPort").placeholder = isMssql ? "1433" : "3306";
+  document.getElementById("editDbHost").value = config.host || "";
+  document.getElementById("editDbPort").value = config.port || "";
+  document.getElementById("editDbDatabase").value = config.database || "";
+  document.getElementById("editDbUser").value = config.user || "";
+  document.getElementById("editDbPassword").value = "";
+  document.getElementById("editDbPassword").dataset.placeholder = config.hasPassword ? DB_PASSWORD_PLACEHOLDER : "";
+  if (config.hasPassword) {
+    document.getElementById("editDbPassword").value = DB_PASSWORD_PLACEHOLDER;
   }
 
-  if (result.schemaExists === false) {
-    statusEl.innerHTML =
-      '<i class="bi bi-exclamation-triangle text-warning"></i> <span class="text-warning">Connected - schema not found</span> ';
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn btn-sm btn-outline-secondary ms-1";
-    btn.id = "contextCreateSchemaBtn";
-    btn.textContent = "Create Schema";
-    btn.addEventListener("click", createContextDbSchema);
-    statusEl.appendChild(btn);
-  } else if (result.schemaExists === true) {
-    statusEl.innerHTML =
-      '<i class="bi bi-check-circle text-success"></i> <span class="text-success">Connected - schema found</span>';
-  } else {
-    statusEl.innerHTML =
-      '<i class="bi bi-check-circle text-success"></i> <span class="text-success">Connected</span>';
-  }
-}
-
-async function autoTestDbConnection() {
-  if (!selectedContextId) return;
-  const type = currentDbType();
-  const statusEl = document.getElementById("contextDbStatus");
-  const fields = collectDbFieldsForSave(type);
-  removeCreateSchemaBtn();
-
-  if (!fields.host || !fields.user) {
-    statusEl.textContent = "";
-    return;
-  }
-
-  statusEl.innerHTML = '<span class="text-muted">Testing connection…</span>';
-
-  try {
-    const response = await fetch(
-      `/api/context-database-config/${selectedContextId}/test/${type}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify(fields),
-      },
-    );
-    const result = await response.json();
-    // The type toggle may have changed while this request was in flight.
-    if (currentDbType() !== type) return;
-    renderDbStatus(result);
-  } catch (error) {
-    console.error("Error testing context database connection:", error);
-    if (currentDbType() !== type) return;
-    statusEl.innerHTML =
-      '<i class="bi bi-x-circle text-danger"></i> <span class="text-danger">Error testing connection</span>';
-  }
-}
-
-async function createContextDbSchema() {
-  const type = currentDbType();
-  const statusEl = document.getElementById("contextDbStatus");
-  try {
-    const response = await fetch(
-      `/api/context-database-config/${selectedContextId}/create-schema/${type}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify(collectDbFieldsForSave(type)),
-      },
-    );
-    const result = await response.json();
-    if (result.success) {
-      app.notify("Schema created!", "success");
-      autoTestDbConnection();
-    } else {
-      app.notify("Schema creation failed: " + result.message, "danger");
-    }
-  } catch (error) {
-    console.error("Error creating schema:", error);
-    statusEl.innerHTML =
-      '<i class="bi bi-x-circle text-danger"></i> <span class="text-danger">Error creating schema</span>';
-  }
+  document.getElementById("contextMssqlNotice").classList.toggle("d-none", !isMs sql);
+  document.getElementById("contextDbNoConfig").classList.add("d-none");
+  document.getElementById("contextDbConfigured").classList.add("d-none");
+  document.getElementById("contextDbForm").classList.remove("d-none");
 }
 
 async function loadContextDbSubpanel(contextId) {
   document.getElementById("contextDbStatus").textContent = "";
-  removeCreateSchemaBtn();
+  document.getElementById("editContextDbStatus").textContent = "";
 
   try {
     const response = await fetch(`/api/context-database-config/${contextId}`);
     const result = await response.json();
-    if (!result.success) return;
+    if (!result.success) {
+      showDbConfigChoice();
+      return;
+    }
 
-    const config = result.data;
-    const typeInput = document.querySelector(
-      `input[name="contextDbType"][value="${config.dbType}"]`,
-    );
-    if (typeInput) typeInput.checked = true;
-    populateDbFieldsFor("mysql", config.mysql);
-    populateDbFieldsFor("mssql", config.mssql);
-    updateDbTypeVisibility();
-    contextDbSnapshot = snapshotDbForm();
-    updateSaveButtonState();
-    autoTestDbConnection();
+    const { dbType, config } = result.data;
+    if (!dbType || !config) {
+      showDbConfigChoice();
+      return;
+    }
+
+    showDbConfigured(dbType, config);
   } catch (error) {
     console.error("Error loading context database config:", error);
+    showDbConfigChoice();
+  }
+}
+
+async function chooseDbType(dbType) {
+  if (!selectedContextId) return;
+
+  try {
+    const response = await fetch(`/api/context-database-config/${selectedContextId}`);
+    const result = await response.json();
+    if (!result.success) {
+      showDbEditForm(dbType, { host: "", port: "", database: "", user: "", hasPassword: false });
+      return;
+    }
+
+    const { config } = result.data;
+    const emptyConfig = { host: "", port: "", database: "", user: "", hasPassword: false };
+    showDbEditForm(dbType, config || emptyConfig);
+  } catch (error) {
+    console.error("Error loading config:", error);
+    showDbEditForm(dbType, { host: "", port: "", database: "", user: "", hasPassword: false });
   }
 }
 
 async function saveContextDbConfig() {
   if (!selectedContextId) return;
 
+  const dbType = document.getElementById("editingDbType").value;
+  const config = collectEditFormFields();
+  const statusEl = document.getElementById("editContextDbStatus");
+  const pwInput = document.getElementById("editDbPassword");
+
+  if (!config.host || !config.database || !config.user) {
+    statusEl.innerHTML = '<span class="text-danger">Host, database, and user are required</span>';
+    return;
+  }
+
+  // If password is the placeholder, clear it (means user didn't change it)
+  if (pwInput.dataset.placeholder && config.password === pwInput.dataset.placeholder) {
+    config.password = undefined;
+  }
+
+  statusEl.innerHTML = '<span class="text-muted">Saving…</span>';
+
   try {
-    const response = await fetch(
+    // First test the connection (only if password was provided or set)
+    const testConfig = { ...config };
+    if (testConfig.password === undefined) {
+      // If we don't have a new password, we can't test during edit
+      // Let's just save it and trust the existing password is still valid
+    }
+
+    const testResponse = await fetch(
+      `/api/context-database-config/${selectedContextId}/test/${dbType}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
+        },
+        body: JSON.stringify(testConfig),
+      },
+    );
+    const testResult = await testResponse.json();
+    if (!testResult.success) {
+      statusEl.innerHTML = `<span class="text-danger">Connection failed: ${app.escapeHtml(testResult.message)}</span>`;
+      return;
+    }
+
+    // Connection successful, now save
+    const saveResponse = await fetch(
       `/api/context-database-config/${selectedContextId}`,
       {
         method: "PUT",
@@ -845,58 +785,50 @@ async function saveContextDbConfig() {
           "Content-Type": "application/json",
           "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
         },
-        body: JSON.stringify({
-          dbType: currentDbType(),
-          mysql: collectDbFieldsForSave("mysql"),
-          mssql: collectDbFieldsForSave("mssql"),
-        }),
+        body: JSON.stringify({ dbType, config }),
       },
     );
-    const result = await response.json();
-    if (result.success) {
+    const saveResult = await saveResponse.json();
+    if (saveResult.success) {
       app.notify("Database config saved!", "success");
       loadContextDbSubpanel(selectedContextId);
     } else {
-      app.notify("Error: " + result.message, "danger");
+      statusEl.innerHTML = `<span class="text-danger">Save failed: ${app.escapeHtml(saveResult.message)}</span>`;
     }
   } catch (error) {
-    console.error("Error saving context database config:", error);
-    app.notify("Error saving database config", "danger");
+    console.error("Error saving database config:", error);
+    statusEl.innerHTML = '<span class="text-danger">Error saving config</span>';
   }
 }
 
-async function activateContextDbConfig() {
+async function removeContextDbConfig() {
   if (!selectedContextId) return;
+  if (!confirm("Are you sure? This will remove the database connection for this context.")) {
+    return;
+  }
 
   try {
-    const dbType = currentDbType();
-    const fields = collectDbFieldsForSave(dbType);
-
-    const response = await fetch(
-      `/api/context-database-config/${selectedContextId}/activate`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify({
-          dbType,
-          [dbType]: fields,
-        }),
+    const response = await fetch(`/api/context-database-config/${selectedContextId}`, {
+      method: "DELETE",
+      headers: {
+        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
       },
-    );
+    });
     const result = await response.json();
     if (result.success) {
-      app.notify("Database connection activated!", "success");
+      app.notify("Database connection removed", "success");
       loadContextDbSubpanel(selectedContextId);
     } else {
       app.notify("Error: " + result.message, "danger");
     }
   } catch (error) {
-    console.error("Error activating database config:", error);
-    app.notify("Error activating database config", "danger");
+    console.error("Error removing database config:", error);
+    app.notify("Error removing connection", "danger");
   }
+}
+
+function cancelEditContextDb() {
+  loadContextDbSubpanel(selectedContextId);
 }
 
 async function checkAndUpdateSchema() {
@@ -985,12 +917,38 @@ function initContextsEventListeners() {
   document
     .getElementById("saveContextBtn")
     .addEventListener("click", saveContext);
+
+  // Database configuration buttons
+  document
+    .getElementById("chooseDbTypeMysqlBtn")
+    .addEventListener("click", () => chooseDbType("mysql"));
+  document
+    .getElementById("chooseDbTypeMssqlBtn")
+    .addEventListener("click", () => chooseDbType("mssql"));
+  document
+    .getElementById("updateContextDbBtn")
+    .addEventListener("click", async () => {
+      if (!selectedContextId) return;
+      try {
+        const response = await fetch(`/api/context-database-config/${selectedContextId}`);
+        const result = await response.json();
+        if (result.success && result.data.dbType && result.data.config) {
+          showDbEditForm(result.data.dbType, result.data.config);
+        }
+      } catch (error) {
+        console.error("Error loading config for edit:", error);
+      }
+    });
   document
     .getElementById("saveContextDbBtn")
     .addEventListener("click", saveContextDbConfig);
   document
-    .getElementById("activateContextDbBtn")
-    .addEventListener("click", activateContextDbConfig);
+    .getElementById("cancelEditContextDbBtn")
+    .addEventListener("click", cancelEditContextDb);
+  document
+    .getElementById("removeContextDbBtn")
+    .addEventListener("click", removeContextDbConfig);
+
   document
     .getElementById("checkSchemaBtn")
     .addEventListener("click", checkAndUpdateSchema);

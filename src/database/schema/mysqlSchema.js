@@ -686,6 +686,42 @@ export async function createMysqlSchema(connection) {
     `);
   }
 
+  // Unified database configuration: stores only the ACTIVE connection (mysql or mssql)
+  // as encrypted JSON. db_type indicates which type is stored. This enforces
+  // exactly one database connection per context, preventing the confusion of
+  // having both MySQL and MSSQL configs simultaneously.
+  if (!(await columnExists(connection, "contexts", "db_config_json"))) {
+    await connection.query(`
+      ALTER TABLE contexts
+        ADD COLUMN db_config_json TEXT COMMENT 'Encrypted JSON with active db connection config'
+    `);
+
+    // Backfill: migrate existing configs to db_config_json
+    // If db_type='mysql', move db_* fields to JSON; if 'mssql', move mssql_* to JSON
+    const contexts = await connection.query('SELECT id, db_type, db_host, db_port, db_name, db_user, db_password_enc, mssql_host, mssql_port, mssql_name, mssql_user, mssql_password_enc FROM contexts');
+    for (const ctx of contexts[0]) {
+      if (ctx.db_type === 'mssql' && ctx.mssql_host) {
+        const config = {
+          host: ctx.mssql_host,
+          port: ctx.mssql_port,
+          database: ctx.mssql_name,
+          user: ctx.mssql_user,
+          password_enc: ctx.mssql_password_enc
+        };
+        await connection.query('UPDATE contexts SET db_config_json = ? WHERE id = ?', [JSON.stringify(config), ctx.id]);
+      } else if (ctx.db_type === 'mysql' && ctx.db_host) {
+        const config = {
+          host: ctx.db_host,
+          port: ctx.db_port,
+          database: ctx.db_name,
+          user: ctx.db_user,
+          password_enc: ctx.db_password_enc
+        };
+        await connection.query('UPDATE contexts SET db_config_json = ? WHERE id = ?', [JSON.stringify(config), ctx.id]);
+      }
+    }
+  }
+
   // Per-context visibility/order for the main app's tabs. Dailies is always
   // shown first and can't be hidden, so it's deliberately not represented here
   // - the dashboard nav always pins it, then lays out whatever this table says

@@ -109,168 +109,150 @@
         <div id="contextTabsList"></div>
       </div>
 
-      <!-- Database sub-panel: this context's own DB connection(s) -->
+      <!-- Database sub-panel: this context's single database connection -->
       <div class="context-subtab-pane d-none" data-subtab-pane="database">
         <p class="text-muted small">
-          This context's own database connection. Contexts can point at
-          different databases entirely - switching to this context in the navbar
-          switches the live connection to whichever profile is selected below.
+          Each context has exactly one database connection (MySQL/MariaDB OR MSSQL).
+          Switching to this context in the navbar activates its connection.
         </p>
 
-        <div class="btn-group mb-3" role="group" aria-label="Database type">
-          <input
-            type="radio"
-            class="btn-check"
-            name="contextDbType"
-            id="contextDbTypeMysql"
-            value="mysql"
-            autocomplete="off"
-            checked
-          />
-          <label
-            class="btn btn-outline-secondary btn-sm"
-            for="contextDbTypeMysql"
-            >MySQL / MariaDB</label
-          >
-
-          <input
-            type="radio"
-            class="btn-check"
-            name="contextDbType"
-            id="contextDbTypeMssql"
-            value="mssql"
-            autocomplete="off"
-          />
-          <label
-            class="btn btn-outline-secondary btn-sm"
-            for="contextDbTypeMssql"
-            >MSSQL (Azure)</label
-          >
+        <!-- No connection configured: choose type -->
+        <div id="contextDbNoConfig" class="card">
+          <div class="card-body text-center">
+            <p class="card-text">No database connection configured.</p>
+            <div class="d-flex gap-2 justify-content-center">
+              <button
+                type="button"
+                class="btn btn-outline-primary"
+                id="chooseDbTypeMysqlBtn"
+                data-db-type="mysql"
+              >
+                <i class="bi bi-database"></i> MySQL / MariaDB
+              </button>
+              <button
+                type="button"
+                class="btn btn-outline-primary"
+                id="chooseDbTypeMssqlBtn"
+                data-db-type="mssql"
+              >
+                <i class="bi bi-cloud"></i> MSSQL (Azure)
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div
-          id="contextMssqlNotice"
-          class="alert alert-info py-2 px-3 small d-none"
-        >
-          <i class="bi bi-info-circle"></i>
-          MSSQL support targets Azure SQL with a SQL login (username/password) -
-          the connection is always encrypted. Other Azure authentication types
-          (Azure AD, managed identity, etc.) aren't supported yet.
+        <!-- Connection configured: show settings -->
+        <div id="contextDbConfigured" class="d-none">
+          <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">
+                <span id="currentDbTypeLabel"></span> Connection
+              </h6>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger"
+                id="removeContextDbBtn"
+              >
+                Remove
+              </button>
+            </div>
+            <div class="card-body">
+              <dl class="row mb-0">
+                <dt class="col-sm-3">Host</dt>
+                <dd class="col-sm-9" id="currentDbHost">-</dd>
+                <dt class="col-sm-3">Port</dt>
+                <dd class="col-sm-9" id="currentDbPort">-</dd>
+                <dt class="col-sm-3">Database</dt>
+                <dd class="col-sm-9" id="currentDbDatabase">-</dd>
+                <dt class="col-sm-3">User</dt>
+                <dd class="col-sm-9" id="currentDbUser">-</dd>
+                <dt class="col-sm-3">Password</dt>
+                <dd class="col-sm-9" id="currentDbPassword">-</dd>
+              </dl>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            id="updateContextDbBtn"
+          >
+            Update Settings
+          </button>
+          <span id="contextDbStatus" class="small ms-2"></span>
         </div>
 
-        <form id="contextDbForm">
+        <!-- Edit form (hidden by default, shown when updating) -->
+        <form id="contextDbForm" class="d-none mt-3">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <input type="hidden" id="editingDbType" />
 
-          <div data-db-fields="mysql">
+          <div id="contextMssqlNotice" class="alert alert-info py-2 px-3 small d-none">
+            <i class="bi bi-info-circle"></i>
+            MSSQL support targets Azure SQL with a SQL login (username/password).
+          </div>
+
+          <div id="editFormFields">
             <div class="row g-2">
               <div class="col-md-8">
-                <label for="contextDbHostMysql" class="form-label"
-                  >Host *</label
-                >
+                <label for="editDbHost" class="form-label">Host *</label>
                 <input
                   type="text"
                   class="form-control"
-                  id="contextDbHostMysql"
+                  id="editDbHost"
                   placeholder="localhost"
                 />
               </div>
               <div class="col-md-4">
-                <label for="contextDbPortMysql" class="form-label">Port</label>
+                <label for="editDbPort" class="form-label">Port</label>
                 <input
                   type="number"
                   class="form-control"
-                  id="contextDbPortMysql"
+                  id="editDbPort"
                   placeholder="3306"
                 />
               </div>
             </div>
             <div class="mb-2 mt-2">
-              <label for="contextDbNameMysql" class="form-label"
-                >Database Name</label
-              >
-              <input type="text" class="form-control" id="contextDbNameMysql" />
+              <label for="editDbDatabase" class="form-label">
+                Database Name *
+              </label>
+              <input type="text" class="form-control" id="editDbDatabase" />
             </div>
             <div class="mb-2">
-              <label for="contextDbUserMysql" class="form-label">User *</label>
-              <input type="text" class="form-control" id="contextDbUserMysql" />
+              <label for="editDbUser" class="form-label">User *</label>
+              <input type="text" class="form-control" id="editDbUser" />
             </div>
-            <div class="mb-2">
-              <label for="contextDbPasswordMysql" class="form-label"
-                >Password</label
-              >
+            <div class="mb-3">
+              <label for="editDbPassword" class="form-label">
+                Password
+                <small class="text-muted">(leave blank to keep current)</small>
+              </label>
               <input
                 type="password"
                 class="form-control"
-                id="contextDbPasswordMysql"
+                id="editDbPassword"
                 autocomplete="new-password"
               />
             </div>
           </div>
 
-          <div data-db-fields="mssql" class="d-none">
-            <div class="row g-2">
-              <div class="col-md-8">
-                <label for="contextDbHostMssql" class="form-label"
-                  >Host *</label
-                >
-                <input
-                  type="text"
-                  class="form-control"
-                  id="contextDbHostMssql"
-                  placeholder="localhost"
-                />
-              </div>
-              <div class="col-md-4">
-                <label for="contextDbPortMssql" class="form-label">Port</label>
-                <input
-                  type="number"
-                  class="form-control"
-                  id="contextDbPortMssql"
-                  placeholder="1433"
-                />
-              </div>
-            </div>
-            <div class="mb-2 mt-2">
-              <label for="contextDbNameMssql" class="form-label"
-                >Database Name</label
-              >
-              <input type="text" class="form-control" id="contextDbNameMssql" />
-            </div>
-            <div class="mb-2">
-              <label for="contextDbUserMssql" class="form-label">User *</label>
-              <input type="text" class="form-control" id="contextDbUserMssql" />
-            </div>
-            <div class="mb-2">
-              <label for="contextDbPasswordMssql" class="form-label"
-                >Password</label
-              >
-              <input
-                type="password"
-                class="form-control"
-                id="contextDbPasswordMssql"
-                autocomplete="new-password"
-              />
-            </div>
-          </div>
-
-          <div class="d-flex align-items-center gap-2 mt-2">
+          <div class="d-flex align-items-center gap-2">
             <button
               type="button"
               class="btn btn-primary btn-sm"
               id="saveContextDbBtn"
-              disabled
             >
               Save
             </button>
             <button
               type="button"
-              class="btn btn-success btn-sm"
-              id="activateContextDbBtn"
-              title="Test and activate this database connection"
+              class="btn btn-secondary btn-sm"
+              id="cancelEditContextDbBtn"
             >
-              Make Active
+              Cancel
             </button>
-            <span id="contextDbStatus" class="small"></span>
+            <span id="editContextDbStatus" class="small"></span>
           </div>
         </form>
       </div>
