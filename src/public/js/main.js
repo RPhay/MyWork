@@ -329,12 +329,13 @@ async function initContextSwitcher() {
       return;
     }
 
-    label.textContent = active.name;
+    const DEFAULT_CONTEXT_ICON = 'bi-collection';
+    label.innerHTML = `<i class="bi ${active.icon || DEFAULT_CONTEXT_ICON}"></i> ${app.escapeHtml(active.name)}`;
 
     menu.innerHTML = contexts.map(c => `
       <li>
         <button type="button" class="dropdown-item ${c.id === active.id ? 'active' : ''}" data-context-id="${c.id}">
-          ${app.escapeHtml(c.name)}
+          <i class="bi ${c.icon || DEFAULT_CONTEXT_ICON}"></i> ${app.escapeHtml(c.name)}
         </button>
       </li>
     `).join('');

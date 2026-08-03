@@ -36,6 +36,26 @@ function getOrCreateSessionSecret() {
   }
 }
 
+// Same self-managing pattern as getOrCreateSessionSecret, but deliberately
+// does NOT fall back to an ephemeral in-memory key on filesystem failure.
+// A session secret that fails to persist just logs everyone out early; an
+// encryption key that fails to persist would silently doom every DB
+// password saved this run to the exact "could not be decrypted" state this
+// is meant to prevent - better to fail loudly at startup than corrupt data.
+function getOrCreateConfigEncryptionKey() {
+  if (process.env.CONFIG_ENCRYPTION_KEY) return process.env.CONFIG_ENCRYPTION_KEY;
+
+  const keyPath = path.join(__dirname, '../../data/.config-encryption-key');
+  if (fs.existsSync(keyPath)) {
+    return fs.readFileSync(keyPath, 'utf8').trim();
+  }
+
+  const generated = crypto.randomBytes(32).toString('hex');
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  fs.writeFileSync(keyPath, generated, { mode: 0o600 });
+  return generated;
+}
+
 const config = {
   app: {
     name: process.env.APP_NAME || 'MyWork',
@@ -61,7 +81,7 @@ const config = {
     csrf: process.env.CSRF_ENABLED === 'true',
     helmet: process.env.HELMET_ENABLED !== 'false',
     cors: process.env.CORS_ENABLED === 'true',
-    configEncryptionKey: process.env.CONFIG_ENCRYPTION_KEY || '',
+    configEncryptionKey: getOrCreateConfigEncryptionKey(),
   },
   rateLimit: {
     enabled: process.env.RATE_LIMIT_ENABLED !== 'false',

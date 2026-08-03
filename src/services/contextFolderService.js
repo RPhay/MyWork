@@ -1,5 +1,6 @@
 import * as db from "../database/connectionPool.js";
 import { NotFoundError, ValidationError } from "../config/errors.js";
+import { VALID_CONTEXT_ICONS } from "../config/contextIcons.js";
 
 export async function getAllFolders() {
   return db.query(
@@ -76,6 +77,14 @@ export async function updateFolder(id, data) {
   if (data.order_index !== undefined) {
     setClauses.push("order_index = ?");
     values.push(data.order_index);
+  }
+
+  if (data.icon !== undefined) {
+    if (data.icon && !VALID_CONTEXT_ICONS.has(data.icon)) {
+      throw new ValidationError("Invalid icon");
+    }
+    setClauses.push("icon = ?");
+    values.push(data.icon || null);
   }
 
   if (setClauses.length === 0) return getFolderById(id);

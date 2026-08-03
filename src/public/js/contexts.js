@@ -5,10 +5,15 @@ let selectedContextId = null;
 
 // ---- Rendering ----
 
+const DEFAULT_CONTEXT_ICON = "bi-collection";
+
 function contextRowHtml(context) {
   return `
     <div class="context-row ${String(context.id) === String(selectedContextId) ? "selected" : ""}"
          data-context-id="${context.id}" draggable="true">
+      <button type="button" class="icon-picker-trigger" data-action="pick-icon" data-entity-type="context" data-id="${context.id}" title="Change icon" aria-label="Change icon">
+        <i class="bi ${context.icon || DEFAULT_CONTEXT_ICON}"></i>
+      </button>
       <span class="context-row-title">${app.escapeHtml(context.name)}</span>
       ${
         context.userName
@@ -39,11 +44,18 @@ function folderNodeHtml(folder, foldersByParent, contextsByFolder) {
     </div>`
     : "";
 
+  // A custom icon shows statically; without one, keep the folder-fill/folder-open-fill
+  // toggle that reflects expand state (no open/closed variant exists for arbitrary icons).
+  const folderIconClass = folder.icon || `bi-folder${isExpanded ? "-open" : ""}-fill`;
+  const folderIconColorClass = folder.icon ? "" : " text-warning";
+
   return `
     <div class="context-folder-node" data-folder-id="${folder.id}">
       <div class="context-folder-header" draggable="true" data-folder-id="${folder.id}">
         ${chevron}
-        <i class="bi bi-folder${isExpanded ? "-open" : ""}-fill text-warning"></i>
+        <button type="button" class="icon-picker-trigger" data-action="pick-icon" data-entity-type="folder" data-id="${folder.id}" title="Change icon" aria-label="Change icon">
+          <i class="bi ${folderIconClass}${folderIconColorClass}"></i>
+        </button>
         <span class="context-folder-title" style="flex:1;font-weight:500">${app.escapeHtml(folder.name)}</span>
         <span class="context-row-actions">
           <button class="btn btn-sm btn-info" data-action="edit-folder" data-id="${folder.id}" title="Rename" aria-label="Rename"><i class="bi bi-pencil"></i></button>
@@ -265,6 +277,73 @@ async function moveContextToFolder(contextId, folderId) {
     console.error("Error moving context:", error);
     app.notify("Error moving context", "danger");
   }
+}
+
+// ---- Icon picker (contexts and folders share the same popover/palette) ----
+
+let iconPickerTarget = null;
+
+function showIconPicker(x, y, entityType, entityId) {
+  iconPickerTarget = { entityType, entityId };
+  const popover = document.getElementById("contextIconPickerPopover");
+  popover.style.left = `${x}px`;
+  popover.style.top = `${y}px`;
+  popover.classList.remove("d-none");
+}
+
+function hideIconPicker() {
+  iconPickerTarget = null;
+  document.getElementById("contextIconPickerPopover").classList.add("d-none");
+}
+
+async function selectIcon(icon) {
+  if (!iconPickerTarget) return;
+  const { entityType, entityId } = iconPickerTarget;
+  hideIconPicker();
+
+  const url =
+    entityType === "folder"
+      ? `/api/context-folders/${entityId}`
+      : `/api/contexts/${entityId}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
+      },
+      body: JSON.stringify({ icon }),
+    });
+    const result = await response.json();
+    if (result.success) {
+      loadContexts();
+    } else {
+      app.notify("Error: " + result.message, "danger");
+    }
+  } catch (error) {
+    console.error("Error setting icon:", error);
+    app.notify("Error setting icon", "danger");
+  }
+}
+
+function initIconPicker() {
+  const popover = document.getElementById("contextIconPickerPopover");
+
+  popover.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-icon]");
+    if (btn) selectIcon(btn.dataset.icon);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!popover.classList.contains("d-none") && !popover.contains(e.target) && !e.target.closest('[data-action="pick-icon"]')) {
+      hideIconPicker();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideIconPicker();
+  });
 }
 
 // ---- Reorder ----
@@ -846,6 +925,11 @@ function initContextsEventListeners() {
         if (folder) openEditFolderModal(folder);
         return;
       }
+      if (action === "pick-icon") {
+        const rect = actionBtn.getBoundingClientRect();
+        showIconPicker(rect.left, rect.bottom + 4, actionBtn.dataset.entityType, id);
+        return;
+      }
       return;
     }
 
@@ -986,6 +1070,7 @@ function initContextsEventListeners() {
   });
 
   initSubTabs();
+  initIconPicker();
 }
 
 function initContexts() {

@@ -24,7 +24,21 @@
       "Bash(open -a \"Google Chrome\" \"http://localhost:3000\")",
       "Bash(git commit -m 'Add Playwright debug tests and logging for version display *)",
       "Bash(git push *)",
-      "Bash(git credential-osxkeychain *)"
+      "Bash(git credential-osxkeychain *)",
+      "Bash(lsof -nP -iTCP:3000 -sTCP:LISTEN)",
+      "Bash(node --check src/public/js/dailies.js)",
+      "Bash(node --check src/services/dayHighlightService.js)",
+      "Bash(node --check src/routes/api/dayHighlights.js)",
+      "Bash(node --check src/routes/index.js)",
+      "Bash(node --check src/database/schema/mysqlSchema.js)",
+      "Bash(cd *)",
+      "Bash(node --check src/database/schema/mssqlSchema.js)",
+      "Bash(node -e ' *)",
+      "Bash(node --check src/public/js/contexts.js)",
+      "Bash(node --check src/public/js/main.js)",
+      "Bash(node --check src/services/contextService.js)",
+      "Bash(node --check src/services/contextFolderService.js)",
+      "Bash(node --check src/config/contextIcons.js)"
     ]
   }
 }

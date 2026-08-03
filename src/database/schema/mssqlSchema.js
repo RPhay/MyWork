@@ -566,6 +566,7 @@ export async function createMssqlSchema(pool) {
       name NVARCHAR(255) NOT NULL,
       parent_id INT NULL,
       order_index INT DEFAULT 0,
+      icon NVARCHAR(50) NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       CONSTRAINT fk_context_folders_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[context_folders](id) ON DELETE NO ACTION
@@ -573,6 +574,13 @@ export async function createMssqlSchema(pool) {
   `,
   );
   await createUpdatedAtTrigger(pool, "context_folders");
+
+  // Backfill for context_folders created before icon existed.
+  if (!(await columnExists(pool, "context_folders", "icon"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[context_folders] ADD icon NVARCHAR(50) NULL
+    `);
+  }
 
   await createTableIfNotExists(
     pool,
@@ -594,12 +602,20 @@ export async function createMssqlSchema(pool) {
       id INT IDENTITY(1,1) PRIMARY KEY,
       name NVARCHAR(255) NOT NULL UNIQUE,
       order_index INT DEFAULT 0,
+      icon NVARCHAR(50) NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
     )
   `,
   );
   await createUpdatedAtTrigger(pool, "contexts");
+
+  // Backfill for contexts created before icon existed.
+  if (!(await columnExists(pool, "contexts", "icon"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[contexts] ADD icon NVARCHAR(50) NULL
+    `);
+  }
 
   // Seed a starting context so the app is never contextless out of the box.
   const contextCountResult = await pool
@@ -673,6 +689,39 @@ export async function createMssqlSchema(pool) {
     )
   `,
   );
+
+  // Dailies calendar cell background/text color, set via the calendar day's
+  // right-click "Highlight Day" / "Text Color" submenus. One row per date per
+  // context; either column may be set independently of the other.
+  await createTableIfNotExists(
+    pool,
+    "day_highlights",
+    `
+    CREATE TABLE [MyWork].[day_highlights] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      context_id INT NOT NULL,
+      date DATE NOT NULL,
+      color NVARCHAR(20) NULL,
+      text_color NVARCHAR(20) NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_day_highlights_context FOREIGN KEY (context_id) REFERENCES [MyWork].[contexts](id) ON DELETE CASCADE,
+      CONSTRAINT unique_context_date UNIQUE (context_id, date)
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "day_highlights");
+
+  // Backfill for day_highlights created before text_color existed (color was
+  // NOT NULL then; relaxed here since a row may now hold only a text_color).
+  if (!(await columnExists(pool, "day_highlights", "text_color"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[day_highlights] ADD text_color NVARCHAR(20) NULL
+    `);
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[day_highlights] ALTER COLUMN color NVARCHAR(20) NULL
+    `);
+  }
 
   // Every content entity belongs to exactly one context - see mysqlSchema.js
   // for the full rationale. Added after contexts exists so the FK is valid

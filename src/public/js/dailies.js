@@ -26,7 +26,7 @@ function formatMinutesTotal(minutes) {
 // other calendar (e.g. the Move/Clone modal) that needs the same visual widget
 // without touching the main page's selected-date state. `selected` is either a
 // single date string (single-select) or a Set of date strings (multi-select).
-function buildCalendarHtml(year, month, selected, dayTotals) {
+function buildCalendarHtml(year, month, selected, dayTotals, dayHighlights, multiSelected) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const daysInMonth = lastDay.getDate();
@@ -56,9 +56,25 @@ function buildCalendarHtml(year, month, selected, dayTotals) {
     const isToday = dateStr === todayStr;
     const isSelected = selected instanceof Set ? selected.has(dateStr) : dateStr === selected;
 
+    const highlight = dayHighlights && dayHighlights.get(dateStr);
+    const highlightColor = highlight && highlight.color;
+    const highlightTextColor = highlight && highlight.textColor;
+
     let cellStyle = 'cursor: pointer; text-align: center; padding: 4px; height: 36px; vertical-align: middle; position: relative; ';
-    if (isToday) cellStyle += 'background: #e7f3ff; font-weight: bold; border: 2px solid #007bff;';
-    else if (isSelected) cellStyle += 'background: #007bff; color: white; font-weight: bold;';
+    if (isSelected) {
+      cellStyle += 'background: #007bff; color: white; font-weight: bold;';
+    } else {
+      if (isToday) cellStyle += `background: ${highlightColor || '#e7f3ff'}; font-weight: bold; border: 2px solid #007bff;`;
+      else if (highlightColor) cellStyle += `background: ${highlightColor};`;
+      if (highlightTextColor) cellStyle += `color: ${highlightTextColor};`;
+    }
+
+    // Ctrl/Cmd-click multi-select for bulk-applying a context menu action (e.g.
+    // highlight color) to several days at once - independent of isSelected,
+    // which drives the single "day shown below" navigation state.
+    if (multiSelected && multiSelected.size > 1 && multiSelected.has(dateStr)) {
+      cellStyle += 'outline: 2px solid #6f42c1; outline-offset: -2px;';
+    }
 
     const dayLabel = formatMinutesTotal(dayTotals && dayTotals.get(dateStr));
     const timeBadge = dayLabel
@@ -89,6 +105,15 @@ function buildCalendarHtml(year, month, selected, dayTotals) {
 // flight doesn't block the (synchronous) initial paint.
 let calendarDayTotals = new Map();
 
+// Date string -> highlight color hex, for whichever month is currently in view.
+// Kept in sync locally on save/clear so the calendar repaints instantly without
+// waiting on a refetch; loadCalendarDayHighlights only re-fetches on month change.
+let calendarDayHighlights = new Map();
+
+// Days ctrl/cmd-clicked on the calendar, for bulk-applying a right-click
+// context menu action (highlight/text color, clear) to all of them at once.
+let calendarMultiSelectedDates = new Set();
+
 function renderCalendar() {
   const selectedDate = document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
 
@@ -98,8 +123,18 @@ function renderCalendar() {
     calendarViewMonth = initial.getMonth();
   }
 
-  document.getElementById('calendar').innerHTML = buildCalendarHtml(calendarViewYear, calendarViewMonth, selectedDate, calendarDayTotals);
+  document.getElementById('calendar').innerHTML = buildCalendarHtml(calendarViewYear, calendarViewMonth, selectedDate, calendarDayTotals, calendarDayHighlights, calendarMultiSelectedDates);
   loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
+  loadCalendarDayHighlights(calendarViewYear, calendarViewMonth);
+}
+
+function toggleCalendarMultiSelect(dateStr) {
+  if (calendarMultiSelectedDates.has(dateStr)) {
+    calendarMultiSelectedDates.delete(dateStr);
+  } else {
+    calendarMultiSelectedDates.add(dateStr);
+  }
+  renderCalendar();
 }
 
 async function loadCalendarDayTotals(year, month) {
@@ -123,9 +158,31 @@ async function loadCalendarDayTotals(year, month) {
     }
 
     const selectedDate = document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
-    document.getElementById('calendar').innerHTML = buildCalendarHtml(calendarViewYear, calendarViewMonth, selectedDate, calendarDayTotals);
+    document.getElementById('calendar').innerHTML = buildCalendarHtml(calendarViewYear, calendarViewMonth, selectedDate, calendarDayTotals, calendarDayHighlights, calendarMultiSelectedDates);
   } catch (error) {
     console.error('Error loading calendar day totals:', error);
+  }
+}
+
+async function loadCalendarDayHighlights(year, month) {
+  const pad = n => String(n).padStart(2, '0');
+  const startDate = `${year}-${pad(month + 1)}-01`;
+  const endDate = `${year}-${pad(month + 1)}-${pad(new Date(year, month + 1, 0).getDate())}`;
+
+  try {
+    const response = await fetch(`/api/day-highlights/range?startDate=${startDate}&endDate=${endDate}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    if (!result.success) return;
+
+    if (year !== calendarViewYear || month !== calendarViewMonth) return;
+
+    calendarDayHighlights = new Map(result.data.map(h => [h.date.slice(0, 10), { color: h.color, textColor: h.text_color }]));
+
+    const selectedDate = document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
+    document.getElementById('calendar').innerHTML = buildCalendarHtml(calendarViewYear, calendarViewMonth, selectedDate, calendarDayTotals, calendarDayHighlights, calendarMultiSelectedDates);
+  } catch (error) {
+    console.error('Error loading calendar day highlights:', error);
   }
 }
 
@@ -591,6 +648,120 @@ async function performCalendarDropAction(action) {
     console.error('Error moving/copying work item:', error);
     app.notify('Error saving', 'danger');
   }
+}
+
+// Calendar day context menu (right-click a calendar cell) - "Highlight Day"
+// submenu sets the cell's background color; persisted per date via /api/day-highlights.
+// calendarContextMenuDates holds every date the menu action applies to - just the
+// right-clicked day normally, or the whole ctrl/cmd-click multi-select when the
+// right-clicked day is part of it (see the contextmenu listener).
+let calendarContextMenuDates = [];
+
+function showCalendarDayContextMenu(x, y, dates) {
+  calendarContextMenuDates = dates;
+  const menu = document.getElementById('calendarDayContextMenu');
+  const scopeLabel = document.getElementById('calendarDayContextMenuScope');
+  if (dates.length > 1) {
+    scopeLabel.textContent = `Applies to ${dates.length} selected days`;
+    scopeLabel.classList.remove('d-none');
+  } else {
+    scopeLabel.classList.add('d-none');
+  }
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  menu.classList.remove('d-none');
+}
+
+function hideCalendarDayContextMenu() {
+  calendarContextMenuDates = [];
+  document.getElementById('calendarDayContextMenu').classList.add('d-none');
+}
+
+async function saveDayHighlightColor(target, color) {
+  if (calendarContextMenuDates.length === 0) return;
+  const dates = calendarContextMenuDates;
+  hideCalendarDayContextMenu();
+
+  try {
+    for (const date of dates) {
+      const endpoint = target === 'text' ? `/api/day-highlights/${date}/text-color` : `/api/day-highlights/${date}/background`;
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ color })
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return;
+      }
+      const existing = calendarDayHighlights.get(date) || {};
+      calendarDayHighlights.set(date, target === 'text' ? { ...existing, textColor: color } : { ...existing, color });
+    }
+    calendarMultiSelectedDates.clear();
+    renderCalendar();
+  } catch (error) {
+    console.error('Error setting day highlight color:', error);
+    app.notify('Error setting day highlight color', 'danger');
+  }
+}
+
+async function clearDayHighlight() {
+  if (calendarContextMenuDates.length === 0) return;
+  const dates = calendarContextMenuDates;
+  hideCalendarDayContextMenu();
+
+  try {
+    for (const date of dates) {
+      const response = await fetch(`/api/day-highlights/${date}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        app.notify('Error: ' + result.message, 'danger');
+        return;
+      }
+      calendarDayHighlights.delete(date);
+    }
+    calendarMultiSelectedDates.clear();
+    renderCalendar();
+  } catch (error) {
+    console.error('Error clearing day highlight:', error);
+    app.notify('Error clearing day highlight', 'danger');
+  }
+}
+
+function initCalendarDayContextMenu() {
+  const menu = document.getElementById('calendarDayContextMenu');
+
+  menu.addEventListener('click', (e) => {
+    const swatch = e.target.closest('[data-color]');
+    if (swatch) {
+      saveDayHighlightColor(swatch.dataset.target, swatch.dataset.color);
+      return;
+    }
+
+    const clearBtn = e.target.closest('[data-menu-action="clear-day-highlight"]');
+    if (clearBtn) {
+      clearDayHighlight();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('d-none') && !menu.contains(e.target)) {
+      hideCalendarDayContextMenu();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideCalendarDayContextMenu();
+  });
 }
 
 function initCalendarDropMenu() {
@@ -1371,6 +1542,7 @@ function initDailiesEventListeners() {
   initRightPanelEditOnDblClick();
   initWorkItemContextMenu();
   initCalendarDropMenu();
+  initCalendarDayContextMenu();
   initEmojiPicker();
 
   document.getElementById('calendar').addEventListener('click', (e) => {
@@ -1380,7 +1552,32 @@ function initDailiesEventListeners() {
       return;
     }
     const dayCell = e.target.closest('[data-date]');
-    if (dayCell) selectDate(dayCell.dataset.date);
+    if (!dayCell) return;
+
+    if (e.ctrlKey || e.metaKey) {
+      toggleCalendarMultiSelect(dayCell.dataset.date);
+      return;
+    }
+
+    // A plain click starts a fresh multi-select seeded with just this day,
+    // rather than clearing it - so it stays part of the group when the user
+    // goes on to ctrl/cmd-click more days onto it.
+    calendarMultiSelectedDates = new Set([dayCell.dataset.date]);
+    selectDate(dayCell.dataset.date);
+  });
+
+  document.getElementById('calendar').addEventListener('contextmenu', (e) => {
+    const dayCell = e.target.closest('[data-date]');
+    if (!dayCell) return;
+    e.preventDefault();
+    const date = dayCell.dataset.date;
+    // Right-clicking a day that's part of the current multi-select applies the
+    // menu action to every selected day; right-clicking any other day acts on
+    // just that one, leaving the multi-select as-is.
+    const dates = calendarMultiSelectedDates.has(date)
+      ? Array.from(calendarMultiSelectedDates)
+      : [date];
+    showCalendarDayContextMenu(e.clientX, e.clientY, dates);
   });
 
   document.getElementById('calendar').addEventListener('dragover', (e) => {

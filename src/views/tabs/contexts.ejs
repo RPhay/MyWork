@@ -365,6 +365,43 @@
   </div>
 </div>
 
+<!-- Icon Picker Popover (shown by clicking a context/folder's icon button) -->
+<%
+  const contextIcons = [
+    { icon: 'bi-briefcase', label: 'Briefcase' },
+    { icon: 'bi-house', label: 'House' },
+    { icon: 'bi-star', label: 'Star' },
+    { icon: 'bi-heart', label: 'Heart' },
+    { icon: 'bi-gear', label: 'Gear' },
+    { icon: 'bi-flag', label: 'Flag' },
+    { icon: 'bi-book', label: 'Book' },
+    { icon: 'bi-laptop', label: 'Laptop' },
+    { icon: 'bi-globe', label: 'Globe' },
+    { icon: 'bi-rocket', label: 'Rocket' },
+    { icon: 'bi-palette', label: 'Palette' },
+    { icon: 'bi-tools', label: 'Tools' },
+    { icon: 'bi-shield', label: 'Shield' },
+    { icon: 'bi-tag', label: 'Tag' },
+    { icon: 'bi-bookmark', label: 'Bookmark' },
+    { icon: 'bi-folder2', label: 'Folder' },
+    { icon: 'bi-people', label: 'People' },
+    { icon: 'bi-calendar', label: 'Calendar' },
+    { icon: 'bi-lightning', label: 'Lightning' },
+    { icon: 'bi-camera', label: 'Camera' },
+    { icon: 'bi-music-note', label: 'Music' },
+    { icon: 'bi-controller', label: 'Controller' },
+    { icon: 'bi-tree', label: 'Tree' },
+    { icon: 'bi-piggy-bank', label: 'Piggy Bank' },
+  ];
+%>
+<div id="contextIconPickerPopover" class="icon-picker-popover d-none">
+  <div class="icon-picker-grid">
+    <% contextIcons.forEach(i => { %>
+      <button type="button" class="icon-picker-btn" data-icon="<%= i.icon %>" title="<%= i.label %>" aria-label="<%= i.label %>"><i class="bi <%= i.icon %>"></i></button>
+    <% }) %>
+  </div>
+</div>
+
 <style>
   .context-folder-node {
     margin-bottom: 4px;
@@ -443,6 +480,55 @@
     border: 1px solid #dee2e6;
     border-radius: 4px;
     margin-bottom: 6px;
+  }
+
+  .icon-picker-trigger {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: none;
+    border-radius: 4px;
+    color: inherit;
+    padding: 0;
+  }
+
+  .icon-picker-trigger:hover {
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .icon-picker-popover {
+    position: fixed;
+    z-index: 1085;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 8px;
+  }
+
+  .icon-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 2px;
+    max-width: 216px;
+  }
+
+  .icon-picker-btn {
+    border: none;
+    background: none;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .icon-picker-btn:hover {
+    background: #f1f3f5;
   }
 </style>
 

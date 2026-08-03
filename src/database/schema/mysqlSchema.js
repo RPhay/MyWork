@@ -528,11 +528,19 @@ export async function createMysqlSchema(connection) {
       name VARCHAR(255) NOT NULL,
       parent_id INT,
       order_index INT DEFAULT 0,
+      icon VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (parent_id) REFERENCES context_folders(id) ON DELETE CASCADE
     )
   `);
+
+  // Backfill for context_folders created before icon existed.
+  if (!(await columnExists(connection, "context_folders", "icon"))) {
+    await connection.query(
+      "ALTER TABLE context_folders ADD COLUMN icon VARCHAR(50)",
+    );
+  }
 
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
   // distinct from the "areas" table, which backs the unrelated Categories tab)
@@ -541,10 +549,16 @@ export async function createMysqlSchema(connection) {
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(255) NOT NULL UNIQUE,
       order_index INT DEFAULT 0,
+      icon VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
+
+  // Backfill for contexts created before icon existed.
+  if (!(await columnExists(connection, "contexts", "icon"))) {
+    await connection.query("ALTER TABLE contexts ADD COLUMN icon VARCHAR(50)");
+  }
 
   // Seed a starting context so the app is never contextless out of the box.
   // It's a normal, renamable/deletable-if-not-last row, not a protected special case.
@@ -627,6 +641,31 @@ export async function createMysqlSchema(connection) {
       UNIQUE KEY unique_context_tab (context_id, tab_key)
     )
   `);
+
+  // Dailies calendar cell background/text color, set via the calendar day's
+  // right-click "Highlight Day" / "Text Color" submenus. One row per date per
+  // context; either column may be set independently of the other.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS day_highlights (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      context_id INT NOT NULL,
+      date DATE NOT NULL,
+      color VARCHAR(20),
+      text_color VARCHAR(20),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_context_date (context_id, date)
+    )
+  `);
+
+  // Backfill for day_highlights created before text_color existed (color was
+  // NOT NULL then; relaxed here since a row may now hold only a text_color).
+  if (!(await columnExists(connection, "day_highlights", "text_color"))) {
+    await connection.query(
+      "ALTER TABLE day_highlights ADD COLUMN text_color VARCHAR(20), MODIFY COLUMN color VARCHAR(20) NULL",
+    );
+  }
 
   // Every content entity belongs to exactly one context. Added here (after
   // contexts exists) rather than in each table's own CREATE statement, so

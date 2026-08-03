@@ -1,5 +1,6 @@
 import * as db from "../database/connectionPool.js";
 import { NotFoundError, ValidationError } from "../config/errors.js";
+import { VALID_CONTEXT_ICONS } from "../config/contextIcons.js";
 
 // The encrypted DB password blobs must never reach the browser - callers only
 // learn whether one has been set. Everything else about the DB config
@@ -101,6 +102,13 @@ export async function updateContext(id, data) {
   if (data.folder_id !== undefined) {
     setClauses.push("folder_id = ?");
     values.push(data.folder_id || null);
+  }
+  if (data.icon !== undefined) {
+    if (data.icon && !VALID_CONTEXT_ICONS.has(data.icon)) {
+      throw new ValidationError("Invalid icon");
+    }
+    setClauses.push("icon = ?");
+    values.push(data.icon || null);
   }
 
   if (setClauses.length === 0) {
