@@ -21,7 +21,13 @@ router.put('/:contextId', async (req, res) => {
     const config = await contextDatabaseConfigService.saveDbConfig(req.params.contextId, req.body);
     res.json({ success: true, message: 'Database config saved', data: config });
   } catch (error) {
-    logger.error('Error saving context database config:', error);
+    logger.error('Error saving context database config:', {
+      message: error.message,
+      code: error.code,
+      statusCode: error.statusCode,
+      stack: error.stack,
+      fullError: JSON.stringify(error)
+    });
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
