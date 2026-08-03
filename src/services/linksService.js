@@ -1,4 +1,4 @@
-import connectionPool from '../database/connectionPool.js';
+import { query, insert, update, deleteRecord } from '../database/connectionPool.js';
 
 /**
  * Service for managing links associated with to-dos, ideas, and priorities
@@ -24,7 +24,7 @@ export async function getLinks(type, entityId) {
   const table = LINK_TABLES[type];
   const idColumn = ID_COLUMNS[type];
 
-  const [rows] = await connectionPool.query(
+  const [rows] = await query(
     `SELECT id, url, title, order_index FROM ${table} WHERE ${idColumn} = ? ORDER BY order_index ASC`,
     [entityId]
   );
@@ -41,13 +41,13 @@ export async function addLink(type, entityId, url, title) {
   const idColumn = ID_COLUMNS[type];
 
   // Get the next order_index
-  const [maxRow] = await connectionPool.query(
+  const [maxRow] = await query(
     `SELECT MAX(order_index) as max_index FROM ${table} WHERE ${idColumn} = ?`,
     [entityId]
   );
   const nextIndex = (maxRow[0].max_index ?? -1) + 1;
 
-  const [result] = await connectionPool.query(
+  const [result] = await query(
     `INSERT INTO ${table} (${idColumn}, url, title, order_index, created_at, updated_at)
      VALUES (?, ?, ?, ?, NOW(), NOW())`,
     [entityId, url, title || url, nextIndex]
@@ -68,7 +68,7 @@ export async function updateLink(type, linkId, url, title) {
 
   const table = LINK_TABLES[type];
 
-  await connectionPool.query(
+  await query(
     `UPDATE ${table} SET url = ?, title = ?, updated_at = NOW() WHERE id = ?`,
     [url, title || url, linkId]
   );
@@ -81,7 +81,7 @@ export async function deleteLink(type, linkId) {
 
   const table = LINK_TABLES[type];
 
-  await connectionPool.query(
+  await query(
     `DELETE FROM ${table} WHERE id = ?`,
     [linkId]
   );
@@ -95,7 +95,7 @@ export async function reorderLinks(type, entityId, linkIds) {
   const table = LINK_TABLES[type];
 
   for (let i = 0; i < linkIds.length; i++) {
-    await connectionPool.query(
+    await query(
       `UPDATE ${table} SET order_index = ?, updated_at = NOW() WHERE id = ?`,
       [i, linkIds[i]]
     );

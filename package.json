@@ -25,6 +25,7 @@
   "author": "Ryan Phay",
   "license": "MIT",
   "dependencies": {
+    "axios": "^1.19.0",
     "csurf": "^1.11.0",
     "csv-writer": "^1.6.0",
     "date-fns": "^2.30.0",

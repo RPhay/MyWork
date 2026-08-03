@@ -1,5 +1,5 @@
-import connectionPool from '../database/connectionPool.js';
-import { encryptCredential, decryptCredential } from '../utils/credentialCrypto.js';
+import { query, queryOne, update } from '../database/connectionPool.js';
+import { encrypt, decrypt } from '../utils/credentialCrypto.js';
 import EntraIdAuth from '../auth/entraId.js';
 
 /**
@@ -25,9 +25,9 @@ export async function getContextSsoConfig(contextId) {
   return {
     contextId: row.id,
     provider: row.sso_provider,
-    tenantId: row.sso_tenant_id_enc ? decryptCredential(row.sso_tenant_id_enc) : null,
-    clientId: row.sso_client_id_enc ? decryptCredential(row.sso_client_id_enc) : null,
-    clientSecret: row.sso_client_secret_enc ? decryptCredential(row.sso_client_secret_enc) : null,
+    tenantId: row.sso_tenant_id_enc ? decrypt(row.sso_tenant_id_enc) : null,
+    clientId: row.sso_client_id_enc ? decrypt(row.sso_client_id_enc) : null,
+    clientSecret: row.sso_client_secret_enc ? decrypt(row.sso_client_secret_enc) : null,
     redirectUri: row.sso_redirect_uri
   };
 }
@@ -42,9 +42,9 @@ export async function saveContextSsoConfig(contextId, config) {
     redirectUri
   } = config;
 
-  const tenantIdEnc = tenantId ? encryptCredential(tenantId) : null;
-  const clientIdEnc = clientId ? encryptCredential(clientId) : null;
-  const clientSecretEnc = clientSecret ? encryptCredential(clientSecret) : null;
+  const tenantIdEnc = tenantId ? encrypt(tenantId) : null;
+  const clientIdEnc = clientId ? encrypt(clientId) : null;
+  const clientSecretEnc = clientSecret ? encrypt(clientSecret) : null;
 
   const query = `
     UPDATE contexts SET
