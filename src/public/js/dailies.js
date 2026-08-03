@@ -1756,11 +1756,12 @@ function initDailiesEventListeners() {
       const types = Array.from(e.dataTransfer.types || []);
       const hasCalendarData = types.includes('text/calendar') ||
                               types.includes('text/plain') ||
-                              types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics'));
+                              types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
       const hasInternalDrag = types.includes('type') && (e.dataTransfer.getData('type') === 'template' || e.dataTransfer.getData('type') === 'work-item');
 
       if (hasCalendarData || hasInternalDrag) {
         dayCell.classList.add('calendar-drop-target');
+        console.log('[Dailies] Dragover - calendar drop zone active');
       }
     }
   });
@@ -1775,8 +1776,12 @@ function initDailiesEventListeners() {
   document.getElementById('calendar').addEventListener('drop', (e) => {
     const dayCell = e.target.closest('[data-date]');
     document.querySelectorAll('#calendar .calendar-drop-target').forEach(el => el.classList.remove('calendar-drop-target'));
-    if (!dayCell) return;
+    if (!dayCell) {
+      console.log('[Dailies] Drop detected but no dayCell found');
+      return;
+    }
     e.preventDefault();
+    console.log('[Dailies] Drop on date:', dayCell.dataset.date);
 
     const type = e.dataTransfer.getData('type');
     const id = e.dataTransfer.getData('id');
@@ -1791,28 +1796,34 @@ function initDailiesEventListeners() {
 
     // Handle external calendar events from Outlook
     const types = Array.from(e.dataTransfer.types || []);
-    console.log('[Dailies] Calendar drop detected. Types:', types);
+    console.log('[Dailies] External drop. Types:', types, 'id:', id);
     const hasCalendarData = types.includes('text/calendar') ||
                             types.includes('text/plain') ||
                             types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
+
+    console.log('[Dailies] hasCalendarData:', hasCalendarData, 'id:', id);
 
     if (hasCalendarData && !id) {
       let calendarText = null;
 
       if (e.dataTransfer.types.includes('text/calendar')) {
         calendarText = e.dataTransfer.getData('text/calendar');
+        console.log('[Dailies] Got text/calendar');
       } else if (e.dataTransfer.types.includes('text/plain')) {
         calendarText = e.dataTransfer.getData('text/plain');
+        console.log('[Dailies] Got text/plain');
       } else {
         for (const type of e.dataTransfer.types) {
           if (type.toLowerCase().includes('calendar') || type.toLowerCase().includes('ics') || type.toLowerCase().includes('event')) {
             calendarText = e.dataTransfer.getData(type);
+            console.log('[Dailies] Got from type:', type);
             break;
           }
         }
       }
 
       console.log('[Dailies] Calendar text found:', calendarText?.length, 'bytes');
+      console.log('[Dailies] Text preview:', calendarText?.substring(0, 100));
 
       // Check if this looks like calendar data (iCalendar or Outlook plain text)
       const looksLikeCalendar = calendarText && (
@@ -1823,11 +1834,13 @@ function initDailiesEventListeners() {
         calendarText.includes('Organizer:')
       );
 
+      console.log('[Dailies] looksLikeCalendar:', looksLikeCalendar);
+
       if (looksLikeCalendar) {
         const event = parseCalendarEvent(calendarText);
         console.log('[Dailies] Parsed calendar event:', event);
         if (event.title) {
-          console.log('[Dailies] Creating work item from calendar event:', event);
+          console.log('[Dailies] Creating work item from calendar event:', event, 'date:', dayCell.dataset.date);
           createWorkItemFromCalendarEvent(event, dayCell.dataset.date);
         }
       }
