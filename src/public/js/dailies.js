@@ -850,6 +850,7 @@ async function saveWorkItem() {
       app.notify('Work item saved!', 'success');
       bootstrap.Modal.getInstance(document.getElementById('workModal')).hide();
       loadWorkItems();
+      loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -894,6 +895,7 @@ async function deleteWorkItem(workId) {
     if (result.success) {
       app.notify('Work item deleted', 'success');
       loadWorkItems();
+      loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
     } else {
       app.notify('Error deleting work item', 'danger');
     }
@@ -1436,6 +1438,7 @@ async function cycleWorkItemStatus(workId, currentStatus) {
     const result = await response.json();
     if (result.success) {
       loadWorkItems();
+      loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -1610,6 +1613,7 @@ async function instantiateTemplateOnDate(templateId, date) {
       if (dateInput && dateInput.value === date) {
         loadWorkItems();
       }
+      loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
