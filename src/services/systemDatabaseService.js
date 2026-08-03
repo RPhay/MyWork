@@ -264,6 +264,7 @@ export async function updateSystemDbSchema() {
       errors: [],
     };
   } catch (error) {
+    console.error('Error updating system database schema:', error);
     throw new ValidationError(`Failed to update system database schema: ${error.message}`);
   }
 }

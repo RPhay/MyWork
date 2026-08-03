@@ -762,16 +762,11 @@ async function saveContextDbConfig() {
     config.password = undefined;
   }
 
-  statusEl.innerHTML = '<span class="text-muted">Saving…</span>';
+  statusEl.innerHTML = '<span class="text-muted">Testing connection…</span>';
 
   try {
-    // First test the connection (only if password was provided or set)
+    // First test the connection
     const testConfig = { ...config };
-    if (testConfig.password === undefined) {
-      // If we don't have a new password, we can't test during edit
-      // Let's just save it and trust the existing password is still valid
-    }
-
     const testResponse = await fetch(
       `/api/context-database-config/${selectedContextId}/test/${dbType}`,
       {
@@ -789,7 +784,42 @@ async function saveContextDbConfig() {
       return;
     }
 
-    // Connection successful, now save
+    // Connection successful, check if schema exists
+    statusEl.innerHTML = '<span class="text-muted">Checking schema…</span>';
+
+    if (testResult.schemaExists === false) {
+      // Schema doesn't exist, ask user if they want to create it
+      const confirmed = confirm(
+        `The database schema does not exist in this database.\n\nWould you like to create it now?\n\nThis will create the necessary tables and columns for MyWork to function properly with this context.`
+      );
+
+      if (!confirmed) {
+        statusEl.innerHTML = '<span class="text-warning">Schema creation cancelled. You can create it later from the Schema tab.</span>';
+        return;
+      }
+
+      // Create the schema
+      statusEl.innerHTML = '<span class="text-muted">Creating schema…</span>';
+      const createResponse = await fetch(
+        `/api/context-database-config/${selectedContextId}/create-schema/${dbType}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
+          },
+          body: JSON.stringify(config),
+        },
+      );
+      const createResult = await createResponse.json();
+      if (!createResult.success) {
+        statusEl.innerHTML = `<span class="text-danger">Schema creation failed: ${app.escapeHtml(createResult.message)}</span>`;
+        return;
+      }
+    }
+
+    // Schema is ready, now save the config
+    statusEl.innerHTML = '<span class="text-muted">Saving…</span>';
     const saveResponse = await fetch(
       `/api/context-database-config/${selectedContextId}`,
       {
