@@ -168,9 +168,22 @@ export async function saveDbConfig(contextId, data) {
     );
   } catch (error) {
     if (error.message && error.message.includes('db_config_json')) {
-      throw new ValidationError('Database schema needs to be updated. Please go to Settings → Contexts → Schema tab and click "Check and Update Schema"');
+      // Column doesn't exist yet - try to add it, then retry the update
+      try {
+        await db.update(
+          'ALTER TABLE contexts ADD COLUMN db_config_json TEXT COMMENT "Encrypted JSON with active db connection config"'
+        );
+        // Retry the update now that column exists
+        await db.update(
+          'UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?',
+          [dbType, dbConfigJson, contextId]
+        );
+      } catch (alterError) {
+        throw new ValidationError('Database schema needs to be updated. Please go to Settings → Contexts → Schema tab and click "Check and Update Schema", or contact support if the issue persists.');
+      }
+    } else {
+      throw error;
     }
-    throw error;
   }
 
   return getDbConfig(contextId);
