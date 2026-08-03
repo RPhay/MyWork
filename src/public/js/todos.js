@@ -111,7 +111,6 @@ function renderToDoRow(toDo, depth) {
       </span>
       <span class="todo-notes text-muted">${app.escapeHtml(toDo.notes) || '-'}</span>
       <span class="todo-actions">
-        <button class="btn btn-sm btn-outline-primary" data-action="convert" data-id="${toDo.id}" title="Convert" aria-label="Convert"><i class="bi bi-arrow-right-circle"></i></button>
         <button class="btn btn-sm btn-info" data-action="edit" data-id="${toDo.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-danger" data-action="delete" data-id="${toDo.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
       </span>
@@ -204,8 +203,10 @@ async function loadToDos() {
 function renderToDoItemRow(text, isDone) {
   return `
     <div class="todo-item-row">
-      <input type="checkbox" class="form-check-input" ${isDone ? 'checked' : ''}>
-      <input type="text" class="form-control form-control-sm" value="${app.escapeHtml(text || '')}" placeholder="Item text">
+      <button type="button" class="todo-item-checkbox ${isDone ? 'checked' : ''}" data-action="toggle-item" title="${isDone ? 'Mark incomplete' : 'Mark complete'}" aria-label="${isDone ? 'Mark incomplete' : 'Mark complete'}">
+        ${isDone ? '<i class="bi bi-check-lg"></i>' : ''}
+      </button>
+      <input type="text" class="form-control form-control-sm" value="${app.escapeHtml(text || '')}" placeholder="Item text" ${isDone ? 'style="text-decoration: line-through; opacity: 0.6;"' : ''}>
       <button type="button" class="btn btn-sm btn-link text-danger p-0" data-action="remove-item" title="Remove" aria-label="Remove"><i class="bi bi-x-lg"></i></button>
     </div>
   `;
@@ -228,15 +229,25 @@ function collectToDoItemsFromEditor() {
   return Array.from(document.querySelectorAll('#toDoItemsList .todo-item-row'))
     .map(row => ({
       text: row.querySelector('input[type="text"]').value.trim(),
-      is_done: row.querySelector('input[type="checkbox"]').checked
+      is_done: row.querySelector('.todo-item-checkbox').classList.contains('checked')
     }))
     .filter(item => item.text);
 }
 
 function openNewToDoForm() {
+  openNewToDoFormWithFolder(null);
+}
+
+function openNewToDoFormWithFolder(folderId) {
   document.getElementById('toDoId').value = '';
   document.getElementById('toDoForm').reset();
+  if (folderId) {
+    document.getElementById('folderId').value = folderId;
+  }
   renderToDoItemsEditor([]);
+
+  const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
+  modal.show();
 }
 
 // Open the To Do modal pre-filled with a title/notes pair from another source (e.g.
@@ -692,6 +703,51 @@ function initTodoContextMenu() {
   });
 }
 
+let folderContextMenuId = null;
+
+function showFolderContextMenu(x, y, folderId) {
+  folderContextMenuId = folderId;
+  const menu = document.getElementById('folderContextMenu');
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  menu.classList.remove('d-none');
+}
+
+function hideFolderContextMenu() {
+  folderContextMenuId = null;
+  document.getElementById('folderContextMenu').classList.add('d-none');
+}
+
+function initFolderContextMenu() {
+  const menu = document.getElementById('folderContextMenu');
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-menu-action]');
+    if (!btn || !folderContextMenuId) {
+      hideFolderContextMenu();
+      return;
+    }
+
+    if (btn.dataset.menuAction === 'add-todo') {
+      hideFolderContextMenu();
+      openNewToDoFormWithFolder(folderContextMenuId);
+      return;
+    }
+
+    hideFolderContextMenu();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('d-none') && !menu.contains(e.target)) {
+      hideFolderContextMenu();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideFolderContextMenu();
+  });
+}
+
 function clearToDoDropTargets(container) {
   container.querySelectorAll('.todo-drop-target').forEach(el => el.classList.remove('todo-drop-target'));
   container.classList.remove('todo-drop-target-root');
@@ -707,6 +763,21 @@ function initToDosEventListeners() {
 
   document.getElementById('addToDoItemBtn').addEventListener('click', addToDoItemRow);
   document.getElementById('toDoItemsList').addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('[data-action="toggle-item"]');
+    if (toggleBtn) {
+      toggleBtn.classList.toggle('checked');
+      toggleBtn.innerHTML = toggleBtn.classList.contains('checked') ? '<i class="bi bi-check-lg"></i>' : '';
+      const textInput = toggleBtn.closest('.todo-item-row').querySelector('input[type="text"]');
+      if (toggleBtn.classList.contains('checked')) {
+        textInput.style.textDecoration = 'line-through';
+        textInput.style.opacity = '0.6';
+      } else {
+        textInput.style.textDecoration = 'none';
+        textInput.style.opacity = '1';
+      }
+      return;
+    }
+
     const removeBtn = e.target.closest('[data-action="remove-item"]');
     if (removeBtn) removeBtn.closest('.todo-item-row').remove();
   });
@@ -876,12 +947,22 @@ function initToDosEventListeners() {
 
   container.addEventListener('contextmenu', (e) => {
     const todoRow = e.target.closest('.todo-row');
-    if (!todoRow) return;
-    e.preventDefault();
-    showTodoContextMenu(e.clientX, e.clientY, todoRow.dataset.todoId);
+    if (todoRow) {
+      e.preventDefault();
+      showTodoContextMenu(e.clientX, e.clientY, todoRow.dataset.todoId);
+      return;
+    }
+
+    const folderHeader = e.target.closest('.todo-folder-header');
+    if (folderHeader) {
+      e.preventDefault();
+      showFolderContextMenu(e.clientX, e.clientY, folderHeader.closest('.todo-folder-node').dataset.folderId);
+      return;
+    }
   });
 
   initTodoContextMenu();
+  initFolderContextMenu();
 }
 
 function initToDos() {

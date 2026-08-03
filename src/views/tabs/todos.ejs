@@ -30,6 +30,11 @@
   <button type="button" class="context-menu-item" data-convert-type="work-item"><i class="bi bi-card-checklist"></i> Convert to Work Item</button>
 </div>
 
+<!-- Folder Context Menu -->
+<div id="folderContextMenu" class="context-menu d-none">
+  <button type="button" class="context-menu-item" data-menu-action="add-todo"><i class="bi bi-plus-lg"></i> Add To Do Here</button>
+</div>
+
 <!-- Folder Modal -->
 <div class="modal fade" id="folderModal" tabindex="-1">
   <div class="modal-dialog">
@@ -241,6 +246,34 @@
 
   .todo-item-row input[type="text"] {
     flex: 1;
+  }
+
+  .todo-item-checkbox {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #6c757d;
+    border-radius: 4px;
+    background: #fff;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #28a745;
+    transition: all 0.2s ease;
+  }
+
+  .todo-item-checkbox:hover {
+    border-color: #495057;
+    background: #f8f9fa;
+  }
+
+  .todo-item-checkbox.checked {
+    background: #28a745;
+    border-color: #28a745;
+    color: #fff;
   }
 </style>
 
