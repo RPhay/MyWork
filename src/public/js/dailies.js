@@ -1786,17 +1786,20 @@ function initDailiesEventListeners() {
     document.querySelectorAll('#calendar .calendar-drop-target').forEach(el => el.classList.remove('calendar-drop-target'));
 
     if (dayCell) {
-      e.preventDefault();
-
       const types = Array.from(e.dataTransfer.types || []);
+      console.log('[Dailies] Dragover on dayCell. Types:', types);
       const hasCalendarData = types.includes('text/calendar') ||
                               types.includes('text/plain') ||
                               types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
       const hasInternalDrag = types.includes('type') && (e.dataTransfer.getData('type') === 'template' || e.dataTransfer.getData('type') === 'work-item');
 
+      console.log('[Dailies] hasCalendarData:', hasCalendarData, 'hasInternalDrag:', hasInternalDrag);
+
       if (hasCalendarData || hasInternalDrag) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
         dayCell.classList.add('calendar-drop-target');
-        console.log('[Dailies] Dragover - calendar drop zone active');
+        console.log('[Dailies] Dragover - calendar drop zone active on', dayCell.dataset.date);
       }
     }
   });
@@ -1809,10 +1812,12 @@ function initDailiesEventListeners() {
   });
 
   document.getElementById('calendar').addEventListener('drop', (e) => {
+    console.log('[Dailies] DROP EVENT FIRED on element:', e.target.tagName, e.target.className);
     const dayCell = e.target.closest('[data-date]');
+    console.log('[Dailies] dayCell found:', !!dayCell);
     document.querySelectorAll('#calendar .calendar-drop-target').forEach(el => el.classList.remove('calendar-drop-target'));
     if (!dayCell) {
-      console.log('[Dailies] Drop detected but no dayCell found');
+      console.log('[Dailies] Drop detected but no dayCell found. Target:', e.target.outerHTML.substring(0, 100));
       return;
     }
     e.preventDefault();
