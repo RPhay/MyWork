@@ -1320,6 +1320,11 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
 
     const result = await response.json();
     if (result.success) {
+      // Update calendar total immediately without full reload
+      const selectedDate = document.getElementById('selectedDate')?.value;
+      if (selectedDate) {
+        updateCalendarDayTotal(selectedDate);
+      }
       loadWorkItems();
     } else {
       app.notify('Error: ' + result.message, 'danger');
@@ -1328,6 +1333,36 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
     console.error('Error updating time box:', error);
     app.notify('Error updating time box', 'danger');
   }
+}
+
+function updateCalendarDayTotal(dateStr) {
+  // Recalculate total for this day from current work items
+  const newTotal = currentWorkItems.reduce((sum, item) => sum + (item.time_box_minutes || 0), 0);
+  calendarDayTotals.set(dateStr, newTotal);
+
+  // Update the calendar cell display
+  const dayCell = document.querySelector(`#calendar [data-date="${dateStr}"]`);
+  if (dayCell) {
+    // Remove old time badge if it exists
+    const oldBadge = dayCell.querySelector('span');
+    if (oldBadge && oldBadge.style.position === 'absolute') {
+      oldBadge.remove();
+    }
+
+    // Add new time badge
+    const dayLabel = formatMinutesTotal(newTotal);
+    if (dayLabel) {
+      const timeBadge = document.createElement('span');
+      timeBadge.textContent = dayLabel;
+      timeBadge.style.cssText = 'position: absolute; top: 1px; right: 2px; font-size: 0.6rem; opacity: 0.75; line-height: 1;';
+      dayCell.appendChild(timeBadge);
+    }
+  }
+
+  // Also update the daily time total display at the top
+  const totalMinutes = currentWorkItems.reduce((sum, item) => sum + (item.time_box_minutes || 0), 0);
+  const totalLabel = formatMinutesTotal(totalMinutes);
+  document.getElementById('dailyTimeTotal').textContent = totalLabel ? `(${totalLabel})` : '';
 }
 
 function toggleWorkItem(workItemEl) {
