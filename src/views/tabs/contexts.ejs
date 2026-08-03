@@ -77,6 +77,11 @@
             Tabs
           </button>
         </li>
+        <li class="nav-item" data-subtab="system-database">
+          <button class="nav-link" data-subtab="system-database" type="button">
+            System Database
+          </button>
+        </li>
         <li class="nav-item" data-subtab="database" draggable="true">
           <button class="nav-link" data-subtab="database" type="button">
             Database
@@ -107,6 +112,14 @@
           ones show for this context.
         </p>
         <div id="contextTabsList"></div>
+      </div>
+
+      <!-- System Database sub-panel: app-level database configuration -->
+      <div class="context-subtab-pane d-none" data-subtab-pane="system-database">
+        <p class="text-muted small">
+          MyWork uses a system database to store app-level configuration, contexts, and settings. This database is separate from individual context databases that can point anywhere.
+        </p>
+        <div id="systemDatabasePanel"></div>
       </div>
 
       <!-- Database sub-panel: this context's single database connection -->
