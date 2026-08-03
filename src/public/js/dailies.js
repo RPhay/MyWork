@@ -11,8 +11,24 @@ let currentDragType = null;
 const ASSOCIATION_PATHS = { priority: 'priorities', goal: 'goals', area: 'areas' };
 const STATUS_CYCLE = ['Not Started', 'In Progress', 'Complete'];
 
-// Parse iCalendar format calendar events
+// Parse calendar events (supports both iCalendar and Outlook plain text formats)
 function parseCalendarEvent(text) {
+  const event = {
+    title: '',
+    description: '',
+    duration: null
+  };
+
+  // Check if this is iCalendar format
+  if (text.includes('BEGIN:VEVENT') || text.includes('DTSTART')) {
+    return parseICalendarFormat(text);
+  }
+
+  // Otherwise, parse Outlook plain text format
+  return parseOutlookPlainTextFormat(text);
+}
+
+function parseICalendarFormat(text) {
   const lines = text.split(/[\r\n]+/).filter(line => line.trim());
   const event = {
     title: '',
@@ -42,6 +58,85 @@ function parseCalendarEvent(text) {
   }
 
   return event;
+}
+
+function parseOutlookPlainTextFormat(text) {
+  const event = {
+    title: '',
+    description: '',
+    duration: null
+  };
+
+  const lines = text.split(/[\r\n]+/).map(l => l.trim()).filter(l => l);
+
+  if (lines.length === 0) return event;
+
+  // First line is the title
+  event.title = lines[0];
+
+  // Look for "When:" line and parse time
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.startsWith('When:')) {
+      const whenText = line.substring(5).trim();
+      const duration = parseOutlookTimeRange(whenText);
+      if (duration !== null) {
+        event.duration = duration;
+      }
+    } else if (line.startsWith('Location:')) {
+      const location = line.substring(9).trim();
+      if (location) {
+        event.description = location + (event.description ? '\n' + event.description : '');
+      }
+    } else if (line.startsWith('Organizer:') || line.startsWith('Attendees:')) {
+      // Skip these lines
+      continue;
+    } else if (event.description === '' && !line.includes(':')) {
+      // Treat non-field lines as description
+      event.description = line;
+    }
+  }
+
+  return event;
+}
+
+function parseOutlookTimeRange(timeStr) {
+  // Examples:
+  // "Monday, August 3, 2026 at 12:15 PM - 12:45 PM"
+  // "August 3, 2026 at 9:00 AM - 10:30 AM"
+
+  const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/);
+  if (!timeMatch) return null;
+
+  const startHour = parseInt(timeMatch[1]);
+  const startMin = parseInt(timeMatch[2]);
+  const startPeriod = timeMatch[3].toUpperCase();
+
+  const endHour = parseInt(timeMatch[4]);
+  const endMin = parseInt(timeMatch[5]);
+  const endPeriod = timeMatch[6].toUpperCase();
+
+  // Convert to 24-hour format
+  let start24Hour = startHour;
+  if (startPeriod === 'PM' && startHour !== 12) start24Hour += 12;
+  if (startPeriod === 'AM' && startHour === 12) start24Hour = 0;
+
+  let end24Hour = endHour;
+  if (endPeriod === 'PM' && endHour !== 12) end24Hour += 12;
+  if (endPeriod === 'AM' && endHour === 12) end24Hour = 0;
+
+  // Calculate duration in minutes
+  const startTotalMin = start24Hour * 60 + startMin;
+  const endTotalMin = end24Hour * 60 + endMin;
+
+  let duration = endTotalMin - startTotalMin;
+  if (duration < 0) {
+    // Handle case where event spans midnight (unlikely but possible)
+    duration += 24 * 60;
+  }
+
+  return duration;
 }
 
 function parseICalDate(dateStr) {
@@ -1718,8 +1813,19 @@ function initDailiesEventListeners() {
       }
 
       console.log('[Dailies] Calendar text found:', calendarText?.length, 'bytes');
-      if (calendarText && (calendarText.includes('BEGIN:VEVENT') || calendarText.includes('SUMMARY:'))) {
+
+      // Check if this looks like calendar data (iCalendar or Outlook plain text)
+      const looksLikeCalendar = calendarText && (
+        calendarText.includes('BEGIN:VEVENT') ||
+        calendarText.includes('DTSTART') ||
+        calendarText.includes('When:') ||
+        calendarText.includes('Location:') ||
+        calendarText.includes('Organizer:')
+      );
+
+      if (looksLikeCalendar) {
         const event = parseCalendarEvent(calendarText);
+        console.log('[Dailies] Parsed calendar event:', event);
         if (event.title) {
           console.log('[Dailies] Creating work item from calendar event:', event);
           createWorkItemFromCalendarEvent(event, dayCell.dataset.date);
