@@ -865,6 +865,40 @@ async function saveContextDbConfig() {
   }
 }
 
+async function activateContextDbConfig() {
+  if (!selectedContextId) return;
+
+  try {
+    const dbType = currentDbType();
+    const fields = collectDbFieldsForSave(dbType);
+
+    const response = await fetch(
+      `/api/context-database-config/${selectedContextId}/activate`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
+        },
+        body: JSON.stringify({
+          dbType,
+          [dbType]: fields,
+        }),
+      },
+    );
+    const result = await response.json();
+    if (result.success) {
+      app.notify("Database connection activated!", "success");
+      loadContextDbSubpanel(selectedContextId);
+    } else {
+      app.notify("Error: " + result.message, "danger");
+    }
+  } catch (error) {
+    console.error("Error activating database config:", error);
+    app.notify("Error activating database config", "danger");
+  }
+}
+
 async function checkAndUpdateSchema() {
   if (!selectedContextId) {
     app.notify("Please select a context first", "warning");
@@ -954,6 +988,9 @@ function initContextsEventListeners() {
   document
     .getElementById("saveContextDbBtn")
     .addEventListener("click", saveContextDbConfig);
+  document
+    .getElementById("activateContextDbBtn")
+    .addEventListener("click", activateContextDbConfig);
   document
     .getElementById("checkSchemaBtn")
     .addEventListener("click", checkAndUpdateSchema);
