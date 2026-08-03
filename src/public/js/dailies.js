@@ -1696,9 +1696,10 @@ function initDailiesEventListeners() {
 
     // Handle external calendar events from Outlook
     const types = Array.from(e.dataTransfer.types || []);
+    console.log('[Dailies] Calendar drop detected. Types:', types);
     const hasCalendarData = types.includes('text/calendar') ||
                             types.includes('text/plain') ||
-                            types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics'));
+                            types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
 
     if (hasCalendarData && !id) {
       let calendarText = null;
@@ -1709,16 +1710,18 @@ function initDailiesEventListeners() {
         calendarText = e.dataTransfer.getData('text/plain');
       } else {
         for (const type of e.dataTransfer.types) {
-          if (type.toLowerCase().includes('calendar') || type.toLowerCase().includes('ics')) {
+          if (type.toLowerCase().includes('calendar') || type.toLowerCase().includes('ics') || type.toLowerCase().includes('event')) {
             calendarText = e.dataTransfer.getData(type);
             break;
           }
         }
       }
 
+      console.log('[Dailies] Calendar text found:', calendarText?.length, 'bytes');
       if (calendarText && (calendarText.includes('BEGIN:VEVENT') || calendarText.includes('SUMMARY:'))) {
         const event = parseCalendarEvent(calendarText);
         if (event.title) {
+          console.log('[Dailies] Creating work item from calendar event:', event);
           createWorkItemFromCalendarEvent(event, dayCell.dataset.date);
         }
       }

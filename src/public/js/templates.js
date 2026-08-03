@@ -427,7 +427,9 @@ async function createTemplateFromCalendarEvent(event) {
     const result = await response.json();
     if (result.success) {
       app.notify(`Template created from calendar event: ${event.title}`, 'success');
-      loadTemplates();
+      await loadTemplates();
+      // Open the modal to let user edit the template properties
+      editTemplate(result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -593,16 +595,19 @@ function initTemplatesEventListeners() {
       return;
     }
 
-    // Check if this is external calendar data
+    // Check if this is external calendar data (from Outlook, Google Calendar, etc)
     const types = Array.from(e.dataTransfer.types || []);
     const hasCalendarData = types.includes('text/calendar') ||
                             types.includes('text/plain') ||
-                            types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics'));
+                            types.includes('text/html') ||
+                            types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
 
-    if (hasCalendarData || (!nodeEl && types.length > 0)) {
+    // Allow drop on empty container for any external data (not template-id)
+    if (hasCalendarData || (!nodeEl && types.length > 0 && !types.includes('template-id'))) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
       container.classList.add('templates-drop-target');
+      console.log('[Templates] Dragover - showing drop target. Types:', types.slice(0, 5));
     }
   });
 
@@ -625,15 +630,60 @@ function initTemplatesEventListeners() {
 
     // Handle calendar event drops
     const types = Array.from(e.dataTransfer.types || []);
-    let calendarText = e.dataTransfer.getData('text/calendar') ||
-                       e.dataTransfer.getData('text/plain') ||
-                       e.dataTransfer.getData('text');
+    console.log('[Templates] Drop detected. Available types:', types);
+    console.log('[Templates] Effect allowed:', e.dataTransfer.effectAllowed);
+
+    let calendarText = null;
+
+    // Try multiple MIME types and data sources
+    if (e.dataTransfer.types.includes('text/calendar')) {
+      calendarText = e.dataTransfer.getData('text/calendar');
+      console.log('[Templates] Got text/calendar data, length:', calendarText.length);
+    } else if (e.dataTransfer.types.includes('text/plain')) {
+      const plainText = e.dataTransfer.getData('text/plain');
+      console.log('[Templates] Got text/plain data, length:', plainText.length);
+      if (plainText.includes('BEGIN:VEVENT') || plainText.includes('SUMMARY:')) {
+        calendarText = plainText;
+      }
+    }
+
+    // Try HTML if plain text didn't work
+    if (!calendarText && e.dataTransfer.types.includes('text/html')) {
+      const htmlText = e.dataTransfer.getData('text/html');
+      console.log('[Templates] Got text/html data, length:', htmlText.length);
+      console.log('[Templates] HTML preview:', htmlText.substring(0, 300));
+      // HTML might contain calendar data embedded
+      if (htmlText.includes('BEGIN:VEVENT') || htmlText.includes('SUMMARY:')) {
+        calendarText = htmlText;
+      }
+    }
+
+    // Try any other type that might contain calendar data
+    if (!calendarText) {
+      for (const type of types) {
+        if (type.toLowerCase().includes('calendar') || type.toLowerCase().includes('ics') || type.toLowerCase().includes('event')) {
+          calendarText = e.dataTransfer.getData(type);
+          console.log('[Templates] Got calendar data from type:', type, 'length:', calendarText.length);
+          break;
+        }
+      }
+    }
+
+    // Fallback: try generic text/URL if nothing else worked
+    if (!calendarText) {
+      calendarText = e.dataTransfer.getData('text');
+      console.log('[Templates] Fallback to text data, length:', calendarText?.length);
+    }
 
     if (!calendarText) {
+      console.log('[Templates] No text data found in drop event');
       return;
     }
 
+    console.log('[Templates] Data preview:', calendarText.substring(0, 300));
+
     if (!calendarText.includes('BEGIN:VEVENT') && !calendarText.includes('SUMMARY:')) {
+      console.log('[Templates] Text does not appear to be a calendar event');
       return;
     }
 
@@ -643,6 +693,7 @@ function initTemplatesEventListeners() {
       return;
     }
 
+    console.log('[Templates] Parsed calendar event:', event);
     await createTemplateFromCalendarEvent(event);
   });
 }

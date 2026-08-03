@@ -1,10 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 test('debug: check what is actually displayed', async ({ page }) => {
+  const consoleLogs = [];
+  const errors = [];
+
   page.on('console', msg => {
-    if (msg.text().includes('[APP]')) {
-      console.log('CONSOLE:', msg.text());
+    consoleLogs.push(`[${msg.type()}] ${msg.text()}`);
+    if (msg.type() === 'error') {
+      errors.push(msg.text());
     }
+  });
+
+  page.on('error', err => {
+    errors.push(err.message);
   });
 
   await page.goto('http://localhost:3000/');
@@ -15,31 +23,28 @@ test('debug: check what is actually displayed', async ({ page }) => {
   const navbar = page.locator('.navbar-brand');
   const navText = await navbar.textContent();
   console.log('Navbar text:', navText);
-  console.log('Navbar HTML:', await navbar.innerHTML());
-
-  // Check version element
-  const versionEl = page.locator('#navVersion');
-  const versionText = await versionEl.textContent();
-  console.log('Version element text:', versionText);
-
-  // Check if version is in body
-  const bodyText = await page.locator('body').textContent();
-  console.log('Version in body:', bodyText.includes('v202'));
 
   // Go to dailies and check calendar
   await page.goto('http://localhost:3000/?tab=dailies');
   await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(2000);
 
   const calendar = page.locator('#calendar');
   const calText = await calendar.textContent();
-  console.log('Calendar text contains months:', calText.includes('January') || calText.includes('February'));
+  console.log('Calendar text:', calText.substring(0, 100));
+  console.log('Calendar contains month names:', calText.includes('January') || calText.includes('February') || calText.includes('August'));
 
-  // Check buttons
-  const allButtons = page.locator('button');
-  const count = await allButtons.count();
-  console.log('Total buttons on page:', count);
+  // Print errors
+  if (errors.length > 0) {
+    console.log('ERRORS FOUND:');
+    errors.slice(0, 10).forEach(e => console.log(' -', e));
+  }
 
-  const addPrioButtons = page.locator('button:has-text("Add")');
-  console.log('Add buttons count:', await addPrioButtons.count());
+  // Print relevant logs
+  console.log('CONSOLE LOGS (last 20):');
+  consoleLogs.slice(-20).forEach(log => {
+    if (!log.includes('source map') && !log.includes('CSP')) {
+      console.log(' -', log.substring(0, 120));
+    }
+  });
 });

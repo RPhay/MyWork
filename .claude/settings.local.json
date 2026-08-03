@@ -38,7 +38,14 @@
       "Bash(node --check src/public/js/main.js)",
       "Bash(node --check src/services/contextService.js)",
       "Bash(node --check src/services/contextFolderService.js)",
-      "Bash(node --check src/config/contextIcons.js)"
+      "Bash(node --check src/config/contextIcons.js)",
+      "Bash(node *)",
+      "Bash(curl -s \"http://localhost:3000/api/day-highlights/range?startDate=2026-08-01&endDate=2026-08-31\")",
+      "Bash(curl -s \"http://localhost:3000/api/goals/year/2026\")",
+      "Bash(disown)",
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(git commit -m 'Add comprehensive debugging for Outlook calendar drag-and-drop and open modal after template creation *)"
     ]
   }
 }
