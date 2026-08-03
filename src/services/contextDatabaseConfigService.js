@@ -1,12 +1,18 @@
-import mysql from 'mysql2/promise.js';
-import mssql from 'mssql';
-import { encrypt, decrypt } from '../utils/credentialCrypto.js';
-import { validateIdentifier } from '../utils/validateIdentifier.js';
-import { ValidationError, NotFoundError } from '../config/errors.js';
-import { mysqlSchemaExists, createMysqlSchema } from '../database/schema/mysqlSchema.js';
-import { mssqlSchemaExists, createMssqlSchema } from '../database/schema/mssqlSchema.js';
-import * as db from '../database/connectionPool.js';
-import * as homePool from '../database/homePool.js';
+import mysql from "mysql2/promise.js";
+import mssql from "mssql";
+import { encrypt, decrypt } from "../utils/credentialCrypto.js";
+import { validateIdentifier } from "../utils/validateIdentifier.js";
+import { ValidationError, NotFoundError } from "../config/errors.js";
+import {
+  mysqlSchemaExists,
+  createMysqlSchema,
+} from "../database/schema/mysqlSchema.js";
+import {
+  mssqlSchemaExists,
+  createMssqlSchema,
+} from "../database/schema/mssqlSchema.js";
+import * as db from "../database/connectionPool.js";
+import * as homePool from "../database/homePool.js";
 
 // Each context has exactly ONE database connection: either MySQL/MariaDB OR MSSQL.
 // If none is configured, db_type is null and db_config_json is null.
@@ -14,23 +20,27 @@ import * as homePool from '../database/homePool.js';
 // the type (mysql|mssql). The old column-based storage (db_host, mssql_host, etc.)
 // is kept for backwards compatibility but not used for active queries.
 
-const VALID_TYPES = ['mysql', 'mssql'];
+const VALID_TYPES = ["mysql", "mssql"];
 
 async function getContextRow(contextId) {
-  const context = await db.queryOne('SELECT * FROM contexts WHERE id = ?', [contextId]);
+  const context = await db.queryOne("SELECT * FROM contexts WHERE id = ?", [
+    contextId,
+  ]);
   if (!context) {
-    throw new NotFoundError('Context not found');
+    throw new NotFoundError("Context not found");
   }
   return context;
 }
 
 function resolvePassword(existingEnc, submittedPassword) {
   if (submittedPassword) return submittedPassword;
-  if (!existingEnc) return '';
+  if (!existingEnc) return "";
   try {
     return decrypt(JSON.parse(existingEnc));
   } catch {
-    throw new ValidationError('Saved password could not be decrypted - it may have been saved from a different machine (CONFIG_ENCRYPTION_KEY is per-machine, not synced). Re-enter and save the password to fix this.');
+    throw new ValidationError(
+      "Saved password could not be decrypted - it may have been saved from a different machine (CONFIG_ENCRYPTION_KEY is per-machine, not synced). Re-enter and save the password to fix this.",
+    );
   }
 }
 
@@ -57,7 +67,7 @@ function parseDbConfig(context) {
 
   // Fallback to old column format for backwards compatibility
   // (for machines that haven't yet run the schema migration)
-  if (context.db_type === 'mysql' && context.db_host) {
+  if (context.db_type === "mysql" && context.db_host) {
     return {
       host: context.db_host,
       port: context.db_port,
@@ -68,7 +78,7 @@ function parseDbConfig(context) {
     };
   }
 
-  if (context.db_type === 'mssql' && context.mssql_host) {
+  if (context.db_type === "mssql" && context.mssql_host) {
     return {
       host: context.mssql_host,
       port: context.mssql_port,
@@ -112,19 +122,19 @@ export async function saveDbConfig(contextId, data) {
   const dbType = VALID_TYPES.includes(data.dbType) ? data.dbType : null;
 
   if (!dbType) {
-    throw new ValidationError('Database type (mysql or mssql) is required');
+    throw new ValidationError("Database type (mysql or mssql) is required");
   }
 
   const configData = data.config || {};
   if (!configData.host || !configData.user || !configData.database) {
-    throw new ValidationError('Host, user, and database name are required');
+    throw new ValidationError("Host, user, and database name are required");
   }
 
   // Encrypt password if provided
   let passwordEnc = null;
   if (configData.password) {
     passwordEnc = JSON.stringify(encrypt(configData.password));
-  } else if (configData.password === '' && !configData.hasPassword) {
+  } else if (configData.password === "" && !configData.hasPassword) {
     // User explicitly cleared password
     passwordEnc = null;
   } else if (context.db_config_json) {
@@ -147,36 +157,43 @@ export async function saveDbConfig(contextId, data) {
 
   try {
     await db.update(
-      'UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?',
-      [dbType, dbConfigJson, contextId]
+      "UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?",
+      [dbType, dbConfigJson, contextId],
     );
   } catch (error) {
-    console.error('SaveDbConfig error details:', {
+    console.error("SaveDbConfig error details:", {
       message: error.message,
       code: error.code,
       errno: error.errno,
       sqlState: error.sqlState,
-      fullError: error
+      fullError: error,
     });
 
-    if (error.message && (error.message.includes('db_config_json') || error.message.includes('Unknown column'))) {
+    if (
+      error.message &&
+      (error.message.includes("db_config_json") ||
+        error.message.includes("Unknown column"))
+    ) {
       // Column doesn't exist yet - try to add it, then retry the update
       try {
-        console.log('Attempting to add db_config_json column via homePool...');
-        await homePool.query(`
-          ALTER TABLE contexts
-          ADD COLUMN IF NOT EXISTS db_config_json TEXT COMMENT 'Encrypted JSON with active db connection config'
-        `);
-        console.log('Column added successfully via homePool');
+        console.log("Attempting to add db_config_json column via homePool...");
+        const isMssql = homePool.getHomeConfig().type === "mssql";
+        const alterSql = isMssql
+          ? "ALTER TABLE [MyWork].[contexts] ADD db_config_json NVARCHAR(MAX) NULL"
+          : "ALTER TABLE contexts ADD COLUMN db_config_json TEXT COMMENT 'Encrypted JSON with active db connection config'";
+        await homePool.query(alterSql);
+        console.log("Column added successfully via homePool");
 
         // Retry the update now that column exists
         await db.update(
-          'UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?',
-          [dbType, dbConfigJson, contextId]
+          "UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?",
+          [dbType, dbConfigJson, contextId],
         );
       } catch (alterError) {
-        console.error('Failed to add column or retry update:', alterError);
-        throw new ValidationError('Database schema needs to be updated. Please go to Settings → Contexts → Schema tab and click "Check and Update Schema".');
+        console.error("Failed to add column or retry update:", alterError);
+        throw new ValidationError(
+          'Database schema needs to be updated. Please go to Settings → Contexts → Schema tab and click "Check and Update Schema".',
+        );
       }
     } else {
       throw error;
@@ -206,11 +223,18 @@ async function testMysqlConnection(data, password) {
   };
 
   if (data.database) {
-    const attempt = await attemptMysqlConnection({ ...baseOptions, database: data.database });
+    const attempt = await attemptMysqlConnection({
+      ...baseOptions,
+      database: data.database,
+    });
     if (attempt.connection) {
       try {
         const schemaExists = await mysqlSchemaExists(attempt.connection);
-        return { success: true, message: 'Connected successfully', schemaExists };
+        return {
+          success: true,
+          message: "Connected successfully",
+          schemaExists,
+        };
       } finally {
         await attempt.connection.end();
       }
@@ -219,12 +243,15 @@ async function testMysqlConnection(data, password) {
 
   const attempt = await attemptMysqlConnection(baseOptions);
   if (attempt.error) {
-    return { success: false, message: attempt.error.message || 'Connection failed' };
+    return {
+      success: false,
+      message: attempt.error.message || "Connection failed",
+    };
   }
   await attempt.connection.end();
   return {
     success: true,
-    message: 'Connected successfully',
+    message: "Connected successfully",
     schemaExists: data.database ? false : null,
   };
 }
@@ -244,10 +271,16 @@ function mssqlConnectOptions(data, password, database) {
 async function testMssqlConnection(data, password) {
   if (data.database) {
     try {
-      const pool = await mssql.connect(mssqlConnectOptions(data, password, data.database));
+      const pool = await mssql.connect(
+        mssqlConnectOptions(data, password, data.database),
+      );
       try {
         const schemaExists = await mssqlSchemaExists(pool);
-        return { success: true, message: 'Connected successfully', schemaExists };
+        return {
+          success: true,
+          message: "Connected successfully",
+          schemaExists,
+        };
       } finally {
         await pool.close();
       }
@@ -257,21 +290,23 @@ async function testMssqlConnection(data, password) {
   }
 
   try {
-    const pool = await mssql.connect(mssqlConnectOptions(data, password, undefined));
+    const pool = await mssql.connect(
+      mssqlConnectOptions(data, password, undefined),
+    );
     await pool.close();
     return {
       success: true,
-      message: 'Connected successfully',
+      message: "Connected successfully",
       schemaExists: data.database ? false : null,
     };
   } catch (error) {
-    return { success: false, message: error.message || 'Connection failed' };
+    return { success: false, message: error.message || "Connection failed" };
   }
 }
 
 export async function testDbConnection(contextId, type, data) {
   if (!VALID_TYPES.includes(type)) {
-    throw new ValidationError('Invalid database type');
+    throw new ValidationError("Invalid database type");
   }
 
   const context = await getContextRow(contextId);
@@ -288,18 +323,22 @@ export async function testDbConnection(contextId, type, data) {
   }
 
   const password = resolvePassword(existingEnc, data.password);
-  return type === 'mssql' ? testMssqlConnection(data, password) : testMysqlConnection(data, password);
+  return type === "mssql"
+    ? testMssqlConnection(data, password)
+    : testMysqlConnection(data, password);
 }
 
 export async function createDbSchema(contextId, type, data) {
   if (!VALID_TYPES.includes(type)) {
-    throw new ValidationError('Invalid database type');
+    throw new ValidationError("Invalid database type");
   }
 
   if (!data.database) {
-    throw new ValidationError('A database name is required to create the schema');
+    throw new ValidationError(
+      "A database name is required to create the schema",
+    );
   }
-  validateIdentifier(data.database, 'Database name');
+  validateIdentifier(data.database, "Database name");
 
   const context = await getContextRow(contextId);
 
@@ -316,18 +355,24 @@ export async function createDbSchema(contextId, type, data) {
 
   const password = resolvePassword(existingEnc, data.password);
 
-  if (type === 'mssql') {
+  if (type === "mssql") {
     let pool;
     try {
-      pool = await mssql.connect(mssqlConnectOptions(data, password, 'master'));
-      await pool.request().query(`IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '${data.database}') CREATE DATABASE [${data.database}]`);
+      pool = await mssql.connect(mssqlConnectOptions(data, password, "master"));
+      await pool
+        .request()
+        .query(
+          `IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '${data.database}') CREATE DATABASE [${data.database}]`,
+        );
       await pool.close();
-      pool = await mssql.connect(mssqlConnectOptions(data, password, data.database));
+      pool = await mssql.connect(
+        mssqlConnectOptions(data, password, data.database),
+      );
       await createMssqlSchema(pool);
     } finally {
       if (pool) await pool.close();
     }
-    return { success: true, message: 'Schema created successfully' };
+    return { success: true, message: "Schema created successfully" };
   }
 
   let connection;
@@ -339,20 +384,22 @@ export async function createDbSchema(contextId, type, data) {
       password,
       connectTimeout: 10000,
     });
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${data.database}\``);
+    await connection.query(
+      `CREATE DATABASE IF NOT EXISTS \`${data.database}\``,
+    );
     await connection.query(`USE \`${data.database}\``);
     await createMysqlSchema(connection);
   } finally {
     if (connection) await connection.end();
   }
 
-  return { success: true, message: 'Schema created successfully' };
+  return { success: true, message: "Schema created successfully" };
 }
 
 export async function removeDbConfig(contextId) {
   await db.update(
-    'UPDATE contexts SET db_type = NULL, db_config_json = NULL WHERE id = ?',
-    [contextId]
+    "UPDATE contexts SET db_type = NULL, db_config_json = NULL WHERE id = ?",
+    [contextId],
   );
 }
 
@@ -372,7 +419,7 @@ export async function getLiveConnectionConfig(contextId) {
         return {
           type: dbType,
           host: config.host,
-          port: config.port || (dbType === 'mssql' ? 1433 : 3306),
+          port: config.port || (dbType === "mssql" ? 1433 : 3306),
           user: config.user,
           password: resolvePassword(config.password_enc, undefined),
           database: config.database,
@@ -384,9 +431,9 @@ export async function getLiveConnectionConfig(contextId) {
   }
 
   // Fallback to old column format for backwards compatibility
-  if (dbType === 'mysql' && context.db_host) {
+  if (dbType === "mysql" && context.db_host) {
     return {
-      type: 'mysql',
+      type: "mysql",
       host: context.db_host,
       port: context.db_port || 3306,
       user: context.db_user,
@@ -395,9 +442,9 @@ export async function getLiveConnectionConfig(contextId) {
     };
   }
 
-  if (dbType === 'mssql' && context.mssql_host) {
+  if (dbType === "mssql" && context.mssql_host) {
     return {
-      type: 'mssql',
+      type: "mssql",
       host: context.mssql_host,
       port: context.mssql_port || 1433,
       user: context.mssql_user,

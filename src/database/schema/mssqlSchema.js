@@ -667,6 +667,12 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
+  if (!(await columnExists(pool, "contexts", "db_config_json"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[contexts] ADD db_config_json NVARCHAR(MAX) NULL
+    `);
+  }
+
   if (!(await columnExists(pool, "contexts", "folder_id"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[contexts] ADD
