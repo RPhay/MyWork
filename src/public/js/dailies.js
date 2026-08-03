@@ -2004,19 +2004,16 @@ function initDailiesEventListeners() {
       const types = Array.from(e.dataTransfer.types || []);
       console.log('[Dailies] Dragover on dayCell. Types:', types);
 
-      // Accept any external text data (calendar events, emails, etc)
-      // We can't reliably detect the content type during dragover for security reasons,
-      // so we accept text/plain and text/html and validate during drop
-      const hasExternalData = types.includes('text/calendar') ||
-                              types.includes('text/plain') ||
-                              types.includes('text/html') ||
-                              types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
-
+      // Check if this is internal drag (template or work-item)
       const hasInternalDrag = types.includes('type') && (e.dataTransfer.getData('type') === 'template' || e.dataTransfer.getData('type') === 'work-item');
 
-      console.log('[Dailies] hasExternalData:', hasExternalData, 'hasInternalDrag:', hasInternalDrag);
+      // Accept any drag with text data (could be email, calendar, etc from Outlook or other sources)
+      // Even if we can't identify it as a specific type, allow the drop
+      const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
 
-      if (hasExternalData || hasInternalDrag) {
+      console.log('[Dailies] hasInternalDrag:', hasInternalDrag, 'hasTextData:', hasTextData);
+
+      if (hasTextData || hasInternalDrag) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
         // Highlight all selected dates if multi-select is active, otherwise just the hovered date

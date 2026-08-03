@@ -862,10 +862,10 @@ function initToDosEventListeners() {
   container.addEventListener('dragover', (e) => {
     const types = Array.from(e.dataTransfer.types || []);
     // Accept any text data - emails, calendar events, etc
-    const hasExternalData = types.includes('text/plain') || types.includes('text/html') || types.includes('text/calendar');
+    const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
     const hasInternalDrag = types.some(t => t === 'type');
 
-    if (!hasExternalData && !hasInternalDrag) return;
+    if (!hasTextData && !hasInternalDrag) return;
 
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';

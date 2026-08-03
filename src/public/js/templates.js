@@ -690,17 +690,12 @@ function initTemplatesEventListeners() {
       return;
     }
 
-    // Accept any external text data (calendar events, emails, etc)
-    // We can't reliably detect the content type during dragover for security reasons,
-    // so we accept text/plain and text/html and validate during drop
+    // Accept any drag with text data (could be email, calendar, etc from Outlook or other sources)
     const types = Array.from(e.dataTransfer.types || []);
-    const hasExternalData = types.includes('text/calendar') ||
-                            types.includes('text/plain') ||
-                            types.includes('text/html') ||
-                            types.some(t => t.toLowerCase().includes('calendar') || t.toLowerCase().includes('ics') || t.toLowerCase().includes('event'));
+    const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
 
-    // Allow drop on empty container for any external data (not template-id)
-    if (hasExternalData || (!nodeEl && types.length > 0 && !types.includes('template-id'))) {
+    // Allow drop on empty container for any text data (not template-id)
+    if (hasTextData || (!nodeEl && types.length > 0 && !types.includes('template-id'))) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
       container.classList.add('templates-drop-target');
