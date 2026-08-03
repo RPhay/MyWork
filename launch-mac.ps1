@@ -69,20 +69,36 @@ if (-not (Test-ServerUp)) {
         -RedirectStandardError "/tmp/mywork-dev-error.log" `
         -PassThru
 
-    Write-Host "Waiting for server to start (up to 30 seconds)..."
+    Write-Host "Waiting for server to start (up to 30 seconds, press Ctrl+C to skip)..."
     $upped = $false
-    for ($i = 0; $i -lt 30; $i++) {
-        Start-Sleep -Seconds 1
-        if (Test-ServerUp) {
-            $upped = $true
-            Write-Host "✓ Server is ready!"
-            break
-        }
-        if (-not $devProcess.HasExited) {
+    try {
+        for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 1
+
+            # Check if process has crashed
+            if ($devProcess.HasExited) {
+                Write-Host ""
+                Write-Error "Dev server crashed! Check logs:"
+                Write-Host "STDOUT: /tmp/mywork-dev.log"
+                Write-Host "STDERR: /tmp/mywork-dev-error.log"
+                Get-Content /tmp/mywork-dev-error.log -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+                exit 1
+            }
+
+            if (Test-ServerUp) {
+                $upped = $true
+                Write-Host ""
+                Write-Host "✓ Server is ready!"
+                break
+            }
             Write-Host "." -NoNewline
         }
+    } catch {
+        # User pressed Ctrl+C
+        Write-Host ""
+        Write-Host "Interrupted. Server is running in the background."
+        Write-Host "Logs: /tmp/mywork-dev.log"
     }
-    Write-Host ""
 
     if (-not $upped) {
         Write-Host "⚠ Server is still starting (this sometimes takes a moment). Check logs at /tmp/mywork-dev.log"
