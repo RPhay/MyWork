@@ -94,6 +94,10 @@ function renderToDoRow(toDo, depth) {
   const itemsBadge = items.length > 0
     ? `<span class="badge bg-light text-dark border" title="Items done">${doneCount}/${items.length}</span>`
     : '';
+  const hasLinks = toDo.hasLinks || false;
+  const linksBadge = hasLinks
+    ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
+    : '';
 
   return `
     <div class="todo-row" data-todo-id="${toDo.id}" draggable="true">
@@ -103,6 +107,7 @@ function renderToDoRow(toDo, depth) {
         <i class="bi ${APP_ICONS.todo} text-muted" title="To Do"></i>
         <span class="todo-title">${app.escapeHtml(toDo.title)}</span>
         ${itemsBadge}
+        ${linksBadge}
       </span>
       <span class="todo-notes text-muted">${app.escapeHtml(toDo.notes) || '-'}</span>
       <span class="todo-actions">
@@ -298,6 +303,26 @@ async function editToDo(toDoId) {
     document.getElementById('toDoTitle').value = toDo.title;
     document.getElementById('toDoNotes').value = toDo.notes || '';
     renderToDoItemsEditor(toDo.items || []);
+
+    // Load and display links
+    loadLinksForEntity('to-do', toDo.id, 'toDoLinksList');
+
+    // Setup link input handlers
+    const addLinkBtn = document.getElementById('addToDoLinkBtn');
+    if (addLinkBtn) {
+      addLinkBtn.onclick = async (e) => {
+        e.preventDefault();
+        const url = document.getElementById('toDoLinkUrl').value;
+        const title = document.getElementById('toDoLinkTitle').value;
+        if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoLinksList')) {
+          document.getElementById('toDoLinkUrl').value = '';
+          document.getElementById('toDoLinkTitle').value = '';
+        }
+      };
+    }
+
+    // Setup URL drag-drop
+    setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
 
     const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
     modal.show();

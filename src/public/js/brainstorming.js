@@ -94,6 +94,10 @@ function renderIdeaRow(idea, depth) {
   const itemsBadge = items.length > 0
     ? `<span class="badge bg-light text-dark border" title="Items done">${doneCount}/${items.length}</span>`
     : '';
+  const hasLinks = idea.hasLinks || false;
+  const linksBadge = hasLinks
+    ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
+    : '';
 
   return `
     <div class="idea-row" data-idea-id="${idea.id}" draggable="true">
@@ -103,6 +107,7 @@ function renderIdeaRow(idea, depth) {
         <i class="bi ${APP_ICONS.idea} text-muted" title="Idea"></i>
         <span class="idea-title">${app.escapeHtml(idea.title)}</span>
         ${itemsBadge}
+        ${linksBadge}
       </span>
       <span class="idea-notes text-muted">${app.escapeHtml(idea.notes) || '-'}</span>
       <span class="idea-actions">
@@ -290,6 +295,26 @@ async function editIdea(ideaId) {
     document.getElementById('ideaTitle').value = idea.title;
     document.getElementById('ideaNotes').value = idea.notes || '';
     renderIdeaItemsEditor(idea.items || []);
+
+    // Load and display links
+    loadLinksForEntity('idea', idea.id, 'ideaLinksList');
+
+    // Setup link input handlers
+    const addLinkBtn = document.getElementById('addIdeaLinkBtn');
+    if (addLinkBtn) {
+      addLinkBtn.onclick = async (e) => {
+        e.preventDefault();
+        const url = document.getElementById('ideaLinkUrl').value;
+        const title = document.getElementById('ideaLinkTitle').value;
+        if (await addLinkToEntity('idea', idea.id, url, title, 'ideaLinksList')) {
+          document.getElementById('ideaLinkUrl').value = '';
+          document.getElementById('ideaLinkTitle').value = '';
+        }
+      };
+    }
+
+    // Setup URL drag-drop
+    setupURLDragDrop('idea', 'ideaLinksList', () => idea.id);
 
     const modal = new bootstrap.Modal(document.getElementById('ideaModal'));
     modal.show();

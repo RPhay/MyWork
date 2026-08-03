@@ -12,6 +12,10 @@ function renderPriorityNode(priority, byParent, depth) {
 
   const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.path || a.name)}</span>`).join('');
   const goalBadges = (priority.goals || []).map(g => `<span class="badge bg-info text-dark"><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>`).join('');
+  const hasLinks = priority.hasLinks || false;
+  const linksBadge = hasLinks
+    ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
+    : '';
 
   return `
     <div class="priority-node ${isExpanded ? 'expanded' : ''}" data-priority-id="${priority.id}">
@@ -23,6 +27,7 @@ function renderPriorityNode(priority, byParent, depth) {
             : '<span class="priority-toggle"></span>'}
           <i class="bi ${APP_ICONS.project} text-muted"></i>
           <span class="priority-title">${app.escapeHtml(priority.title)}</span>
+          ${linksBadge}
         </span>
         <span class="priority-badges">${areaBadges || '<span class="text-muted small">-</span>'}</span>
         <span class="priority-badges">${goalBadges || '<span class="text-muted small">-</span>'}</span>
@@ -230,6 +235,26 @@ async function editPriority(priorityId) {
     document.getElementById('priorityId').value = priority.id;
     document.getElementById('priorityTitle').value = priority.title;
     document.getElementById('priorityNotes').value = priority.notes;
+
+    // Load and display links
+    loadLinksForEntity('priority', priority.id, 'priorityLinksList');
+
+    // Setup link input handlers
+    const addLinkBtn = document.getElementById('addPriorityLinkBtn');
+    if (addLinkBtn) {
+      addLinkBtn.onclick = async (e) => {
+        e.preventDefault();
+        const url = document.getElementById('priorityLinkUrl').value;
+        const title = document.getElementById('priorityLinkTitle').value;
+        if (await addLinkToEntity('priority', priority.id, url, title, 'priorityLinksList')) {
+          document.getElementById('priorityLinkUrl').value = '';
+          document.getElementById('priorityLinkTitle').value = '';
+        }
+      };
+    }
+
+    // Setup URL drag-drop
+    setupURLDragDrop('priority', 'priorityLinksList', () => priority.id);
 
     const modal = new bootstrap.Modal(document.getElementById('priorityModal'));
     modal.show();

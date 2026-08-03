@@ -865,6 +865,83 @@ async function saveContextDbConfig() {
   }
 }
 
+async function checkAndUpdateSchema() {
+  if (!selectedContextId) {
+    app.notify("Please select a context first", "warning");
+    return;
+  }
+
+  const btn = document.getElementById("checkSchemaBtn");
+  const statusEl = document.getElementById("schemaUpdateStatus");
+  const resultsEl = document.getElementById("schemaUpdateResults");
+  const resultsContentEl = document.getElementById("schemaUpdateResultsContent");
+
+  btn.disabled = true;
+  statusEl.textContent = "Checking and updating schema...";
+  resultsEl.classList.add("d-none");
+
+  try {
+    const response = await fetch(
+      `/api/contexts/${selectedContextId}/schema/update`,
+      {
+        method: "POST",
+        headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken }
+      }
+    );
+
+    const result = await response.json();
+
+    if (result.success) {
+      const data = result.data;
+      let html = `<p class="mb-2 text-success"><i class="bi bi-check-circle"></i> ${app.escapeHtml(data.message)}</p>`;
+
+      if (data.tablesCreated.length > 0) {
+        html += `<div class="mb-2"><strong>Tables Created:</strong><ul>`;
+        data.tablesCreated.forEach((table) => {
+          html += `<li>${app.escapeHtml(table)}</li>`;
+        });
+        html += `</ul></div>`;
+      }
+
+      if (data.columnsAdded.length > 0) {
+        html += `<div class="mb-2"><strong>Columns Added:</strong><ul>`;
+        data.columnsAdded.forEach((col) => {
+          html += `<li>${app.escapeHtml(col.table)}.${app.escapeHtml(col.column)}</li>`;
+        });
+        html += `</ul></div>`;
+      }
+
+      if (data.indexesAdded.length > 0) {
+        html += `<div class="mb-2"><strong>Indexes Added:</strong><ul>`;
+        data.indexesAdded.forEach((idx) => {
+          html += `<li>${app.escapeHtml(idx.table)}.${app.escapeHtml(idx.index)}</li>`;
+        });
+        html += `</ul></div>`;
+      }
+
+      if (data.errors.length > 0) {
+        html += `<div class="alert alert-warning mb-0"><strong>Warnings:</strong><ul>`;
+        data.errors.forEach((err) => {
+          html += `<li>${app.escapeHtml(err.table)}: ${app.escapeHtml(err.message)}</li>`;
+        });
+        html += `</ul></div>`;
+      }
+
+      resultsContentEl.innerHTML = html;
+      resultsEl.classList.remove("d-none");
+      statusEl.textContent = "Schema update completed";
+      app.notify("Schema updated successfully", "success");
+    } else {
+      app.notify("Error: " + result.message, "danger");
+    }
+  } catch (error) {
+    console.error("Error updating schema:", error);
+    app.notify("Error updating schema", "danger");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ---- Wiring ----
 
 function initContextsEventListeners() {
@@ -877,6 +954,9 @@ function initContextsEventListeners() {
   document
     .getElementById("saveContextDbBtn")
     .addEventListener("click", saveContextDbConfig);
+  document
+    .getElementById("checkSchemaBtn")
+    .addEventListener("click", checkAndUpdateSchema);
   document
     .getElementById("addContextFolderBtn")
     .addEventListener("click", openNewFolderModal);

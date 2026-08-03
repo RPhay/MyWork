@@ -1,5 +1,6 @@
 import express from 'express';
 import contextSsoService from '../../services/contextSsoService.js';
+import { checkAndUpdateSchema } from '../../services/schemaUpdateService.js';
 import { ValidationError, NotFoundError } from '../../config/errors.js';
 import logger from '../../utils/logger.js';
 
@@ -123,6 +124,31 @@ router.delete('/contexts/:contextId/sso', async (req, res, next) => {
     await contextSsoService.disableContextSso(contextId);
 
     res.json({ success: true, message: 'SSO disabled for this context' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/contexts/:contextId/schema/update
+ * Check and update database schema for a context
+ */
+router.post('/contexts/:contextId/schema/update', async (req, res, next) => {
+  try {
+    const contextId = parseInt(req.params.contextId, 10);
+
+    const result = await checkAndUpdateSchema(contextId);
+
+    res.json({
+      success: true,
+      data: {
+        tablesCreated: result.tablesCreated,
+        columnsAdded: result.columnsAdded,
+        indexesAdded: result.indexesAdded,
+        errors: result.errors,
+        message: `Schema updated: ${result.tablesCreated.length} tables created, ${result.columnsAdded.length} columns added, ${result.indexesAdded.length} indexes added`
+      }
+    });
   } catch (error) {
     next(error);
   }
