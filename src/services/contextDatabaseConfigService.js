@@ -116,10 +116,17 @@ export async function saveDbConfig(contextId, data) {
     password_enc: passwordEnc,
   });
 
-  await db.update(
-    'UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?',
-    [dbType, dbConfigJson, contextId]
-  );
+  try {
+    await db.update(
+      'UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?',
+      [dbType, dbConfigJson, contextId]
+    );
+  } catch (error) {
+    if (error.message && error.message.includes('db_config_json')) {
+      throw new ValidationError('Database schema needs to be updated. Please go to Settings → Contexts → Schema tab and click "Check and Update Schema"');
+    }
+    throw error;
+  }
 
   return getDbConfig(contextId);
 }

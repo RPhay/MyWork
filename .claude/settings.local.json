@@ -52,7 +52,8 @@
       "Bash(curl -s http://localhost:3000/api/context-folders)",
       "Bash(curl -s \"http://localhost:3000/api/context-folders?_=$\\(date +%s%N\\)\")",
       "Bash(curl -s http://localhost:3000/settings)",
-      "Bash(curl -s \"http://localhost:3000/api/contexts\")"
+      "Bash(curl -s \"http://localhost:3000/api/contexts\")",
+      "Bash(git commit *)"
     ]
   }
 }
