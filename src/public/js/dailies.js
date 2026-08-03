@@ -905,6 +905,89 @@ async function deleteWorkItem(workId) {
   }
 }
 
+function showPasteEmailDialog() {
+  // Create a simple modal for pasting email
+  const modalHtml = `
+    <div class="modal fade" id="pasteEmailModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Paste Email Content</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label">Paste your email here:</label>
+            <textarea class="form-control" id="pasteEmailContent" rows="8" placeholder="Copy an email from Outlook and paste it here..." style="font-family: monospace; font-size: 0.85rem;"></textarea>
+            <small class="text-muted d-block mt-2">Include the Subject:, From:, and other email headers</small>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="createFromPasteBtn">Create Work Item</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Remove existing modal if present
+  const existing = document.getElementById('pasteEmailModal');
+  if (existing) existing.remove();
+
+  // Add to page
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // Show modal
+  const modal = new bootstrap.Modal(document.getElementById('pasteEmailModal'));
+  modal.show();
+
+  // Focus textarea
+  setTimeout(() => {
+    document.getElementById('pasteEmailContent').focus();
+  }, 100);
+
+  // Handle create button
+  document.getElementById('createFromPasteBtn').addEventListener('click', createWorkItemFromPastedEmail);
+}
+
+async function createWorkItemFromPastedEmail() {
+  const emailText = document.getElementById('pasteEmailContent')?.value;
+
+  if (!emailText || !emailText.trim()) {
+    app.notify('Please paste email content', 'warning');
+    return;
+  }
+
+  // Check if it looks like email
+  if (!isEmailData(emailText)) {
+    app.notify('Email content not recognized. Make sure to include email headers like Subject: and From:', 'warning');
+    return;
+  }
+
+  try {
+    const email = parseOutlookEmail(emailText);
+
+    if (!email.subject) {
+      app.notify('Could not find email subject', 'warning');
+      return;
+    }
+
+    const date = document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
+
+    // Hide the dialog first
+    const modalEl = document.querySelector('.modal.show');
+    if (modalEl) {
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+    }
+
+    // Create the work item
+    await createWorkItemFromEmail(email, date);
+  } catch (error) {
+    console.error('Error parsing pasted email:', error);
+    app.notify('Error parsing email', 'danger');
+  }
+}
+
 let contextMenuWorkItemId = null;
 
 function showWorkItemContextMenu(x, y, workItemId) {
@@ -1947,6 +2030,7 @@ function initDailiesEventListeners() {
 
   document.getElementById('addWorkItemBtn').addEventListener('click', openNewWorkForm);
   document.getElementById('saveWorkBtn').addEventListener('click', saveWorkItem);
+  document.getElementById('pasteEmailBtn').addEventListener('click', showPasteEmailDialog);
 
   initWorkItemsListEventListeners();
   initRightPanelTabs();
