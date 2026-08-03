@@ -26,6 +26,17 @@ npm run format            # Prettier --write src
 
 Local config: copy `.env.example` to `.env.local` (not `.env`). `CONFIG_ENCRYPTION_KEY` (used to encrypt stored DB credentials in Settings) is optional — if left unset, `src/config/environment.js#getOrCreateConfigEncryptionKey` generates one on first boot and persists it to `data/.config-encryption-key`, mirroring how `SESSION_SECRET` is self-managed. Only set it explicitly for a multi-process/load-balanced deployment, where every process needs the same key. If a stored password ever fails to decrypt ("could not be decrypted... machine"), it means the key changed since that password was saved (e.g. `.env.local` was hand-edited, or the persisted file was deleted) — the fix is to re-enter and save the password, not to recover the old key.
 
+## Browser testing after changes
+
+After any significant change (new features, bug fixes, security updates), run Playwright to check for browser errors before committing:
+
+```bash
+npx playwright test tests/e2e/debug.spec.js  # Quick check for CSP and JS errors
+npx playwright test                          # Full suite (slower but catches more)
+```
+
+Fix any console errors (CSP violations, unhandled exceptions, etc.) before committing. CSP violations in particular indicate security policy conflicts that need resolution.
+
 ## Credentials
 
 Never paste, print, or otherwise reproduce credential values (`.env.local` contents, `DB_PASSWORD`, API keys, tokens, connection strings, etc.) in conversation or command output. They stay local to the machine/file only, 100% of the time. When verifying or testing credentials, check presence/validity without echoing the value — e.g., attempt the actual connection and report success/failure by exit code, or mask the value if a file's structure needs to be shown.
