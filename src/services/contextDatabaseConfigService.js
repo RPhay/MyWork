@@ -16,11 +16,28 @@ import * as db from '../database/connectionPool.js';
 const VALID_TYPES = ['mysql', 'mssql'];
 
 async function getContextRow(contextId) {
-  const context = await db.queryOne('SELECT * FROM contexts WHERE id = ?', [contextId]);
-  if (!context) {
-    throw new NotFoundError('Context not found');
+  try {
+    const context = await db.queryOne('SELECT * FROM contexts WHERE id = ?', [contextId]);
+    if (!context) {
+      throw new NotFoundError('Context not found');
+    }
+    return context;
+  } catch (error) {
+    // If the query fails due to missing db_config_json column, try without it
+    if (error.message && error.message.includes('db_config_json')) {
+      const context = await db.queryOne(
+        'SELECT id, name, db_type, db_host, db_port, db_name, db_user, db_password_enc, mssql_host, mssql_port, mssql_name, mssql_user, mssql_password_enc FROM contexts WHERE id = ?',
+        [contextId]
+      );
+      if (!context) {
+        throw new NotFoundError('Context not found');
+      }
+      // Add null db_config_json so parseDbConfig falls back to old columns
+      context.db_config_json = null;
+      return context;
+    }
+    throw error;
   }
-  return context;
 }
 
 function resolvePassword(existingEnc, submittedPassword) {
