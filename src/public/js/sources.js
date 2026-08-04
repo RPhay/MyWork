@@ -84,31 +84,18 @@ function selectAuthMethod(authMethod) {
   try {
     const authModalEl = document.getElementById('sourceAuthModal');
 
-    if (authMethod === 'sso') {
-      // For SSO, show sign-in modal instead of redirecting
+    // For both SSO and credentials, show the credentials form
+    // (SSO without OAuth config just uses credentials-based auth)
+    const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
+    if (authModalEl && credentialsModalEl) {
       const authModal = bootstrap.Modal.getInstance(authModalEl);
       if (authModal) {
         authModal.hide();
-      }
-
-      // Show SSO sign-in modal after auth modal closes
-      setTimeout(() => {
-        const ssoModal = new bootstrap.Modal(document.getElementById('ssoSignInModal'));
-        ssoModal.show();
-      }, 300);
-    } else {
-      // For credentials, show the credentials form
-      const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
-      if (authModalEl && credentialsModalEl) {
-        const authModal = bootstrap.Modal.getInstance(authModalEl);
-        if (authModal) {
-          authModal.hide();
-          setTimeout(() => {
-            openAuthCredentialsForm();
-            const credentialsModal = new bootstrap.Modal(credentialsModalEl);
-            credentialsModal.show();
-          }, 300);
-        }
+        setTimeout(() => {
+          openAuthCredentialsForm();
+          const credentialsModal = new bootstrap.Modal(credentialsModalEl);
+          credentialsModal.show();
+        }, 300);
       }
     }
   } catch (error) {
@@ -116,44 +103,6 @@ function selectAuthMethod(authMethod) {
   }
 }
 
-async function beginSsoSignIn() {
-  const typeNames = {
-    'teams': 'Teams',
-    'outlook': 'Outlook',
-    'azure-devops': 'Azure DevOps',
-    'github-enterprise': 'GitHub',
-    'servicenow': 'ServiceNow'
-  };
-
-  // Open a popup for OAuth login
-  const width = 500;
-  const height = 600;
-  const left = window.screenX + (window.outerWidth - width) / 2;
-  const top = window.screenY + (window.outerHeight - height) / 2;
-
-  const popupWindow = window.open(
-    `/api/sources/auth/sso/initiate?type=${currentSourceType}`,
-    `${currentSourceType}-signin`,
-    `width=${width},height=${height},left=${left},top=${top}`
-  );
-
-  // Poll for popup close to save source
-  if (popupWindow) {
-    const checkInterval = setInterval(() => {
-      if (popupWindow.closed) {
-        clearInterval(checkInterval);
-        // Popup closed, assume successful login
-        // Close modal and reload sources
-        const ssoModal = bootstrap.Modal.getInstance(document.getElementById('ssoSignInModal'));
-        if (ssoModal) ssoModal.hide();
-        app.notify('Successfully connected!', 'success');
-        setTimeout(() => {
-          loadSources();
-        }, 500);
-      }
-    }, 500);
-  }
-}
 
 function openNewSourceForm() {
   document.getElementById('sourceId').value = '';
@@ -438,9 +387,8 @@ function initSourcesEventListeners() {
   // Edit source modal button
   document.getElementById('updateSourceBtn')?.addEventListener('click', updateSource);
 
-  // SSO sign-in buttons
+  // SSO button - just shows credentials form
   document.getElementById('ssoSignInBtn')?.addEventListener('click', () => selectAuthMethod('sso'));
-  document.getElementById('ssoSignInBtnModal')?.addEventListener('click', beginSsoSignIn);
 
   // Provider type buttons in sourceTypeModal
   document.querySelectorAll('.provider-btn').forEach(btn => {
