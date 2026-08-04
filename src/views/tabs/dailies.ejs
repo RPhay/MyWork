@@ -258,6 +258,34 @@
   </div>
 </div>
 
+<!-- Import from Outlook Modal -->
+<div class="modal fade" id="importOutlookModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Import Emails from Outlook</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="outlookLoadingSpinner" class="text-center text-muted">
+          <div class="spinner-border spinner-border-sm" role="status" style="width: 24px; height: 24px;">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2 small">Loading emails...</p>
+        </div>
+        <div id="outlookEmailsList" style="display: none;">
+          <!-- Emails will be listed here -->
+        </div>
+        <div id="outlookErrorMsg" class="alert alert-danger mt-3" style="display: none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="importOutlookEmailsBtn" disabled>Import Selected</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
   .context-menu {
     position: fixed;

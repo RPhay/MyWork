@@ -2031,6 +2031,7 @@ function initDailiesEventListeners() {
   document.getElementById('addWorkItemBtn').addEventListener('click', openNewWorkForm);
   document.getElementById('saveWorkBtn').addEventListener('click', saveWorkItem);
   document.getElementById('pasteEmailBtn').addEventListener('click', showPasteEmailDialog);
+  document.getElementById('importOutlookEmailsBtn')?.addEventListener('click', importSelectedOutlookEmails);
 
   initWorkItemsListEventListeners();
   initRightPanelTabs();
@@ -2293,8 +2294,123 @@ async function loadDataSourcesForImport() {
 
 async function importFromDataSource(sourceId, sourceType) {
   console.log('Import from source:', sourceId, sourceType);
-  // TODO: Implement import flow for this data source
-  app.notify('Import from ' + sourceType + ' coming soon!', 'info');
+
+  if (sourceType === 'outlook') {
+    await loadOutlookEmails(sourceId);
+  } else {
+    app.notify('Import from ' + sourceType + ' coming soon!', 'info');
+  }
+}
+
+async function importSelectedOutlookEmails() {
+  const selectedIndices = Array.from(document.querySelectorAll('.outlook-email-checkbox:checked')).map(cb => parseInt(cb.value));
+
+  if (selectedIndices.length === 0) {
+    app.notify('No emails selected', 'warning');
+    return;
+  }
+
+  const emails = window.outlookEmailsData || [];
+  const selectedDate = document.getElementById('selectedDate').value;
+
+  for (const idx of selectedIndices) {
+    const email = emails[idx];
+    if (!email) continue;
+
+    // Create a work item from the email
+    const workItem = {
+      title: email.subject,
+      description: email.bodyPreview || email.body,
+      notes: `From: ${email.from}\nDate: ${new Date(email.receivedDateTime).toLocaleString()}`,
+      date: selectedDate
+    };
+
+    try {
+      const response = await fetch('/api/work-items', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify(workItem)
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      console.error('Error importing email:', error);
+    }
+  }
+
+  app.notify(`Imported ${selectedIndices.length} email(s)`, 'success');
+  bootstrap.Modal.getInstance(document.getElementById('importOutlookModal')).hide();
+  loadWorkItems();
+}
+
+async function loadOutlookEmails(sourceId) {
+  const selectedDate = document.getElementById('selectedDate').value;
+  const modal = new bootstrap.Modal(document.getElementById('importOutlookModal'));
+  modal.show();
+
+  // Show loading state
+  document.getElementById('outlookLoadingSpinner').style.display = 'block';
+  document.getElementById('outlookEmailsList').style.display = 'none';
+  document.getElementById('outlookErrorMsg').style.display = 'none';
+
+  try {
+    const response = await fetch(`/api/sources/${sourceId}/emails?date=${selectedDate}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+
+    document.getElementById('outlookLoadingSpinner').style.display = 'none';
+
+    if (!result.success) {
+      document.getElementById('outlookErrorMsg').style.display = 'block';
+      document.getElementById('outlookErrorMsg').textContent = result.message || 'Failed to load emails';
+      return;
+    }
+
+    const emails = result.data || [];
+    const emailsList = document.getElementById('outlookEmailsList');
+
+    if (emails.length === 0) {
+      emailsList.style.display = 'block';
+      emailsList.innerHTML = '<p class="text-muted text-center">No emails found for this date</p>';
+      document.getElementById('importOutlookEmailsBtn').disabled = true;
+      return;
+    }
+
+    // Build email list with checkboxes
+    emailsList.innerHTML = emails.map((email, idx) => `
+      <div class="form-check" style="padding: 10px; border-bottom: 1px solid #dee2e6;">
+        <input class="form-check-input outlook-email-checkbox" type="checkbox" value="${idx}" id="email_${idx}">
+        <label class="form-check-label w-100" for="email_${idx}" style="cursor: pointer;">
+          <div style="font-weight: 500; margin-bottom: 2px;">${app.escapeHtml(email.subject)}</div>
+          <small class="text-muted">${app.escapeHtml(email.from)} • ${new Date(email.receivedDateTime).toLocaleTimeString()}</small>
+          <div style="font-size: 0.85rem; margin-top: 4px; color: #666;">${app.escapeHtml(email.bodyPreview || '')}</div>
+        </label>
+      </div>
+    `).join('');
+
+    emailsList.style.display = 'block';
+
+    // Add change listeners to checkboxes to enable/disable import button
+    document.querySelectorAll('.outlook-email-checkbox').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const anyChecked = document.querySelector('.outlook-email-checkbox:checked');
+        document.getElementById('importOutlookEmailsBtn').disabled = !anyChecked;
+      });
+    });
+
+    // Store emails for later import
+    window.outlookEmailsData = emails;
+    window.outlookSourceId = sourceId;
+
+  } catch (error) {
+    console.error('Error loading emails:', error);
+    document.getElementById('outlookLoadingSpinner').style.display = 'none';
+    document.getElementById('outlookErrorMsg').style.display = 'block';
+    document.getElementById('outlookErrorMsg').textContent = 'Error loading emails: ' + error.message;
+  }
 }
 
 function initDailies() {
