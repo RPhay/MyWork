@@ -124,24 +124,20 @@ router.get('/sources/auth/sso/callback', async (req, res, next) => {
       userName: userInfo.displayName
     });
 
-    // Return success message
+    // Return success and close popup
     res.send(`
       <html>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
-          <div style="text-align: center;">
-            <h2 style="color: #28a745; margin: 0 0 10px 0;">✓ Connected!</h2>
-            <p style="color: #666; margin: 0;">Closing in 2 seconds...</p>
+        <head><title>Authentication Successful</title></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f5f5;">
+          <div style="text-align: center; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <h2 style="color: #28a745; margin: 0 0 10px 0; font-size: 24px;">✓ Connected!</h2>
+            <p style="color: #666; margin: 0;">You can close this window.</p>
           </div>
           <script>
-            if(window.parent !== window) {
-              // Inside iframe - close parent modal
-              setTimeout(() => {
-                window.parent.document.querySelector('#ssoLoginModal').dispatchEvent(new Event('closeModal'));
-              }, 2000);
-            } else {
-              // Standalone window
-              setTimeout(() => window.close(), 2000);
-            }
+            // Close popup after 2 seconds
+            setTimeout(() => {
+              window.close();
+            }, 2000);
           </script>
         </body>
       </html>

@@ -115,16 +115,43 @@ function openSsoLoginModal() {
     title.textContent = `Sign In to ${typeNames[currentSourceType] || currentSourceType}`;
   }
 
-  const iframe = document.getElementById('ssoLoginFrame');
-  iframe.src = `/api/sources/auth/sso/initiate?type=${currentSourceType}`;
+  // Open popup to OAuth provider
+  const width = 600;
+  const height = 700;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
 
+  const authWindow = window.open(
+    `/api/sources/auth/sso/initiate?type=${currentSourceType}`,
+    `${currentSourceType}-auth`,
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+  );
+
+  if (!authWindow) {
+    app.notify('Popup blocked - please allow popups', 'warning');
+    return;
+  }
+
+  // Show modal while waiting for auth
   const ssoModal = new bootstrap.Modal(document.getElementById('ssoLoginModal'));
   ssoModal.show();
 
-  // When modal is hidden, reload sources
-  document.getElementById('ssoLoginModal').addEventListener('hidden.bs.modal', function() {
-    loadSources();
-  }, { once: true });
+  // Poll for popup close
+  const checkInterval = setInterval(() => {
+    try {
+      if (authWindow.closed) {
+        clearInterval(checkInterval);
+        // Popup closed - auth complete, reload sources
+        ssoModal.hide();
+        app.notify('Connected!', 'success');
+        setTimeout(() => {
+          loadSources();
+        }, 500);
+      }
+    } catch (e) {
+      // Access denied due to cross-origin, just close when auth completes
+    }
+  }, 500);
 }
 
 
