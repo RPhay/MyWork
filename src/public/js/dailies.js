@@ -11,106 +11,6 @@ let currentDragType = null;
 const ASSOCIATION_PATHS = { priority: 'priorities', goal: 'goals', area: 'areas' };
 const STATUS_CYCLE = ['Not Started', 'In Progress', 'Complete'];
 
-// Parse calendar events (supports both iCalendar and Outlook plain text formats)
-function parseCalendarEvent(text) {
-  const event = {
-    title: '',
-    description: '',
-    duration: null
-  };
-
-  // Check if this is iCalendar format
-  if (text.includes('BEGIN:VEVENT') || text.includes('DTSTART')) {
-    return parseICalendarFormat(text);
-  }
-
-  // Otherwise, parse Outlook plain text format
-  return parseOutlookPlainTextFormat(text);
-}
-
-// Parse Outlook email data from drag-and-drop
-function parseOutlookEmail(text) {
-  const email = {
-    subject: '',
-    body: '',
-    sender: '',
-    cc: '',
-    attachments: []
-  };
-
-  const lines = text.split(/[\r\n]+/);
-  let bodyStart = -1;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith('Subject:')) {
-      email.subject = trimmed.substring(8).trim();
-    } else if (trimmed.startsWith('From:')) {
-      email.sender = trimmed.substring(5).trim();
-    } else if (trimmed.startsWith('Cc:')) {
-      email.cc = trimmed.substring(3).trim();
-    } else if (trimmed.startsWith('Attachments:')) {
-      const attachStr = trimmed.substring(12).trim();
-      if (attachStr) {
-        email.attachments = attachStr.split(/,\s*/).filter(a => a);
-      }
-    } else if (!line.startsWith('Subject:') && !line.startsWith('From:') &&
-               !line.startsWith('Cc:') && !line.startsWith('Date:') &&
-               !line.startsWith('To:') && !line.startsWith('Sent:') &&
-               line.trim() && bodyStart === -1) {
-      // First non-empty line after headers is start of body
-      bodyStart = i;
-      break;
-    }
-  }
-
-  // Collect body text
-  if (bodyStart >= 0) {
-    email.body = lines.slice(bodyStart).join('\n').trim();
-  }
-
-  return email;
-}
-
-function parseICalendarFormat(text) {
-  const lines = text.split(/[\r\n]+/).filter(line => line.trim());
-  const event = {
-    title: '',
-    description: '',
-    duration: null
-  };
-
-  let dtStart = null;
-  let dtEnd = null;
-
-  for (const line of lines) {
-    if (line.startsWith('SUMMARY:')) {
-      event.title = line.substring(8).trim();
-    } else if (line.startsWith('DESCRIPTION:')) {
-      event.description = line.substring(12).trim();
-    } else if (line.startsWith('DTSTART')) {
-      const match = line.match(/DTSTART(?:;[^:]*)?:(.+)/);
-      if (match) dtStart = parseICalDate(match[1]);
-    } else if (line.startsWith('DTEND')) {
-      const match = line.match(/DTEND(?:;[^:]*)?:(.+)/);
-      if (match) dtEnd = parseICalDate(match[1]);
-    }
-  }
-
-  if (dtStart && dtEnd) {
-    event.duration = Math.round((dtEnd - dtStart) / 60000);
-  }
-
-  return event;
-}
-
-function parseOutlookPlainTextFormat(text) {
-  const event = {
-    title: '',
-    description: '',
-    duration: null
   };
 
   const lines = text.split(/[\r\n]+/).map(l => l.trim()).filter(l => l);
@@ -905,88 +805,6 @@ async function deleteWorkItem(workId) {
   }
 }
 
-function showPasteEmailDialog() {
-  // Create a simple modal for pasting email
-  const modalHtml = `
-    <div class="modal fade" id="pasteEmailModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Paste Email Content</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <label class="form-label">Paste your email here:</label>
-            <textarea class="form-control" id="pasteEmailContent" rows="8" placeholder="Copy an email from Outlook and paste it here..." style="font-family: monospace; font-size: 0.85rem;"></textarea>
-            <small class="text-muted d-block mt-2">Include the Subject:, From:, and other email headers</small>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" id="createFromPasteBtn">Create Work Item</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Remove existing modal if present
-  const existing = document.getElementById('pasteEmailModal');
-  if (existing) existing.remove();
-
-  // Add to page
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-  // Show modal
-  const modal = new bootstrap.Modal(document.getElementById('pasteEmailModal'));
-  modal.show();
-
-  // Focus textarea
-  setTimeout(() => {
-    document.getElementById('pasteEmailContent').focus();
-  }, 100);
-
-  // Handle create button
-  document.getElementById('createFromPasteBtn').addEventListener('click', createWorkItemFromPastedEmail);
-}
-
-async function createWorkItemFromPastedEmail() {
-  const emailText = document.getElementById('pasteEmailContent')?.value;
-
-  if (!emailText || !emailText.trim()) {
-    app.notify('Please paste email content', 'warning');
-    return;
-  }
-
-  // Check if it looks like email
-  if (!isEmailData(emailText)) {
-    app.notify('Email content not recognized. Make sure to include email headers like Subject: and From:', 'warning');
-    return;
-  }
-
-  try {
-    const email = parseOutlookEmail(emailText);
-
-    if (!email.subject) {
-      app.notify('Could not find email subject', 'warning');
-      return;
-    }
-
-    const date = document.getElementById('selectedDate')?.value || new Date().toISOString().split('T')[0];
-
-    // Hide the dialog first
-    const modalEl = document.querySelector('.modal.show');
-    if (modalEl) {
-      const modal = bootstrap.Modal.getInstance(modalEl);
-      if (modal) modal.hide();
-    }
-
-    // Create the work item
-    await createWorkItemFromEmail(email, date);
-  } catch (error) {
-    console.error('Error parsing pasted email:', error);
-    app.notify('Error parsing email', 'danger');
-  }
-}
 
 let contextMenuWorkItemId = null;
 
@@ -2030,7 +1848,6 @@ function initDailiesEventListeners() {
 
   document.getElementById('addWorkItemBtn').addEventListener('click', openNewWorkForm);
   document.getElementById('saveWorkBtn').addEventListener('click', saveWorkItem);
-  document.getElementById('pasteEmailBtn').addEventListener('click', showPasteEmailDialog);
   document.getElementById('importOutlookEmailsBtn')?.addEventListener('click', importSelectedOutlookEmails);
 
   initWorkItemsListEventListeners();
