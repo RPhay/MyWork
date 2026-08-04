@@ -112,11 +112,11 @@
       <div class="modal-body">
         <p class="text-muted mb-4">Choose your authentication method:</p>
 
-        <button type="button" class="btn btn-outline-success w-100 mb-3 py-3 auth-method-btn" data-method="sso" style="text-align: left;">
+        <button type="button" class="btn btn-outline-success w-100 mb-3 py-3" id="ssoSignInBtn" style="text-align: left;">
           <div style="font-weight: 600;">
             <i class="bi bi-shield-check"></i> Single Sign-On (SSO)
           </div>
-          <small class="text-muted">Use your organization account (recommended)</small>
+          <small class="text-muted" id="ssoSignInDesc">Sign in with your organization account</small>
         </button>
 
         <button type="button" class="btn btn-outline-secondary w-100 py-3 auth-method-btn" data-method="credentials" style="text-align: left;">
@@ -129,6 +129,24 @@
     </div>
   </div>
 </div>
+
+<!-- SSO Sign-In Modal (for Teams, Outlook, etc.) -->
+<div class="modal fade" id="ssoSignInModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ssoSignInTitle">Sign In</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center">
+        <p class="text-muted mb-4" id="ssoSignInMessage">Connecting to your account...</p>
+        <button type="button" class="btn btn-primary btn-lg" id="ssoSignInBtnModal">
+          <i class="bi bi-box-arrow-in-right"></i> Sign In
+        </button>
+      </div>
+    </div>
+  </div>
+
 
 <!-- Step 3: Authentication Credentials Modal -->
 <div class="modal fade" id="sourceAuthCredentialsModal" tabindex="-1">

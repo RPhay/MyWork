@@ -90,14 +90,14 @@ router.get('/sources/auth/sso/callback', async (req, res, next) => {
     const { code, state } = req.query;
 
     if (!state || !req.session.sourceSetupStates?.[state]) {
-      return res.status(400).redirect('/?error=Invalid+authorization');
+      return res.send(`<html><body><p>Authorization failed. You can close this window.</p><script>window.close();</script></body></html>`);
     }
 
     const setupState = req.session.sourceSetupStates[state];
     delete req.session.sourceSetupStates[state];
 
     if (!code) {
-      return res.status(400).redirect('/?error=No+authorization+code');
+      return res.send(`<html><body><p>No authorization code. You can close this window.</p><script>window.close();</script></body></html>`);
     }
 
     const { type } = setupState;
@@ -130,11 +130,36 @@ router.get('/sources/auth/sso/callback', async (req, res, next) => {
       userName: userInfo.displayName
     });
 
-    // Redirect back to settings with success
-    res.redirect('/settings?tab=data-sources&success=Source+connected');
+    // Return success message and close popup
+    res.send(`
+      <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+          <div style="text-align: center;">
+            <h2 style="color: #28a745; margin: 0 0 10px 0;">✓ Successfully connected!</h2>
+            <p style="color: #666; margin: 0;">You can close this window.</p>
+          </div>
+          <script>
+            setTimeout(() => window.close(), 2000);
+          </script>
+        </body>
+      </html>
+    `);
   } catch (error) {
     logger.error('SSO callback error:', error);
-    res.redirect('/?error=Authentication+failed');
+    res.send(`
+      <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+          <div style="text-align: center;">
+            <h2 style="color: #dc3545; margin: 0 0 10px 0;">✗ Connection failed</h2>
+            <p style="color: #666; margin: 0;">${error.message}</p>
+            <p style="color: #999; font-size: 0.9em; margin-top: 20px;">You can close this window.</p>
+          </div>
+          <script>
+            setTimeout(() => window.close(), 3000);
+          </script>
+        </body>
+      </html>
+    `);
   }
 });
 
