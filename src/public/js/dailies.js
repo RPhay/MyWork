@@ -2346,6 +2346,17 @@ async function importSelectedOutlookEmails() {
   loadWorkItems();
 }
 
+function beginSsoAuth() {
+  const sourceType = document.getElementById('sourceType').value;
+  if (!sourceType) {
+    app.notify('No source type selected', 'warning');
+    return;
+  }
+
+  // Redirect to OAuth initiation endpoint
+  window.location.href = `/api/sources/auth/sso/initiate?type=${sourceType}`;
+}
+
 async function loadOutlookEmails(sourceId) {
   const selectedDate = document.getElementById('selectedDate').value;
   const modal = new bootstrap.Modal(document.getElementById('importOutlookModal'));

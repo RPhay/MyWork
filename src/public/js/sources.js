@@ -77,17 +77,28 @@ function selectAuthMethod(authMethod) {
 
   try {
     const authModalEl = document.getElementById('sourceAuthModal');
-    const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
 
-    if (authModalEl && credentialsModalEl) {
+    if (authMethod === 'sso') {
+      // For SSO, redirect directly to OAuth - no credential form needed
       const authModal = bootstrap.Modal.getInstance(authModalEl);
       if (authModal) {
         authModal.hide();
-        setTimeout(() => {
-          openAuthCredentialsForm();
-          const credentialsModal = new bootstrap.Modal(credentialsModalEl);
-          credentialsModal.show();
-        }, 300);
+      }
+      // Redirect to OAuth initiation endpoint which handles login and saves automatically
+      window.location.href = `/api/sources/auth/sso/initiate?type=${currentSourceType}`;
+    } else {
+      // For credentials, show the credentials form
+      const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
+      if (authModalEl && credentialsModalEl) {
+        const authModal = bootstrap.Modal.getInstance(authModalEl);
+        if (authModal) {
+          authModal.hide();
+          setTimeout(() => {
+            openAuthCredentialsForm();
+            const credentialsModal = new bootstrap.Modal(credentialsModalEl);
+            credentialsModal.show();
+          }, 300);
+        }
       }
     }
   } catch (error) {
@@ -138,61 +149,36 @@ function openAuthCredentialsForm() {
 
 function updateAuthCredentialsFields() {
   const sourceType = document.getElementById('sourceType').value;
-  const authMethod = document.getElementById('authMethod').value;
   const fieldsContainer = document.getElementById('authCredentialsFields');
 
   fieldsContainer.innerHTML = '';
 
+  // Only show credentials fields (SSO goes through OAuth redirect, no form needed)
   const configs = {
-    'teams': {
-      'sso': [
-        { name: 'tenant_id', label: 'Tenant ID (optional)', type: 'text', placeholder: 'common or your organization ID', required: false },
-      ],
-      'credentials': [
-        { name: 'username', label: 'Username', type: 'email', required: true },
-        { name: 'password', label: 'Password', type: 'password', required: true },
-      ]
-    },
-    'outlook': {
-      'sso': [
-        { name: 'tenant_id', label: 'Tenant ID (optional)', type: 'text', placeholder: 'common or your organization ID', required: false },
-      ],
-      'credentials': [
-        { name: 'username', label: 'Email Address', type: 'email', required: true },
-        { name: 'password', label: 'Password', type: 'password', required: true },
-      ]
-    },
-    'azure-devops': {
-      'sso': [
-        { name: 'organization_url', label: 'Organization URL', type: 'url', placeholder: 'https://dev.azure.com/yourorg', required: true },
-      ],
-      'credentials': [
-        { name: 'organization_url', label: 'Organization URL', type: 'url', placeholder: 'https://dev.azure.com/yourorg', required: true },
-        { name: 'pat', label: 'Personal Access Token', type: 'password', required: true },
-      ]
-    },
-    'github-enterprise': {
-      'sso': [
-        { name: 'enterprise_url', label: 'Enterprise URL', type: 'url', placeholder: 'https://github.enterprise.com', required: true },
-      ],
-      'credentials': [
-        { name: 'enterprise_url', label: 'Enterprise URL', type: 'url', placeholder: 'https://github.enterprise.com', required: true },
-        { name: 'token', label: 'Personal Access Token', type: 'password', required: true },
-      ]
-    },
-    'servicenow': {
-      'sso': [
-        { name: 'instance_url', label: 'Instance URL', type: 'url', placeholder: 'https://yourcompany.service-now.com', required: true },
-      ],
-      'credentials': [
-        { name: 'instance_url', label: 'Instance URL', type: 'url', placeholder: 'https://yourcompany.service-now.com', required: true },
-        { name: 'username', label: 'Username', type: 'text', required: true },
-        { name: 'password', label: 'Password', type: 'password', required: true },
-      ]
-    }
+    'teams': [
+      { name: 'username', label: 'Username', type: 'email', required: true },
+      { name: 'password', label: 'Password', type: 'password', required: true },
+    ],
+    'outlook': [
+      { name: 'username', label: 'Email Address', type: 'email', required: true },
+      { name: 'password', label: 'Password', type: 'password', required: true },
+    ],
+    'azure-devops': [
+      { name: 'organization_url', label: 'Organization URL', type: 'url', placeholder: 'https://dev.azure.com/yourorg', required: true },
+      { name: 'pat', label: 'Personal Access Token', type: 'password', required: true },
+    ],
+    'github-enterprise': [
+      { name: 'enterprise_url', label: 'Enterprise URL', type: 'url', placeholder: 'https://github.enterprise.com', required: true },
+      { name: 'token', label: 'Personal Access Token', type: 'password', required: true },
+    ],
+    'servicenow': [
+      { name: 'instance_url', label: 'Instance URL', type: 'url', placeholder: 'https://yourcompany.service-now.com', required: true },
+      { name: 'username', label: 'Username', type: 'text', required: true },
+      { name: 'password', label: 'Password', type: 'password', required: true },
+    ]
   };
 
-  const fields = (configs[sourceType] && configs[sourceType][authMethod]) || [];
+  const fields = configs[sourceType] || [];
   fields.forEach(field => {
     const div = document.createElement('div');
     div.className = 'mb-3';

@@ -1,11 +1,132 @@
 import express from 'express';
 import EntraIdAuth from '../../auth/entraId.js';
+import MsOutlookAuth from '../../auth/msOutlookAuth.js';
 import dataSourceAuthService from '../../services/dataSourceAuthService.js';
+import * as sourceService from '../../services/sourceService.js';
+import * as activeContextService from '../../services/activeContextService.js';
 import { query } from '../../database/connectionPool.js';
 import { decrypt } from '../../utils/credentialCrypto.js';
+import config from '../../config/environment.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
+
+const PROVIDER_CONFIG = {
+  'outlook': {
+    authClass: MsOutlookAuth,
+    getConfig: () => ({
+      tenantId: config.oauth?.microsoft?.tenantId || 'common',
+      clientId: config.oauth?.microsoft?.clientId,
+      clientSecret: config.oauth?.microsoft?.clientSecret,
+      redirectUri: `${config.app.url}/api/sources/auth/sso/callback`
+    })
+  },
+  'teams': {
+    authClass: MsOutlookAuth, // Same as Outlook (both use Entra ID)
+    getConfig: () => ({
+      tenantId: config.oauth?.microsoft?.tenantId || 'common',
+      clientId: config.oauth?.microsoft?.clientId,
+      clientSecret: config.oauth?.microsoft?.clientSecret,
+      redirectUri: `${config.app.url}/api/sources/auth/sso/callback`
+    })
+  }
+};
+
+/**
+ * GET /api/sources/auth/sso/initiate
+ * Initiate SSO login during data source setup (redirects to OAuth provider)
+ */
+router.get('/sources/auth/sso/initiate', async (req, res, next) => {
+  try {
+    const { type } = req.query;
+
+    if (!type || !PROVIDER_CONFIG[type]) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or unsupported provider type'
+      });
+    }
+
+    const authConfig = PROVIDER_CONFIG[type];
+    const oauth = new authConfig.authClass(authConfig.getConfig());
+
+    // Generate state for CSRF protection
+    const state = authConfig.authClass.generateState();
+
+    // Store setup intent in session
+    if (!req.session.sourceSetupStates) {
+      req.session.sourceSetupStates = {};
+    }
+    req.session.sourceSetupStates[state] = {
+      type,
+      timestamp: Date.now()
+    };
+
+    // Redirect to OAuth provider
+    const authUrl = oauth.getAuthorizationUrl(state);
+    res.redirect(authUrl);
+  } catch (error) {
+    logger.error('SSO initiate error:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/sources/auth/sso/callback
+ * Handle OAuth callback and auto-save source
+ */
+router.get('/sources/auth/sso/callback', async (req, res, next) => {
+  try {
+    const { code, state } = req.query;
+
+    if (!state || !req.session.sourceSetupStates?.[state]) {
+      return res.status(400).redirect('/?error=Invalid+authorization');
+    }
+
+    const setupState = req.session.sourceSetupStates[state];
+    delete req.session.sourceSetupStates[state];
+
+    if (!code) {
+      return res.status(400).redirect('/?error=No+authorization+code');
+    }
+
+    const { type } = setupState;
+    const authConfig = PROVIDER_CONFIG[type];
+    const oauth = new authConfig.authClass(authConfig.getConfig());
+
+    // Exchange code for token
+    const tokens = await oauth.exchangeCodeForToken(code);
+    const userInfo = await oauth.getUserInfo(tokens.accessToken);
+
+    // Get active context
+    const contextId = await activeContextService.getActiveContextId();
+
+    // Create source with auto-generated name
+    const source = await sourceService.createSource({
+      name: `${type.charAt(0).toUpperCase() + type.slice(1)} (${new Date().toLocaleDateString()})`,
+      type,
+      authMethod: 'sso_entra_id',
+      enabled: true,
+      config: {}
+    }, contextId);
+
+    // Save auth
+    await dataSourceAuthService.saveSourceAuth(source.id, 'sso_entra_id', {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken || null,
+      expiresIn: tokens.expiresIn
+    }, {
+      userEmail: userInfo.email,
+      userName: userInfo.displayName
+    });
+
+    // Redirect back to settings with success
+    res.redirect('/settings?tab=data-sources&success=Source+connected');
+  } catch (error) {
+    logger.error('SSO callback error:', error);
+    res.redirect('/?error=Authentication+failed');
+  }
+});
 
 /**
  * GET /api/sources/:sourceId/auth/status

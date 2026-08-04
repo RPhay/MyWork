@@ -61,6 +61,7 @@ const config = {
     name: process.env.APP_NAME || 'MyWork',
     port: parseInt(process.env.APP_PORT || '3000', 10),
     env: process.env.NODE_ENV || 'development',
+    url: process.env.APP_URL || 'http://localhost:3000',
   },
   database: {
     type: process.env.DB_TYPE || 'mysql',
@@ -96,6 +97,13 @@ const config = {
     maxRecords: parseInt(process.env.EXPORT_MAX_RECORDS || '10000', 10),
     tempDir: process.env.EXPORT_TEMP_DIR || './tmp/exports',
     logoPath: process.env.PDF_LOGO_PATH || './public/images/logo.png',
+  },
+  oauth: {
+    microsoft: {
+      tenantId: process.env.OAUTH_MICROSOFT_TENANT_ID || 'common',
+      clientId: process.env.OAUTH_MICROSOFT_CLIENT_ID,
+      clientSecret: process.env.OAUTH_MICROSOFT_CLIENT_SECRET,
+    },
   },
 };
 
