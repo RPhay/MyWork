@@ -85,13 +85,12 @@ function selectAuthMethod(authMethod) {
     const authModalEl = document.getElementById('sourceAuthModal');
 
     if (authMethod === 'sso') {
-      // For SSO, redirect to Teams/Outlook login immediately
+      // For SSO, open login in a popup window (not redirecting the entire app)
       const authModal = bootstrap.Modal.getInstance(authModalEl);
       if (authModal) {
         authModal.hide();
       }
-      // Redirect to OAuth login for this source type
-      window.location.href = `/api/sources/auth/sso/initiate?type=${currentSourceType}`;
+      openSsoLoginPopup();
     } else {
       // For credentials, show the credentials form
       const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
@@ -110,6 +109,35 @@ function selectAuthMethod(authMethod) {
   } catch (error) {
     console.error('Error in selectAuthMethod:', error);
   }
+}
+
+function openSsoLoginPopup() {
+  const width = 600;
+  const height = 700;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
+
+  // Open popup for Teams/Outlook login
+  const popupWindow = window.open(
+    `/api/sources/auth/sso/initiate?type=${currentSourceType}`,
+    `${currentSourceType}-sso-login`,
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes`
+  );
+
+  if (!popupWindow) {
+    app.notify('Popup blocked - please allow popups and try again', 'warning');
+    return;
+  }
+
+  // Poll for popup close
+  const checkInterval = setInterval(() => {
+    if (popupWindow.closed) {
+      clearInterval(checkInterval);
+      // Popup closed, reload sources to show new connection
+      app.notify('Connection complete!', 'success');
+      loadSources();
+    }
+  }, 500);
 }
 
 
