@@ -84,18 +84,27 @@ function selectAuthMethod(authMethod) {
   try {
     const authModalEl = document.getElementById('sourceAuthModal');
 
-    // For both SSO and credentials, show the credentials form
-    // (SSO without OAuth config just uses credentials-based auth)
-    const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
-    if (authModalEl && credentialsModalEl) {
+    if (authMethod === 'sso') {
+      // For SSO, redirect to Teams/Outlook login immediately
       const authModal = bootstrap.Modal.getInstance(authModalEl);
       if (authModal) {
         authModal.hide();
-        setTimeout(() => {
-          openAuthCredentialsForm();
-          const credentialsModal = new bootstrap.Modal(credentialsModalEl);
-          credentialsModal.show();
-        }, 300);
+      }
+      // Redirect to OAuth login for this source type
+      window.location.href = `/api/sources/auth/sso/initiate?type=${currentSourceType}`;
+    } else {
+      // For credentials, show the credentials form
+      const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
+      if (authModalEl && credentialsModalEl) {
+        const authModal = bootstrap.Modal.getInstance(authModalEl);
+        if (authModal) {
+          authModal.hide();
+          setTimeout(() => {
+            openAuthCredentialsForm();
+            const credentialsModal = new bootstrap.Modal(credentialsModalEl);
+            credentialsModal.show();
+          }, 300);
+        }
       }
     }
   } catch (error) {
