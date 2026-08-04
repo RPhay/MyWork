@@ -35,6 +35,7 @@ const PROVIDER_CONFIG = {
 /**
  * GET /api/sources/auth/sso/initiate
  * Initiate SSO login during data source setup (redirects to OAuth provider)
+ * If OAuth not configured, redirects to credentials fallback
  */
 router.get('/sources/auth/sso/initiate', async (req, res, next) => {
   try {
@@ -48,7 +49,16 @@ router.get('/sources/auth/sso/initiate', async (req, res, next) => {
     }
 
     const authConfig = PROVIDER_CONFIG[type];
-    const oauth = new authConfig.authClass(authConfig.getConfig());
+    const oauthConfig = authConfig.getConfig();
+
+    // Check if OAuth credentials are configured
+    if (!oauthConfig.clientId || !oauthConfig.clientSecret) {
+      logger.info(`OAuth not configured for ${type}, falling back to credentials`);
+      // Redirect back to settings with message to use credentials auth instead
+      return res.redirect('/settings?tab=data-sources&notice=oauth-not-configured&type=' + type);
+    }
+
+    const oauth = new authConfig.authClass(oauthConfig);
 
     // Generate state for CSRF protection
     const state = authConfig.authClass.generateState();

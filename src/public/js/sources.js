@@ -84,7 +84,10 @@ function selectAuthMethod(authMethod) {
       if (authModal) {
         authModal.hide();
       }
+      // Show loading message
+      app.notify('Redirecting to sign in...', 'info');
       // Redirect to OAuth initiation endpoint which handles login and saves automatically
+      // If OAuth not configured, it will redirect back with a notice to use credentials instead
       window.location.href = `/api/sources/auth/sso/initiate?type=${currentSourceType}`;
     } else {
       // For credentials, show the credentials form
@@ -279,7 +282,8 @@ async function saveAuth() {
     const result = await response.json();
     if (result.success) {
       app.notify('Source saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('sourceAuthCredentialsModal')).hide();
+      const modal = bootstrap.Modal.getInstance(document.getElementById('sourceAuthCredentialsModal'));
+      if (modal) modal.hide();
       loadSources();
     } else {
       app.notify('Error: ' + result.message, 'danger');
