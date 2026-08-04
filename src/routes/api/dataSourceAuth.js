@@ -84,14 +84,14 @@ router.get('/sources/auth/sso/callback', async (req, res, next) => {
     const { code, state } = req.query;
 
     if (!state || !req.session.sourceSetupStates?.[state]) {
-      return res.send(`<html><body><p>Authorization failed. You can close this window.</p><script>window.close();</script></body></html>`);
+      return res.send(`<html><body><p>Authorization failed.</p><script>if(window.parent!==window) window.parent.location.href='/settings?tab=data-sources'; else window.close();</script></body></html>`);
     }
 
     const setupState = req.session.sourceSetupStates[state];
     delete req.session.sourceSetupStates[state];
 
     if (!code) {
-      return res.send(`<html><body><p>No authorization code. You can close this window.</p><script>window.close();</script></body></html>`);
+      return res.send(`<html><body><p>No authorization code.</p><script>if(window.parent!==window) window.parent.location.href='/settings?tab=data-sources'; else window.close();</script></body></html>`);
     }
 
     const { type } = setupState;
@@ -124,16 +124,24 @@ router.get('/sources/auth/sso/callback', async (req, res, next) => {
       userName: userInfo.displayName
     });
 
-    // Return success message and close popup
+    // Return success message
     res.send(`
       <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
           <div style="text-align: center;">
-            <h2 style="color: #28a745; margin: 0 0 10px 0;">✓ Successfully connected!</h2>
-            <p style="color: #666; margin: 0;">You can close this window.</p>
+            <h2 style="color: #28a745; margin: 0 0 10px 0;">✓ Connected!</h2>
+            <p style="color: #666; margin: 0;">Closing in 2 seconds...</p>
           </div>
           <script>
-            setTimeout(() => window.close(), 2000);
+            if(window.parent !== window) {
+              // Inside iframe - close parent modal
+              setTimeout(() => {
+                window.parent.document.querySelector('#ssoLoginModal').dispatchEvent(new Event('closeModal'));
+              }, 2000);
+            } else {
+              // Standalone window
+              setTimeout(() => window.close(), 2000);
+            }
           </script>
         </body>
       </html>
@@ -144,12 +152,17 @@ router.get('/sources/auth/sso/callback', async (req, res, next) => {
       <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
           <div style="text-align: center;">
-            <h2 style="color: #dc3545; margin: 0 0 10px 0;">✗ Connection failed</h2>
+            <h2 style="color: #dc3545; margin: 0 0 10px 0;">✗ Failed</h2>
             <p style="color: #666; margin: 0;">${error.message}</p>
-            <p style="color: #999; font-size: 0.9em; margin-top: 20px;">You can close this window.</p>
           </div>
           <script>
-            setTimeout(() => window.close(), 3000);
+            setTimeout(() => {
+              if(window.parent !== window) {
+                window.parent.location.href = '/settings?tab=data-sources&error=auth-failed';
+              } else {
+                window.close();
+              }
+            }, 3000);
           </script>
         </body>
       </html>

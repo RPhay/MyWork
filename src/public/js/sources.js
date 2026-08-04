@@ -81,63 +81,50 @@ function selectAuthMethod(authMethod) {
   console.log('selectAuthMethod called with:', authMethod);
   currentAuthMethod = authMethod;
 
-  try {
-    const authModalEl = document.getElementById('sourceAuthModal');
+  const authModalEl = document.getElementById('sourceAuthModal');
+  const authModal = bootstrap.Modal.getInstance(authModalEl);
+  if (authModal) authModal.hide();
 
-    if (authMethod === 'sso') {
-      // For SSO, open login in a popup window (not redirecting the entire app)
-      const authModal = bootstrap.Modal.getInstance(authModalEl);
-      if (authModal) {
-        authModal.hide();
-      }
-      openSsoLoginPopup();
-    } else {
-      // For credentials, show the credentials form
+  if (authMethod === 'sso') {
+    // SSO: Open Teams/Outlook login in modal
+    setTimeout(() => {
+      openSsoLoginModal();
+    }, 300);
+  } else {
+    // Credentials: Show form for username/password
+    setTimeout(() => {
+      openAuthCredentialsForm();
       const credentialsModalEl = document.getElementById('sourceAuthCredentialsModal');
-      if (authModalEl && credentialsModalEl) {
-        const authModal = bootstrap.Modal.getInstance(authModalEl);
-        if (authModal) {
-          authModal.hide();
-          setTimeout(() => {
-            openAuthCredentialsForm();
-            const credentialsModal = new bootstrap.Modal(credentialsModalEl);
-            credentialsModal.show();
-          }, 300);
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error in selectAuthMethod:', error);
+      const credentialsModal = new bootstrap.Modal(credentialsModalEl);
+      credentialsModal.show();
+    }, 300);
   }
 }
 
-function openSsoLoginPopup() {
-  const width = 600;
-  const height = 700;
-  const left = window.screenX + (window.outerWidth - width) / 2;
-  const top = window.screenY + (window.outerHeight - height) / 2;
+function openSsoLoginModal() {
+  const typeNames = {
+    'teams': 'Microsoft Teams',
+    'outlook': 'Microsoft Outlook',
+    'azure-devops': 'Azure DevOps',
+    'github-enterprise': 'GitHub Enterprise',
+    'servicenow': 'ServiceNow'
+  };
 
-  // Open popup for Teams/Outlook login
-  const popupWindow = window.open(
-    `/api/sources/auth/sso/initiate?type=${currentSourceType}`,
-    `${currentSourceType}-sso-login`,
-    `width=${width},height=${height},left=${left},top=${top},resizable=yes`
-  );
-
-  if (!popupWindow) {
-    app.notify('Popup blocked - please allow popups and try again', 'warning');
-    return;
+  const title = document.getElementById('ssoLoginTitle');
+  if (title) {
+    title.textContent = `Sign In to ${typeNames[currentSourceType] || currentSourceType}`;
   }
 
-  // Poll for popup close
-  const checkInterval = setInterval(() => {
-    if (popupWindow.closed) {
-      clearInterval(checkInterval);
-      // Popup closed, reload sources to show new connection
-      app.notify('Connection complete!', 'success');
-      loadSources();
-    }
-  }, 500);
+  const iframe = document.getElementById('ssoLoginFrame');
+  iframe.src = `/api/sources/auth/sso/initiate?type=${currentSourceType}`;
+
+  const ssoModal = new bootstrap.Modal(document.getElementById('ssoLoginModal'));
+  ssoModal.show();
+
+  // When modal is hidden, reload sources
+  document.getElementById('ssoLoginModal').addEventListener('hidden.bs.modal', function() {
+    loadSources();
+  }, { once: true });
 }
 
 
