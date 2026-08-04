@@ -59,6 +59,11 @@
           <i class="bi bi-check2-square"></i> To Dos
         </button>
       </li>
+      <li class="nav-item" role="presentation" data-tab="tasks" draggable="true">
+        <button class="nav-link" id="tasks-tab" data-tab="tasks" type="button" role="tab">
+          <i class="bi bi-list-task"></i> Tasks
+        </button>
+      </li>
       <li class="nav-item" role="presentation" data-tab="brainstorming" draggable="true">
         <button class="nav-link" id="brainstorming-tab" data-tab="brainstorming" type="button" role="tab">
           <i class="bi bi-lightbulb"></i> Brainstorming
@@ -106,6 +111,11 @@
       <!-- To Dos Tab -->
       <div id="tab-todos" class="tab-content-pane">
         <%- include('../tabs/todos.ejs') %>
+      </div>
+
+      <!-- Tasks Tab -->
+      <div id="tab-tasks" class="tab-content-pane">
+        <%- include('../tabs/tasks.ejs') %>
       </div>
 
       <!-- Brainstorming Tab -->

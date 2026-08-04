@@ -568,6 +568,31 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Create tasks table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      notes LONGTEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create task_links table (1-n links associated with tasks)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS task_links (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      task_id INT NOT NULL,
+      url VARCHAR(2048) NOT NULL,
+      title VARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `);
+
   // Create users table - identity is deliberately minimal (name only, no
   // password): logging in with a name that doesn't exist yet creates it.
   // Good enough to keep each person's contexts (and everything under them)
@@ -816,6 +841,7 @@ export async function createMysqlSchema(connection) {
     "to_dos",
     "idea_folders",
     "ideas",
+    "tasks",
   ];
   for (const table of contextTables) {
     if (!(await columnExists(connection, table, "context_id"))) {
