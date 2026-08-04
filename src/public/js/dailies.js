@@ -2236,6 +2236,67 @@ function initDailiesEventListeners() {
   });
 }
 
+async function loadDataSourcesForImport() {
+  try {
+    const response = await fetch('/api/sources');
+    if (!response.ok) return;
+    const result = await response.json();
+
+    const container = document.getElementById('dataSourcesIcons');
+    if (!container || !result.success || !result.data.length) return;
+
+    container.innerHTML = '';
+
+    const sourceIcons = {
+      'teams': { icon: 'bi-microsoft-teams', label: 'Teams', color: '#6264A7' },
+      'outlook': { icon: 'bi-envelope', label: 'Outlook', color: '#0078D4' },
+      'azure-devops': { icon: 'bi-diagram-3', label: 'Azure DevOps', color: '#0078D4' },
+      'github-enterprise': { icon: 'bi-github', label: 'GitHub', color: '#000' },
+      'servicenow': { icon: 'bi-ticket', label: 'ServiceNow', color: '#00A699' }
+    };
+
+    result.data.forEach(source => {
+      const config = sourceIcons[source.type];
+      if (!config) return;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-sm';
+      btn.style.cssText = `
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #dee2e6;
+        background: #fff;
+        color: ${config.color};
+        font-size: 18px;
+        border-radius: 4px;
+      `;
+      btn.title = `Import from ${config.label}`;
+      btn.innerHTML = `<i class="bi ${config.icon}"></i>`;
+      btn.dataset.sourceId = source.id;
+      btn.dataset.sourceType = source.type;
+      btn.onclick = (e) => {
+        e.preventDefault();
+        importFromDataSource(source.id, source.type);
+      };
+
+      container.appendChild(btn);
+    });
+  } catch (error) {
+    console.error('Error loading data sources:', error);
+  }
+}
+
+async function importFromDataSource(sourceId, sourceType) {
+  console.log('Import from source:', sourceId, sourceType);
+  // TODO: Implement import flow for this data source
+  app.notify('Import from ' + sourceType + ' coming soon!', 'info');
+}
+
 function initDailies() {
   const today = new Date().toISOString().split('T')[0];
   const dateInput = document.createElement('input');
@@ -2249,6 +2310,7 @@ function initDailies() {
   updateDateDisplay();
   loadWorkItems();
   loadPrioritiesAndGoals();
+  loadDataSourcesForImport();
 }
 
 if (document.readyState === 'loading') {
