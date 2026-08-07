@@ -437,11 +437,15 @@ function openNewFolderForm() {
 }
 
 async function saveFolder() {
-  const folderId = document.getElementById('folderId').value;
+  const folderId = document.getElementById('toDoEditorId').value;
+  const name = document.getElementById('toDoEditorFormTitle').value;
 
-  const data = {
-    name: document.getElementById('folderName').value
-  };
+  if (!name.trim()) {
+    app.notify('Folder name is required', 'danger');
+    return;
+  }
+
+  const data = { name };
 
   try {
     const url = folderId ? `/api/to-do-folders/${folderId}` : '/api/to-do-folders';
@@ -459,7 +463,6 @@ async function saveFolder() {
     const result = await response.json();
     if (result.success) {
       app.notify('Folder saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('folderModal')).hide();
       loadToDos();
     } else {
       app.notify('Error: ' + result.message, 'danger');
@@ -476,11 +479,18 @@ async function editFolder(folderId) {
     const result = await response.json();
     const folder = result.data;
 
-    document.getElementById('folderId').value = folder.id;
-    document.getElementById('folderName').value = folder.name;
+    document.getElementById('toDoEditorId').value = folder.id;
+    document.getElementById('toDoEditorType').value = 'folder';
+    document.getElementById('toDoEditorFormTitle').value = folder.name;
+    document.getElementById('toDoEditorNotes').value = '';
+    document.getElementById('todoEditorTitle').textContent = folder.name;
+    document.getElementById('toDoEditorItemsList').innerHTML = '';
+    document.getElementById('toDoEditorLinksList').innerHTML = '';
 
-    const modal = new bootstrap.Modal(document.getElementById('folderModal'));
-    modal.show();
+    // Show split-pane editor
+    if (window.todoSplitPane) {
+      window.todoSplitPane.showRightPane();
+    }
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error loading folder', 'danger');
@@ -830,7 +840,12 @@ function initToDosEventListeners() {
   const closeEditorBtn = document.getElementById('closeToDoEditorBtn');
   if (saveEditorBtn) {
     saveEditorBtn.addEventListener('click', async () => {
-      await saveToDo();
+      const type = document.getElementById('toDoEditorType').value;
+      if (type === 'folder') {
+        await saveFolder();
+      } else {
+        await saveToDo();
+      }
       closeToDoEditor();
     });
   }
@@ -1012,6 +1027,18 @@ function initToDosEventListeners() {
       else if (action === 'delete-folder') deleteFolder(id);
       else if (action === 'toggle-expand') toggleFolderNode(actionBtn.closest('.todo-folder-node'));
       return;
+    }
+
+    // Single-click on todo row to open editor
+    const todoRow = e.target.closest('.todo-row');
+    if (todoRow && !e.target.closest('.todo-actions')) {
+      editToDo(todoRow.dataset.todoId);
+    }
+
+    // Single-click on folder header to open editor
+    const folderHeader = e.target.closest('.todo-folder-header');
+    if (folderHeader && !e.target.closest('[data-action]')) {
+      editFolder(folderHeader.closest('.todo-folder-node').dataset.folderId);
     }
   });
 
