@@ -76,16 +76,20 @@ function renderPriorityNode(priority, byParent, depth) {
 
 function renderPrioritiesList(priorities) {
   const container = document.getElementById('prioritiesList');
+  console.log('[Priorities] renderPrioritiesList called with', priorities.length, 'priorities');
 
   if (!priorities || priorities.length === 0) {
+    console.log('[Priorities] No priorities, showing empty message');
     container.innerHTML = '<p class="text-center text-muted">No projects yet</p>';
     return;
   }
 
   const byParent = app.groupByParent(priorities);
   const topLevel = byParent.get(null) || [];
+  console.log('[Priorities] Top-level priorities:', topLevel.length);
 
   if (topLevel.length === 0) {
+    console.log('[Priorities] No top-level priorities, showing empty message');
     container.innerHTML = '<p class="text-center text-muted">No projects yet</p>';
     return;
   }
@@ -95,28 +99,39 @@ function renderPrioritiesList(priorities) {
 
 async function loadPriorities() {
   const container = document.getElementById('prioritiesList');
+  if (!container) {
+    console.error('[Priorities] Container prioritiesList not found');
+    return;
+  }
   container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
+  console.log('[Priorities] loadPriorities started, fetching data...');
 
   try {
     // Load projects
     const prioResponse = await fetch('/api/priorities');
     if (!prioResponse.ok) throw new Error(`HTTP ${prioResponse.status}`);
     const prioResult = await prioResponse.json();
+    console.log('[Priorities] Loaded priorities:', prioResult.data?.length, 'success:', prioResult.success);
 
     // Load todos
     const todoResponse = await fetch('/api/to-dos');
     if (!todoResponse.ok) throw new Error(`HTTP ${todoResponse.status}`);
     const todoResult = await todoResponse.json();
+    console.log('[Priorities] Loaded todos:', todoResult.data?.length, 'success:', todoResult.success);
 
     if (prioResult.success && todoResult.success) {
       allPriorities = prioResult.data;
       allToDos = todoResult.data || [];
+      console.log('[Priorities] About to render, allPriorities length:', allPriorities.length);
       renderPrioritiesList(allPriorities);
+      console.log('[Priorities] Rendering complete');
+      loadPriorityRightPanel();
     } else {
+      console.error('[Priorities] API returned non-success: prioResult.success=', prioResult.success, 'todoResult.success=', todoResult.success);
       container.innerHTML = '<p class="text-center text-danger">Error loading projects</p>';
     }
   } catch (error) {
-    console.error('Error loading priorities:', error);
+    console.error('[Priorities] Error loading priorities:', error);
     container.innerHTML = '<p class="text-center text-danger">Error loading projects</p>';
   }
 }
