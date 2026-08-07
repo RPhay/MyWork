@@ -521,8 +521,6 @@ function initAreas() {
   // Initialize split pane for side-panel editing
   if (document.getElementById('areaSplitPane')) {
     window.areaSplitPane = new SplitPane('areaSplitPane', 'areaListPane', 'areaDivider', 'areaEditorPane', 66.66);
-    // Start with editor hidden
-    window.areaSplitPane.hideRightPane();
   }
 
   initAreasEventListeners();

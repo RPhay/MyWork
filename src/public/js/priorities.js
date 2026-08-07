@@ -817,8 +817,6 @@ function initPriorities() {
   // Initialize split pane for side-panel editing
   if (document.getElementById('prioritySplitPane')) {
     window.prioritySplitPane = new SplitPane('prioritySplitPane', 'priorityListPane', 'priorityDivider', 'priorityEditorPane', 66.66);
-    // Start with editor hidden
-    window.prioritySplitPane.hideRightPane();
   }
 
   // Setup drawer toggle for associate items

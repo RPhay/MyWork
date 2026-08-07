@@ -2555,8 +2555,6 @@ function initDailies() {
 
   // Setup inner split-pane (Work Items | Editor)
   dailiesSplitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
-  // Start with editor hidden
-  dailiesSplitPane.hideRightPane();
 
   // Setup drawer toggle for associate items
   const associateToggle = document.getElementById("dailiesAssociateItemsToggle");

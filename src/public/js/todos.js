@@ -1061,8 +1061,6 @@ function initToDos() {
   // Initialize split pane for side-panel editing
   if (document.getElementById('todoSplitPane') && !window.todoSplitPane) {
     window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
-    // Start with editor hidden
-    window.todoSplitPane.hideRightPane();
   }
 
   initToDosEventListeners();

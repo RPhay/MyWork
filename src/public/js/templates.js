@@ -908,8 +908,6 @@ function initTemplates() {
 
   // Setup split-pane
   templatesSplitPane = new SplitPane("templatesSplitPane", "templatesLeftPane", "templatesDivider", "templateEditorPane", 66.66);
-  // Start with editor hidden
-  templatesSplitPane.hideRightPane();
 
   // Setup drawer toggle for associate items
   const associateToggle = document.getElementById("templatesAssociateItemsToggle");
