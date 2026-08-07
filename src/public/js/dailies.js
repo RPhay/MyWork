@@ -2558,19 +2558,22 @@ function initDailies() {
   const associatePanel = document.getElementById("dailiesAssociateItemsPanel");
 
   const savedState = localStorage.getItem("dailiesDrawerOpen");
-  const isOpen = savedState !== "false"; // default to open
+  const isOpen = savedState === "true"; // default to closed
 
-  if (!isOpen && associatePanel) {
-    associatePanel.classList.remove("open");
-  } else if (isOpen && associatePanel) {
-    associatePanel.classList.add("open");
+  if (isOpen && associatePanel) {
+    associatePanel.style.left = "0";
   }
 
   associateToggle?.addEventListener("click", () => {
     if (associatePanel) {
-      associatePanel.classList.toggle("open");
-      const isNowOpen = associatePanel.classList.contains("open");
-      localStorage.setItem("dailiesDrawerOpen", isNowOpen);
+      const isCurrentlyOpen = associatePanel.style.left === "0px" || associatePanel.style.left === "0";
+      if (isCurrentlyOpen) {
+        associatePanel.style.left = "-220px";
+        localStorage.setItem("dailiesDrawerOpen", "false");
+      } else {
+        associatePanel.style.left = "0";
+        localStorage.setItem("dailiesDrawerOpen", "true");
+      }
     }
   });
 

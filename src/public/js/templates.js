@@ -877,19 +877,22 @@ function initTemplates() {
   const associatePanel = document.getElementById("templatesAssociateItemsPanel");
 
   const savedState = localStorage.getItem("templatesDrawerOpen");
-  const isOpen = savedState !== "false"; // default to open
+  const isOpen = savedState === "true"; // default to closed
 
-  if (!isOpen && associatePanel) {
-    associatePanel.classList.remove("open");
-  } else if (isOpen && associatePanel) {
-    associatePanel.classList.add("open");
+  if (isOpen && associatePanel) {
+    associatePanel.style.left = "0";
   }
 
   associateToggle?.addEventListener("click", () => {
     if (associatePanel) {
-      associatePanel.classList.toggle("open");
-      const isNowOpen = associatePanel.classList.contains("open");
-      localStorage.setItem("templatesDrawerOpen", isNowOpen);
+      const isCurrentlyOpen = associatePanel.style.left === "0px" || associatePanel.style.left === "0";
+      if (isCurrentlyOpen) {
+        associatePanel.style.left = "-220px";
+        localStorage.setItem("templatesDrawerOpen", "false");
+      } else {
+        associatePanel.style.left = "0";
+        localStorage.setItem("templatesDrawerOpen", "true");
+      }
     }
   });
 
