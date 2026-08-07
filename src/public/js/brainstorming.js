@@ -975,7 +975,6 @@ function initBrainstorming() {
   // Initialize split pane for side-panel editing
   if (document.getElementById('ideaSplitPane')) {
     window.ideaSplitPane = new SplitPane('ideaSplitPane', 'ideaListPane', 'ideaDivider', 'ideaEditorPane', 66.66);
-    window.ideaSplitPane.hideRightPane();
   }
 
   initBrainstormingEventListeners();
