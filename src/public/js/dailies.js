@@ -3,11 +3,6 @@ let calendarViewMonth; // 0-indexed
 let expandedWorkItems = new Set();
 let currentWorkItems = [];
 
-// Tracks what's currently being dragged (dataTransfer values aren't readable
-// during dragover, only at drop, so this mirrors 'type' for dragover-time zone
-// calculations). Set at dragstart, cleared at dragend.
-let currentDragType = null;
-
 const ASSOCIATION_PATHS = {
   priority: "priorities",
   goal: "goals",

@@ -59,11 +59,12 @@
       "Bash(curl -s 'http://localhost:3000/settings?tab=contexts')",
       "Bash(curl -s 'http://localhost:3000/api/system-database')",
       "Bash(mysql *)",
-      "Bash(git fetch *)",
-      "Bash(git rev-list *)",
-      "Bash(git stash *)",
       "Bash(git pull *)",
-      "Bash(git apply *)"
+      "Bash(git stash *)",
+      "Bash(pkill -f \"node.*server.js\")",
+      "Bash(sed -i 's/^export async function/async function/g' /Users/aslynn/git/github/MyWork/src/public/js/dataSourceAuth.js)",
+      "Bash(sed -i 's/^export function/function/g' /Users/aslynn/git/github/MyWork/src/public/js/dataSourceAuth.js)",
+      "Bash(sed -i 's/^export default/\\\\/\\\\/ export default/g' /Users/aslynn/git/github/MyWork/src/public/js/dataSourceAuth.js)"
     ]
   }
 }

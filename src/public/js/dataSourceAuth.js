@@ -9,7 +9,7 @@ let dataSourceAuthSessions = {};
  * Check if a data source has valid authentication
  * If not, prompt for auth before proceeding
  */
-export async function ensureSourceAuth(sourceId) {
+async function ensureSourceAuth(sourceId) {
   try {
     // Check if we have cached auth for this source in session
     if (dataSourceAuthSessions[sourceId]) {
@@ -43,7 +43,7 @@ export async function ensureSourceAuth(sourceId) {
 /**
  * Prompt user to authenticate to a data source
  */
-export async function promptForSourceAuth(sourceId) {
+async function promptForSourceAuth(sourceId) {
   return new Promise((resolve, reject) => {
     // Create modal for auth selection
     const modalHtml = `
@@ -94,7 +94,7 @@ export async function promptForSourceAuth(sourceId) {
 /**
  * Initiate SSO login for data source
  */
-export async function loginWithSSO(sourceId) {
+async function loginWithSSO(sourceId) {
   try {
     // Get current context
     const contextId = document.getElementById('contextSwitcherBtn')?.dataset.contextId;
@@ -129,7 +129,7 @@ export async function loginWithSSO(sourceId) {
 /**
  * Show credentials login form
  */
-export function loginWithCredentials(sourceId) {
+function loginWithCredentials(sourceId) {
   const modalHtml = `
     <div class="modal fade" id="credentialsModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
@@ -175,7 +175,7 @@ export function loginWithCredentials(sourceId) {
 /**
  * Save credentials and authenticate
  */
-export async function saveCredentials(sourceId) {
+async function saveCredentials(sourceId) {
   try {
     const username = document.getElementById('credUsername').value;
     const password = document.getElementById('credPassword').value;
@@ -217,14 +217,6 @@ export async function saveCredentials(sourceId) {
 
 // Export to window for onclick handlers
 window.DSAuth = {
-  ensureSourceAuth,
-  promptForSourceAuth,
-  loginWithSSO,
-  loginWithCredentials,
-  saveCredentials
-};
-
-export default {
   ensureSourceAuth,
   promptForSourceAuth,
   loginWithSSO,
