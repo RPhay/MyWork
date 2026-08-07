@@ -593,6 +593,34 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Create tickets table (issue/ticket tracking with fixed categories: ServiceNow, Azure DevOps, Other)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS tickets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      notes LONGTEXT,
+      ticket_type VARCHAR(50) NOT NULL DEFAULT 'Other' COMMENT 'ServiceNow, Azure DevOps, or Other',
+      context_id INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (context_id) REFERENCES contexts(id)
+    )
+  `);
+
+  // Create ticket_links table (1-n links associated with tickets)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS ticket_links (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      ticket_id INT NOT NULL,
+      url VARCHAR(2048) NOT NULL,
+      title VARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    )
+  `);
+
   // Create users table - identity is deliberately minimal (name only, no
   // password): logging in with a name that doesn't exist yet creates it.
   // Good enough to keep each person's contexts (and everything under them)
@@ -842,6 +870,7 @@ export async function createMysqlSchema(connection) {
     "idea_folders",
     "ideas",
     "tasks",
+    "tickets",
   ];
   for (const table of contextTables) {
     if (!(await columnExists(connection, table, "context_id"))) {

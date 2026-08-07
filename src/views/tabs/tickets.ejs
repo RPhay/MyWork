@@ -1,0 +1,225 @@
+<div class="split-pane-container" id="ticketSplitPane">
+  <!-- Left Pane -->
+  <div class="split-pane-left" id="ticketListPane">
+    <div class="row mb-2">
+      <div class="col-md-12 text-end">
+        <button class="btn btn-primary" id="addTicketBtn" data-bs-toggle="modal" data-bs-target="#ticketModal">
+          + Add Ticket
+        </button>
+      </div>
+    </div>
+
+    <p class="text-muted small mb-2">Right-click a ticket type to add a ticket.</p>
+
+    <div id="ticketsList">
+      <p class="text-center text-muted">No tickets yet</p>
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div class="split-pane-divider" id="ticketDivider"></div>
+
+  <!-- Right Pane (Editor) -->
+  <div class="split-pane-right hidden" id="ticketEditorPane">
+    <div class="split-pane-editor">
+      <div class="split-pane-editor-title" id="ticketEditorTitle">Select a ticket to edit</div>
+      <form id="ticketEditorForm">
+        <input type="hidden" id="ticketEditorId" name="ticketId">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <div class="mb-3">
+          <label for="ticketEditorFormTitle" class="form-label">Title *</label>
+          <input type="text" class="form-control" id="ticketEditorFormTitle" name="title" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="ticketEditorNotes" class="form-label">Notes</label>
+          <textarea class="form-control" id="ticketEditorNotes" name="notes" rows="4"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="ticketEditorType" class="form-label">Type</label>
+          <select class="form-select" id="ticketEditorType" name="ticket_type">
+            <option value="ServiceNow">ServiceNow</option>
+            <option value="Azure DevOps">Azure DevOps</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Link</label>
+          <div id="ticketEditorLinksList" class="mb-2"></div>
+          <div class="input-group input-group-sm">
+            <input type="url" class="form-control" id="ticketEditorLinkUrl" placeholder="https://example.com">
+            <input type="text" class="form-control" id="ticketEditorLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+            <button type="button" class="btn btn-outline-secondary" id="ticketEditorAddLinkBtn">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary" id="saveTicketEditorBtn">Save</button>
+          <button type="button" class="btn btn-secondary" id="closeTicketEditorBtn">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Ticket Context Menu -->
+<div id="ticketContextMenu" class="context-menu d-none">
+  <button type="button" class="context-menu-item" data-menu-action="add-ticket"><i class="bi bi-plus-lg"></i> Add Ticket</button>
+</div>
+
+<!-- Ticket Modal -->
+<div class="modal fade" id="ticketModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Ticket Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="ticketForm">
+          <input type="hidden" id="ticketId" name="ticketId">
+          <input type="hidden" id="ticketPresetType" name="ticketPresetType">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="ticketTitle" class="form-label">Title *</label>
+            <input type="text" class="form-control" id="ticketTitle" name="title" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="ticketNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="ticketNotes" name="notes" rows="4"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="ticketType" class="form-label">Type</label>
+            <select class="form-select" id="ticketType" name="ticket_type">
+              <option value="ServiceNow">ServiceNow</option>
+              <option value="Azure DevOps">Azure DevOps</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Link</label>
+            <div id="ticketLinksList" class="mb-2"></div>
+            <div class="input-group input-group-sm">
+              <input type="url" class="form-control" id="ticketLinkUrl" placeholder="https://example.com">
+              <input type="text" class="form-control" id="ticketLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+              <button type="button" class="btn btn-outline-secondary" id="addTicketLinkBtn">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveTicketBtn">Save Ticket</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ticket-group {
+    margin-bottom: 1rem;
+  }
+
+  .ticket-group-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    cursor: context-menu;
+    user-select: none;
+  }
+
+  .ticket-group-header:hover {
+    background: #e9ecef;
+  }
+
+  .ticket-group-header.service-now {
+    border-left: 4px solid #1e90ff;
+  }
+
+  .ticket-group-header.azure-devops {
+    border-left: 4px solid #0078d4;
+  }
+
+  .ticket-group-header.other {
+    border-left: 4px solid #6c757d;
+  }
+
+  .ticket-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 80px;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
+
+  .ticket-row:hover {
+    background: #f8f9fa;
+  }
+
+  .ticket-row.servicenow {
+    border-left: 3px solid #1e90ff;
+  }
+
+  .ticket-row.azure-devops {
+    border-left: 3px solid #0078d4;
+  }
+
+  .ticket-row.other {
+    border-left: 3px solid #6c757d;
+  }
+
+  .ticket-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ticket-notes {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+    color: #666;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .ticket-group-header {
+      background: #2a2a2a;
+    }
+
+    .ticket-group-header:hover {
+      background: #3a3a3a;
+    }
+
+    .ticket-row:hover {
+      background: #2a2a2a;
+    }
+
+    .ticket-notes {
+      color: #999;
+    }
+  }
+</style>
+
+<script src="/js/linksHelper.js"></script>
+<script src="/js/tickets.js"></script>

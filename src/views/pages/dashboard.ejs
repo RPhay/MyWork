@@ -69,6 +69,11 @@
           <i class="bi bi-lightbulb"></i> Brainstorming
         </button>
       </li>
+      <li class="nav-item" role="presentation" data-tab="tickets" draggable="true">
+        <button class="nav-link" id="tickets-tab" data-tab="tickets" type="button" role="tab">
+          <i class="bi bi-ticket"></i> Tickets
+        </button>
+      </li>
       <li class="nav-item" role="presentation" data-tab="reporting" draggable="true">
         <button class="nav-link" id="reporting-tab" data-tab="reporting" type="button" role="tab">
           <i class="bi bi-bar-chart-line"></i> Reporting
@@ -121,6 +126,11 @@
       <!-- Brainstorming Tab -->
       <div id="tab-brainstorming" class="tab-content-pane">
         <%- include('../tabs/brainstorming.ejs') %>
+      </div>
+
+      <!-- Tickets Tab -->
+      <div id="tab-tickets" class="tab-content-pane">
+        <%- include('../tabs/tickets.ejs') %>
       </div>
 
       <!-- Reporting Tab -->

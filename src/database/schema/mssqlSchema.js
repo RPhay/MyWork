@@ -642,6 +642,41 @@ export async function createMssqlSchema(pool) {
 
   await createTableIfNotExists(
     pool,
+    "tickets",
+    `
+    CREATE TABLE [MyWork].[tickets] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      title NVARCHAR(255) NOT NULL,
+      notes NVARCHAR(MAX),
+      ticket_type NVARCHAR(50) DEFAULT 'Other',
+      context_id INT,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_tickets_context FOREIGN KEY (context_id) REFERENCES [MyWork].[contexts](id)
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "tickets");
+
+  await createTableIfNotExists(
+    pool,
+    "ticket_links",
+    `
+    CREATE TABLE [MyWork].[ticket_links] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      ticket_id INT NOT NULL,
+      url NVARCHAR(2048) NOT NULL,
+      title NVARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_ticket_links_ticket FOREIGN KEY (ticket_id) REFERENCES [MyWork].[tickets](id) ON DELETE CASCADE
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
     "context_folders",
     `
     CREATE TABLE [MyWork].[context_folders] (
@@ -833,6 +868,7 @@ export async function createMssqlSchema(pool) {
     "idea_folders",
     "ideas",
     "tasks",
+    "tickets",
   ];
   for (const table of contextTables) {
     if (!(await columnExists(pool, table, "context_id"))) {
