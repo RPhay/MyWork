@@ -48,22 +48,7 @@ router.get('/schema/check', async (req, res) => {
   }
 });
 
-// Create a specific table in system database schema
-router.post('/schema/create-table', async (req, res) => {
-  try {
-    const { tableName } = req.body;
-    if (!tableName) {
-      return res.status(400).json({ success: false, message: 'Table name is required' });
-    }
-    const result = await systemDatabaseService.createSystemDbTable(tableName);
-    res.json({ success: true, message: `Table ${tableName} created`, data: result });
-  } catch (error) {
-    logger.error('Error creating system database table:', error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message });
-  }
-});
-
-// Check and update system database schema (legacy endpoint)
+// Update system database schema (reconcile missing tables/columns/indexes)
 router.post('/schema/update', async (req, res) => {
   try {
     const result = await systemDatabaseService.updateSystemDbSchema();

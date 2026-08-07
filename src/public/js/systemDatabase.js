@@ -93,6 +93,9 @@ function showSystemDbConfigured(dbType, config) {
           <button type="button" class="btn btn-sm btn-primary me-2" id="checkSystemDbSchemaBtn">
             <i class="bi bi-arrow-repeat"></i> Check Schema
           </button>
+          <button type="button" class="btn btn-sm btn-success me-2" id="fixSystemDbSchemaBtn">
+            <i class="bi bi-wrench"></i> Fix Schema
+          </button>
           <button type="button" class="btn btn-sm btn-danger" id="removeSystemDbBtn">
             <i class="bi bi-trash"></i> Remove
           </button>
@@ -106,6 +109,7 @@ function showSystemDbConfigured(dbType, config) {
     showSystemDbEditForm(dbType, config);
   });
   document.getElementById("checkSystemDbSchemaBtn").addEventListener("click", checkSystemDbSchema);
+  document.getElementById("fixSystemDbSchemaBtn").addEventListener("click", fixSystemDbSchema);
   document.getElementById("removeSystemDbBtn").addEventListener("click", removeSystemDbConfig);
 }
 
@@ -327,29 +331,26 @@ async function checkSystemDbSchema() {
     } else {
       let html = `
         <div class="alert alert-warning py-2 px-3 small">
-          <i class="bi bi-exclamation-triangle"></i> Found ${missingTables.length} missing table(s). Click "Create" to add them individually:
+          <i class="bi bi-exclamation-triangle"></i> Found ${missingTables.length} missing table(s):
         </div>
         <div class="list-group small mt-2">
       `;
 
       missingTables.forEach(tableName => {
         html += `
-          <div class="list-group-item d-flex justify-content-between align-items-center">
-            <span><code>${app.escapeHtml(tableName)}</code></span>
-            <button type="button" class="btn btn-sm btn-success create-table-btn" data-table="${app.escapeHtml(tableName)}">
-              <i class="bi bi-plus-circle"></i> Create
-            </button>
+          <div class="list-group-item">
+            <code>${app.escapeHtml(tableName)}</code>
           </div>
         `;
       });
 
-      html += `</div>`;
+      html += `
+        </div>
+        <div class="mt-2 small text-muted">
+          Click "Fix Schema" to create all missing tables at once.
+        </div>
+      `;
       statusEl.innerHTML = html;
-
-      // Add event listeners to create buttons
-      statusEl.querySelectorAll('.create-table-btn').forEach(btn => {
-        btn.addEventListener('click', () => createTable(btn.dataset.table));
-      });
     }
   } catch (error) {
     console.error("Error checking schema:", error);
@@ -364,31 +365,53 @@ async function checkSystemDbSchema() {
   }
 }
 
-async function createTable(tableName) {
+async function fixSystemDbSchema() {
+  const btn = document.getElementById("fixSystemDbSchemaBtn");
   const statusEl = document.getElementById("systemDbSchemaStatus");
 
+  btn.disabled = true;
+  statusEl.innerHTML = '<div class="alert alert-info py-2 px-3 small"><i class="bi bi-hourglass-split"></i> Fixing schema...</div>';
+
   try {
-    const response = await fetch(`/api/system-database/schema/create-table`, {
+    const response = await fetch('/api/system-database/schema/update', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': window.APP_CONFIG?.csrfToken,
       },
-      body: JSON.stringify({ tableName }),
     });
 
     const result = await response.json();
 
-    if (result.success) {
-      app.notify(`Table ${tableName} created successfully`, "success");
-      // Re-run the check to update the list
-      await checkSystemDbSchema();
-    } else {
-      app.notify(`Error creating ${tableName}: ${result.message}`, "danger");
+    if (!result.success) {
+      statusEl.innerHTML = `
+        <div class="alert alert-danger py-2 px-3 small">
+          <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(result.message)}
+        </div>
+      `;
+      app.notify("Error: " + result.message, "danger");
+      return;
     }
+
+    statusEl.innerHTML = `
+      <div class="alert alert-success py-2 px-3 small">
+        <i class="bi bi-check-circle"></i> Schema fixed successfully
+      </div>
+    `;
+    app.notify("Schema fixed successfully", "success");
+
+    // Re-run the check to update the list and confirm all tables are now present
+    setTimeout(() => checkSystemDbSchema(), 1000);
   } catch (error) {
-    console.error(`Error creating table ${tableName}:`, error);
-    app.notify(`Error creating ${tableName}`, "danger");
+    console.error("Error fixing schema:", error);
+    statusEl.innerHTML = `
+      <div class="alert alert-danger py-2 px-3 small">
+        <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(error.message)}
+      </div>
+    `;
+    app.notify("Error fixing schema", "danger");
+  } finally {
+    btn.disabled = false;
   }
 }
 
