@@ -167,6 +167,7 @@ async function reorderGoalsOnDrop(draggedId, targetId, position) {
 
 async function loadGoalCategoryOptions() {
   const select = document.getElementById('goalCategories');
+  const editorSelect = document.getElementById('goalEditorCategories');
 
   try {
     const response = await fetch('/api/goals/categories/all');
@@ -174,7 +175,11 @@ async function loadGoalCategoryOptions() {
     const result = await response.json();
     const categories = (result.success && result.data) || [];
 
-    select.innerHTML = categories.map(c => `<option value="${c.id}">${app.escapeHtml(c.name)}</option>`).join('');
+    const optionsHtml = categories.map(c => `<option value="${c.id}">${app.escapeHtml(c.name)}</option>`).join('');
+    select.innerHTML = optionsHtml;
+    if (editorSelect) {
+      editorSelect.innerHTML = optionsHtml;
+    }
   } catch (error) {
     console.error('Error loading categories:', error);
   }
