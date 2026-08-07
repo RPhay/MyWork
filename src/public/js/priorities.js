@@ -126,6 +126,73 @@ async function loadPriorityRightPanel() {
   } catch (error) {
     console.error('Error loading goals:', error);
   }
+
+  // To Dos
+  try {
+    const response = await fetch('/api/to-dos');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const div = document.getElementById('projToDosListRight');
+
+    if (result.success && result.data.length > 0) {
+      const toDos = result.data;
+
+      // Group by folder
+      const folders = {};
+      const unfiledToDos = [];
+
+      toDos.forEach(td => {
+        if (td.folder_id) {
+          if (!folders[td.folder_id]) folders[td.folder_id] = { name: '', items: [] };
+          folders[td.folder_id].items.push(td);
+        } else {
+          unfiledToDos.push(td);
+        }
+      });
+
+      let html = '';
+
+      // Render unfiled todos
+      if (unfiledToDos.length > 0) {
+        html += '<div class="todo-group-header mb-2" data-folder-id="null" style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 4px; cursor: pointer; font-weight: 500;">Unfiled</div>';
+        html += unfiledToDos.map(td => `
+          <div class="todo-item" draggable="true" data-type="todo" data-id="${td.id}" data-name="${app.escapeHtml(td.title)}" data-folder-id="null" style="padding: 0.25rem 0.5rem; cursor: move; margin-left: 0.5rem;">
+            <small><i class="bi bi-check2-square"></i> ${app.escapeHtml(td.title)}</small>
+            <small class="text-muted float-end">→</small>
+          </div>
+        `).join('');
+      }
+
+      // Render todos in folders
+      Object.entries(folders).forEach(([folderId, folder]) => {
+        const folderObj = toDos.find(td => td.id === parseInt(folderId));
+        const folderName = folderObj ? folderObj.title : 'Folder';
+        html += `<div class="todo-group-header mb-2" data-folder-id="${folderId}" style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 4px; cursor: pointer; font-weight: 500;"><i class="bi bi-folder-check" style="transform: rotate(0deg); transition: transform 0.15s;"></i> ${app.escapeHtml(folderName)} (${folder.items.length})</div>`;
+        html += folder.items.map(td => `
+          <div class="todo-item" draggable="true" data-type="todo" data-id="${td.id}" data-name="${app.escapeHtml(td.title)}" data-folder-id="${folderId}" style="padding: 0.25rem 0.5rem; cursor: move; margin-left: 1.5rem;">
+            <small><i class="bi bi-check2-square"></i> ${app.escapeHtml(td.title)}</small>
+            <small class="text-muted float-end">→</small>
+          </div>
+        `).join('');
+      });
+
+      div.innerHTML = html || '<small class="text-muted">No to dos</small>';
+      setupDragListeners();
+
+      // Add double-click handlers for todo items
+      div.querySelectorAll('.todo-item').forEach(item => {
+        item.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          const todoId = item.dataset.id;
+          openToDoModal(todoId);
+        });
+      });
+    } else {
+      div.innerHTML = '<small class="text-muted">No to dos</small>';
+    }
+  } catch (error) {
+    console.error('Error loading todos:', error);
+  }
 }
 
 function initProjRightPanelTabs() {
@@ -161,6 +228,50 @@ async function linkCategoryOrGoalToPriority(priorityId, type, id) {
   } catch (error) {
     console.error('Error linking to project:', error);
     app.notify('Error linking to project', 'danger');
+  }
+}
+
+async function linkToDoToPriority(toDoId, priorityId) {
+  try {
+    const response = await fetch(`/api/to-dos/${toDoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ folder_id: priorityId })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('To Do associated with project', 'success');
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error linking to do to project:', error);
+    app.notify('Error linking to do to project', 'danger');
+  }
+}
+
+async function openToDoModal(toDoId) {
+  try {
+    // Try to use the global editToDo function if available (from todos.js)
+    if (window.editToDo) {
+      await window.editToDo(toDoId);
+    } else {
+      // Fallback: navigate to todos tab
+      const tabBtn = document.querySelector('[data-tab="todos"]');
+      if (tabBtn) {
+        tabBtn.click();
+        app.notify('Go to the Todos tab to edit this to do', 'info');
+      } else {
+        app.notify('Please navigate to the Todos tab to edit this to do', 'info');
+      }
+    }
+  } catch (error) {
+    console.error('Error opening to do:', error);
+    app.notify('Error opening to do', 'danger');
   }
 }
 
@@ -474,7 +585,7 @@ function initPrioritiesEventListeners() {
       return;
     }
 
-    // External chip drop (category/goal from the right panel) - associates it
+    // External chip drop (category/goal/todo from the right panel) - associates it
     // onto whichever project/sub-project row it was dropped on.
     clearDropTargets(container);
     const type = e.dataTransfer.getData('type');
@@ -482,7 +593,13 @@ function initPrioritiesEventListeners() {
     if (!type || !id || !header) return;
 
     const priorityId = header.closest('.priority-node').dataset.priorityId;
-    linkCategoryOrGoalToPriority(priorityId, type, id);
+
+    if (type === 'todo') {
+      // For todos, folder_id represents the associated project
+      linkToDoToPriority(id, priorityId);
+    } else {
+      linkCategoryOrGoalToPriority(priorityId, type, id);
+    }
   });
 
   container.addEventListener('click', (e) => {

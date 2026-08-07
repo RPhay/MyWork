@@ -8,7 +8,7 @@
       </button>
     </div>
 
-    <p class="text-muted small mb-2">Drop a project on another to make it a sub-project, between two projects to reorder it there, or onto empty space to make it top-level. Drag a category or goal from the right onto a project to associate it.</p>
+    <p class="text-muted small mb-2">Drop a project on another to make it a sub-project, between two projects to reorder it there, or onto empty space to make it top-level. Drag a category, goal, or to do from the right onto a project to associate it. Double-click a to do to edit it.</p>
 
     <div class="priority-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
       <span>Title</span>
@@ -31,6 +31,9 @@
       <li class="nav-item">
         <button class="nav-link px-1" data-panel-tab="goals" type="button">Goals</button>
       </li>
+      <li class="nav-item">
+        <button class="nav-link px-1" data-panel-tab="todos" type="button">To Dos</button>
+      </li>
     </ul>
 
     <div id="projCategoriesListRight" class="right-panel-list" data-panel="categories">
@@ -38,6 +41,9 @@
     </div>
     <div id="projGoalsListRight" class="right-panel-list d-none" data-panel="goals">
       <small class="text-muted">No goals</small>
+    </div>
+    <div id="projToDosListRight" class="right-panel-list d-none" data-panel="todos">
+      <small class="text-muted">No to dos</small>
     </div>
   </div>
 </div>
