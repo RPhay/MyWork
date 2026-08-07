@@ -8,14 +8,10 @@ const router = express.Router();
 // Get all priorities
 router.get('/', async (req, res) => {
   try {
-    console.log('[API] GET /api/priorities called');
     const contextId = await activeContextService.getActiveContextId();
-    console.log('[API] Got contextId:', contextId);
     const priorities = await priorityService.getAllPriorities(contextId);
-    console.log('[API] Got priorities:', priorities.length);
     res.json({ success: true, data: priorities });
   } catch (error) {
-    console.error('[API] Error in GET /api/priorities:', error);
     logger.error('Error fetching priorities:', error);
     res.status(500).json({ success: false, message: error.message });
   }

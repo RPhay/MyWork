@@ -76,20 +76,16 @@ function renderPriorityNode(priority, byParent, depth) {
 
 function renderPrioritiesList(priorities) {
   const container = document.getElementById('prioritiesList');
-  console.log('[Priorities] renderPrioritiesList called with', priorities.length, 'priorities');
 
   if (!priorities || priorities.length === 0) {
-    console.log('[Priorities] No priorities, showing empty message');
     container.innerHTML = '<p class="text-center text-muted">No projects yet</p>';
     return;
   }
 
   const byParent = app.groupByParent(priorities);
   const topLevel = byParent.get(null) || [];
-  console.log('[Priorities] Top-level priorities:', topLevel.length);
 
   if (topLevel.length === 0) {
-    console.log('[Priorities] No top-level priorities, showing empty message');
     container.innerHTML = '<p class="text-center text-muted">No projects yet</p>';
     return;
   }
@@ -104,34 +100,28 @@ async function loadPriorities() {
     return;
   }
   container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
-  console.log('[Priorities] loadPriorities started, fetching data...');
 
   try {
     // Load projects
     const prioResponse = await fetch('/api/priorities');
     if (!prioResponse.ok) throw new Error(`HTTP ${prioResponse.status}`);
     const prioResult = await prioResponse.json();
-    console.log('[Priorities] Loaded priorities:', prioResult.data?.length, 'success:', prioResult.success);
 
     // Load todos
     const todoResponse = await fetch('/api/to-dos');
     if (!todoResponse.ok) throw new Error(`HTTP ${todoResponse.status}`);
     const todoResult = await todoResponse.json();
-    console.log('[Priorities] Loaded todos:', todoResult.data?.length, 'success:', todoResult.success);
 
     if (prioResult.success && todoResult.success) {
       allPriorities = prioResult.data;
       allToDos = todoResult.data || [];
-      console.log('[Priorities] About to render, allPriorities length:', allPriorities.length);
       renderPrioritiesList(allPriorities);
-      console.log('[Priorities] Rendering complete');
       loadPriorityRightPanel();
     } else {
-      console.error('[Priorities] API returned non-success: prioResult.success=', prioResult.success, 'todoResult.success=', todoResult.success);
       container.innerHTML = '<p class="text-center text-danger">Error loading projects</p>';
     }
   } catch (error) {
-    console.error('[Priorities] Error loading priorities:', error);
+    console.error('Error loading priorities:', error);
     container.innerHTML = '<p class="text-center text-danger">Error loading projects</p>';
   }
 }
@@ -435,7 +425,6 @@ async function savePriority() {
 }
 
 async function editPriority(priorityId) {
-  console.log('[Priorities] editPriority called for ID:', priorityId);
   try {
     const response = await fetch(`/api/priorities/${priorityId}`);
     if (!response.ok) {
@@ -446,7 +435,6 @@ async function editPriority(priorityId) {
       throw new Error(result.message || 'Failed to load project');
     }
     const priority = result.data;
-    console.log('[Priorities] Loaded priority:', priority.title);
 
     // Populate split-pane editor
     document.getElementById('priorityEditorId').value = priority.id;
@@ -494,13 +482,10 @@ async function editPriority(priorityId) {
 
     // Show split-pane editor
     if (window.prioritySplitPane) {
-      console.log('[Priorities] Calling showRightPane()');
       window.prioritySplitPane.showRightPane();
-    } else {
-      console.warn('[Priorities] prioritySplitPane not found!');
     }
   } catch (error) {
-    console.error('[Priorities] Error loading project:', error);
+    console.error('Error loading project:', error);
     app.notify('Error loading project', 'danger');
   }
 }
@@ -761,7 +746,6 @@ function initPrioritiesEventListeners() {
     if (header && !header.closest('.todo-node')) {
       const priorityNode = header.closest('.priority-node');
       if (priorityNode && priorityNode.dataset.priorityId) {
-        console.log('[Priorities] Clicked on project:', priorityNode.dataset.priorityId);
         editPriority(priorityNode.dataset.priorityId);
       }
     }
