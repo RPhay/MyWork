@@ -211,16 +211,20 @@ async function saveTicket() {
   const useSplitPane = editorPane && !editorPane.classList.contains('hidden');
 
   let ticketId, title, notes, ticket_type;
+  let linkListSelector;
+
   if (useSplitPane) {
     ticketId = document.getElementById('ticketEditorId').value;
     title = document.getElementById('ticketEditorFormTitle').value;
     notes = document.getElementById('ticketEditorNotes').value;
     ticket_type = document.getElementById('ticketEditorType').value;
+    linkListSelector = '#ticketEditorLinksList';
   } else {
     ticketId = document.getElementById('ticketId').value;
     title = document.getElementById('ticketTitle').value;
     notes = document.getElementById('ticketNotes').value;
     ticket_type = document.getElementById('ticketType').value;
+    linkListSelector = '#ticketLinksList';
   }
 
   if (!title.trim()) {
@@ -243,6 +247,25 @@ async function saveTicket() {
 
     const result = await response.json();
     if (result.success) {
+      const newTicketId = ticketId || result.data.id;
+
+      // Save links if any exist in the form
+      const linkElements = document.querySelectorAll(`${linkListSelector} a`);
+      for (const linkEl of linkElements) {
+        const linkUrl = linkEl.href;
+        const linkTitle = linkEl.textContent;
+
+        // Only save if not already in database (check by trying to add)
+        await fetch(`/api/tickets/${newTicketId}/links`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+          },
+          body: JSON.stringify({ url: linkUrl, title: linkTitle })
+        }).catch(() => {}); // Ignore errors if link already exists
+      }
+
       app.notify(ticketId ? 'Ticket updated!' : 'Ticket created!', 'success');
       const modal = bootstrap.Modal.getInstance(document.getElementById('ticketModal'));
       if (modal) modal.hide();
@@ -402,6 +425,19 @@ function parseTicketUrl(url) {
   return null;
 }
 
+function extractTicketNumber(url, ticketType) {
+  if (ticketType === 'ServiceNow') {
+    const match = url.match(/(?:incident|change_request|problem|change|cmdb_ci_service|sys_user)\.do\?sys_id=([a-f0-9]+)|[?&]sys_id=([a-f0-9]+)/i);
+    const sysId = match ? (match[1] || match[2]) : '';
+    return `SNOW-${sysId}`.substring(0, 20);
+  } else if (ticketType === 'Azure DevOps') {
+    const match = url.match(/[?/](\d+)(?:[/?#]|$)/);
+    const workItemId = match ? match[1] : '';
+    return `ADO-${workItemId}`.substring(0, 20);
+  }
+  return url.split('/').pop() || 'Link';
+}
+
 async function createTicketFromUrl(title, ticketType, url) {
   try {
     const response = await fetch('/api/tickets', {
@@ -412,7 +448,7 @@ async function createTicketFromUrl(title, ticketType, url) {
       },
       body: JSON.stringify({
         title,
-        notes: `Imported from: ${url}`,
+        notes: '',
         ticket_type: ticketType
       })
     });
@@ -420,14 +456,15 @@ async function createTicketFromUrl(title, ticketType, url) {
     const result = await response.json();
     if (result.success) {
       const ticketId = result.data.id;
-      // Add the URL as a link
+      // Add the URL as a link with extracted ticket number as title
+      const linkTitle = extractTicketNumber(url, ticketType);
       await fetch(`/api/tickets/${ticketId}/links`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': window.APP_CONFIG?.csrfToken
         },
-        body: JSON.stringify({ url, title: 'Source' })
+        body: JSON.stringify({ url, title: linkTitle })
       });
 
       app.notify(`Ticket created: ${title}`, 'success');
