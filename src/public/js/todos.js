@@ -1151,15 +1151,8 @@ function initToDos() {
     document.body.appendChild(modal);
   }
 
-  // Initialize split pane for side-panel editing
-  if (document.getElementById('todoSplitPane') && !window.todoSplitPane) {
-    console.log('[Todos] Attempting to create SplitPane...');
-    const instance = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
-    console.log('[Todos] SplitPane instance created:', instance);
-    console.log('[Todos] Instance has showRightPane?', typeof instance.showRightPane);
-    window.todoSplitPane = instance;
-    console.log('[Todos] window.todoSplitPane assigned:', window.todoSplitPane);
-  }
+  // Setup split-pane
+  window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
 
   initToDosEventListeners();
   loadToDos();
