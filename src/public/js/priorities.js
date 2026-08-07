@@ -424,6 +424,38 @@ async function savePriority() {
   }
 }
 
+async function editToDo(toDoId) {
+  try {
+    const response = await fetch(`/api/to-dos/${toDoId}`);
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+    const result = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to load to do');
+    }
+    const toDo = result.data;
+
+    // Populate split-pane editor
+    document.getElementById('priorityEditorType').value = 'todo';
+    document.getElementById('priorityEditorId').value = toDo.id;
+    document.getElementById('priorityEditorFormTitle').value = toDo.title;
+    document.getElementById('priorityEditorNotes').value = toDo.notes;
+    document.getElementById('priorityEditorTitle').textContent = toDo.title;
+
+    // Clear links (todos don't have links in this context)
+    document.getElementById('priorityEditorLinksList').innerHTML = '';
+
+    // Show split-pane editor
+    if (window.prioritySplitPane) {
+      window.prioritySplitPane.showRightPane();
+    }
+  } catch (error) {
+    console.error('Error loading to do:', error);
+    app.notify('Error loading to do', 'danger');
+  }
+}
+
 async function editPriority(priorityId) {
   try {
     const response = await fetch(`/api/priorities/${priorityId}`);
@@ -437,6 +469,7 @@ async function editPriority(priorityId) {
     const priority = result.data;
 
     // Populate split-pane editor
+    document.getElementById('priorityEditorType').value = 'priority';
     document.getElementById('priorityEditorId').value = priority.id;
     document.getElementById('priorityEditorFormTitle').value = priority.title;
     document.getElementById('priorityEditorNotes').value = priority.notes;
@@ -748,32 +781,21 @@ function initPrioritiesEventListeners() {
       return;
     }
 
-    // Click on project row to open editor
+    // Click on project or todo row to open editor
     const header = e.target.closest('.priority-node-header');
-    if (header && !header.closest('.todo-node')) {
-      const priorityNode = header.closest('.priority-node');
-      if (priorityNode && priorityNode.dataset.priorityId) {
-        editPriority(priorityNode.dataset.priorityId);
+    if (header) {
+      const todoNode = header.closest('.todo-node');
+      if (todoNode && todoNode.dataset.todoId) {
+        editToDo(todoNode.dataset.todoId);
+      } else {
+        const priorityNode = header.closest('.priority-node');
+        if (priorityNode && priorityNode.dataset.priorityId) {
+          editPriority(priorityNode.dataset.priorityId);
+        }
       }
     }
   });
 
-  container.addEventListener('dblclick', (e) => {
-    if (e.target.closest('[data-action]')) return;
-    const header = e.target.closest('.priority-node-header');
-    if (!header) return;
-
-    // Check if it's a todo node or project node
-    const todoNode = header.closest('.todo-node');
-    if (todoNode) {
-      openToDoModal(todoNode.dataset.todoId);
-    } else {
-      const priorityNode = header.closest('.priority-node');
-      if (priorityNode && priorityNode.dataset.priorityId) {
-        editPriority(priorityNode.dataset.priorityId);
-      }
-    }
-  });
 }
 
 function closePriorityEditor() {
@@ -867,7 +889,8 @@ function initPriorities() {
 
   if (savePriorityEditorBtn) {
     savePriorityEditorBtn.addEventListener('click', async () => {
-      const priorityId = document.getElementById('priorityEditorId').value;
+      const type = document.getElementById('priorityEditorType').value;
+      const id = document.getElementById('priorityEditorId').value;
       const title = document.getElementById('priorityEditorFormTitle').value;
       const notes = document.getElementById('priorityEditorNotes').value;
 
@@ -877,7 +900,8 @@ function initPriorities() {
       }
 
       try {
-        const response = await fetch(`/api/priorities/${priorityId}`, {
+        const endpoint = type === 'todo' ? `/api/to-dos/${id}` : `/api/priorities/${id}`;
+        const response = await fetch(endpoint, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -888,15 +912,18 @@ function initPriorities() {
 
         const result = await response.json();
         if (result.success) {
-          app.notify('Project updated!', 'success');
+          const msg = type === 'todo' ? 'To Do updated!' : 'Project updated!';
+          app.notify(msg, 'success');
           closePriorityEditor();
           loadPriorities();
+          loadPriorityRightPanel();
         } else {
           app.notify('Error: ' + result.message, 'danger');
         }
       } catch (error) {
-        console.error('Error saving project:', error);
-        app.notify('Error saving project', 'danger');
+        console.error('Error saving:', error);
+        const msg = type === 'todo' ? 'Error saving to do' : 'Error saving project';
+        app.notify(msg, 'danger');
       }
     });
   }
