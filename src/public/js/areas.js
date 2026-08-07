@@ -146,6 +146,44 @@ async function saveArea() {
   }
 }
 
+async function saveAreaEditor() {
+  const areaId = document.getElementById('areaEditorId').value;
+  const parentId = document.getElementById('areaEditorParentId').value;
+
+  const data = {
+    name: document.getElementById('areaEditorName').value,
+    description: document.getElementById('areaEditorDescription').value
+  };
+  if (!areaId && parentId) {
+    data.parent_id = parentId;
+  }
+
+  try {
+    const url = areaId ? `/api/areas/${areaId}` : '/api/areas';
+    const method = areaId ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Category saved!', 'success');
+      loadAreas();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error saving category', 'danger');
+  }
+}
+
 function closeAreaEditor() {
   if (window.areaSplitPane) {
     window.areaSplitPane.hideRightPane();
@@ -162,20 +200,16 @@ async function editArea(areaId) {
     const result = await response.json();
     const area = result.data;
 
-    document.getElementById('areaId').value = area.id;
-    document.getElementById('areaName').value = area.name;
-    document.getElementById('areaDescription').value = area.description || '';
-    document.getElementById('areaParentId').value = '';
-    document.getElementById('areaParentHint').classList.add('d-none');
+    document.getElementById('areaEditorId').value = area.id;
+    document.getElementById('areaEditorName').value = area.name;
+    document.getElementById('areaEditorDescription').value = area.description || '';
+    document.getElementById('areaEditorParentId').value = '';
+    document.getElementById('areaEditorParentHint').classList.add('d-none');
+    document.getElementById('areaEditorTitle').textContent = area.name;
 
-    // Show side-panel editor if split pane exists, otherwise use modal
+    // Show split-pane editor
     if (window.areaSplitPane) {
       window.areaSplitPane.showRightPane();
-      document.getElementById('areaEditorForm').style.display = 'block';
-      document.getElementById('editorTitle').textContent = area.name;
-    } else {
-      const modal = new bootstrap.Modal(document.getElementById('areaModal'));
-      modal.show();
     }
   } catch (error) {
     console.error('Error:', error);
@@ -393,7 +427,7 @@ function initAreasEventListeners() {
   const closeEditorBtn = document.getElementById('closeAreaEditorBtn');
   if (saveEditorBtn) {
     saveEditorBtn.addEventListener('click', async () => {
-      await saveArea();
+      await saveAreaEditor();
       closeAreaEditor();
     });
   }
