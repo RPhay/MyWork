@@ -10,6 +10,7 @@ import config from "../config/environment.js";
 import logger from "../utils/logger.js";
 import {
   rewriteInsertIgnoreForMssql,
+  rewriteNowForMssql,
   toNamedParams,
 } from "./mssqlTranslation.js";
 import { createMysqlSchema } from "./schema/mysqlSchema.js";
@@ -93,6 +94,7 @@ async function getPool() {
 
 async function executeMssql(sqlText, values) {
   const rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
+  rewritten.sql = rewriteNowForMssql(rewritten.sql);
   const { translatedSql, params } = toNamedParams(
     rewritten.sql,
     rewritten.values,
