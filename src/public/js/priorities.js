@@ -21,7 +21,7 @@ function renderToDoInTree(toDo, depth) {
         <span class="priority-badges"><small class="text-muted">${app.escapeHtml(toDo.notes || '')}</small></span>
         <span class="priority-badges"></span>
         <span class="priority-actions">
-          <button class="btn btn-sm btn-warning" data-action="unfile-todo" data-id="${toDo.id}" title="Unfile" aria-label="Unfile"><i class="bi bi-eject"></i></button>
+          <button class="btn btn-sm btn-danger" data-action="delete" data-id="${toDo.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
         </span>
       </div>
     </div>
@@ -336,27 +336,27 @@ async function openToDoModal(toDoId) {
   }
 }
 
-async function unfileToDoFromProject(toDoId) {
+async function deleteToDoFromProject(toDoId) {
+  if (!await app.confirm('Delete this to do?')) return;
+
   try {
     const response = await fetch(`/api/to-dos/${toDoId}`, {
-      method: 'PUT',
+      method: 'DELETE',
       headers: {
-        'Content-Type': 'application/json',
         'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ folder_id: null })
+      }
     });
     const result = await response.json();
     if (result.success) {
-      app.notify('To Do removed from project', 'success');
+      app.notify('To Do deleted', 'success');
       loadPriorities();
       loadPriorityRightPanel();
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
-    console.error('Error unfiling to do:', error);
-    app.notify('Error removing to do from project', 'danger');
+    console.error('Error deleting to do:', error);
+    app.notify('Error deleting to do', 'danger');
   }
 }
 
@@ -727,11 +727,18 @@ function initPrioritiesEventListeners() {
   });
 
   container.addEventListener('click', (e) => {
-    const actionBtn = e.target.closest('[data-action="delete"], [data-action="edit-todo"], [data-action="unfile-todo"]');
+    const actionBtn = e.target.closest('[data-action="delete"], [data-action="edit-todo"]');
     if (actionBtn) {
-      if (actionBtn.dataset.action === 'delete') deletePriority(actionBtn.dataset.id);
-      else if (actionBtn.dataset.action === 'edit-todo') openToDoModal(actionBtn.dataset.id);
-      else if (actionBtn.dataset.action === 'unfile-todo') unfileToDoFromProject(actionBtn.dataset.id);
+      if (actionBtn.dataset.action === 'delete') {
+        const isTodo = actionBtn.closest('.todo-node');
+        if (isTodo) {
+          deleteToDoFromProject(actionBtn.dataset.id);
+        } else {
+          deletePriority(actionBtn.dataset.id);
+        }
+      } else if (actionBtn.dataset.action === 'edit-todo') {
+        openToDoModal(actionBtn.dataset.id);
+      }
       return;
     }
 
