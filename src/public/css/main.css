@@ -179,6 +179,10 @@ footer {
 }
 
 /* Split Pane Layout */
+.drawer-layout {
+  overflow: hidden;
+}
+
 .split-pane-container {
   display: flex;
   height: 100%;
@@ -212,7 +216,8 @@ footer {
 }
 
 .split-pane-right.hidden {
-  display: none;
+  display: none !important;
+  flex: 0 0 0% !important;
 }
 
 .split-pane-editor {
