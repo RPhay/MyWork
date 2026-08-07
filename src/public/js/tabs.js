@@ -165,7 +165,7 @@ class TabManager {
     });
 
     // Remove active class from all buttons
-    const tabButtons = document.querySelectorAll('[data-tab]');
+    const tabButtons = document.querySelectorAll('button[data-tab]');
     tabButtons.forEach(button => {
       button.classList.remove('active');
     });
@@ -177,7 +177,7 @@ class TabManager {
     }
 
     // Add active class to button
-    const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
+    const selectedButton = document.querySelector(`button[data-tab="${tabName}"]`);
     if (selectedButton) {
       selectedButton.classList.add('active');
     }
