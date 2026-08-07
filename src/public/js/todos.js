@@ -1,8 +1,10 @@
-// Guard against multiple script loads
-if (typeof expandedFolders === 'undefined') {
-  var expandedFolders = new Set();
-  var allFolders = [];
-  var allToDos = [];
+// Store state on window to survive multiple script loads
+if (!window.todoState) {
+  window.todoState = {
+    getState().expandedFolders: new Set(),
+    getState().allFolders: [],
+    getState().allToDos: []
+  };
 }
 
 // Parse email data from drag event
@@ -81,6 +83,11 @@ async function createToDoFromEmail(emailData, folderId = null) {
   }
 }
 
+// Helper to get current state
+function getState() {
+  return window.todoState;
+}
+
 function groupToDosByFolder(toDos) {
   const byFolder = new Map();
   toDos.forEach(t => {
@@ -125,7 +132,7 @@ function renderFolderNode(folder, foldersByParent, toDosByFolder, depth) {
   const childFolders = foldersByParent.get(folder.id) || [];
   const childToDos = toDosByFolder.get(folder.id) || [];
   const hasChildren = childFolders.length > 0 || childToDos.length > 0;
-  const isExpanded = expandedFolders.has(String(folder.id));
+  const isExpanded = getState().expandedFolders.has(String(folder.id));
 
   const childrenHtml = hasChildren
     ? `<div class="todo-folder-node-children">
@@ -159,13 +166,13 @@ function renderFolderNode(folder, foldersByParent, toDosByFolder, depth) {
 function renderToDosList() {
   const container = document.getElementById('toDosList');
 
-  if (allFolders.length === 0 && allToDos.length === 0) {
+  if (getState().allFolders.length === 0 && getState().allToDos.length === 0) {
     container.innerHTML = '<p class="text-center text-muted">No to dos yet</p>';
     return;
   }
 
-  const foldersByParent = app.groupByParent(allFolders);
-  const toDosByFolder = groupToDosByFolder(allToDos);
+  const foldersByParent = app.groupByParent(getState().allFolders);
+  const toDosByFolder = groupToDosByFolder(getState().allToDos);
 
   const topFolders = foldersByParent.get(null) || [];
   const topToDos = toDosByFolder.get(null) || [];
@@ -196,9 +203,9 @@ async function loadToDos() {
     console.log('Loaded to-dos:', toDosResult.data?.length || 0);
 
     if (foldersResult.success && toDosResult.success) {
-      allFolders = foldersResult.data || [];
-      allToDos = toDosResult.data || [];
-      console.log('Rendering with', allToDos.length, 'todos');
+      getState().allFolders = foldersResult.data || [];
+      getState().allToDos = toDosResult.data || [];
+      console.log('Rendering with', getState().allToDos.length, 'todos');
       renderToDosList();
     } else {
       console.error('API response failed', foldersResult, toDosResult);
@@ -479,7 +486,7 @@ async function editFolder(folderId) {
 
 function getFolderDescendantIds(folderId) {
   const descendants = new Set();
-  const byParent = app.groupByParent(allFolders);
+  const byParent = app.groupByParent(getState().allFolders);
   const queue = [Number(folderId)];
 
   while (queue.length > 0) {
@@ -496,7 +503,7 @@ function getFolderDescendantIds(folderId) {
 }
 
 function countToDosInFolders(folderIds) {
-  return allToDos.filter(t => t.folder_id && folderIds.has(Number(t.folder_id))).length;
+  return getState().allToDos.filter(t => t.folder_id && folderIds.has(Number(t.folder_id))).length;
 }
 
 async function deleteFolder(folderId) {
@@ -536,17 +543,17 @@ async function deleteFolder(folderId) {
 
 function toggleFolderNode(nodeEl) {
   const id = String(nodeEl.dataset.folderId);
-  if (expandedFolders.has(id)) {
-    expandedFolders.delete(id);
+  if (getState().expandedFolders.has(id)) {
+    getState().expandedFolders.delete(id);
     nodeEl.classList.remove('expanded');
   } else {
-    expandedFolders.add(id);
+    getState().expandedFolders.add(id);
     nodeEl.classList.add('expanded');
   }
 }
 
 async function reparentFolder(folderId, newParentId) {
-  const folder = allFolders.find(f => String(f.id) === String(folderId));
+  const folder = getState().allFolders.find(f => String(f.id) === String(folderId));
   if (!folder) return;
 
   try {
@@ -561,7 +568,7 @@ async function reparentFolder(folderId, newParentId) {
 
     const result = await response.json();
     if (result.success) {
-      if (newParentId) expandedFolders.add(String(newParentId));
+      if (newParentId) getState().expandedFolders.add(String(newParentId));
       loadToDos();
     } else {
       app.notify('Error: ' + result.message, 'danger');
@@ -573,7 +580,7 @@ async function reparentFolder(folderId, newParentId) {
 }
 
 async function fileToDoIntoFolder(toDoId, folderId) {
-  const toDo = allToDos.find(t => String(t.id) === String(toDoId));
+  const toDo = getState().allToDos.find(t => String(t.id) === String(toDoId));
   if (!toDo) return;
 
   try {
@@ -588,7 +595,7 @@ async function fileToDoIntoFolder(toDoId, folderId) {
 
     const result = await response.json();
     if (result.success) {
-      if (folderId) expandedFolders.add(String(folderId));
+      if (folderId) getState().expandedFolders.add(String(folderId));
       loadToDos();
     } else {
       app.notify('Error: ' + result.message, 'danger');
