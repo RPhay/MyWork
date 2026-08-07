@@ -1,16 +1,16 @@
-import pool from '../database/connectionPool.js';
+import * as db from '../database/connectionPool.js';
 import { ValidationError, NotFoundError, AppError } from '../config/errors.js';
 
 const TICKET_TYPES = ['ServiceNow', 'Azure DevOps', 'Other'];
 
 export async function getTickets(contextId) {
-  const [tickets] = await pool.query(
+  const [tickets] = await db.query(
     'SELECT * FROM tickets WHERE context_id = ? ORDER BY created_at DESC',
     [contextId]
   );
 
   for (const ticket of tickets) {
-    const [links] = await pool.query(
+    const [links] = await db.query(
       'SELECT id, url, title FROM ticket_links WHERE ticket_id = ? ORDER BY order_index ASC',
       [ticket.id]
     );
@@ -21,7 +21,7 @@ export async function getTickets(contextId) {
 }
 
 export async function getTicket(ticketId, contextId) {
-  const [tickets] = await pool.query(
+  const [tickets] = await db.query(
     'SELECT * FROM tickets WHERE id = ? AND context_id = ?',
     [ticketId, contextId]
   );
@@ -31,7 +31,7 @@ export async function getTicket(ticketId, contextId) {
   }
 
   const ticket = tickets[0];
-  const [links] = await pool.query(
+  const [links] = await db.query(
     'SELECT id, url, title FROM ticket_links WHERE ticket_id = ? ORDER BY order_index ASC',
     [ticket.id]
   );
@@ -51,7 +51,7 @@ export async function createTicket(data, contextId) {
     throw new ValidationError(`Invalid ticket type: ${ticket_type}`);
   }
 
-  const [result] = await pool.query(
+  const [result] = await db.query(
     'INSERT INTO tickets (title, notes, ticket_type, context_id) VALUES (?, ?, ?, ?)',
     [title.trim(), notes || '', ticket_type, contextId]
   );
@@ -73,7 +73,7 @@ export async function updateTicket(ticketId, data, contextId) {
   // Verify ticket exists in this context
   await getTicket(ticketId, contextId);
 
-  await pool.query(
+  await db.query(
     'UPDATE tickets SET title = ?, notes = ?, ticket_type = ? WHERE id = ? AND context_id = ?',
     [title.trim(), notes || '', ticket_type, ticketId, contextId]
   );
@@ -85,7 +85,7 @@ export async function deleteTicket(ticketId, contextId) {
   // Verify ticket exists in this context
   await getTicket(ticketId, contextId);
 
-  await pool.query('DELETE FROM tickets WHERE id = ? AND context_id = ?', [ticketId, contextId]);
+  await db.query('DELETE FROM tickets WHERE id = ? AND context_id = ?', [ticketId, contextId]);
 }
 
 export async function addTicketLink(ticketId, url, title, contextId) {
@@ -97,12 +97,12 @@ export async function addTicketLink(ticketId, url, title, contextId) {
   await getTicket(ticketId, contextId);
 
   // Get the next order index
-  const [[{ maxIndex }]] = await pool.query(
+  const [[{ maxIndex }]] = await db.query(
     'SELECT COALESCE(MAX(order_index), -1) as maxIndex FROM ticket_links WHERE ticket_id = ?',
     [ticketId]
   );
 
-  const [result] = await pool.query(
+  const [result] = await db.query(
     'INSERT INTO ticket_links (ticket_id, url, title, order_index) VALUES (?, ?, ?, ?)',
     [ticketId, url.trim(), title?.trim() || '', maxIndex + 1]
   );
@@ -119,7 +119,7 @@ export async function removeTicketLink(linkId, ticketId, contextId) {
   // Verify ticket exists in this context
   await getTicket(ticketId, contextId);
 
-  const [result] = await pool.query(
+  const [result] = await db.query(
     'DELETE FROM ticket_links WHERE id = ? AND ticket_id = ?',
     [linkId, ticketId]
   );
