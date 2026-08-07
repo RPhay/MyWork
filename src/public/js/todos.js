@@ -537,7 +537,7 @@ async function editFolder(folderId) {
       document.getElementById('toDoEditorType').value = 'folder';
       document.getElementById('toDoEditorFormTitle').value = folder.name;
       document.getElementById('toDoEditorNotes').value = '';
-      document.getElementById('toDoEditorTitle').textContent = folder.name;
+      document.getElementById('todoEditorTitle').textContent = folder.name;
       document.getElementById('toDoEditorItemsList').innerHTML = '';
       document.getElementById('toDoEditorLinksList').innerHTML = '';
       window.todoSplitPane.showRightPane();
