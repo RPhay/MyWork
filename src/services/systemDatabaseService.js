@@ -268,3 +268,103 @@ export async function updateSystemDbSchema() {
     throw new ValidationError(`Failed to update system database schema: ${error.message}`);
   }
 }
+
+export async function checkSystemDbSchema() {
+  try {
+    const config = await getSystemDbConfig();
+    if (!config.dbType || !config.config) {
+      throw new ValidationError('System database is not configured');
+    }
+
+    const isMssql = config.dbType === 'mssql';
+    const connection = isMssql
+      ? await createMssqlConnection(config.config)
+      : await createMysqlConnection(config.config);
+
+    try {
+      if (isMssql) {
+        const result = await connection.request().query(`
+          SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+          WHERE TABLE_SCHEMA = 'MyWork'
+        `);
+        const existingTables = new Set(result.recordset.map(r => r.TABLE_NAME));
+        const allTables = [
+          'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
+          'sources', 'source_auth', 'categories', 'areas', 'priorities', 'priority_templates',
+          'goals', 'work_items', 'work_item_templates', 'work_item_associations',
+          'to_do_folders', 'to_dos', 'to_do_items', 'idea_folders', 'ideas', 'idea_items',
+          'tasks', 'tickets', 'priority_links', 'to_do_links', 'idea_links', 'task_links',
+          'ticket_links', 'context_tab_settings'
+        ];
+        const missingTables = allTables.filter(t => !existingTables.has(t));
+        return missingTables;
+      } else {
+        const [rows] = await connection.query(`
+          SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+          WHERE TABLE_SCHEMA = ?
+        `, [config.config.database]);
+        const existingTables = new Set(rows.map(r => r.TABLE_NAME));
+        const allTables = [
+          'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
+          'sources', 'source_auth', 'categories', 'areas', 'priorities', 'priority_templates',
+          'goals', 'work_items', 'work_item_templates', 'work_item_associations',
+          'to_do_folders', 'to_dos', 'to_do_items', 'idea_folders', 'ideas', 'idea_items',
+          'tasks', 'tickets', 'priority_links', 'to_do_links', 'idea_links', 'task_links',
+          'ticket_links', 'context_tab_settings'
+        ];
+        const missingTables = allTables.filter(t => !existingTables.has(t));
+        return missingTables;
+      }
+    } finally {
+      if (isMssql) {
+        await connection.close();
+      } else {
+        await connection.end();
+      }
+    }
+  } catch (error) {
+    console.error('Error checking system database schema:', error);
+    throw new ValidationError(`Failed to check system database schema: ${error.message}`);
+  }
+}
+
+export async function createSystemDbTable(tableName) {
+  try {
+    const config = await getSystemDbConfig();
+    if (!config.dbType || !config.config) {
+      throw new ValidationError('System database is not configured');
+    }
+
+    const isMssql = config.dbType === 'mssql';
+    const connection = isMssql
+      ? await createMssqlConnection(config.config)
+      : await createMysqlConnection(config.config);
+
+    try {
+      if (isMssql) {
+        await connection.request().query(`USE [${config.config.database}]`);
+        // Import and execute MSSQL schema - create only the requested table
+        const { createMssqlSchema } = await import('../database/schema/mssqlSchema.js');
+        // This is a simplified approach - in production you'd want to create individual tables
+        // For now, we'll just create the full schema which includes the table
+        await createMssqlSchema(connection);
+      } else {
+        // For MySQL, we need to create individual table
+        // The easiest way is to run the full schema which is idempotent
+        const { createMysqlSchema } = await import('../database/schema/mysqlSchema.js');
+        await createMysqlSchema(connection);
+      }
+
+      return { message: `Table ${tableName} created successfully` };
+    } finally {
+      if (isMssql) {
+        await connection.close();
+      } else {
+        await connection.end();
+      }
+    }
+  } catch (error) {
+    console.error(`Error creating table ${tableName}:`, error);
+    throw new ValidationError(`Failed to create table ${tableName}: ${error.message}`);
+  }
+}

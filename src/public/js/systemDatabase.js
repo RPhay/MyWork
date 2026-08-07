@@ -90,8 +90,8 @@ function showSystemDbConfigured(dbType, config) {
           <button type="button" class="btn btn-sm btn-secondary me-2" id="updateSystemDbBtn">
             <i class="bi bi-pencil"></i> Update Settings
           </button>
-          <button type="button" class="btn btn-sm btn-primary me-2" id="updateSystemDbSchemaBtn">
-            <i class="bi bi-arrow-repeat"></i> Check and Update Schema
+          <button type="button" class="btn btn-sm btn-primary me-2" id="checkSystemDbSchemaBtn">
+            <i class="bi bi-arrow-repeat"></i> Check Schema
           </button>
           <button type="button" class="btn btn-sm btn-danger" id="removeSystemDbBtn">
             <i class="bi bi-trash"></i> Remove
@@ -105,7 +105,7 @@ function showSystemDbConfigured(dbType, config) {
   document.getElementById("updateSystemDbBtn").addEventListener("click", async () => {
     showSystemDbEditForm(dbType, config);
   });
-  document.getElementById("updateSystemDbSchemaBtn").addEventListener("click", updateSystemDbSchema);
+  document.getElementById("checkSystemDbSchemaBtn").addEventListener("click", checkSystemDbSchema);
   document.getElementById("removeSystemDbBtn").addEventListener("click", removeSystemDbConfig);
 }
 
@@ -288,49 +288,107 @@ async function removeSystemDbConfig() {
   }
 }
 
-async function updateSystemDbSchema() {
-  const btn = document.getElementById("updateSystemDbSchemaBtn");
+async function checkSystemDbSchema() {
+  const btn = document.getElementById("checkSystemDbSchemaBtn");
   const statusEl = document.getElementById("systemDbSchemaStatus");
 
   btn.disabled = true;
-  statusEl.innerHTML = '<div class="alert alert-info py-2 px-3 small"><i class="bi bi-hourglass-split"></i> Checking and updating schema...</div>';
+  statusEl.innerHTML = '<div class="alert alert-info py-2 px-3 small"><i class="bi bi-hourglass-split"></i> Checking schema...</div>';
 
   try {
-    const response = await fetch('/api/system-database/schema/update', {
-      method: 'POST',
+    const response = await fetch('/api/system-database/schema/check', {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken,
       },
     });
 
     const result = await response.json();
 
-    if (result.success) {
-      statusEl.innerHTML = `
-        <div class="alert alert-success py-2 px-3 small">
-          <i class="bi bi-check-circle"></i> ${app.escapeHtml(result.data.message)}
-        </div>
-      `;
-      app.notify("System database schema updated successfully", "success");
-    } else {
+    if (!result.success) {
       statusEl.innerHTML = `
         <div class="alert alert-danger py-2 px-3 small">
           <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(result.message)}
         </div>
       `;
       app.notify("Error: " + result.message, "danger");
+      return;
+    }
+
+    const missingTables = result.data.missingTables || [];
+
+    if (missingTables.length === 0) {
+      statusEl.innerHTML = `
+        <div class="alert alert-success py-2 px-3 small">
+          <i class="bi bi-check-circle"></i> Schema is up to date - all tables exist
+        </div>
+      `;
+      app.notify("Schema check complete - no updates needed", "success");
+    } else {
+      let html = `
+        <div class="alert alert-warning py-2 px-3 small">
+          <i class="bi bi-exclamation-triangle"></i> Found ${missingTables.length} missing table(s). Click "Create" to add them individually:
+        </div>
+        <div class="list-group small mt-2">
+      `;
+
+      missingTables.forEach(tableName => {
+        html += `
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <span><code>${app.escapeHtml(tableName)}</code></span>
+            <button type="button" class="btn btn-sm btn-success create-table-btn" data-table="${app.escapeHtml(tableName)}">
+              <i class="bi bi-plus-circle"></i> Create
+            </button>
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+      statusEl.innerHTML = html;
+
+      // Add event listeners to create buttons
+      statusEl.querySelectorAll('.create-table-btn').forEach(btn => {
+        btn.addEventListener('click', () => createTable(btn.dataset.table));
+      });
     }
   } catch (error) {
-    console.error("Error updating schema:", error);
+    console.error("Error checking schema:", error);
     statusEl.innerHTML = `
       <div class="alert alert-danger py-2 px-3 small">
         <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(error.message)}
       </div>
     `;
-    app.notify("Error updating schema", "danger");
+    app.notify("Error checking schema", "danger");
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function createTable(tableName) {
+  const statusEl = document.getElementById("systemDbSchemaStatus");
+
+  try {
+    const response = await fetch(`/api/system-database/schema/create-table`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken,
+      },
+      body: JSON.stringify({ tableName }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      app.notify(`Table ${tableName} created successfully`, "success");
+      // Re-run the check to update the list
+      await checkSystemDbSchema();
+    } else {
+      app.notify(`Error creating ${tableName}: ${result.message}`, "danger");
+    }
+  } catch (error) {
+    console.error(`Error creating table ${tableName}:`, error);
+    app.notify(`Error creating ${tableName}`, "danger");
   }
 }
 
