@@ -28,22 +28,22 @@
   <!-- Right Pane (Editor) -->
   <div class="split-pane-right hidden" id="areaEditorPane">
     <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="editorTitle">Select a category to edit</div>
-      <form id="areaEditorForm" style="display: none;">
-        <input type="hidden" id="areaId" name="areaId">
-        <input type="hidden" id="areaParentId" name="parentId">
+      <div class="split-pane-editor-title" id="areaEditorTitle">Select a category to edit</div>
+      <form id="areaEditorForm">
+        <input type="hidden" id="areaEditorId" name="areaId">
+        <input type="hidden" id="areaEditorParentId" name="parentId">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-        <p class="text-muted small mb-2 d-none" id="areaParentHint"></p>
+        <p class="text-muted small mb-2 d-none" id="areaEditorParentHint"></p>
 
         <div class="mb-3">
-          <label for="areaName" class="form-label">Name *</label>
-          <input type="text" class="form-control" id="areaName" name="name" required>
+          <label for="areaEditorName" class="form-label">Name *</label>
+          <input type="text" class="form-control" id="areaEditorName" name="name" required>
         </div>
 
         <div class="mb-3">
-          <label for="areaDescription" class="form-label">Description</label>
-          <textarea class="form-control" id="areaDescription" name="description" rows="4"></textarea>
+          <label for="areaEditorDescription" class="form-label">Description</label>
+          <textarea class="form-control" id="areaEditorDescription" name="description" rows="4"></textarea>
         </div>
 
         <div class="d-flex gap-2">

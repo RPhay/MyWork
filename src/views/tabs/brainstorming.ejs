@@ -31,29 +31,29 @@
   <!-- Right Pane (Editor) -->
   <div class="split-pane-right hidden" id="ideaEditorPane">
     <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="editorTitle">Select an idea to edit</div>
-      <form id="ideaEditorForm" style="display: none;">
-        <input type="hidden" id="ideaId" name="ideaId">
-        <input type="hidden" id="ideaPresetFolderId">
+      <div class="split-pane-editor-title" id="ideaEditorTitle">Select an idea to edit</div>
+      <form id="ideaEditorForm">
+        <input type="hidden" id="ideaEditorId" name="ideaId">
+        <input type="hidden" id="ideaEditorPresetFolderId">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
         <div class="mb-3">
-          <label for="ideaTitle" class="form-label">Title *</label>
-          <input type="text" class="form-control" id="ideaTitle" name="title" required>
+          <label for="ideaEditorTitle" class="form-label">Title *</label>
+          <input type="text" class="form-control" id="ideaEditorFormTitle" name="title" required>
         </div>
 
         <div class="mb-3">
-          <label for="ideaNotes" class="form-label">Notes</label>
-          <textarea class="form-control" id="ideaNotes" name="notes" rows="4"></textarea>
+          <label for="ideaEditorNotes" class="form-label">Notes</label>
+          <textarea class="form-control" id="ideaEditorNotes" name="notes" rows="4"></textarea>
         </div>
 
         <div class="mb-3">
           <label class="form-label">Links</label>
-          <div id="ideaLinksList" class="mb-2"></div>
+          <div id="ideaEditorLinksList" class="mb-2"></div>
           <div class="input-group input-group-sm">
-            <input type="url" class="form-control" id="ideaLinkUrl" placeholder="https://example.com">
-            <input type="text" class="form-control" id="ideaLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
-            <button type="button" class="btn btn-outline-secondary" id="addIdeaLinkBtn">
+            <input type="url" class="form-control" id="ideaEditorLinkUrl" placeholder="https://example.com">
+            <input type="text" class="form-control" id="ideaEditorLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+            <button type="button" class="btn btn-outline-secondary" id="ideaEditorAddLinkBtn">
               <i class="bi bi-plus-lg"></i>
             </button>
           </div>
