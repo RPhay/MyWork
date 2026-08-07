@@ -509,7 +509,6 @@ function renderWorkItemsList(items) {
           <span class="badge bg-${item.status === "Complete" ? "success" : item.status === "In Progress" ? "warning" : "secondary"} work-item-status-badge" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
           <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${item.time_box_minutes ? item.time_box_minutes + "m" : "No time box"}</span>
           <span class="work-item-actions">
-            <button class="btn btn-sm btn-info" data-action="edit" data-id="${item.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
             <button class="btn btn-sm btn-danger" data-action="delete" data-id="${item.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
           </span>
         </div>
@@ -829,18 +828,29 @@ async function editWorkItem(workId) {
     const result = await response.json();
     const item = result.data;
 
-    document.getElementById("workId").value = item.id;
-    document.getElementById("workTitle").value = item.title;
-    document.getElementById("workDescription").value = item.description;
-    document.getElementById("workNotes").value = item.notes || "";
-    document.getElementById("workEmoji").value = item.emoji || "";
-    updateEmojiFieldButton("workEmojiBtn", item.emoji || "");
+    document.getElementById("workItemEditorId").value = item.id;
+    document.getElementById("workItemEditorTitle").value = item.title;
+    document.getElementById("workItemEditorDescription").value = item.description;
+    document.getElementById("workItemEditorEmoji").value = item.emoji || "";
+    document.getElementById("workItemEditorStatus").value = item.status || "";
+    document.getElementById("workItemEditorTimeBox").value = item.time_box_minutes ? (item.time_box_minutes / 60).toFixed(1) : "";
+    updateEmojiFieldButton("workItemEditorEmojiBtn", item.emoji || "");
 
-    const modal = new bootstrap.Modal(document.getElementById("workModal"));
-    modal.show();
+    // Show split-pane editor
+    const editorPane = document.getElementById("workItemEditorPane");
+    if (editorPane) {
+      editorPane.classList.remove("hidden");
+    }
   } catch (error) {
     console.error("Error:", error);
     app.notify("Error loading work item", "danger");
+  }
+}
+
+function closeWorkItemEditor() {
+  const editorPane = document.getElementById("workItemEditorPane");
+  if (editorPane) {
+    editorPane.classList.add("hidden");
   }
 }
 
@@ -1693,12 +1703,10 @@ function initWorkItemsListEventListeners() {
 
   container.addEventListener("click", (e) => {
     const actionBtn = e.target.closest(
-      '[data-action="edit"], [data-action="delete"], [data-action="unlink"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"]',
+      '[data-action="delete"], [data-action="unlink"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"]',
     );
     if (actionBtn) {
-      if (actionBtn.dataset.action === "edit") {
-        editWorkItem(actionBtn.dataset.id);
-      } else if (actionBtn.dataset.action === "delete") {
+      if (actionBtn.dataset.action === "delete") {
         deleteWorkItem(actionBtn.dataset.id);
       } else if (actionBtn.dataset.action === "unlink") {
         const workItemEl = actionBtn.closest("[data-work-id]");
@@ -1729,6 +1737,13 @@ function initWorkItemsListEventListeners() {
 
     const header = e.target.closest(".work-item-header");
     if (!header) return;
+
+    // Click on work item header to open editor
+    if (!e.target.closest('[data-action]') && clickTimer === null) {
+      const workItemEl = header.closest(".work-item");
+      editWorkItem(workItemEl.dataset.workId);
+      return;
+    }
 
     if (clickTimer) {
       clearTimeout(clickTimer);
@@ -2534,6 +2549,82 @@ function initDailies() {
   dateInput.id = "selectedDate";
   dateInput.value = today;
   document.body.appendChild(dateInput);
+
+  // Setup split-pane
+  const splitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
+
+  // Setup drawer toggle for associate items
+  const associateToggle = document.getElementById("dailiesAssociateItemsToggle");
+  const associatePanel = document.getElementById("dailiesAssociateItemsPanel");
+
+  const savedState = localStorage.getItem("dailiesDrawerOpen");
+  const isOpen = savedState !== "false"; // default to open
+
+  if (!isOpen && associatePanel) {
+    associatePanel.classList.remove("open");
+  } else if (isOpen && associatePanel) {
+    associatePanel.classList.add("open");
+  }
+
+  associateToggle?.addEventListener("click", () => {
+    if (associatePanel) {
+      associatePanel.classList.toggle("open");
+      const isNowOpen = associatePanel.classList.contains("open");
+      localStorage.setItem("dailiesDrawerOpen", isNowOpen);
+    }
+  });
+
+  // Setup split-pane editor buttons
+  const saveWorkItemEditorBtn = document.getElementById("saveWorkItemEditorBtn");
+  const closeWorkItemEditorBtn = document.getElementById("closeWorkItemEditorBtn");
+
+  if (saveWorkItemEditorBtn) {
+    saveWorkItemEditorBtn.addEventListener("click", async () => {
+      const workId = document.getElementById("workItemEditorId").value;
+      const title = document.getElementById("workItemEditorTitle").value;
+      const description = document.getElementById("workItemEditorDescription").value;
+      const status = document.getElementById("workItemEditorStatus").value;
+      const timeBox = document.getElementById("workItemEditorTimeBox").value;
+
+      if (!title.trim()) {
+        app.notify("Title is required", "warning");
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/work/${workId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": window.APP_CONFIG?.csrfToken
+          },
+          body: JSON.stringify({
+            title,
+            description,
+            status: status || "Not Started",
+            time_box_minutes: timeBox ? Math.round(parseFloat(timeBox) * 60) : null
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          app.notify("Work item updated!", "success");
+          closeWorkItemEditor();
+          loadWorkItems();
+          loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
+        } else {
+          app.notify("Error: " + result.message, "danger");
+        }
+      } catch (error) {
+        console.error("Error saving work item:", error);
+        app.notify("Error saving work item", "danger");
+      }
+    });
+  }
+
+  if (closeWorkItemEditorBtn) {
+    closeWorkItemEditorBtn.addEventListener("click", closeWorkItemEditor);
+  }
 
   initDailiesEventListeners();
   renderCalendar();

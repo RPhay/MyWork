@@ -35,7 +35,6 @@ function renderTemplateNode(template) {
         <span class="badge bg-${template.status === 'Complete' ? 'success' : template.status === 'In Progress' ? 'warning' : 'secondary'} template-status-badge" data-action="cycle-status" data-id="${template.id}" title="Click to change status">${template.status}</span>
         <span class="badge bg-light text-dark border template-timebox-badge" data-action="cycle-timebox" data-id="${template.id}" data-minutes="${template.time_box_minutes || ''}" title="Click to change time box">${template.time_box_minutes ? template.time_box_minutes + 'm' : 'No time box'}</span>
         <span class="template-actions">
-          <button class="btn btn-sm btn-info" data-action="edit" data-id="${template.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-danger" data-action="delete" data-id="${template.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
         </span>
       </div>
@@ -214,18 +213,28 @@ async function editTemplate(templateId) {
     const result = await response.json();
     const template = result.data;
 
-    document.getElementById('templateId').value = template.id;
-    document.getElementById('templateTitle').value = template.title;
-    document.getElementById('templateDescription').value = template.description || '';
-    document.getElementById('templateEmoji').value = template.emoji || '';
-    updateEmojiFieldButton('templateEmojiBtn', template.emoji || '');
-    setTimeBoxField('templateTimeBox', template.time_box_minutes);
+    document.getElementById('templateEditorId').value = template.id;
+    document.getElementById('templateEditorTitle').value = template.title;
+    document.getElementById('templateEditorDescription').value = template.description || '';
+    document.getElementById('templateEditorEmoji').value = template.emoji || '';
+    updateEmojiFieldButton('templateEditorEmojiBtn', template.emoji || '');
+    setTimeBoxField('templateEditorTimeBox', template.time_box_minutes);
 
-    const modal = new bootstrap.Modal(document.getElementById('templateModal'));
-    modal.show();
+    // Show split-pane editor
+    const editorPane = document.getElementById('templateEditorPane');
+    if (editorPane) {
+      editorPane.classList.remove('hidden');
+    }
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error loading template', 'danger');
+  }
+}
+
+function closeTemplateEditor() {
+  const editorPane = document.getElementById('templateEditorPane');
+  if (editorPane) {
+    editorPane.classList.add('hidden');
   }
 }
 
@@ -578,11 +587,9 @@ function initTemplatesEventListeners() {
   });
 
   container.addEventListener('click', (e) => {
-    const actionBtn = e.target.closest('[data-action="edit"], [data-action="delete"], [data-action="unlink"], [data-action="pick-emoji"], [data-action="cycle-status"], [data-action="cycle-timebox"]');
+    const actionBtn = e.target.closest('[data-action="delete"], [data-action="unlink"], [data-action="pick-emoji"], [data-action="cycle-status"], [data-action="cycle-timebox"]');
     if (actionBtn) {
-      if (actionBtn.dataset.action === 'edit') {
-        editTemplate(actionBtn.dataset.id);
-      } else if (actionBtn.dataset.action === 'delete') {
+      if (actionBtn.dataset.action === 'delete') {
         deleteTemplate(actionBtn.dataset.id);
       } else if (actionBtn.dataset.action === 'unlink') {
         const nodeEl = actionBtn.closest('[data-template-id]');
@@ -601,6 +608,16 @@ function initTemplatesEventListeners() {
     const toggleIcon = e.target.closest('[data-action="toggle-expand"]');
     if (toggleIcon) {
       toggleTemplateNode(toggleIcon.closest('.template-node'));
+      return;
+    }
+
+    // Click on template row to open editor
+    const header = e.target.closest('.template-node-header');
+    if (header && !header.closest('.template-child-item')) {
+      const templateNode = header.closest('.template-node');
+      if (templateNode && templateNode.dataset.templateId) {
+        editTemplate(templateNode.dataset.templateId);
+      }
     }
   });
 
@@ -851,6 +868,81 @@ function initTemplates() {
   // ancestor whenever that tab isn't active, so Bootstrap's backdrop would show but
   // the dialog itself never could - move it to the body so it always renders.
   document.body.appendChild(document.getElementById('templateModal'));
+
+  // Setup split-pane
+  const splitPane = new SplitPane("templatesSplitPane", "templatesLeftPane", "templatesDivider", "templateEditorPane", 66.66);
+
+  // Setup drawer toggle for associate items
+  const associateToggle = document.getElementById("templatesAssociateItemsToggle");
+  const associatePanel = document.getElementById("templatesAssociateItemsPanel");
+
+  const savedState = localStorage.getItem("templatesDrawerOpen");
+  const isOpen = savedState !== "false"; // default to open
+
+  if (!isOpen && associatePanel) {
+    associatePanel.classList.remove("open");
+  } else if (isOpen && associatePanel) {
+    associatePanel.classList.add("open");
+  }
+
+  associateToggle?.addEventListener("click", () => {
+    if (associatePanel) {
+      associatePanel.classList.toggle("open");
+      const isNowOpen = associatePanel.classList.contains("open");
+      localStorage.setItem("templatesDrawerOpen", isNowOpen);
+    }
+  });
+
+  // Setup split-pane editor buttons
+  const saveTemplateEditorBtn = document.getElementById("saveTemplateEditorBtn");
+  const closeTemplateEditorBtn = document.getElementById("closeTemplateEditorBtn");
+
+  if (saveTemplateEditorBtn) {
+    saveTemplateEditorBtn.addEventListener("click", async () => {
+      const templateId = document.getElementById("templateEditorId").value;
+      const title = document.getElementById("templateEditorTitle").value;
+      const description = document.getElementById("templateEditorDescription").value;
+      const emoji = document.getElementById("templateEditorEmoji").value;
+      const timeBox = document.querySelector('input[name="templateEditorTimeBoxBubble"]:checked')?.value || null;
+
+      if (!title.trim()) {
+        app.notify("Title is required", "warning");
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/work-item-templates/${templateId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": window.APP_CONFIG?.csrfToken
+          },
+          body: JSON.stringify({
+            title,
+            description,
+            emoji: emoji || null,
+            time_box_minutes: timeBox ? parseInt(timeBox, 10) : null
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          app.notify("Template updated!", "success");
+          closeTemplateEditor();
+          loadTemplates();
+        } else {
+          app.notify("Error: " + result.message, "danger");
+        }
+      } catch (error) {
+        console.error("Error saving template:", error);
+        app.notify("Error saving template", "danger");
+      }
+    });
+  }
+
+  if (closeTemplateEditorBtn) {
+    closeTemplateEditorBtn.addEventListener("click", closeTemplateEditor);
+  }
 
   initTemplatesEventListeners();
   loadTemplates();

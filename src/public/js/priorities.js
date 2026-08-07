@@ -21,7 +21,6 @@ function renderToDoInTree(toDo, depth) {
         <span class="priority-badges"><small class="text-muted">${app.escapeHtml(toDo.notes || '')}</small></span>
         <span class="priority-badges"></span>
         <span class="priority-actions">
-          <button class="btn btn-sm btn-info" data-action="edit-todo" data-id="${toDo.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-warning" data-action="unfile-todo" data-id="${toDo.id}" title="Unfile" aria-label="Unfile"><i class="bi bi-eject"></i></button>
         </span>
       </div>
@@ -67,7 +66,6 @@ function renderPriorityNode(priority, byParent, depth) {
         <span class="priority-badges">${areaBadges || '<span class="text-muted small">-</span>'}</span>
         <span class="priority-badges">${goalBadges || '<span class="text-muted small">-</span>'}</span>
         <span class="priority-actions">
-          <button class="btn btn-sm btn-info" data-action="edit" data-id="${priority.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-danger" data-action="delete" data-id="${priority.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
         </span>
       </div>
@@ -409,29 +407,55 @@ async function editPriority(priorityId) {
     const result = await response.json();
     const priority = result.data;
 
-    document.getElementById('priorityId').value = priority.id;
-    document.getElementById('priorityTitle').value = priority.title;
-    document.getElementById('priorityNotes').value = priority.notes;
+    // Populate split-pane editor
+    document.getElementById('priorityEditorId').value = priority.id;
+    document.getElementById('priorityEditorFormTitle').value = priority.title;
+    document.getElementById('priorityEditorNotes').value = priority.notes;
+    document.getElementById('priorityEditorTitle').textContent = priority.title;
 
     // Load and display links
-    loadLinksForEntity('priority', priority.id, 'priorityLinksList');
+    const linksResponse = await fetch(`/api/priorities/${priorityId}/links`).catch(() => ({ json: () => ({ data: [] }) }));
+    const linksResult = await linksResponse.json();
+    renderPriorityLinks(linksResult.data || []);
 
     // Setup link input handlers
-    const addLinkBtn = document.getElementById('addPriorityLinkBtn');
+    const addLinkBtn = document.getElementById('priorityEditorAddLinkBtn');
     if (addLinkBtn) {
       addLinkBtn.onclick = async (e) => {
         e.preventDefault();
-        const url = document.getElementById('priorityLinkUrl').value;
-        const title = document.getElementById('priorityLinkTitle').value;
-        if (await addLinkToEntity('priority', priority.id, url, title, 'priorityLinksList')) {
-          document.getElementById('priorityLinkUrl').value = '';
-          document.getElementById('priorityLinkTitle').value = '';
+        const url = document.getElementById('priorityEditorLinkUrl').value;
+        const title = document.getElementById('priorityEditorLinkTitle').value;
+        if (url && title) {
+          const linkResponse = await fetch(`/api/priorities/${priority.id}/links`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+            },
+            body: JSON.stringify({ url, title })
+          });
+          if (linkResponse.ok) {
+            const linkResult = await linkResponse.json();
+            if (linkResult.success) {
+              const links = Array.from(document.querySelectorAll('#priorityEditorLinksList a')).map(a => ({
+                url: a.href,
+                title: a.textContent
+              }));
+              links.push({ url, title });
+              renderPriorityLinks(links);
+              document.getElementById('priorityEditorLinkUrl').value = '';
+              document.getElementById('priorityEditorLinkTitle').value = '';
+            }
+          }
         }
       };
     }
 
-    // Setup URL drag-drop
-    setupURLDragDrop('priority', 'priorityLinksList', () => priority.id);
+    // Show split-pane editor
+    const editorPane = document.getElementById('priorityEditorPane');
+    if (editorPane) {
+      editorPane.classList.remove('hidden');
+    }
 
     const modal = new bootstrap.Modal(document.getElementById('priorityModal'));
     modal.show();
@@ -678,10 +702,9 @@ function initPrioritiesEventListeners() {
   });
 
   container.addEventListener('click', (e) => {
-    const actionBtn = e.target.closest('[data-action="edit"], [data-action="delete"], [data-action="edit-todo"], [data-action="unfile-todo"]');
+    const actionBtn = e.target.closest('[data-action="delete"], [data-action="edit-todo"], [data-action="unfile-todo"]');
     if (actionBtn) {
-      if (actionBtn.dataset.action === 'edit') editPriority(actionBtn.dataset.id);
-      else if (actionBtn.dataset.action === 'delete') deletePriority(actionBtn.dataset.id);
+      if (actionBtn.dataset.action === 'delete') deletePriority(actionBtn.dataset.id);
       else if (actionBtn.dataset.action === 'edit-todo') openToDoModal(actionBtn.dataset.id);
       else if (actionBtn.dataset.action === 'unfile-todo') unfileToDoFromProject(actionBtn.dataset.id);
       return;
@@ -690,6 +713,16 @@ function initPrioritiesEventListeners() {
     const toggleIcon = e.target.closest('[data-action="toggle-expand"]');
     if (toggleIcon) {
       togglePriorityNode(toggleIcon.closest('.priority-node'));
+      return;
+    }
+
+    // Click on project row to open editor
+    const header = e.target.closest('.priority-node-header');
+    if (header && !header.closest('.todo-node')) {
+      const priorityNode = header.closest('.priority-node');
+      if (priorityNode && priorityNode.dataset.priorityId) {
+        editPriority(priorityNode.dataset.priorityId);
+      }
     }
   });
 
@@ -711,12 +744,127 @@ function initPrioritiesEventListeners() {
   });
 }
 
+function closePriorityEditor() {
+  const editorPane = document.getElementById('priorityEditorPane');
+  if (editorPane) {
+    editorPane.classList.add('hidden');
+  }
+}
+
+function renderPriorityLinks(links) {
+  const linksList = document.getElementById('priorityEditorLinksList');
+  linksList.innerHTML = '';
+
+  links.forEach((link, index) => {
+    const linkEl = document.createElement('div');
+    linkEl.className = 'mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'flex-grow-1 cursor-pointer';
+    titleSpan.innerHTML = `<a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>`;
+    titleSpan.title = 'Click to rename';
+    titleSpan.style.cursor = 'pointer';
+
+    titleSpan.addEventListener('click', () => {
+      const newTitle = prompt('Enter link title:', link.title || '');
+      if (newTitle !== null) {
+        link.title = newTitle;
+        renderPriorityLinks(links);
+      }
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-sm btn-outline-danger';
+    removeBtn.innerHTML = '<i class="bi bi-x"></i>';
+    removeBtn.addEventListener('click', () => {
+      links.splice(index, 1);
+      renderPriorityLinks(links);
+    });
+
+    linkEl.appendChild(titleSpan);
+    linkEl.appendChild(removeBtn);
+    linksList.appendChild(linkEl);
+  });
+}
+
 function initPriorities() {
   // #priorityModal can be opened from other tabs (e.g. the Dailies right panel).
   // Left inside the #tab-my-priorities pane, it's a descendant of a display:none
   // ancestor whenever that tab isn't active, so Bootstrap's backdrop would show but
   // the dialog itself never could - move it to the body so it always renders.
   document.body.appendChild(document.getElementById('priorityModal'));
+
+  // Initialize split pane for side-panel editing
+  if (document.getElementById('prioritySplitPane')) {
+    window.prioritySplitPane = new SplitPane('prioritySplitPane', 'priorityListPane', 'priorityDivider', 'priorityEditorPane', 66.66);
+  }
+
+  // Setup drawer toggle for associate items
+  const associateToggle = document.getElementById('associateItemsToggle');
+  const associatePanel = document.getElementById('associateItemsPanel');
+  const drawerContainer = document.querySelector('.drawer-container');
+
+  const savedState = localStorage.getItem('prioritiesDrawerOpen');
+  const isOpen = savedState !== 'false'; // default to open
+
+  if (!isOpen && associatePanel) {
+    associatePanel.classList.remove('open');
+  } else if (isOpen && associatePanel) {
+    associatePanel.classList.add('open');
+  }
+
+  associateToggle?.addEventListener('click', () => {
+    if (associatePanel) {
+      associatePanel.classList.toggle('open');
+      const isNowOpen = associatePanel.classList.contains('open');
+      localStorage.setItem('prioritiesDrawerOpen', isNowOpen);
+    }
+  });
+
+  // Setup split-pane editor buttons
+  const savePriorityEditorBtn = document.getElementById('savePriorityEditorBtn');
+  const closePriorityEditorBtn = document.getElementById('closePriorityEditorBtn');
+
+  if (savePriorityEditorBtn) {
+    savePriorityEditorBtn.addEventListener('click', async () => {
+      const priorityId = document.getElementById('priorityEditorId').value;
+      const title = document.getElementById('priorityEditorFormTitle').value;
+      const notes = document.getElementById('priorityEditorNotes').value;
+
+      if (!title.trim()) {
+        app.notify('Title is required', 'warning');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/priorities/${priorityId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+          },
+          body: JSON.stringify({ title, notes })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          app.notify('Project updated!', 'success');
+          closePriorityEditor();
+          loadPriorities();
+        } else {
+          app.notify('Error: ' + result.message, 'danger');
+        }
+      } catch (error) {
+        console.error('Error saving project:', error);
+        app.notify('Error saving project', 'danger');
+      }
+    });
+  }
+
+  if (closePriorityEditorBtn) {
+    closePriorityEditorBtn.addEventListener('click', closePriorityEditor);
+  }
 
   initPrioritiesEventListeners();
   initProjRightPanelTabs();
