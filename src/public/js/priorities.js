@@ -21,7 +21,7 @@ function renderToDoInTree(toDo, depth) {
         <span class="priority-badges"><small class="text-muted">${app.escapeHtml(toDo.notes || '')}</small></span>
         <span class="priority-badges"></span>
         <span class="priority-actions">
-          <button class="btn btn-sm btn-danger" data-action="delete" data-id="${toDo.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="todo" data-child-id="${toDo.id}" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button>
         </span>
       </div>
     </div>
@@ -760,7 +760,7 @@ function initPrioritiesEventListeners() {
   });
 
   container.addEventListener('click', (e) => {
-    const actionBtn = e.target.closest('[data-action="delete"], [data-action="edit-todo"]');
+    const actionBtn = e.target.closest('[data-action="delete"], [data-action="edit-todo"], [data-action="unlink"]');
     if (actionBtn) {
       if (actionBtn.dataset.action === 'delete') {
         const isTodo = actionBtn.closest('.todo-node');
@@ -768,6 +768,11 @@ function initPrioritiesEventListeners() {
           deleteToDoFromProject(actionBtn.dataset.id);
         } else {
           deletePriority(actionBtn.dataset.id);
+        }
+      } else if (actionBtn.dataset.action === 'unlink') {
+        const priorityNode = actionBtn.closest('.priority-node');
+        if (priorityNode && priorityNode.dataset.priorityId) {
+          deleteToDoFromProject(actionBtn.dataset.childId);
         }
       } else if (actionBtn.dataset.action === 'edit-todo') {
         openToDoModal(actionBtn.dataset.id);
