@@ -49,10 +49,11 @@ footer {
 }
 
 .nav-tabs .nav-link.active {
-  color: #007bff;
-  background-color: transparent;
+  color: #fff;
+  background-color: #007bff;
   border-color: #007bff;
   border-bottom-color: #007bff;
+  border-radius: 0.25rem 0.25rem 0 0;
 }
 
 /* Tab Content Panes */

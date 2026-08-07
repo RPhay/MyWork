@@ -833,12 +833,16 @@ function initBrainstormingEventListeners() {
     const folderHeader = e.target.closest('.idea-folder-header');
     const targetFolderId = folderHeader ? folderHeader.closest('.idea-folder-node').dataset.folderId : null;
 
+    console.log('[brainstorming drop] type:', type, 'draggedId:', draggedId, 'targetFolderId:', targetFolderId);
+
     // Handle internal drag-drop (folder/idea reordering)
     if (type && draggedId) {
       if (type === 'folder') {
+        console.log('[brainstorming drop] Moving folder');
         if (targetFolderId && String(targetFolderId) === String(draggedId)) return;
         reparentIdeaFolder(draggedId, targetFolderId);
       } else if (type === 'idea') {
+        console.log('[brainstorming drop] Moving idea to folder:', targetFolderId);
         fileIdeaIntoFolder(draggedId, targetFolderId);
       }
       return;
