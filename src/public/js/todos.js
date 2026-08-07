@@ -320,6 +320,40 @@ async function saveToDo() {
   }
 }
 
+async function saveToDoEditor() {
+  const toDoId = document.getElementById('toDoEditorId').value;
+
+  const data = {
+    title: document.getElementById('toDoEditorFormTitle').value,
+    notes: document.getElementById('toDoEditorNotes').value
+  };
+
+  try {
+    const url = toDoId ? `/api/to-dos/${toDoId}` : '/api/to-dos';
+    const method = toDoId ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('To do saved!', 'success');
+      loadToDos();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error saving to do', 'danger');
+  }
+}
+
 function closeToDoEditor() {
   if (window.todoSplitPane) {
     window.todoSplitPane.hideRightPane();
@@ -844,7 +878,7 @@ function initToDosEventListeners() {
       if (type === 'folder') {
         await saveFolder();
       } else {
-        await saveToDo();
+        await saveToDoEditor();
       }
       closeToDoEditor();
     });
