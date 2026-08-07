@@ -229,12 +229,32 @@ function renderTicketLinks(links) {
   links.forEach((link, index) => {
     const linkEl = document.createElement('div');
     linkEl.className = 'mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center';
-    linkEl.innerHTML = `
-      <a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>
-      <button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-link" data-index="${index}">
-        <i class="bi bi-x"></i>
-      </button>
-    `;
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'flex-grow-1 cursor-pointer';
+    titleSpan.innerHTML = `<a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>`;
+    titleSpan.title = 'Click to rename';
+    titleSpan.style.cursor = 'pointer';
+
+    titleSpan.addEventListener('click', () => {
+      const newTitle = prompt('Enter link title:', link.title || '');
+      if (newTitle !== null) {
+        link.title = newTitle;
+        renderTicketLinks(links);
+      }
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-sm btn-outline-danger';
+    removeBtn.innerHTML = '<i class="bi bi-x"></i>';
+    removeBtn.addEventListener('click', () => {
+      links.splice(index, 1);
+      renderTicketLinks(links);
+    });
+
+    linkEl.appendChild(titleSpan);
+    linkEl.appendChild(removeBtn);
     linksList.appendChild(linkEl);
   });
 }
@@ -246,12 +266,32 @@ function renderTicketLinksEditor(links) {
   links.forEach((link, index) => {
     const linkEl = document.createElement('div');
     linkEl.className = 'mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center';
-    linkEl.innerHTML = `
-      <a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>
-      <button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-link" data-index="${index}">
-        <i class="bi bi-x"></i>
-      </button>
-    `;
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'flex-grow-1 cursor-pointer';
+    titleSpan.innerHTML = `<a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>`;
+    titleSpan.title = 'Click to rename';
+    titleSpan.style.cursor = 'pointer';
+
+    titleSpan.addEventListener('click', () => {
+      const newTitle = prompt('Enter link title:', link.title || '');
+      if (newTitle !== null) {
+        link.title = newTitle;
+        renderTicketLinksEditor(links);
+      }
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-sm btn-outline-danger';
+    removeBtn.innerHTML = '<i class="bi bi-x"></i>';
+    removeBtn.addEventListener('click', () => {
+      links.splice(index, 1);
+      renderTicketLinksEditor(links);
+    });
+
+    linkEl.appendChild(titleSpan);
+    linkEl.appendChild(removeBtn);
     linksList.appendChild(linkEl);
   });
 }
