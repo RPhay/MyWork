@@ -422,7 +422,13 @@ async function savePriority() {
 async function editPriority(priorityId) {
   try {
     const response = await fetch(`/api/priorities/${priorityId}`);
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
     const result = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to load project');
+    }
     const priority = result.data;
 
     // Populate split-pane editor

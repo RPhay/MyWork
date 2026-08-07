@@ -147,10 +147,12 @@ async function saveArea() {
 }
 
 function closeAreaEditor() {
-  const editorPane = document.getElementById('areaEditorPane');
-  if (editorPane) {
-    editorPane.classList.add('hidden');
-    document.getElementById('areaEditorForm').style.display = 'none';
+  if (window.areaSplitPane) {
+    window.areaSplitPane.hideRightPane();
+  }
+  const editorForm = document.getElementById('areaEditorForm');
+  if (editorForm) {
+    editorForm.style.display = 'none';
   }
 }
 
@@ -167,9 +169,8 @@ async function editArea(areaId) {
     document.getElementById('areaParentHint').classList.add('d-none');
 
     // Show side-panel editor if split pane exists, otherwise use modal
-    const editorPane = document.getElementById('areaEditorPane');
-    if (editorPane && window.areaSplitPane) {
-      editorPane.classList.remove('hidden');
+    if (window.areaSplitPane) {
+      window.areaSplitPane.showRightPane();
       document.getElementById('areaEditorForm').style.display = 'block';
       document.getElementById('editorTitle').textContent = area.name;
     } else {
@@ -520,6 +521,8 @@ function initAreas() {
   // Initialize split pane for side-panel editing
   if (document.getElementById('areaSplitPane')) {
     window.areaSplitPane = new SplitPane('areaSplitPane', 'areaListPane', 'areaDivider', 'areaEditorPane', 66.66);
+    // Start with editor hidden
+    window.areaSplitPane.hideRightPane();
   }
 
   initAreasEventListeners();
