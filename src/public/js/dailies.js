@@ -1194,6 +1194,7 @@ async function selectEmoji(emoji) {
 
 function initEmojiPicker() {
   const popover = document.getElementById("emojiPickerPopover");
+  if (!popover) return;
 
   // Also opened from Templates (a different tab pane). Left inside #tab-dailies,
   // it's a descendant of a display:none ancestor whenever Dailies isn't the
