@@ -9,7 +9,9 @@ export const CONFIGURABLE_TABS = [
   { key: "yearly-goals", label: "Yearly Goals" },
   { key: "templates", label: "Templates" },
   { key: "todos", label: "To Dos" },
+  { key: "tasks", label: "Tasks" },
   { key: "brainstorming", label: "Brainstorming" },
+  { key: "tickets", label: "Tickets" },
   { key: "reporting", label: "Reporting" },
 ];
 
