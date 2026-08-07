@@ -426,7 +426,8 @@ function parseICalendarFormat(text) {
   const event = {
     title: '',
     description: '',
-    duration: null
+    duration: null,
+    startTime: null
   };
 
   let dtStart = null;
@@ -448,6 +449,10 @@ function parseICalendarFormat(text) {
 
   if (dtStart && dtEnd) {
     event.duration = Math.round((dtEnd - dtStart) / 60000);
+    // Extract start time in HH:MM format
+    const hours = String(dtStart.getHours()).padStart(2, '0');
+    const minutes = String(dtStart.getMinutes()).padStart(2, '0');
+    event.startTime = `${hours}:${minutes}`;
   }
 
   return event;
@@ -538,13 +543,17 @@ function parseOutlookTimeRange(timeStr) {
 }
 
 async function createTemplateFromCalendarEvent(event) {
+  console.log('[Templates] Creating template from calendar event:', event);
   const data = {
-    title: event.title,
+    title: event.title || 'Calendar Event',
     description: event.description || '',
+    emoji: '📅',
     time_box_minutes: event.duration || null,
     start_time: event.startTime || null,
     status: 'In Progress'
   };
+
+  console.log('[Templates] Template data to send:', data);
 
   try {
     const response = await fetch('/api/work-item-templates', {
@@ -557,6 +566,7 @@ async function createTemplateFromCalendarEvent(event) {
     });
 
     const result = await response.json();
+    console.log('[Templates] Create response:', result);
     if (result.success) {
       app.notify(`Template created from calendar event: ${event.title}`, 'success');
       await loadTemplates();
