@@ -170,8 +170,6 @@ function renderToDosList() {
   container.innerHTML =
     topFolders.map(f => renderFolderNode(f, foldersByParent, toDosByFolder, 0)).join('') +
     topToDos.map(t => renderToDoRow(t, 0)).join('');
-
-  setupDragListeners();
 }
 
 async function loadToDos() {
@@ -865,15 +863,18 @@ function initToDosEventListeners() {
     const types = Array.from(e.dataTransfer.types || []);
     // Accept any text data - emails, calendar events, etc
     const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
-    // Check if this is an internal drag (has 'type' data from setupDragListeners)
-    const hasInternalDrag = e.dataTransfer.types.includes && e.dataTransfer.types.includes('type') ||
-                            (e.dataTransfer.getData && !!e.dataTransfer.getData('type'));
+    // Check if this is an internal drag (has custom data set in dragstart)
+    const hasInternalDrag = !!e.dataTransfer.getData('type');
 
     if (!hasTextData && !hasInternalDrag) return;
 
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
     const folderHeader = e.target.closest('.todo-folder-header');
+    if (hasInternalDrag) {
+      e.dataTransfer.dropEffect = 'move';
+    } else {
+      e.dataTransfer.dropEffect = 'copy';
+    }
     clearToDoDropTargets(container);
     if (folderHeader) {
       folderHeader.classList.add('todo-drop-target');
