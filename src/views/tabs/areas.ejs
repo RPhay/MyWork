@@ -21,39 +21,39 @@
     <div id="areasList">
       <p class="text-center text-muted">No categories yet</p>
     </div>
-  </div>
-
-  <!-- Divider -->
-  <div class="split-pane-divider" id="areaDivider"></div>
-
-  <!-- Right Pane (Editor) -->
-  <div class="split-pane-right hidden" id="areaEditorPane">
-    <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="areaEditorTitle">Select a category to edit</div>
-      <form id="areaEditorForm">
-        <input type="hidden" id="areaEditorId" name="areaId">
-        <input type="hidden" id="areaEditorParentId" name="parentId">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-        <p class="text-muted small mb-2 d-none" id="areaEditorParentHint"></p>
-
-        <div class="mb-3">
-          <label for="areaEditorName" class="form-label">Name *</label>
-          <input type="text" class="form-control" id="areaEditorName" name="name" required>
-        </div>
-
-        <div class="mb-3">
-          <label for="areaEditorDescription" class="form-label">Description</label>
-          <textarea class="form-control" id="areaEditorDescription" name="description" rows="4"></textarea>
-        </div>
-
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-primary" id="saveAreaEditorBtn">Save</button>
-          <button type="button" class="btn btn-secondary" id="closeAreaEditorBtn">Close</button>
-        </div>
-      </form>
     </div>
-  </div>
+
+    <!-- Divider -->
+    <div class="split-pane-divider" id="areaDivider"></div>
+
+    <!-- Right Pane (Editor) -->
+    <div class="split-pane-right hidden" id="areaEditorPane">
+      <div class="split-pane-editor">
+        <div class="split-pane-editor-title" id="areaEditorTitle">Select a category to edit</div>
+        <form id="areaEditorForm">
+          <input type="hidden" id="areaEditorId" name="areaId">
+          <input type="hidden" id="areaEditorParentId" name="parentId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <p class="text-muted small mb-2 d-none" id="areaEditorParentHint"></p>
+
+          <div class="mb-3">
+            <label for="areaEditorName" class="form-label">Name *</label>
+            <input type="text" class="form-control" id="areaEditorName" name="name" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="areaEditorDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="areaEditorDescription" name="description" rows="4"></textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" id="saveAreaEditorBtn">Save</button>
+            <button type="button" class="btn btn-secondary" id="closeAreaEditorBtn">Close</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 

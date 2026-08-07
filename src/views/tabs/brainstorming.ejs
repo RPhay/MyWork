@@ -1,73 +1,73 @@
 <div class="drawer-layout" style="display: flex; gap: 0; height: 70vh; position: relative;">
   <div class="split-pane-container" id="ideaSplitPane">
-  <!-- Left Pane -->
-  <div class="split-pane-left" id="ideaListPane" style="padding: 15px; overflow-y: auto;">
-    <div class="row mb-2">
-      <div class="col-md-12 text-end">
-        <button class="btn btn-outline-secondary" id="addIdeaFolderBtn" data-bs-toggle="modal" data-bs-target="#ideaFolderModal">
-          + Add Folder
-        </button>
-        <button class="btn btn-primary" id="addIdeaBtn" data-bs-toggle="modal" data-bs-target="#ideaModal">
-          + Add Idea
-        </button>
+    <!-- Left Pane -->
+    <div class="split-pane-left" id="ideaListPane" style="padding: 15px; overflow-y: auto;">
+      <div class="row mb-2">
+        <div class="col-md-12 text-end">
+          <button class="btn btn-outline-secondary" id="addIdeaFolderBtn" data-bs-toggle="modal" data-bs-target="#ideaFolderModal">
+            + Add Folder
+          </button>
+          <button class="btn btn-primary" id="addIdeaBtn" data-bs-toggle="modal" data-bs-target="#ideaModal">
+            + Add Idea
+          </button>
+        </div>
+      </div>
+
+      <p class="text-muted small mb-2">Drag an idea onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+
+      <div class="idea-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
+        <span>Title</span>
+        <span>Notes</span>
+        <span>Actions</span>
+      </div>
+
+      <div id="ideasList">
+        <p class="text-center text-muted">No ideas yet</p>
       </div>
     </div>
 
-    <p class="text-muted small mb-2">Drag an idea onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+    <!-- Divider -->
+    <div class="split-pane-divider" id="ideaDivider"></div>
 
-    <div class="idea-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
-      <span>Title</span>
-      <span>Notes</span>
-      <span>Actions</span>
-    </div>
+    <!-- Right Pane (Editor) -->
+    <div class="split-pane-right hidden" id="ideaEditorPane">
+      <div class="split-pane-editor">
+        <div class="split-pane-editor-title" id="ideaEditorTitle">Select an item to edit</div>
+        <form id="ideaEditorForm">
+          <input type="hidden" id="ideaEditorId" name="ideaId">
+          <input type="hidden" id="ideaEditorType" name="type" value="idea">
+          <input type="hidden" id="ideaEditorPresetFolderId">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-    <div id="ideasList">
-      <p class="text-center text-muted">No ideas yet</p>
-    </div>
-  </div>
-
-  <!-- Divider -->
-  <div class="split-pane-divider" id="ideaDivider"></div>
-
-  <!-- Right Pane (Editor) -->
-  <div class="split-pane-right hidden" id="ideaEditorPane">
-    <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="ideaEditorTitle">Select an item to edit</div>
-      <form id="ideaEditorForm">
-        <input type="hidden" id="ideaEditorId" name="ideaId">
-        <input type="hidden" id="ideaEditorType" name="type" value="idea">
-        <input type="hidden" id="ideaEditorPresetFolderId">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-        <div class="mb-3">
-          <label for="ideaEditorTitle" class="form-label">Title *</label>
-          <input type="text" class="form-control" id="ideaEditorFormTitle" name="title" required>
-        </div>
-
-        <div class="mb-3">
-          <label for="ideaEditorNotes" class="form-label">Notes</label>
-          <textarea class="form-control" id="ideaEditorNotes" name="notes" rows="4"></textarea>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Links</label>
-          <div id="ideaEditorLinksList" class="mb-2"></div>
-          <div class="input-group input-group-sm">
-            <input type="url" class="form-control" id="ideaEditorLinkUrl" placeholder="https://example.com">
-            <input type="text" class="form-control" id="ideaEditorLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
-            <button type="button" class="btn btn-outline-secondary" id="ideaEditorAddLinkBtn">
-              <i class="bi bi-plus-lg"></i>
-            </button>
+          <div class="mb-3">
+            <label for="ideaEditorTitle" class="form-label">Title *</label>
+            <input type="text" class="form-control" id="ideaEditorFormTitle" name="title" required>
           </div>
-        </div>
 
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-primary" id="saveIdeaEditorBtn">Save</button>
-          <button type="button" class="btn btn-secondary" id="closeIdeaEditorBtn">Close</button>
-        </div>
-      </form>
+          <div class="mb-3">
+            <label for="ideaEditorNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="ideaEditorNotes" name="notes" rows="4"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Links</label>
+            <div id="ideaEditorLinksList" class="mb-2"></div>
+            <div class="input-group input-group-sm">
+              <input type="url" class="form-control" id="ideaEditorLinkUrl" placeholder="https://example.com">
+              <input type="text" class="form-control" id="ideaEditorLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+              <button type="button" class="btn btn-outline-secondary" id="ideaEditorAddLinkBtn">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" id="saveIdeaEditorBtn">Save</button>
+            <button type="button" class="btn btn-secondary" id="closeIdeaEditorBtn">Close</button>
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
   </div>
 </div>
 
