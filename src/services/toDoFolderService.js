@@ -2,7 +2,7 @@ import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 
 export async function getAllFolders(contextId) {
-  return await db.query('SELECT * FROM to_do_folders WHERE context_id = ? ORDER BY name ASC', [contextId]);
+  return await db.query('SELECT * FROM to_do_folders WHERE context_id = ? OR context_id IS NULL ORDER BY name ASC', [contextId]);
 }
 
 export async function getFolderById(id) {

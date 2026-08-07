@@ -34,7 +34,7 @@ async function replaceItems(toDoId, items) {
 }
 
 export async function getAllToDos(contextId) {
-  const toDos = await db.query('SELECT * FROM to_dos WHERE context_id = ? ORDER BY created_at DESC', [contextId]);
+  const toDos = await db.query('SELECT * FROM to_dos WHERE context_id = ? OR context_id IS NULL ORDER BY created_at DESC', [contextId]);
   return attachItems(toDos);
 }
 
