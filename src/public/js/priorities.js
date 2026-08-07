@@ -760,8 +760,10 @@ function initPrioritiesEventListeners() {
   });
 
   container.addEventListener('click', (e) => {
+    console.log('[Priorities] Click on:', e.target, 'closest priority-node-header:', e.target.closest('.priority-node-header'));
     const actionBtn = e.target.closest('[data-action="delete"], [data-action="edit-todo"], [data-action="unlink"]');
     if (actionBtn) {
+      console.log('[Priorities] Action button:', actionBtn.dataset.action);
       if (actionBtn.dataset.action === 'delete') {
         const isTodo = actionBtn.closest('.todo-node');
         if (isTodo) {
