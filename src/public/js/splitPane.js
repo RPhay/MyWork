@@ -17,17 +17,15 @@ class SplitPane {
   }
 
   init() {
+    // Ensure right pane starts hidden
+    this.hideRightPane();
+
     // Restore saved width from localStorage
     const savedWidth = localStorage.getItem(`splitPane-${this.container.id}-left`);
     if (savedWidth) {
       this.setLeftWidth(parseFloat(savedWidth));
     } else {
       this.setLeftWidth(this.initialLeftPercent);
-    }
-
-    // Hide divider if right pane is hidden
-    if (this.rightPane.classList.contains('hidden')) {
-      this.divider.style.display = 'none';
     }
 
     this.divider.addEventListener('mousedown', (e) => this.startDrag(e));

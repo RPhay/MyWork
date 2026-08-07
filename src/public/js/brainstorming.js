@@ -298,7 +298,10 @@ async function editIdea(ideaId) {
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
-    const result = await response.json().catch(() => ({ data: null }));
+    const result = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to load idea');
+    }
     const idea = result.data;
 
     document.getElementById('ideaEditorId').value = idea.id;
@@ -409,7 +412,10 @@ async function editIdeaFolder(folderId) {
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
-    const result = await response.json().catch(() => ({ data: null }));
+    const result = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to load folder');
+    }
     const folder = result.data;
 
     document.getElementById('ideaEditorId').value = folder.id;
