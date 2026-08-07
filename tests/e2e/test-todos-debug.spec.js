@@ -1,17 +1,37 @@
 import { test, expect } from '@playwright/test';
 
 test('Check if SplitPane class exists', async ({ page }) => {
+  const consoleLogs = [];
+  page.on('console', msg => {
+    if (msg.type() === 'error') {
+      consoleLogs.push(`ERROR: ${msg.text()}`);
+    }
+  });
+
   await page.goto('http://localhost:3000/?tab=todos');
   await page.waitForLoadState('networkidle');
 
+  if (consoleLogs.length > 0) {
+    console.log('Console errors during load:', consoleLogs);
+  }
+
   const splitpaneInfo = await page.evaluate(() => {
-    return {
+    const info = {
       classExists: typeof SplitPane !== 'undefined',
       instanceExists: typeof window.todoSplitPane !== 'undefined',
+      instanceValue: String(window.todoSplitPane),
       hasShowRightPane: window.todoSplitPane && typeof window.todoSplitPane.showRightPane === 'function',
       instanceKeys: window.todoSplitPane ? Object.getOwnPropertyNames(window.todoSplitPane) : [],
       instanceMethods: window.todoSplitPane ? Object.getOwnPropertyNames(Object.getPrototypeOf(window.todoSplitPane)) : [],
+      instanceType: window.todoSplitPane ? window.todoSplitPane.constructor.name : 'unknown',
     };
+
+    // Check if it's actually a SplitPane instance
+    if (window.todoSplitPane) {
+      info.isSplitPane = window.todoSplitPane instanceof SplitPane;
+    }
+
+    return info;
   });
 
   console.log('SplitPane info:', JSON.stringify(splitpaneInfo, null, 2));

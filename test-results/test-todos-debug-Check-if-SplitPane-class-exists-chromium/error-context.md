@@ -118,122 +118,142 @@ Received: false
   1   | import { test, expect } from '@playwright/test';
   2   | 
   3   | test('Check if SplitPane class exists', async ({ page }) => {
-  4   |   await page.goto('http://localhost:3000/?tab=todos');
-  5   |   await page.waitForLoadState('networkidle');
-  6   | 
-  7   |   const splitpaneInfo = await page.evaluate(() => {
-  8   |     return {
-  9   |       classExists: typeof SplitPane !== 'undefined',
-  10  |       instanceExists: typeof window.todoSplitPane !== 'undefined',
-  11  |       hasShowRightPane: window.todoSplitPane && typeof window.todoSplitPane.showRightPane === 'function',
-  12  |       instanceKeys: window.todoSplitPane ? Object.getOwnPropertyNames(window.todoSplitPane) : [],
-  13  |       instanceMethods: window.todoSplitPane ? Object.getOwnPropertyNames(Object.getPrototypeOf(window.todoSplitPane)) : [],
-  14  |     };
-  15  |   });
-  16  | 
-  17  |   console.log('SplitPane info:', JSON.stringify(splitpaneInfo, null, 2));
-  18  |   expect(splitpaneInfo.classExists).toBe(true);
-  19  |   expect(splitpaneInfo.instanceExists).toBe(true);
-> 20  |   expect(splitpaneInfo.hasShowRightPane).toBe(true);
-      |                                          ^ Error: expect(received).toBe(expected) // Object.is equality
-  21  | });
-  22  | 
-  23  | test('Todos page - editor should start hidden', async ({ page }) => {
-  24  |   await page.goto('http://localhost:3000/?tab=todos');
-  25  | 
-  26  |   // Wait for page to load
-  27  |   await page.waitForLoadState('networkidle');
+  4   |   const consoleLogs = [];
+  5   |   page.on('console', msg => {
+  6   |     if (msg.type() === 'error') {
+  7   |       consoleLogs.push(`ERROR: ${msg.text()}`);
+  8   |     }
+  9   |   });
+  10  | 
+  11  |   await page.goto('http://localhost:3000/?tab=todos');
+  12  |   await page.waitForLoadState('networkidle');
+  13  | 
+  14  |   if (consoleLogs.length > 0) {
+  15  |     console.log('Console errors during load:', consoleLogs);
+  16  |   }
+  17  | 
+  18  |   const splitpaneInfo = await page.evaluate(() => {
+  19  |     const info = {
+  20  |       classExists: typeof SplitPane !== 'undefined',
+  21  |       instanceExists: typeof window.todoSplitPane !== 'undefined',
+  22  |       instanceValue: String(window.todoSplitPane),
+  23  |       hasShowRightPane: window.todoSplitPane && typeof window.todoSplitPane.showRightPane === 'function',
+  24  |       instanceKeys: window.todoSplitPane ? Object.getOwnPropertyNames(window.todoSplitPane) : [],
+  25  |       instanceMethods: window.todoSplitPane ? Object.getOwnPropertyNames(Object.getPrototypeOf(window.todoSplitPane)) : [],
+  26  |       instanceType: window.todoSplitPane ? window.todoSplitPane.constructor.name : 'unknown',
+  27  |     };
   28  | 
-  29  |   // Check if editor pane is hidden
-  30  |   const editorPane = await page.locator('#todoEditorPane');
-  31  |   const isHidden = await editorPane.evaluate(el => {
-  32  |     const classes = el.className;
-  33  |     const computedStyle = window.getComputedStyle(el);
-  34  |     return classes.includes('hidden') && computedStyle.display === 'none';
+  29  |     // Check if it's actually a SplitPane instance
+  30  |     if (window.todoSplitPane) {
+  31  |       info.isSplitPane = window.todoSplitPane instanceof SplitPane;
+  32  |     }
+  33  | 
+  34  |     return info;
   35  |   });
   36  | 
-  37  |   console.log('Editor pane is hidden:', isHidden);
-  38  |   expect(isHidden).toBe(true);
-  39  | });
-  40  | 
-  41  | test('Todos page - clicking on todo should load it', async ({ page }) => {
-  42  |   const consoleLogs = [];
-  43  |   page.on('console', msg => {
-  44  |     if (msg.type() === 'error') {
-  45  |       consoleLogs.push(`CONSOLE ERROR: ${msg.text()}`);
-  46  |     }
-  47  |   });
+  37  |   console.log('SplitPane info:', JSON.stringify(splitpaneInfo, null, 2));
+  38  |   expect(splitpaneInfo.classExists).toBe(true);
+  39  |   expect(splitpaneInfo.instanceExists).toBe(true);
+> 40  |   expect(splitpaneInfo.hasShowRightPane).toBe(true);
+      |                                          ^ Error: expect(received).toBe(expected) // Object.is equality
+  41  | });
+  42  | 
+  43  | test('Todos page - editor should start hidden', async ({ page }) => {
+  44  |   await page.goto('http://localhost:3000/?tab=todos');
+  45  | 
+  46  |   // Wait for page to load
+  47  |   await page.waitForLoadState('networkidle');
   48  | 
-  49  |   await page.goto('http://localhost:3000/?tab=todos');
-  50  | 
-  51  |   // Wait for page to load
-  52  |   await page.waitForLoadState('networkidle');
-  53  | 
-  54  |   // Expand first folder if collapsed
-  55  |   const firstFolder = await page.locator('.todo-folder-node').first();
-  56  |   const isCollapsed = await firstFolder.evaluate(el => !el.classList.contains('expanded'));
-  57  |   if (isCollapsed) {
-  58  |     const toggle = firstFolder.locator('.todo-folder-toggle').first();
-  59  |     await toggle.click({ force: true });
-  60  |     await page.waitForTimeout(300);
-  61  |   }
-  62  | 
-  63  |   // Get first todo item
-  64  |   const firstTodo = await page.locator('.todo-row').first();
-  65  | 
-  66  |   // Click on it
-  67  |   await firstTodo.click({ force: true });
+  49  |   // Check if editor pane is hidden
+  50  |   const editorPane = await page.locator('#todoEditorPane');
+  51  |   const isHidden = await editorPane.evaluate(el => {
+  52  |     const classes = el.className;
+  53  |     const computedStyle = window.getComputedStyle(el);
+  54  |     return classes.includes('hidden') && computedStyle.display === 'none';
+  55  |   });
+  56  | 
+  57  |   console.log('Editor pane is hidden:', isHidden);
+  58  |   expect(isHidden).toBe(true);
+  59  | });
+  60  | 
+  61  | test('Todos page - clicking on todo should load it', async ({ page }) => {
+  62  |   const consoleLogs = [];
+  63  |   page.on('console', msg => {
+  64  |     if (msg.type() === 'error') {
+  65  |       consoleLogs.push(`CONSOLE ERROR: ${msg.text()}`);
+  66  |     }
+  67  |   });
   68  | 
-  69  |   // Wait for any errors to appear
-  70  |   await page.waitForTimeout(1000);
-  71  | 
-  72  |   // Check for error notifications
-  73  |   const errorElements = await page.locator('.alert-danger');
-  74  |   const errorCount = await errorElements.count();
-  75  |   console.log('Number of error alerts:', errorCount);
-  76  | 
-  77  |   if (errorCount > 0) {
-  78  |     const errorText = await errorElements.first().textContent();
-  79  |     console.log('Error message:', errorText);
-  80  |   }
-  81  | 
-  82  |   // Check if editor pane is now visible
-  83  |   const editorPane = await page.locator('#todoEditorPane');
-  84  |   const isVisible = await editorPane.evaluate(el => {
-  85  |     const classes = el.className;
-  86  |     const computedStyle = window.getComputedStyle(el);
-  87  |     return !classes.includes('hidden') && computedStyle.display !== 'none';
-  88  |   });
-  89  | 
-  90  |   console.log('Editor pane is visible after click:', isVisible);
+  69  |   await page.goto('http://localhost:3000/?tab=todos');
+  70  | 
+  71  |   // Wait for page to load
+  72  |   await page.waitForLoadState('networkidle');
+  73  | 
+  74  |   // Expand first folder if collapsed
+  75  |   const firstFolder = await page.locator('.todo-folder-node').first();
+  76  |   const isCollapsed = await firstFolder.evaluate(el => !el.classList.contains('expanded'));
+  77  |   if (isCollapsed) {
+  78  |     const toggle = firstFolder.locator('.todo-folder-toggle').first();
+  79  |     await toggle.click({ force: true });
+  80  |     await page.waitForTimeout(300);
+  81  |   }
+  82  | 
+  83  |   // Get first todo item
+  84  |   const firstTodo = await page.locator('.todo-row').first();
+  85  | 
+  86  |   // Click on it
+  87  |   await firstTodo.click({ force: true });
+  88  | 
+  89  |   // Wait for any errors to appear
+  90  |   await page.waitForTimeout(1000);
   91  | 
-  92  |   // Check if title is populated
-  93  |   const titleInput = await page.locator('#toDoEditorFormTitle');
-  94  |   const titleValue = await titleInput.inputValue();
-  95  |   console.log('Title value:', titleValue);
+  92  |   // Check for error notifications
+  93  |   const errorElements = await page.locator('.alert-danger');
+  94  |   const errorCount = await errorElements.count();
+  95  |   console.log('Number of error alerts:', errorCount);
   96  | 
-  97  |   if (consoleLogs.length > 0) {
-  98  |     console.log('Console errors:', consoleLogs);
-  99  |   }
-  100 | 
-  101 |   expect(errors).toBe(0);
-  102 |   expect(isVisible).toBe(true);
-  103 |   expect(titleValue.length).toBeGreaterThan(0);
-  104 | });
-  105 | 
-  106 | test('Templates page - for comparison', async ({ page }) => {
-  107 |   await page.goto('http://localhost:3000/?tab=templates');
-  108 | 
-  109 |   // Wait for page to load
-  110 |   await page.waitForLoadState('networkidle');
+  97  |   if (errorCount > 0) {
+  98  |     const errorText = await errorElements.first().textContent();
+  99  |     console.log('Error message:', errorText);
+  100 |   }
+  101 | 
+  102 |   // Check if editor pane is now visible
+  103 |   const editorPane = await page.locator('#todoEditorPane');
+  104 |   const isVisible = await editorPane.evaluate(el => {
+  105 |     const classes = el.className;
+  106 |     const computedStyle = window.getComputedStyle(el);
+  107 |     return !classes.includes('hidden') && computedStyle.display !== 'none';
+  108 |   });
+  109 | 
+  110 |   console.log('Editor pane is visible after click:', isVisible);
   111 | 
-  112 |   // Check if editor pane is hidden
-  113 |   const editorPane = await page.locator('#templateEditorPane');
-  114 |   const isHidden = await editorPane.evaluate(el => {
-  115 |     const classes = el.className;
-  116 |     const computedStyle = window.getComputedStyle(el);
-  117 |     return classes.includes('hidden') && computedStyle.display === 'none';
-  118 |   });
-  119 | 
-  120 |   console.log('Templates editor pane is hidden:', isHidden);
+  112 |   // Check if title is populated
+  113 |   const titleInput = await page.locator('#toDoEditorFormTitle');
+  114 |   const titleValue = await titleInput.inputValue();
+  115 |   console.log('Title value:', titleValue);
+  116 | 
+  117 |   if (consoleLogs.length > 0) {
+  118 |     console.log('Console errors:', consoleLogs);
+  119 |   }
+  120 | 
+  121 |   expect(errors).toBe(0);
+  122 |   expect(isVisible).toBe(true);
+  123 |   expect(titleValue.length).toBeGreaterThan(0);
+  124 | });
+  125 | 
+  126 | test('Templates page - for comparison', async ({ page }) => {
+  127 |   await page.goto('http://localhost:3000/?tab=templates');
+  128 | 
+  129 |   // Wait for page to load
+  130 |   await page.waitForLoadState('networkidle');
+  131 | 
+  132 |   // Check if editor pane is hidden
+  133 |   const editorPane = await page.locator('#templateEditorPane');
+  134 |   const isHidden = await editorPane.evaluate(el => {
+  135 |     const classes = el.className;
+  136 |     const computedStyle = window.getComputedStyle(el);
+  137 |     return classes.includes('hidden') && computedStyle.display === 'none';
+  138 |   });
+  139 | 
+  140 |   console.log('Templates editor pane is hidden:', isHidden);
 ```
