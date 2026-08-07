@@ -792,6 +792,19 @@ export async function createMysqlSchema(connection) {
     }
   }
 
+  // ServiceNow and Azure DevOps API credentials for fetching ticket details
+  if (!(await columnExists(connection, "contexts", "snow_instance"))) {
+    await connection.query(`
+      ALTER TABLE contexts
+        ADD COLUMN snow_instance VARCHAR(500),
+        ADD COLUMN snow_username_enc TEXT,
+        ADD COLUMN snow_password_enc TEXT,
+        ADD COLUMN ado_org VARCHAR(500),
+        ADD COLUMN ado_project VARCHAR(255),
+        ADD COLUMN ado_pat_enc TEXT
+    `);
+  }
+
   // Per-context visibility/order for the main app's tabs. Dailies is always
   // shown first and can't be hidden, so it's deliberately not represented here
   // - the dashboard nav always pins it, then lays out whatever this table says

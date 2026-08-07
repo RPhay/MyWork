@@ -45,29 +45,47 @@
     <div id="contextPanel" class="d-none">
       <h5 id="contextPanelTitle" class="mb-2"></h5>
 
-      <div class="mb-3">
-        <label class="form-label d-block"
-          >Owner <span class="text-danger">*</span></label
-        >
-        <div class="d-flex gap-2 align-items-center">
-          <select
-            class="form-select form-select-sm"
-            id="contextOwnerSelect"
-            style="max-width: 220px"
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label class="form-label d-block"
+            >User <span class="text-danger">*</span></label
           >
-            <option value="">Unassigned</option>
-          </select>
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-secondary"
-            id="addContextOwnerBtn"
-          >
-            + New User
-          </button>
+          <div class="d-flex gap-2 align-items-center">
+            <select
+              class="form-select form-select-sm"
+              id="contextOwnerSelect"
+              style="max-width: 220px"
+            >
+              <option value="">Unassigned</option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              id="addContextOwnerBtn"
+            >
+              + New User
+            </button>
+          </div>
+          <div id="contextOwnerWarning" class="text-danger small mt-1 d-none">
+            <i class="bi bi-exclamation-triangle"></i> This context has no owner -
+            it can't be activated until you assign one.
+          </div>
         </div>
-        <div id="contextOwnerWarning" class="text-danger small mt-1 d-none">
-          <i class="bi bi-exclamation-triangle"></i> This context has no owner -
-          it can't be activated until you assign one.
+        <div class="col-md-6">
+          <label class="form-label d-block">External APIs</label>
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="contextSsoEnabledCheck"
+            >
+            <label class="form-check-label" for="contextSsoEnabledCheck">
+              Enable ServiceNow / Azure DevOps
+            </label>
+          </div>
+          <small class="text-muted d-block mt-1">
+            Allows fetching ticket details when dropping URLs
+          </small>
         </div>
       </div>
 
@@ -85,6 +103,11 @@
         <li class="nav-item" data-subtab="schema" draggable="true">
           <button class="nav-link" data-subtab="schema" type="button">
             Schema
+          </button>
+        </li>
+        <li class="nav-item" data-subtab="external-apis" draggable="true">
+          <button class="nav-link" data-subtab="external-apis" type="button">
+            External APIs
           </button>
         </li>
         <li class="nav-item" data-subtab="sources" draggable="true">
@@ -288,6 +311,119 @@
               <h6 class="card-title mb-2">Schema Update Results</h6>
               <div id="schemaUpdateResultsContent"></div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- External APIs sub-panel: configure ServiceNow, Azure DevOps credentials -->
+      <div class="context-subtab-pane d-none" data-subtab-pane="external-apis">
+        <p class="text-muted small">
+          Configure credentials for external services to fetch ticket details when dropping URLs.
+        </p>
+
+        <div class="card mb-3">
+          <div class="card-header">
+            <h6 class="mb-0">ServiceNow</h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="contextSnowInstance" class="form-label">Instance URL</label>
+              <input
+                type="text"
+                class="form-control"
+                id="contextSnowInstance"
+                placeholder="https://myorg.service-now.com"
+              >
+              <small class="text-muted">e.g., https://myorg.service-now.com</small>
+            </div>
+            <div class="mb-3">
+              <label for="contextSnowUsername" class="form-label">API Username</label>
+              <input
+                type="text"
+                class="form-control"
+                id="contextSnowUsername"
+                placeholder="admin"
+              >
+            </div>
+            <div class="mb-3">
+              <label for="contextSnowPassword" class="form-label">API Password</label>
+              <input
+                type="password"
+                class="form-control"
+                id="contextSnowPassword"
+                placeholder="••••••••"
+                autocomplete="new-password"
+              >
+              <small class="text-muted d-block mt-1">Stored encrypted; leave blank to keep current</small>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-primary"
+              id="testSnowConnectionBtn"
+            >
+              Test Connection
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-success"
+              id="saveSnowConfigBtn"
+            >
+              Save ServiceNow Config
+            </button>
+            <span id="snowConfigStatus" class="small ms-2"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h6 class="mb-0">Azure DevOps</h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="contextAdoOrg" class="form-label">Organization URL</label>
+              <input
+                type="text"
+                class="form-control"
+                id="contextAdoOrg"
+                placeholder="https://dev.azure.com/myorg"
+              >
+              <small class="text-muted">e.g., https://dev.azure.com/myorg</small>
+            </div>
+            <div class="mb-3">
+              <label for="contextAdoProject" class="form-label">Project Name</label>
+              <input
+                type="text"
+                class="form-control"
+                id="contextAdoProject"
+                placeholder="MyProject"
+              >
+            </div>
+            <div class="mb-3">
+              <label for="contextAdoPat" class="form-label">Personal Access Token (PAT)</label>
+              <input
+                type="password"
+                class="form-control"
+                id="contextAdoPat"
+                placeholder="••••••••"
+                autocomplete="new-password"
+              >
+              <small class="text-muted d-block mt-1">Stored encrypted; leave blank to keep current</small>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-primary"
+              id="testAdoConnectionBtn"
+            >
+              Test Connection
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-success"
+              id="saveAdoConfigBtn"
+            >
+              Save Azure DevOps Config
+            </button>
+            <span id="adoConfigStatus" class="small ms-2"></span>
           </div>
         </div>
       </div>

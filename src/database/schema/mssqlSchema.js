@@ -831,6 +831,18 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
+  if (!(await columnExists(pool, "contexts", "snow_instance"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[contexts] ADD
+        snow_instance NVARCHAR(500) NULL,
+        snow_username_enc NVARCHAR(MAX) NULL,
+        snow_password_enc NVARCHAR(MAX) NULL,
+        ado_org NVARCHAR(500) NULL,
+        ado_project NVARCHAR(255) NULL,
+        ado_pat_enc NVARCHAR(MAX) NULL
+    `);
+  }
+
   if (!(await columnExists(pool, "contexts", "folder_id"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[contexts] ADD
