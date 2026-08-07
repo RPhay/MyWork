@@ -1046,6 +1046,7 @@ async function clearDayHighlight() {
 
 function initCalendarDayContextMenu() {
   const menu = document.getElementById("calendarDayContextMenu");
+  if (!menu) return;
 
   menu.addEventListener("click", (e) => {
     const swatch = e.target.closest("[data-color]");
@@ -1075,6 +1076,7 @@ function initCalendarDayContextMenu() {
 
 function initCalendarDropMenu() {
   const menu = document.getElementById("calendarDropMenu");
+  if (!menu) return;
 
   menu.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-drop-action]");
@@ -1999,6 +2001,7 @@ function initRightPanelEditOnDblClick() {
 
 function initWorkItemContextMenu() {
   const menu = document.getElementById("workItemContextMenu");
+  if (!menu) return;
 
   menu.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-menu-action]");
@@ -2551,7 +2554,8 @@ function initDailies() {
   document.body.appendChild(dateInput);
 
   // Setup outer split-pane (Calendar | Content)
-  const outerSplitPane = new SplitPane("dailiesOuterSplitPane", "dailiesCalendarPane", "dailiesOuterDivider", "dailiesSplitPane", 25);
+  const outerSplitPane = new SplitPane("dailiesOuterSplitPane", "dailiesCalendarPane", "dailiesOuterDivider", "dailiesContentRight", 25);
+  outerSplitPane.showRightPane();
 
   // Setup inner split-pane (Work Items | Editor)
   dailiesSplitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
