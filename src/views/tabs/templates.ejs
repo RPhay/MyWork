@@ -65,6 +65,7 @@
         <div class="template-tree-header text-muted small fw-bold border-bottom pb-1 mb-2">
           <span>Title</span>
           <span>Oh!</span>
+          <span>Time</span>
           <span>Status</span>
           <span>Time Box</span>
           <span>Actions</span>
@@ -101,6 +102,11 @@
             <div class="mb-3">
               <label for="templateEditorDescription" class="form-label">Description</label>
               <textarea class="form-control" id="templateEditorDescription" name="description" rows="3"></textarea>
+            </div>
+
+            <div class="mb-3">
+              <label for="templateEditorStartTime" class="form-label">Start Time (HH:MM)</label>
+              <input type="time" class="form-control" id="templateEditorStartTime" name="start_time">
             </div>
 
             <div class="mb-3">
@@ -208,7 +214,7 @@
 
   .template-tree-header, .template-node-header {
     display: grid;
-    grid-template-columns: 1fr 40px 100px 70px 84px;
+    grid-template-columns: 1fr 40px 50px 100px 70px 84px;
     align-items: center;
     gap: 8px;
   }
@@ -268,6 +274,13 @@
     text-align: center;
     width: 40px;
     cursor: pointer;
+  }
+
+  .template-start-time {
+    text-align: center;
+    min-width: 50px;
+    font-size: 0.9rem;
+    color: #666;
   }
 
   .template-status-badge {

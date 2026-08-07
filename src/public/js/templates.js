@@ -32,6 +32,7 @@ function renderTemplateNode(template) {
           <span class="template-title">${app.escapeHtml(template.title)}</span>
         </span>
         <span class="template-emoji" data-action="pick-emoji" data-id="${template.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(template.emoji || '')}</span>
+        <span class="template-start-time" title="Meeting time">${template.start_time ? template.start_time : '-'}</span>
         <span class="badge bg-${template.status === 'Complete' ? 'success' : template.status === 'In Progress' ? 'warning' : 'secondary'} template-status-badge" data-action="cycle-status" data-id="${template.id}" title="Click to change status">${template.status}</span>
         <span class="badge bg-light text-dark border template-timebox-badge" data-action="cycle-timebox" data-id="${template.id}" data-minutes="${template.time_box_minutes || ''}" title="Click to change time box">${template.time_box_minutes ? template.time_box_minutes + 'm' : 'No time box'}</span>
         <span class="template-actions">
@@ -173,6 +174,7 @@ async function saveTemplate() {
     title: document.getElementById('templateTitle').value,
     description: document.getElementById('templateDescription').value,
     emoji: document.getElementById('templateEmoji').value,
+    start_time: document.getElementById('templateStartTime')?.value || null,
     time_box_minutes: getTimeBoxField('templateTimeBox')
   };
 
@@ -220,6 +222,7 @@ async function editTemplate(templateId) {
     document.getElementById('templateEditorDisplayTitle').textContent = template.title;
     document.getElementById('templateEditorDescription').value = template.description || '';
     document.getElementById('templateEditorEmoji').value = template.emoji || '';
+    document.getElementById('templateEditorStartTime').value = template.start_time || '';
     updateEmojiFieldButton('templateEditorEmojiBtn', template.emoji || '');
     setTimeBoxField('templateEditorTimeBox', template.time_box_minutes);
 
@@ -454,7 +457,8 @@ function parseOutlookPlainTextFormat(text) {
   const event = {
     title: '',
     description: '',
-    duration: null
+    duration: null,
+    startTime: null
   };
 
   const lines = text.split(/[\r\n]+/).map(l => l.trim()).filter(l => l);
@@ -470,9 +474,10 @@ function parseOutlookPlainTextFormat(text) {
 
     if (line.startsWith('When:')) {
       const whenText = line.substring(5).trim();
-      const duration = parseOutlookTimeRange(whenText);
-      if (duration !== null) {
-        event.duration = duration;
+      const timeData = parseOutlookTimeRange(whenText);
+      if (timeData !== null) {
+        event.duration = timeData.duration;
+        event.startTime = timeData.startTime;
       }
     } else if (line.startsWith('Location:')) {
       const location = line.substring(9).trim();
@@ -526,7 +531,10 @@ function parseOutlookTimeRange(timeStr) {
     duration += 24 * 60;
   }
 
-  return duration;
+  // Format start time as HH:MM (24-hour format)
+  const startTimeStr = `${String(start24Hour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
+
+  return { duration, startTime: startTimeStr };
 }
 
 async function createTemplateFromCalendarEvent(event) {
@@ -534,6 +542,7 @@ async function createTemplateFromCalendarEvent(event) {
     title: event.title,
     description: event.description || '',
     time_box_minutes: event.duration || null,
+    start_time: event.startTime || null,
     status: 'In Progress'
   };
 
@@ -931,6 +940,7 @@ function initTemplates() {
       const title = document.getElementById("templateEditorTitle").value;
       const description = document.getElementById("templateEditorDescription").value;
       const emoji = document.getElementById("templateEditorEmoji").value;
+      const startTime = document.getElementById("templateEditorStartTime").value;
       const timeBox = document.querySelector('input[name="templateEditorTimeBoxBubble"]:checked')?.value || null;
 
       if (!title.trim()) {
@@ -949,6 +959,7 @@ function initTemplates() {
             title,
             description,
             emoji: emoji || null,
+            start_time: startTime || null,
             time_box_minutes: timeBox ? parseInt(timeBox, 10) : null
           })
         });
