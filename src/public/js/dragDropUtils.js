@@ -22,7 +22,8 @@ function parseICalendarFormat(text) {
   const event = {
     title: '',
     description: '',
-    duration: null
+    duration: null,
+    startTime: null
   };
 
   let dtStart = null;
@@ -44,6 +45,9 @@ function parseICalendarFormat(text) {
 
   if (dtStart && dtEnd) {
     event.duration = Math.round((dtEnd - dtStart) / 60000);
+    const hours = dtStart.getHours();
+    const minutes = dtStart.getMinutes();
+    event.startTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
   }
 
   return event;
@@ -53,7 +57,8 @@ function parseOutlookPlainTextFormat(text) {
   const event = {
     title: '',
     description: '',
-    duration: null
+    duration: null,
+    startTime: null
   };
 
   const lines = text.split(/[\r\n]+/).map(l => l.trim()).filter(l => l);
@@ -69,9 +74,10 @@ function parseOutlookPlainTextFormat(text) {
 
     if (line.startsWith('When:')) {
       const whenText = line.substring(5).trim();
-      const duration = parseOutlookTimeRange(whenText);
-      if (duration !== null) {
-        event.duration = duration;
+      const timeData = parseOutlookTimeRange(whenText);
+      if (timeData !== null) {
+        event.duration = timeData.duration;
+        event.startTime = timeData.startTime;
       }
     } else if (line.startsWith('Location:')) {
       const location = line.substring(9).trim();
@@ -125,7 +131,10 @@ function parseOutlookTimeRange(timeStr) {
     duration += 24 * 60;
   }
 
-  return duration;
+  // Format start time as HH:MM (24-hour format)
+  const startTimeStr = `${String(start24Hour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
+
+  return { duration, startTime: startTimeStr };
 }
 
 function parseICalDate(dateStr) {
