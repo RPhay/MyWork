@@ -312,8 +312,11 @@ export async function checkSystemDbSchema() {
         const existingTables = new Set(result.recordset.map(r => r.name));
         const allTables = [
           'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
-          'sources', 'source_auth', 'categories', 'areas', 'priorities', 'priority_templates',
-          'goals', 'work_items', 'work_item_templates', 'work_item_associations',
+          'sources', 'source_auth', 'categories', 'areas', 'years', 'priorities',
+          'priority_areas', 'priority_goals', 'goals', 'goal_categories', 'work_items',
+          'work_goal_associations', 'work_priority_associations', 'work_area_associations',
+          'work_source_associations', 'work_item_templates', 'template_areas',
+          'template_goals', 'template_priorities',
           'to_do_folders', 'to_dos', 'to_do_items', 'idea_folders', 'ideas', 'idea_items',
           'tasks', 'tickets', 'priority_links', 'to_do_links', 'idea_links', 'task_links',
           'ticket_links', 'context_tab_settings'
@@ -343,8 +346,11 @@ export async function checkSystemDbSchema() {
         const existingTables = new Set(rows.map(r => r.TABLE_NAME));
         const allTables = [
           'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
-          'sources', 'source_auth', 'categories', 'areas', 'priorities', 'priority_templates',
-          'goals', 'work_items', 'work_item_templates', 'work_item_associations',
+          'sources', 'source_auth', 'categories', 'areas', 'years', 'priorities',
+          'priority_areas', 'priority_goals', 'goals', 'goal_categories', 'work_items',
+          'work_goal_associations', 'work_priority_associations', 'work_area_associations',
+          'work_source_associations', 'work_item_templates', 'template_areas',
+          'template_goals', 'template_priorities',
           'to_do_folders', 'to_dos', 'to_do_items', 'idea_folders', 'ideas', 'idea_items',
           'tasks', 'tickets', 'priority_links', 'to_do_links', 'idea_links', 'task_links',
           'ticket_links', 'context_tab_settings'

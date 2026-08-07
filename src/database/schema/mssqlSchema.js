@@ -116,6 +116,27 @@ export async function createMssqlSchema(pool) {
 
   await createTableIfNotExists(
     pool,
+    "source_auth",
+    `
+    CREATE TABLE [MyWork].[source_auth] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      source_id INT NOT NULL,
+      auth_type NVARCHAR(50) NOT NULL,
+      auth_data_enc NVARCHAR(MAX) NULL,
+      auth_metadata NVARCHAR(MAX) NULL,
+      authenticated_at DATETIME2 NULL,
+      expires_at DATETIME2 NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_source_auth_source FOREIGN KEY (source_id) REFERENCES [MyWork].[sources](id) ON DELETE CASCADE,
+      CONSTRAINT unique_source_auth UNIQUE (source_id, auth_type)
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "source_auth");
+
+  await createTableIfNotExists(
+    pool,
     "categories",
     `
     CREATE TABLE [MyWork].[categories] (
@@ -711,6 +732,25 @@ export async function createMssqlSchema(pool) {
     )
   `,
   );
+
+  await createTableIfNotExists(
+    pool,
+    "sso_identities",
+    `
+    CREATE TABLE [MyWork].[sso_identities] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      user_id INT NOT NULL,
+      provider NVARCHAR(50) NOT NULL,
+      provider_id NVARCHAR(500) NOT NULL,
+      provider_email NVARCHAR(255) NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_sso_identities_user FOREIGN KEY (user_id) REFERENCES [MyWork].[users](id) ON DELETE CASCADE,
+      CONSTRAINT unique_provider_identity UNIQUE (provider, provider_id)
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "sso_identities");
 
   await createTableIfNotExists(
     pool,
