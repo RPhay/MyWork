@@ -470,9 +470,8 @@ async function editPriority(priorityId) {
     }
 
     // Show split-pane editor
-    const editorPane = document.getElementById('priorityEditorPane');
-    if (editorPane) {
-      editorPane.classList.remove('hidden');
+    if (window.prioritySplitPane) {
+      window.prioritySplitPane.showRightPane();
     }
   } catch (error) {
     console.error('Error loading project:', error);
@@ -760,9 +759,8 @@ function initPrioritiesEventListeners() {
 }
 
 function closePriorityEditor() {
-  const editorPane = document.getElementById('priorityEditorPane');
-  if (editorPane) {
-    editorPane.classList.add('hidden');
+  if (window.prioritySplitPane) {
+    window.prioritySplitPane.hideRightPane();
   }
 }
 
@@ -813,6 +811,8 @@ function initPriorities() {
   // Initialize split pane for side-panel editing
   if (document.getElementById('prioritySplitPane')) {
     window.prioritySplitPane = new SplitPane('prioritySplitPane', 'priorityListPane', 'priorityDivider', 'priorityEditorPane', 66.66);
+    // Start with editor hidden
+    window.prioritySplitPane.hideRightPane();
   }
 
   // Setup drawer toggle for associate items
