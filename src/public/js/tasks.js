@@ -43,40 +43,74 @@ function renderTasks() {
 }
 
 async function openTaskForm(taskId = null) {
+  // Check if split-pane exists
+  const editorPane = document.getElementById('taskEditorPane');
+  const useSplitPane = editorPane && window.taskSplitPane;
+
   if (taskId) {
     const task = allTasks.find(t => t.id === taskId);
     if (task) {
-      document.getElementById('taskId').value = task.id;
-      document.getElementById('taskTitle').value = task.title;
-      document.getElementById('taskNotes').value = task.notes || '';
-      renderTaskLinks(task.links || []);
+      if (useSplitPane) {
+        // Populate split-pane editor fields
+        document.getElementById('taskEditorId').value = task.id;
+        document.getElementById('taskEditorFormTitle').value = task.title;
+        document.getElementById('taskEditorNotes').value = task.notes || '';
+        renderTaskLinksEditor(task.links || []);
 
-      // Show side-panel editor if split pane exists, otherwise use modal
-      const editorPane = document.getElementById('taskEditorPane');
-      if (editorPane && window.taskSplitPane) {
+        // Show split-pane editor
         editorPane.classList.remove('hidden');
-        document.getElementById('taskEditorForm').style.display = 'block';
-        document.getElementById('editorTitle').textContent = task.title;
-        return;
+        document.getElementById('taskEditorTitle').textContent = task.title;
+      } else {
+        // Populate modal form fields
+        document.getElementById('taskId').value = task.id;
+        document.getElementById('taskTitle').value = task.title;
+        document.getElementById('taskNotes').value = task.notes || '';
+        renderTaskLinks(task.links || []);
       }
     }
   } else {
-    document.getElementById('taskId').value = '';
-    document.getElementById('taskTitle').value = '';
-    document.getElementById('taskNotes').value = '';
-    renderTaskLinks([]);
+    if (useSplitPane) {
+      document.getElementById('taskEditorId').value = '';
+      document.getElementById('taskEditorFormTitle').value = '';
+      document.getElementById('taskEditorNotes').value = '';
+      renderTaskLinksEditor([]);
+    } else {
+      document.getElementById('taskId').value = '';
+      document.getElementById('taskTitle').value = '';
+      document.getElementById('taskNotes').value = '';
+      renderTaskLinks([]);
+    }
   }
 
-  const modal = new bootstrap.Modal(document.getElementById('taskModal'));
-  modal.show();
+  // Only show modal if split-pane doesn't exist
+  if (!useSplitPane) {
+    const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+    modal.show();
+  }
 }
 
 function closeTaskEditor() {
   const editorPane = document.getElementById('taskEditorPane');
   if (editorPane) {
     editorPane.classList.add('hidden');
-    document.getElementById('taskEditorForm').style.display = 'none';
   }
+}
+
+function renderTaskLinksEditor(links) {
+  const linksList = document.getElementById('taskEditorLinksList');
+  linksList.innerHTML = '';
+
+  links.forEach((link, index) => {
+    const linkEl = document.createElement('div');
+    linkEl.className = 'mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center';
+    linkEl.innerHTML = `
+      <a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>
+      <button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-link" data-index="${index}">
+        <i class="bi bi-x"></i>
+      </button>
+    `;
+    linksList.appendChild(linkEl);
+  });
 }
 
 function renderTaskLinks(links) {
@@ -97,9 +131,20 @@ function renderTaskLinks(links) {
 }
 
 async function saveTask() {
-  const taskId = document.getElementById('taskId').value;
-  const title = document.getElementById('taskTitle').value;
-  const notes = document.getElementById('taskNotes').value;
+  // Check which form is being used
+  const editorPane = document.getElementById('taskEditorPane');
+  const useSplitPane = editorPane && !editorPane.classList.contains('hidden');
+
+  let taskId, title, notes;
+  if (useSplitPane) {
+    taskId = document.getElementById('taskEditorId').value;
+    title = document.getElementById('taskEditorFormTitle').value;
+    notes = document.getElementById('taskEditorNotes').value;
+  } else {
+    taskId = document.getElementById('taskId').value;
+    title = document.getElementById('taskTitle').value;
+    notes = document.getElementById('taskNotes').value;
+  }
 
   if (!title.trim()) {
     app.notify('Title is required', 'warning');
@@ -161,51 +206,46 @@ async function deleteTask(taskId) {
   }
 }
 
-function addTaskLink() {
-  const url = document.getElementById('taskLinkUrl').value.trim();
-  const title = document.getElementById('taskLinkTitle').value.trim();
+function addTaskLink(isEditor = false) {
+  const prefix = isEditor ? 'taskEditor' : 'task';
+  const url = document.getElementById(`${prefix}LinkUrl`).value.trim();
+  const title = document.getElementById(`${prefix}LinkTitle`).value.trim();
 
   if (!url) {
     app.notify('URL is required', 'warning');
     return;
   }
 
-  const currentLinks = Array.from(document.querySelectorAll('#taskLinksList a')).map(a => ({
+  const linkListId = isEditor ? 'taskEditorLinksList' : 'taskLinksList';
+  const currentLinks = Array.from(document.querySelectorAll(`#${linkListId} a`)).map(a => ({
     url: a.href,
     title: a.textContent
   }));
 
   currentLinks.push({ url, title: title || url });
-  renderTaskLinks(currentLinks);
 
-  document.getElementById('taskLinkUrl').value = '';
-  document.getElementById('taskLinkTitle').value = '';
+  if (isEditor) {
+    renderTaskLinksEditor(currentLinks);
+  } else {
+    renderTaskLinks(currentLinks);
+  }
+
+  document.getElementById(`${prefix}LinkUrl`).value = '';
+  document.getElementById(`${prefix}LinkTitle`).value = '';
 }
 
 function initTasksEventListeners() {
   document.getElementById('addTaskBtn')?.addEventListener('click', () => openTaskForm());
   document.getElementById('saveTaskBtn')?.addEventListener('click', saveTask);
-  document.getElementById('addTaskLinkBtn')?.addEventListener('click', addTaskLink);
+  document.getElementById('addTaskLinkBtn')?.addEventListener('click', () => addTaskLink(false));
 
-  // Side-panel editor buttons
-  const saveEditorBtn = document.getElementById('saveTaskEditorBtn');
-  const closeEditorBtn = document.getElementById('closeTaskEditorBtn');
-  if (saveEditorBtn) {
-    saveEditorBtn.addEventListener('click', async () => {
-      await saveTask();
-      closeTaskEditor();
-    });
-  }
-  if (closeEditorBtn) {
-    closeEditorBtn.addEventListener('click', closeTaskEditor);
-  }
-
+  // Modal form link removal
   document.getElementById('tasksList').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     if (btn.dataset.action === 'edit') openTaskForm(parseInt(btn.dataset.id));
     else if (btn.dataset.action === 'delete') deleteTask(parseInt(btn.dataset.id));
-    else if (btn.dataset.action === 'remove-link') {
+    else if (btn.dataset.action === 'remove-link' && btn.closest('#taskLinksList')) {
       const links = Array.from(document.querySelectorAll('#taskLinksList a')).map(a => ({
         url: a.href,
         title: a.textContent
@@ -214,6 +254,41 @@ function initTasksEventListeners() {
       renderTaskLinks(links);
     }
   });
+
+  // Side-panel editor buttons
+  const saveEditorBtn = document.getElementById('saveTaskEditorBtn');
+  const closeEditorBtn = document.getElementById('closeTaskEditorBtn');
+  const editorLinkBtn = document.getElementById('taskEditorAddLinkBtn');
+
+  if (saveEditorBtn) {
+    saveEditorBtn.addEventListener('click', async () => {
+      await saveTask();
+      closeTaskEditor();
+      loadTasks();
+    });
+  }
+  if (closeEditorBtn) {
+    closeEditorBtn.addEventListener('click', closeTaskEditor);
+  }
+  if (editorLinkBtn) {
+    editorLinkBtn.addEventListener('click', () => addTaskLink(true));
+  }
+
+  // Side-panel editor link removal
+  const editorPane = document.getElementById('taskEditorPane');
+  if (editorPane) {
+    editorPane.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (btn?.dataset.action === 'remove-link' && btn.closest('#taskEditorLinksList')) {
+        const links = Array.from(document.querySelectorAll('#taskEditorLinksList a')).map(a => ({
+          url: a.href,
+          title: a.textContent
+        }));
+        links.splice(parseInt(btn.dataset.index), 1);
+        renderTaskLinksEditor(links);
+      }
+    });
+  }
 }
 
 function initTasks() {

@@ -26,28 +26,28 @@
   <!-- Right Pane (Editor) -->
   <div class="split-pane-right hidden" id="taskEditorPane">
     <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="editorTitle">Select a task to edit</div>
-      <form id="taskEditorForm" style="display: none;">
-        <input type="hidden" id="taskId" name="taskId">
+      <div class="split-pane-editor-title" id="taskEditorTitle">Select a task to edit</div>
+      <form id="taskEditorForm">
+        <input type="hidden" id="taskEditorId" name="taskId">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
         <div class="mb-3">
-          <label for="taskTitle" class="form-label">Title *</label>
-          <input type="text" class="form-control" id="taskTitle" name="title" required>
+          <label for="taskEditorFormTitle" class="form-label">Title *</label>
+          <input type="text" class="form-control" id="taskEditorFormTitle" name="title" required>
         </div>
 
         <div class="mb-3">
-          <label for="taskNotes" class="form-label">Notes</label>
-          <textarea class="form-control" id="taskNotes" name="notes" rows="4"></textarea>
+          <label for="taskEditorNotes" class="form-label">Notes</label>
+          <textarea class="form-control" id="taskEditorNotes" name="notes" rows="4"></textarea>
         </div>
 
         <div class="mb-3">
           <label class="form-label">Links</label>
-          <div id="taskLinksList" class="mb-2"></div>
+          <div id="taskEditorLinksList" class="mb-2"></div>
           <div class="input-group input-group-sm">
-            <input type="url" class="form-control" id="taskLinkUrl" placeholder="https://example.com">
-            <input type="text" class="form-control" id="taskLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
-            <button type="button" class="btn btn-outline-secondary" id="addTaskLinkBtn">
+            <input type="url" class="form-control" id="taskEditorLinkUrl" placeholder="https://example.com">
+            <input type="text" class="form-control" id="taskEditorLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+            <button type="button" class="btn btn-outline-secondary" id="taskEditorAddLinkBtn">
               <i class="bi bi-plus-lg"></i>
             </button>
           </div>

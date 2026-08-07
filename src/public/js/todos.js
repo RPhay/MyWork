@@ -214,8 +214,8 @@ function renderToDoItemRow(text, isDone) {
   `;
 }
 
-function renderToDoItemsEditor(items) {
-  document.getElementById('toDoItemsList').innerHTML = (items || [])
+function renderToDoItemsEditor(items, containerId = 'toDoItemsList') {
+  document.getElementById(containerId).innerHTML = (items || [])
     .map(item => renderToDoItemRow(item.text, item.is_done))
     .join('');
 }
@@ -320,39 +320,68 @@ async function editToDo(toDoId) {
     const result = await response.json();
     const toDo = result.data;
 
-    // Populate both modal and side-panel forms
-    document.getElementById('toDoId').value = toDo.id;
-    document.getElementById('toDoTitle').value = toDo.title;
-    document.getElementById('toDoNotes').value = toDo.notes || '';
-    renderToDoItemsEditor(toDo.items || []);
-
-    // Load and display links
-    loadLinksForEntity('to-do', toDo.id, 'toDoLinksList');
-
-    // Setup link input handlers
-    const addLinkBtn = document.getElementById('addToDoLinkBtn');
-    if (addLinkBtn) {
-      addLinkBtn.onclick = async (e) => {
-        e.preventDefault();
-        const url = document.getElementById('toDoLinkUrl').value;
-        const title = document.getElementById('toDoLinkTitle').value;
-        if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoLinksList')) {
-          document.getElementById('toDoLinkUrl').value = '';
-          document.getElementById('toDoLinkTitle').value = '';
-        }
-      };
-    }
-
-    // Setup URL drag-drop
-    setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
-
-    // Show side-panel editor if split pane exists, otherwise use modal
+    // Check if split-pane exists
     const editorPane = document.getElementById('todoEditorPane');
-    if (editorPane && window.todoSplitPane) {
+    const useSplitPane = editorPane && window.todoSplitPane;
+
+    if (useSplitPane) {
+      // Populate split-pane form
+      document.getElementById('toDoEditorId').value = toDo.id;
+      document.getElementById('toDoEditorFormTitle').value = toDo.title;
+      document.getElementById('toDoEditorNotes').value = toDo.notes || '';
+      renderToDoItemsEditor(toDo.items || [], 'toDoEditorItemsList');
+
+      // Load and display links for split-pane
+      loadLinksForEntity('to-do', toDo.id, 'toDoEditorLinksList');
+
+      // Setup link input handlers for split-pane
+      const addEditorLinkBtn = document.getElementById('toDoEditorAddLinkBtn');
+      if (addEditorLinkBtn) {
+        addEditorLinkBtn.onclick = async (e) => {
+          e.preventDefault();
+          const url = document.getElementById('toDoEditorLinkUrl').value;
+          const title = document.getElementById('toDoEditorLinkTitle').value;
+          if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoEditorLinksList')) {
+            document.getElementById('toDoEditorLinkUrl').value = '';
+            document.getElementById('toDoEditorLinkTitle').value = '';
+          }
+        };
+      }
+
+      // Setup URL drag-drop for split-pane
+      setupURLDragDrop('to-do', 'toDoEditorLinksList', () => toDo.id);
+
+      // Show side-panel editor
       editorPane.classList.remove('hidden');
-      document.getElementById('toDoEditorForm').style.display = 'block';
-      document.getElementById('editorTitle').textContent = toDo.title;
+      document.getElementById('todoEditorTitle').textContent = toDo.title;
     } else {
+      // Populate modal form
+      document.getElementById('toDoId').value = toDo.id;
+      document.getElementById('toDoTitle').value = toDo.title;
+      document.getElementById('toDoNotes').value = toDo.notes || '';
+      renderToDoItemsEditor(toDo.items || [], 'toDoItemsList');
+
+      // Load and display links
+      loadLinksForEntity('to-do', toDo.id, 'toDoLinksList');
+
+      // Setup link input handlers
+      const addLinkBtn = document.getElementById('addToDoLinkBtn');
+      if (addLinkBtn) {
+        addLinkBtn.onclick = async (e) => {
+          e.preventDefault();
+          const url = document.getElementById('toDoLinkUrl').value;
+          const title = document.getElementById('toDoLinkTitle').value;
+          if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoLinksList')) {
+            document.getElementById('toDoLinkUrl').value = '';
+            document.getElementById('toDoLinkTitle').value = '';
+          }
+        };
+      }
+
+      // Setup URL drag-drop
+      setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
+
+      // Show modal
       const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
       modal.show();
     }
