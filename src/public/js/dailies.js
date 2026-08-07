@@ -1782,49 +1782,44 @@ function initWorkItemsListEventListeners() {
   });
 
   container.addEventListener("dragover", (e) => {
-    const workItemEl = e.target.closest(".work-item");
-    if (workItemEl) {
+    const types = Array.from(e.dataTransfer.types || []);
+    const hasCalendarData =
+      types.includes("text/calendar") ||
+      types.includes("text/plain") ||
+      types.some(
+        (t) =>
+          t.toLowerCase().includes("calendar") ||
+          t.toLowerCase().includes("ics") ||
+          t.toLowerCase().includes("event"),
+      );
+
+    // Always allow drops for calendar data or internal drags
+    if (hasCalendarData || currentDragType) {
       e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      container.classList.add("work-items-drop-target");
+    }
 
-      if (currentDragType === "work-item") {
-        // Reordering: show which side of this row the dragged item will land
-        // on, rather than just highlighting the row as if it were a merge target.
-        const zone = app.getVerticalDropZone(e, workItemEl);
-        workItemEl.classList.remove(
-          "drag-over",
-          "drop-indicator-before",
-          "drop-indicator-after",
-        );
-        workItemEl.classList.add(
-          zone === "before" ? "drop-indicator-before" : "drop-indicator-after",
-        );
-      } else {
-        // Linking a project/goal/category/template onto this work item
-        workItemEl.classList.remove(
-          "drop-indicator-before",
-          "drop-indicator-after",
-        );
-        workItemEl.classList.add("drag-over");
-      }
-    } else {
-      // Dropping on empty space either reorders to the end, or (for a template) creates a new item
-      const types = Array.from(e.dataTransfer.types || []);
-      const hasCalendarData =
-        types.includes("text/calendar") ||
-        types.includes("text/plain") ||
-        types.some(
-          (t) =>
-            t.toLowerCase().includes("calendar") ||
-            t.toLowerCase().includes("ics") ||
-            t.toLowerCase().includes("event"),
-        );
-      const hasInternalDrag =
-        currentDragType && !["work-item"].includes(currentDragType);
-
-      if (hasCalendarData || hasInternalDrag || types.length > 0) {
-        e.preventDefault();
-        container.classList.add("work-items-drop-target");
-      }
+    const workItemEl = e.target.closest(".work-item");
+    if (workItemEl && currentDragType === "work-item") {
+      // Reordering: show which side of this row the dragged item will land
+      // on, rather than just highlighting the row as if it were a merge target.
+      const zone = app.getVerticalDropZone(e, workItemEl);
+      workItemEl.classList.remove(
+        "drag-over",
+        "drop-indicator-before",
+        "drop-indicator-after",
+      );
+      workItemEl.classList.add(
+        zone === "before" ? "drop-indicator-before" : "drop-indicator-after",
+      );
+    } else if (workItemEl && currentDragType && currentDragType !== "work-item") {
+      // Linking a project/goal/category/template onto this work item
+      workItemEl.classList.remove(
+        "drop-indicator-before",
+        "drop-indicator-after",
+      );
+      workItemEl.classList.add("drag-over");
     }
   });
 
