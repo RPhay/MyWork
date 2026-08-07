@@ -2,6 +2,7 @@ let calendarViewYear;
 let calendarViewMonth; // 0-indexed
 let expandedWorkItems = new Set();
 let currentWorkItems = [];
+let dailiesSplitPane; // Reference to the inner split pane for work items editor
 
 const ASSOCIATION_PATHS = {
   priority: "priorities",
@@ -843,9 +844,8 @@ async function editWorkItem(workId) {
     updateEmojiFieldButton("workItemEditorEmojiBtn", item.emoji || "");
 
     // Show split-pane editor
-    const editorPane = document.getElementById("workItemEditorPane");
-    if (editorPane) {
-      editorPane.classList.remove("hidden");
+    if (dailiesSplitPane) {
+      dailiesSplitPane.showRightPane();
     }
   } catch (error) {
     console.error("Error:", error);
@@ -854,9 +854,8 @@ async function editWorkItem(workId) {
 }
 
 function closeWorkItemEditor() {
-  const editorPane = document.getElementById("workItemEditorPane");
-  if (editorPane) {
-    editorPane.classList.add("hidden");
+  if (dailiesSplitPane) {
+    dailiesSplitPane.hideRightPane();
   }
 }
 
@@ -2555,7 +2554,9 @@ function initDailies() {
   const outerSplitPane = new SplitPane("dailiesOuterSplitPane", "dailiesCalendarPane", "dailiesOuterDivider", "dailiesSplitPane", 25);
 
   // Setup inner split-pane (Work Items | Editor)
-  const splitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
+  dailiesSplitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
+  // Start with editor hidden
+  dailiesSplitPane.hideRightPane();
 
   // Setup drawer toggle for associate items
   const associateToggle = document.getElementById("dailiesAssociateItemsToggle");
