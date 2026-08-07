@@ -1710,14 +1710,6 @@ function initWorkItemsListEventListeners() {
     },
   );
 
-  // Single-click title to open editor (bindInlineRename stopPropagation prevents bubbling, so handle on capture phase)
-  container.addEventListener("click", (e) => {
-    const titleEl = e.target.closest(".work-item-title");
-    if (!titleEl) return;
-    const workId = titleEl.closest(".work-item").dataset.workId;
-    editWorkItem(workId);
-  }, true);
-
   container.addEventListener("click", (e) => {
     const actionBtn = e.target.closest(
       '[data-action="delete"], [data-action="unlink"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"]',

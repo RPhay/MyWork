@@ -205,7 +205,6 @@ const app = {
       const titleEl = e.target.closest(selector);
       if (!titleEl) return;
 
-      e.stopPropagation();
       if (titleEl.querySelector('input')) return; // already editing
 
       const now = Date.now();
@@ -213,6 +212,7 @@ const app = {
         const delta = now - lastClick.time;
         lastClick = null;
         if (delta >= MIN_GAP_MS && delta <= MAX_GAP_MS) {
+          e.stopPropagation();
           app.startInlineRename(titleEl, onSave);
           return;
         }
