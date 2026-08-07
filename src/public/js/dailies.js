@@ -1738,27 +1738,12 @@ function initWorkItemsListEventListeners() {
     const header = e.target.closest(".work-item-header");
     if (!header) return;
 
-    // Click on work item header to open editor
-    if (!e.target.closest('[data-action]') && clickTimer === null) {
-      const workItemEl = header.closest(".work-item");
-      editWorkItem(workItemEl.dataset.workId);
-      return;
-    }
+    // Ignore clicks on elements with data-action (those are handled above)
+    if (e.target.closest('[data-action]')) return;
 
-    if (clickTimer) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-      return;
-    }
-    clickTimer = setTimeout(() => {
-      clickTimer = null;
-      const workItemEl = header.closest(".work-item");
-      if (workItemEl.dataset.hasChildren === "true") {
-        toggleWorkItem(workItemEl);
-      } else {
-        cycleWorkItemStatus(workItemEl.dataset.workId, header.dataset.status);
-      }
-    }, 250);
+    // Click on work item to open editor
+    const workItemEl = header.closest(".work-item");
+    editWorkItem(workItemEl.dataset.workId);
   });
 
   container.addEventListener("dblclick", (e) => {
