@@ -321,10 +321,12 @@ async function saveToDo() {
 }
 
 function closeToDoEditor() {
-  const editorPane = document.getElementById('todoEditorPane');
-  if (editorPane) {
-    editorPane.classList.add('hidden');
-    document.getElementById('toDoEditorForm').style.display = 'none';
+  if (window.todoSplitPane) {
+    window.todoSplitPane.hideRightPane();
+  }
+  const editorForm = document.getElementById('toDoEditorForm');
+  if (editorForm) {
+    editorForm.style.display = 'none';
   }
 }
 
@@ -366,7 +368,9 @@ async function editToDo(toDoId) {
       setupURLDragDrop('to-do', 'toDoEditorLinksList', () => toDo.id);
 
       // Show side-panel editor
-      editorPane.classList.remove('hidden');
+      if (window.todoSplitPane) {
+        window.todoSplitPane.showRightPane();
+      }
       document.getElementById('todoEditorTitle').textContent = toDo.title;
     } else {
       // Populate modal form
@@ -1057,6 +1061,8 @@ function initToDos() {
   // Initialize split pane for side-panel editing
   if (document.getElementById('todoSplitPane') && !window.todoSplitPane) {
     window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
+    // Start with editor hidden
+    window.todoSplitPane.hideRightPane();
   }
 
   initToDosEventListeners();
