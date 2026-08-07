@@ -287,10 +287,8 @@ async function saveIdea() {
 }
 
 function closeIdeaEditor() {
-  const editorPane = document.getElementById('ideaEditorPane');
-  if (editorPane) {
-    editorPane.classList.add('hidden');
-    document.getElementById('ideaEditorForm').style.display = 'none';
+  if (window.ideaSplitPane) {
+    window.ideaSplitPane.hideRightPane();
   }
 }
 
@@ -300,37 +298,34 @@ async function editIdea(ideaId) {
     const result = await response.json();
     const idea = result.data;
 
-    document.getElementById('ideaId').value = idea.id;
-    document.getElementById('ideaTitle').value = idea.title;
-    document.getElementById('ideaNotes').value = idea.notes || '';
-    renderIdeaItemsEditor(idea.items || []);
+    document.getElementById('ideaEditorId').value = idea.id;
+    document.getElementById('ideaEditorFormTitle').value = idea.title;
+    document.getElementById('ideaEditorNotes').value = idea.notes || '';
+    document.getElementById('ideaEditorTitle').textContent = idea.title;
 
     // Load and display links
-    loadLinksForEntity('idea', idea.id, 'ideaLinksList');
+    loadLinksForEntity('idea', idea.id, 'ideaEditorLinksList');
 
     // Setup link input handlers
-    const addLinkBtn = document.getElementById('addIdeaLinkBtn');
+    const addLinkBtn = document.getElementById('ideaEditorAddLinkBtn');
     if (addLinkBtn) {
       addLinkBtn.onclick = async (e) => {
         e.preventDefault();
-        const url = document.getElementById('ideaLinkUrl').value;
-        const title = document.getElementById('ideaLinkTitle').value;
-        if (await addLinkToEntity('idea', idea.id, url, title, 'ideaLinksList')) {
-          document.getElementById('ideaLinkUrl').value = '';
-          document.getElementById('ideaLinkTitle').value = '';
+        const url = document.getElementById('ideaEditorLinkUrl').value;
+        const title = document.getElementById('ideaEditorLinkTitle').value;
+        if (await addLinkToEntity('idea', idea.id, url, title, 'ideaEditorLinksList')) {
+          document.getElementById('ideaEditorLinkUrl').value = '';
+          document.getElementById('ideaEditorLinkTitle').value = '';
         }
       };
     }
 
     // Setup URL drag-drop
-    setupURLDragDrop('idea', 'ideaLinksList', () => idea.id);
+    setupURLDragDrop('idea', 'ideaEditorLinksList', () => idea.id);
 
-    // Show side-panel editor if split pane exists, otherwise use modal
-    const editorPane = document.getElementById('ideaEditorPane');
-    if (editorPane && window.ideaSplitPane) {
-      editorPane.classList.remove('hidden');
-      document.getElementById('ideaEditorForm').style.display = 'block';
-      document.getElementById('editorTitle').textContent = idea.title;
+    // Show split-pane editor
+    if (window.ideaSplitPane) {
+      window.ideaSplitPane.showRightPane();
     } else {
       const modal = new bootstrap.Modal(document.getElementById('ideaModal'));
       modal.show();
@@ -926,17 +921,16 @@ function initBrainstormingEventListeners() {
       else if (action === 'toggle-expand') toggleIdeaFolderNode(actionBtn.closest('.idea-folder-node'));
       return;
     }
-  });
 
-  container.addEventListener('dblclick', (e) => {
-    if (e.target.closest('[data-action]')) return;
+    // Single-click on idea row to open editor
     const ideaRow = e.target.closest('.idea-row');
-    if (ideaRow) {
+    if (ideaRow && !e.target.closest('.idea-actions')) {
       editIdea(ideaRow.dataset.ideaId);
-      return;
     }
+
+    // Single-click on folder header to open editor
     const folderHeader = e.target.closest('.idea-folder-header');
-    if (folderHeader) {
+    if (folderHeader && !e.target.closest('[data-action]')) {
       editIdeaFolder(folderHeader.closest('.idea-folder-node').dataset.folderId);
     }
   });
