@@ -809,11 +809,11 @@ async function saveWorkItem() {
     const result = await response.json();
     if (result.success) {
       app.notify("Work item saved!", "success");
-      const modalEl = document.getElementById("workModal");
-      const modal = bootstrap.Modal.getInstance(modalEl);
-      if (modal) modal.hide();
       loadWorkItems();
       loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
+      // Close the modal using the dismiss button
+      const dismissBtn = document.querySelector('#workModal .btn-close');
+      if (dismissBtn) dismissBtn.click();
     } else {
       app.notify("Error: " + result.message, "danger");
     }
@@ -2061,7 +2061,7 @@ function initDailiesEventListeners() {
     .getElementById("addWorkItemBtn")
     .addEventListener("click", openNewWorkForm);
   document
-    .getElementById("saveWorkBtn")
+    .getElementById("saveWorkItemBtn")
     .addEventListener("click", saveWorkItem);
   document
     .getElementById("importOutlookEmailsBtn")

@@ -406,10 +406,10 @@ async function savePriority() {
     const result = await response.json();
     if (result.success) {
       app.notify('Project saved!', 'success');
-      const modalEl = document.getElementById('priorityModal');
-      const modal = bootstrap.Modal.getInstance(modalEl);
-      if (modal) modal.hide();
       loadPriorities();
+      // Close the modal using the dismiss button
+      const dismissBtn = document.querySelector('#priorityModal .btn-close');
+      if (dismissBtn) dismissBtn.click();
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }

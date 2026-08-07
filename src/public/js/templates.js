@@ -196,10 +196,10 @@ async function saveTemplate() {
     const result = await response.json();
     if (result.success) {
       app.notify('Template saved!', 'success');
-      const modalEl = document.getElementById('templateModal');
-      const modal = bootstrap.Modal.getInstance(modalEl);
-      if (modal) modal.hide();
       loadTemplates();
+      // Close the modal using the dismiss button
+      const dismissBtn = document.querySelector('#templateModal .btn-close');
+      if (dismissBtn) dismissBtn.click();
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
