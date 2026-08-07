@@ -171,6 +171,8 @@ function renderIdeasList() {
   container.innerHTML =
     topFolders.map(f => renderIdeaFolderNode(f, foldersByParent, ideasByFolder, 0)).join('') +
     topIdeas.map(i => renderIdeaRow(i, 0)).join('');
+
+  setupDragListeners();
 }
 
 async function loadIdeas() {
