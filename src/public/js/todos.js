@@ -1,9 +1,9 @@
 // Store state on window to survive multiple script loads
 if (!window.todoState) {
   window.todoState = {
-    getState().expandedFolders: new Set(),
-    getState().allFolders: [],
-    getState().allToDos: []
+    expandedFolders: new Set(),
+    allFolders: [],
+    allToDos: []
   };
 }
 
