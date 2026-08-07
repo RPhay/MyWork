@@ -307,10 +307,9 @@ export async function checkSystemDbSchema() {
 
       try {
         const result = await pool.request().query(`
-          SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
-          WHERE TABLE_SCHEMA = 'MyWork'
+          SELECT name FROM sys.tables WHERE SCHEMA_NAME(schema_id) = 'MyWork'
         `);
-        const existingTables = new Set(result.recordset.map(r => r.TABLE_NAME));
+        const existingTables = new Set(result.recordset.map(r => r.name));
         const allTables = [
           'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
           'sources', 'source_auth', 'categories', 'areas', 'priorities', 'priority_templates',
