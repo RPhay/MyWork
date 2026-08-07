@@ -786,13 +786,17 @@ function initPrioritiesEventListeners() {
     if (header) {
       const todoNode = header.closest('.todo-node');
       if (todoNode && todoNode.dataset.todoId) {
+        console.log('[Priorities] Opening todo:', todoNode.dataset.todoId);
         editToDo(todoNode.dataset.todoId);
       } else {
         const priorityNode = header.closest('.priority-node');
         if (priorityNode && priorityNode.dataset.priorityId) {
+          console.log('[Priorities] Opening priority:', priorityNode.dataset.priorityId);
           editPriority(priorityNode.dataset.priorityId);
         }
       }
+    } else {
+      console.log('[Priorities] Click but no header found, target:', e.target);
     }
   });
 
