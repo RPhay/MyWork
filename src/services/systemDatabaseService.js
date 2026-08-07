@@ -228,6 +228,8 @@ export async function updateSystemDbSchema() {
         user: targetConfig.user,
         password,
         database: targetConfig.database,
+        connectionTimeout: 15000,
+        requestTimeout: 60000,
         options: { encrypt: true, trustServerCertificate: false },
       });
 
@@ -298,6 +300,8 @@ export async function checkSystemDbSchema() {
         user: targetConfig.user,
         password,
         database: targetConfig.database,
+        connectionTimeout: 15000,
+        requestTimeout: 60000,
         options: { encrypt: true, trustServerCertificate: false },
       });
 
@@ -386,6 +390,8 @@ export async function createSystemDbTable(tableName) {
         user: targetConfig.user,
         password,
         database: targetConfig.database,
+        connectionTimeout: 15000,
+        requestTimeout: 60000,
         options: { encrypt: true, trustServerCertificate: false },
       });
 
