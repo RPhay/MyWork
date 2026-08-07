@@ -9,11 +9,11 @@ async function loadTickets() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
 
-    if (result.success && result.data.length > 0) {
-      allTickets = result.data;
+    if (result.success) {
+      allTickets = result.data || [];
       renderTickets();
     } else {
-      ticketsList.innerHTML = '<p class="text-center text-muted">No tickets yet</p>';
+      ticketsList.innerHTML = '<p class="text-center text-danger">Error loading tickets</p>';
     }
   } catch (error) {
     console.error('Error loading tickets:', error);
@@ -43,6 +43,27 @@ function renderTickets() {
     headerDiv.innerHTML = `<i class="bi bi-folder2"></i> <strong>${app.escapeHtml(type)}</strong> (${tickets.length})`;
     headerDiv.dataset.ticketType = type;
     headerDiv.addEventListener('contextmenu', (e) => showTicketContextMenu(e, type));
+    // Allow drag-drop onto folder headers
+    headerDiv.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      headerDiv.style.background = '#d9e8f5';
+    });
+    headerDiv.addEventListener('dragleave', () => {
+      headerDiv.style.background = '';
+    });
+    headerDiv.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      headerDiv.style.background = '';
+      const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+      if (url) {
+        // Parse URL to get title if needed
+        const parsed = parseTicketUrl(url);
+        const title = parsed?.title || url.split('/').pop() || 'Ticket';
+        createTicketFromUrl(title, type, url);
+      }
+    });
 
     groupDiv.appendChild(headerDiv);
 
@@ -354,34 +375,6 @@ function initTicketsEventListeners() {
 
   // Close context menu on click elsewhere
   document.addEventListener('click', () => hideContextMenu());
-
-  // Drag and drop URL support
-  const ticketsList = document.getElementById('ticketsList');
-  if (ticketsList) {
-    ticketsList.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-      ticketsList.style.opacity = '0.7';
-    });
-
-    ticketsList.addEventListener('dragleave', () => {
-      ticketsList.style.opacity = '1';
-    });
-
-    ticketsList.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      ticketsList.style.opacity = '1';
-
-      const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-      if (!url) return;
-
-      // Parse URL to determine ticket type and create ticket
-      const ticket = parseTicketUrl(url);
-      if (ticket) {
-        await createTicketFromUrl(ticket.title, ticket.type, url);
-      }
-    });
-  }
 }
 
 function parseTicketUrl(url) {
