@@ -95,6 +95,7 @@
         <div class="work-item-tree-header text-muted small fw-bold border-bottom pb-1 mb-2">
           <span>Title</span>
           <span>Oh!</span>
+          <span>Time</span>
           <span>Status</span>
           <span>Time Box</span>
           <span>Actions</span>
@@ -260,7 +261,7 @@
 
   .work-item-tree-header {
     display: grid;
-    grid-template-columns: 1fr 40px 100px 70px 84px;
+    grid-template-columns: 1fr 40px 50px 100px 70px 84px;
     align-items: center;
     gap: 8px;
   }
@@ -273,7 +274,7 @@
 
   .work-item-header {
     display: grid;
-    grid-template-columns: 1fr 40px 100px 70px 84px;
+    grid-template-columns: 1fr 40px 50px 100px 70px 84px;
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
@@ -324,6 +325,13 @@
     text-align: center;
     width: 40px;
     cursor: pointer;
+  }
+
+  .work-item-start-time {
+    text-align: center;
+    min-width: 50px;
+    font-size: 0.9rem;
+    color: #666;
   }
 
   .work-item-status-badge {

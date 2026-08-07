@@ -332,6 +332,7 @@ export async function createMssqlSchema(pool) {
       emoji NVARCHAR(16),
       status NVARCHAR(50) DEFAULT 'Not Started',
       time_box_minutes INT NULL,
+      start_time VARCHAR(5) NULL,
       order_index INT DEFAULT 0,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME()

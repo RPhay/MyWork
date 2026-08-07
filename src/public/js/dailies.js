@@ -14,7 +14,9 @@ async function createWorkItemFromCalendarEvent(event, date) {
   const data = {
     title: event.title,
     description: event.description || "",
+    emoji: event.emoji || "📅",
     time_box_minutes: event.duration || null,
+    start_time: event.startTime || null,
   };
 
   try {
@@ -506,6 +508,7 @@ function renderWorkItemsList(items) {
             ${item.notes ? `<i class="bi bi-sticky text-muted" title="${app.escapeHtml(item.notes)}"></i>` : ""}
           </span>
           <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || "")}</span>
+          <span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>
           <span class="badge bg-${item.status === "Complete" ? "success" : item.status === "In Progress" ? "warning" : "secondary"} work-item-status-badge" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
           <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${item.time_box_minutes ? item.time_box_minutes + "m" : "No time box"}</span>
           <span class="work-item-actions">

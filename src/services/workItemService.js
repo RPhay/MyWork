@@ -97,7 +97,7 @@ export async function getWorkItemById(id) {
 }
 
 export async function createWorkItem(data, contextId) {
-  const { date, title, description, notes, emoji, status, goal_ids, priority_ids, source_id, time_box_minutes } = data;
+  const { date, title, description, notes, emoji, status, goal_ids, priority_ids, source_id, time_box_minutes, start_time } = data;
 
   if (!date || !title) {
     throw new ValidationError('Date and title are required');
@@ -107,8 +107,8 @@ export async function createWorkItem(data, contextId) {
   const nextOrder = (result?.maxOrder ?? -1) + 1;
 
   const workItemId = await db.insert(
-    'INSERT INTO work_items (date, title, description, notes, emoji, status, time_box_minutes, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [date, title, description ?? null, notes ?? null, emoji ?? null, status || 'Not Started', normalizeTimeBox(time_box_minutes), nextOrder, contextId]
+    'INSERT INTO work_items (date, title, description, notes, emoji, status, time_box_minutes, start_time, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [date, title, description ?? null, notes ?? null, emoji ?? null, status || 'Not Started', normalizeTimeBox(time_box_minutes), start_time || null, nextOrder, contextId]
   );
 
   // Add goal associations
@@ -171,6 +171,10 @@ export async function updateWorkItem(id, data) {
   if (data.time_box_minutes !== undefined) {
     setClauses.push('time_box_minutes = ?');
     values.push(normalizeTimeBox(data.time_box_minutes));
+  }
+  if (data.start_time !== undefined) {
+    setClauses.push('start_time = ?');
+    values.push(data.start_time || null);
   }
 
   if (setClauses.length > 0) {

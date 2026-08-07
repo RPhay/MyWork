@@ -318,6 +318,13 @@ export async function createMysqlSchema(connection) {
     );
   }
 
+  // Backfill start_time for pre-existing work_items tables
+  if (!(await columnExists(connection, "work_items", "start_time"))) {
+    await connection.query(
+      "ALTER TABLE work_items ADD COLUMN start_time VARCHAR(5)",
+    );
+  }
+
   // Create work_goal_associations junction table
   await connection.query(`
     CREATE TABLE IF NOT EXISTS work_goal_associations (
