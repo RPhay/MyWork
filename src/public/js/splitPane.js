@@ -64,8 +64,14 @@ class SplitPane {
 
   setLeftWidth(percent) {
     const rightPercent = 100 - percent;
-    this.leftPane.style.flex = `0 0 ${percent}%`;
-    this.rightPane.style.flex = `0 0 ${rightPercent}%`;
+    // If right pane is hidden, expand left pane to full width
+    if (this.rightPane.classList.contains('hidden')) {
+      this.leftPane.style.flex = '0 0 100%';
+      this.rightPane.style.flex = '0 0 0%';
+    } else {
+      this.leftPane.style.flex = `0 0 ${percent}%`;
+      this.rightPane.style.flex = `0 0 ${rightPercent}%`;
+    }
   }
 
   showRightPane(savedPercent = 33.34) {
