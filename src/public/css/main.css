@@ -58,21 +58,13 @@ footer {
 /* Tab Content Panes */
 .tab-content-pane {
   display: none;
-  animation: fadeIn 0.3s ease-in;
+  opacity: 0;
   width: 100%;
 }
 
 .tab-content-pane.active {
   display: block;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  opacity: 1;
 }
 
 /* Table Styles */
