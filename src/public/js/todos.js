@@ -1031,7 +1031,7 @@ function initToDosEventListeners() {
 
     // Single-click on todo row to open editor
     const todoRow = e.target.closest('.todo-row');
-    if (todoRow && !e.target.closest('.todo-actions')) {
+    if (todoRow && !e.target.closest('.todo-actions') && todoRow.dataset.todoId) {
       editToDo(todoRow.dataset.todoId);
       return;
     }
@@ -1039,8 +1039,11 @@ function initToDosEventListeners() {
     // Single-click on folder header to open editor
     const folderHeader = e.target.closest('.todo-folder-header');
     if (folderHeader && !e.target.closest('[data-action]')) {
-      editFolder(folderHeader.closest('.todo-folder-node').dataset.folderId);
-      return;
+      const folderId = folderHeader.closest('.todo-folder-node')?.dataset.folderId;
+      if (folderId) {
+        editFolder(folderId);
+        return;
+      }
     }
   });
 
