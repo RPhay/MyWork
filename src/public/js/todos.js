@@ -531,16 +531,15 @@ async function editFolder(folderId) {
     }
     const folder = result.data;
 
-    document.getElementById('toDoEditorId').value = folder.id;
-    document.getElementById('toDoEditorType').value = 'folder';
-    document.getElementById('toDoEditorFormTitle').value = folder.name;
-    document.getElementById('toDoEditorNotes').value = '';
-    document.getElementById('toDoEditorTitle').textContent = folder.name;
-    document.getElementById('toDoEditorItemsList').innerHTML = '';
-    document.getElementById('toDoEditorLinksList').innerHTML = '';
-
-    // Show split-pane editor
+    // Show split-pane editor if available
     if (window.todoSplitPane && typeof window.todoSplitPane.showRightPane === 'function') {
+      document.getElementById('toDoEditorId').value = folder.id;
+      document.getElementById('toDoEditorType').value = 'folder';
+      document.getElementById('toDoEditorFormTitle').value = folder.name;
+      document.getElementById('toDoEditorNotes').value = '';
+      document.getElementById('toDoEditorTitle').textContent = folder.name;
+      document.getElementById('toDoEditorItemsList').innerHTML = '';
+      document.getElementById('toDoEditorLinksList').innerHTML = '';
       window.todoSplitPane.showRightPane();
     } else {
       // Fallback to modal if split pane isn't working
@@ -548,7 +547,6 @@ async function editFolder(folderId) {
       document.getElementById('folderId').value = folder.id;
       document.getElementById('folderName').value = folder.name;
       modal.show();
-      return;
     }
   } catch (error) {
     console.error('Error:', error);
