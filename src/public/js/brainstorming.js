@@ -294,8 +294,11 @@ function closeIdeaEditor() {
 
 async function editIdea(ideaId) {
   try {
-    const response = await fetch(`/api/ideas/${ideaId}`);
-    const result = await response.json();
+    const response = await fetch(`/api/ideas/${ideaId}`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    const result = await response.json().catch(() => ({ data: null }));
     const idea = result.data;
 
     document.getElementById('ideaEditorId').value = idea.id;
@@ -402,8 +405,11 @@ async function saveIdeaFolder() {
 
 async function editIdeaFolder(folderId) {
   try {
-    const response = await fetch(`/api/idea-folders/${folderId}`);
-    const result = await response.json();
+    const response = await fetch(`/api/idea-folders/${folderId}`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    const result = await response.json().catch(() => ({ data: null }));
     const folder = result.data;
 
     document.getElementById('ideaEditorId').value = folder.id;

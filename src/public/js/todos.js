@@ -366,8 +366,11 @@ function closeToDoEditor() {
 
 async function editToDo(toDoId) {
   try {
-    const response = await fetch(`/api/to-dos/${toDoId}`);
-    const result = await response.json();
+    const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    const result = await response.json().catch(() => ({ data: null }));
     const toDo = result.data;
 
     // Check if split-pane exists
@@ -509,8 +512,11 @@ async function saveFolder() {
 
 async function editFolder(folderId) {
   try {
-    const response = await fetch(`/api/to-do-folders/${folderId}`);
-    const result = await response.json();
+    const response = await fetch(`/api/to-do-folders/${folderId}`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    const result = await response.json().catch(() => ({ data: null }));
     const folder = result.data;
 
     document.getElementById('toDoEditorId').value = folder.id;

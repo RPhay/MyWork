@@ -426,11 +426,11 @@ async function savePriority() {
 
 async function editToDo(toDoId) {
   try {
-    const response = await fetch(`/api/to-dos/${toDoId}`);
+    const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`API error: ${response.status} ${response.statusText}`);
     }
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!result.success || !result.data) {
       throw new Error(result.message || 'Failed to load to do');
     }
@@ -458,11 +458,11 @@ async function editToDo(toDoId) {
 
 async function editPriority(priorityId) {
   try {
-    const response = await fetch(`/api/priorities/${priorityId}`);
+    const response = await fetch(`/api/priorities/${priorityId}`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`API error: ${response.status} ${response.statusText}`);
     }
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!result.success || !result.data) {
       throw new Error(result.message || 'Failed to load project');
     }
