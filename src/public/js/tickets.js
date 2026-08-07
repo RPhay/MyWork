@@ -354,6 +354,98 @@ function initTicketsEventListeners() {
 
   // Close context menu on click elsewhere
   document.addEventListener('click', () => hideContextMenu());
+
+  // Drag and drop URL support
+  const ticketsList = document.getElementById('ticketsList');
+  if (ticketsList) {
+    ticketsList.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      ticketsList.style.opacity = '0.7';
+    });
+
+    ticketsList.addEventListener('dragleave', () => {
+      ticketsList.style.opacity = '1';
+    });
+
+    ticketsList.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      ticketsList.style.opacity = '1';
+
+      const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+      if (!url) return;
+
+      // Parse URL to determine ticket type and create ticket
+      const ticket = parseTicketUrl(url);
+      if (ticket) {
+        await createTicketFromUrl(ticket.title, ticket.type, url);
+      }
+    });
+  }
+}
+
+function parseTicketUrl(url) {
+  // ServiceNow - match patterns like https://instance.service-now.com/nav_to.do?uri=incident.do?sys_id=xxx
+  // or https://instance.service-now.com/...
+  if (url.includes('service-now.com') || url.includes('servicenow.com')) {
+    const match = url.match(/(?:incident|change_request|problem|change|cmdb_ci_service|sys_user)\.do\?sys_id=([a-f0-9]+)|[?&]sys_id=([a-f0-9]+)/i);
+    const sysId = match ? (match[1] || match[2]) : '';
+    return {
+      type: 'ServiceNow',
+      title: `SNOW-${sysId || 'ticket'}`.substring(0, 100)
+    };
+  }
+
+  // Azure DevOps - match patterns like https://dev.azure.com/org/project/_workitems/edit/123456
+  if (url.includes('dev.azure.com') || url.includes('visualstudio.com')) {
+    const match = url.match(/[?/](\d+)(?:[/?#]|$)/);
+    const workItemId = match ? match[1] : '';
+    return {
+      type: 'Azure DevOps',
+      title: `ADO-${workItemId || 'work-item'}`.substring(0, 100)
+    };
+  }
+
+  return null;
+}
+
+async function createTicketFromUrl(title, ticketType, url) {
+  try {
+    const response = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({
+        title,
+        notes: `Imported from: ${url}`,
+        ticket_type: ticketType
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      const ticketId = result.data.id;
+      // Add the URL as a link
+      await fetch(`/api/tickets/${ticketId}/links`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ url, title: 'Source' })
+      });
+
+      app.notify(`Ticket created: ${title}`, 'success');
+      loadTickets();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating ticket from URL:', error);
+    app.notify('Error creating ticket from URL', 'danger');
+  }
 }
 
 function initTickets() {
