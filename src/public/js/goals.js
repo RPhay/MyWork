@@ -224,7 +224,14 @@ async function saveGoal() {
     const result = await response.json();
     if (result.success) {
       app.notify('Goal saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('goalModal')).hide();
+      const modal = bootstrap.Modal.getInstance(document.getElementById('goalModal'));
+      if (modal) {
+        modal.hide();
+      } else {
+        document.getElementById('goalModal').classList.remove('show');
+        document.getElementById('goalModal').style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }
       loadYearlyGoals();
     } else {
       app.notify('Error saving goal: ' + result.message, 'danger');
