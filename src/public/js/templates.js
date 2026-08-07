@@ -217,6 +217,7 @@ async function editTemplate(templateId) {
 
     document.getElementById('templateEditorId').value = template.id;
     document.getElementById('templateEditorTitle').value = template.title;
+    document.getElementById('templateEditorDisplayTitle').textContent = template.title;
     document.getElementById('templateEditorDescription').value = template.description || '';
     document.getElementById('templateEditorEmoji').value = template.emoji || '';
     updateEmojiFieldButton('templateEditorEmojiBtn', template.emoji || '');

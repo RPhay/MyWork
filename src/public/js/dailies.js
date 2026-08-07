@@ -832,6 +832,7 @@ async function editWorkItem(workId) {
 
     document.getElementById("workItemEditorId").value = item.id;
     document.getElementById("workItemEditorTitle").value = item.title;
+    document.getElementById("workItemEditorDisplayTitle").textContent = item.title;
     document.getElementById("workItemEditorDescription").value = item.description;
     document.getElementById("workItemEditorEmoji").value = item.emoji || "";
     document.getElementById("workItemEditorStatus").value = item.status || "";
