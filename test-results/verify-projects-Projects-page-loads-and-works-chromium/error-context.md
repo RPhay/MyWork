@@ -131,36 +131,44 @@ Received: false
   1  | import { test, expect } from '@playwright/test';
   2  | 
   3  | test('Projects page loads and works', async ({ page }) => {
-  4  |   await page.goto('http://localhost:3000', { waitUntil: 'load' });
-  5  | 
-  6  |   // Click Projects tab
-  7  |   const projectsButton = page.locator('button[data-tab="my-priorities"]');
-  8  |   await projectsButton.click();
-  9  |   await page.waitForTimeout(1000);
-  10 | 
-  11 |   // Check for project nodes
-  12 |   const projectNodes = page.locator('.priority-node');
-  13 |   const count = await projectNodes.count();
-  14 |   console.log('Project nodes found:', count);
-  15 |   expect(count).toBeGreaterThan(0);
-  16 | 
-  17 |   // Try clicking on first project
-  18 |   const firstProject = projectNodes.first();
-  19 |   await firstProject.click();
-  20 |   await page.waitForTimeout(500);
-  21 | 
-  22 |   // Check that editor pane is now visible
-  23 |   const editorPane = page.locator('#priorityEditorPane');
-  24 |   const isVisible = await editorPane.isVisible();
-  25 |   console.log('Editor pane visible after click:', isVisible);
-> 26 |   expect(isVisible).toBe(true);
+  4  |   const logs = [];
+  5  |   page.on('console', msg => {
+  6  |     if (msg.text().includes('Priorities') || msg.text().includes('Editor') || msg.text().includes('Clicked')) {
+  7  |       logs.push(`[${msg.type()}] ${msg.text()}`);
+  8  |       console.log(`[${msg.type()}] ${msg.text()}`);
+  9  |     }
+  10 |   });
+  11 | 
+  12 |   await page.goto('http://localhost:3000', { waitUntil: 'load' });
+  13 | 
+  14 |   // Click Projects tab
+  15 |   const projectsButton = page.locator('button[data-tab="my-priorities"]');
+  16 |   await projectsButton.click();
+  17 |   await page.waitForTimeout(1000);
+  18 | 
+  19 |   // Check for project nodes
+  20 |   const projectNodes = page.locator('.priority-node');
+  21 |   const count = await projectNodes.count();
+  22 |   console.log('Project nodes found:', count);
+  23 |   expect(count).toBeGreaterThan(0);
+  24 | 
+  25 |   // Try clicking on first project
+  26 |   const firstProject = projectNodes.first();
+  27 |   await firstProject.click();
+  28 |   await page.waitForTimeout(500);
+  29 | 
+  30 |   // Check that editor pane is now visible
+  31 |   const editorPane = page.locator('#priorityEditorPane');
+  32 |   const isVisible = await editorPane.isVisible();
+  33 |   console.log('Editor pane visible after click:', isVisible);
+> 34 |   expect(isVisible).toBe(true);
      |                     ^ Error: expect(received).toBe(expected) // Object.is equality
-  27 | 
-  28 |   // Check that editor has content
-  29 |   const editorTitle = editorPane.locator('.split-pane-editor-title');
-  30 |   const title = await editorTitle.textContent();
-  31 |   console.log('Editor title:', title);
-  32 |   expect(title).not.toBe('Select a project to edit');
-  33 | });
-  34 | 
+  35 | 
+  36 |   // Check that editor has content
+  37 |   const editorTitle = editorPane.locator('.split-pane-editor-title');
+  38 |   const title = await editorTitle.textContent();
+  39 |   console.log('Editor title:', title);
+  40 |   expect(title).not.toBe('Select a project to edit');
+  41 | });
+  42 | 
 ```

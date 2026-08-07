@@ -435,6 +435,7 @@ async function savePriority() {
 }
 
 async function editPriority(priorityId) {
+  console.log('[Priorities] editPriority called for ID:', priorityId);
   try {
     const response = await fetch(`/api/priorities/${priorityId}`);
     if (!response.ok) {
@@ -445,6 +446,7 @@ async function editPriority(priorityId) {
       throw new Error(result.message || 'Failed to load project');
     }
     const priority = result.data;
+    console.log('[Priorities] Loaded priority:', priority.title);
 
     // Populate split-pane editor
     document.getElementById('priorityEditorId').value = priority.id;
@@ -492,10 +494,13 @@ async function editPriority(priorityId) {
 
     // Show split-pane editor
     if (window.prioritySplitPane) {
+      console.log('[Priorities] Calling showRightPane()');
       window.prioritySplitPane.showRightPane();
+    } else {
+      console.warn('[Priorities] prioritySplitPane not found!');
     }
   } catch (error) {
-    console.error('Error loading project:', error);
+    console.error('[Priorities] Error loading project:', error);
     app.notify('Error loading project', 'danger');
   }
 }
@@ -756,6 +761,7 @@ function initPrioritiesEventListeners() {
     if (header && !header.closest('.todo-node')) {
       const priorityNode = header.closest('.priority-node');
       if (priorityNode && priorityNode.dataset.priorityId) {
+        console.log('[Priorities] Clicked on project:', priorityNode.dataset.priorityId);
         editPriority(priorityNode.dataset.priorityId);
       }
     }
