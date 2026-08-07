@@ -1070,13 +1070,15 @@ function initToDosEventListeners() {
       return;
     }
 
-    // Single-click on folder header to open editor
-    const folderHeader = e.target.closest('.todo-folder-header');
-    if (folderHeader && !e.target.closest('[data-action]')) {
-      const folderId = folderHeader.closest('.todo-folder-node')?.dataset.folderId;
-      if (folderId) {
-        editFolder(folderId);
-        return;
+    // Single-click on folder header to open editor (but not if inside a todo-row)
+    if (!todoRow) {
+      const folderHeader = e.target.closest('.todo-folder-header');
+      if (folderHeader && !e.target.closest('[data-action]')) {
+        const folderId = folderHeader.closest('.todo-folder-node')?.dataset.folderId;
+        if (folderId) {
+          editFolder(folderId);
+          return;
+        }
       }
     }
   });
