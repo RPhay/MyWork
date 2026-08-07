@@ -17,9 +17,6 @@ class SplitPane {
   }
 
   init() {
-    // Ensure right pane starts hidden
-    this.hideRightPane();
-
     // Restore saved width from localStorage
     const savedWidth = localStorage.getItem(`splitPane-${this.container.id}-left`);
     if (savedWidth) {
