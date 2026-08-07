@@ -1,24 +1,78 @@
-<div class="row mb-2">
-  <div class="col-md-12 text-end">
-    <button class="btn btn-outline-secondary" id="addFolderBtn" data-bs-toggle="modal" data-bs-target="#folderModal">
-      + Add Folder
-    </button>
-    <button class="btn btn-primary" id="addToDoBtn" data-bs-toggle="modal" data-bs-target="#toDoModal">
-      + Add To Do
-    </button>
+<div class="split-pane-container" id="todoSplitPane">
+  <!-- Left Pane -->
+  <div class="split-pane-left" id="todoListPane">
+    <div class="row mb-2">
+      <div class="col-md-12 text-end">
+        <button class="btn btn-outline-secondary" id="addFolderBtn" data-bs-toggle="modal" data-bs-target="#folderModal">
+          + Add Folder
+        </button>
+        <button class="btn btn-primary" id="addToDoBtn" data-bs-toggle="modal" data-bs-target="#toDoModal">
+          + Add To Do
+        </button>
+      </div>
+    </div>
+
+    <p class="text-muted small mb-2">Drag a to do onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+
+    <div class="todo-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
+      <span>Title</span>
+      <span>Notes</span>
+      <span>Actions</span>
+    </div>
+
+    <div id="toDosList">
+      <p class="text-center text-muted">No to dos yet</p>
+    </div>
   </div>
-</div>
 
-<p class="text-muted small mb-2">Drag a to do onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+  <!-- Divider -->
+  <div class="split-pane-divider" id="todoDivider"></div>
 
-<div class="todo-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
-  <span>Title</span>
-  <span>Notes</span>
-  <span>Actions</span>
-</div>
+  <!-- Right Pane (Editor) -->
+  <div class="split-pane-right hidden" id="todoEditorPane">
+    <div class="split-pane-editor">
+      <div class="split-pane-editor-title" id="editorTitle">Select an item to edit</div>
+      <form id="toDoEditorForm" style="display: none;">
+        <input type="hidden" id="toDoId" name="toDoId">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-<div id="toDosList">
-  <p class="text-center text-muted">No to dos yet</p>
+        <div class="mb-3">
+          <label for="toDoTitle" class="form-label">Title *</label>
+          <input type="text" class="form-control" id="toDoTitle" name="title" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="toDoNotes" class="form-label">Notes</label>
+          <textarea class="form-control" id="toDoNotes" name="notes" rows="4"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Items</label>
+          <div id="toDoItemsList"></div>
+          <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="addToDoItemBtn">
+            <i class="bi bi-plus-lg"></i> Add Item
+          </button>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Links</label>
+          <div id="toDoLinksList" class="mb-2"></div>
+          <div class="input-group input-group-sm">
+            <input type="url" class="form-control" id="toDoLinkUrl" placeholder="https://example.com">
+            <input type="text" class="form-control" id="toDoLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+            <button type="button" class="btn btn-outline-secondary" id="addToDoLinkBtn">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary" id="saveToDoEditorBtn">Save</button>
+          <button type="button" class="btn btn-secondary" id="closeToDoEditorBtn">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- To Do Convert Context Menu (right-click a to do) -->
