@@ -375,6 +375,7 @@ function setupDragListeners() {
       e.dataTransfer.setData('name', item.dataset.name || item.textContent.trim());
       currentDragType = item.dataset.type;
       item.classList.add('dragging-item');
+      console.log('[setupDragListeners] dragstart:', { type: item.dataset.type, id: item.dataset.id });
     });
 
     item.addEventListener('dragend', () => {

@@ -866,10 +866,15 @@ function initToDosEventListeners() {
     // Accept any text data - emails, calendar events, etc
     const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
     // Check if this is an internal drag (has custom 'type' data from dragstart)
-    const hasInternalDrag = !!e.dataTransfer.getData('type');
+    const dragType = e.dataTransfer.getData('type');
+    const hasInternalDrag = !!dragType;
 
-    if (!hasTextData && !hasInternalDrag) return;
+    if (!hasTextData && !hasInternalDrag) {
+      console.log('[todos dragover] No drag data - types:', types, 'dragType:', dragType);
+      return;
+    }
 
+    console.log('[todos dragover] Drag detected - hasTextData:', hasTextData, 'dragType:', dragType);
     e.preventDefault();
     e.dataTransfer.dropEffect = hasInternalDrag ? 'move' : 'copy';
     const folderHeader = e.target.closest('.todo-folder-header');
@@ -890,12 +895,16 @@ function initToDosEventListeners() {
     const folderHeader = e.target.closest('.todo-folder-header');
     const targetFolderId = folderHeader ? folderHeader.closest('.todo-folder-node').dataset.folderId : null;
 
+    console.log('[todos drop] type:', type, 'draggedId:', draggedId, 'targetFolderId:', targetFolderId);
+
     // Handle internal drag-drop (folder/todo reordering)
     if (type && draggedId) {
       if (type === 'folder') {
+        console.log('[todos drop] Moving folder');
         if (targetFolderId && String(targetFolderId) === String(draggedId)) return;
         reparentFolder(draggedId, targetFolderId);
       } else if (type === 'todo') {
+        console.log('[todos drop] Moving todo');
         fileToDoIntoFolder(draggedId, targetFolderId);
       }
       return;
