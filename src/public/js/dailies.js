@@ -1745,15 +1745,21 @@ function initWorkItemsListEventListeners() {
     }
 
     const header = e.target.closest(".work-item-header");
-    if (!header) return;
+    if (!header) {
+      console.log("[Dailies] Click but no header found, target:", e.target);
+      return;
+    }
+
+    console.log("[Dailies] Header clicked, target:", e.target);
 
     // Ignore clicks on elements with data-action (those are handled above)
     if (e.target.closest('[data-action]')) return;
 
-    // Click on work item to open editor
+    // Click on work item to open editor (works even if stopPropagation was called by inline rename)
     const workItemEl = header.closest(".work-item");
+    console.log("[Dailies] Opening editor for work item:", workItemEl.dataset.workId);
     editWorkItem(workItemEl.dataset.workId);
-  });
+  }, { capture: true });
 
   container.addEventListener("dblclick", (e) => {
     if (e.target.closest("[data-action]")) return;
