@@ -69,7 +69,7 @@ async function setAssociations(table, column, templateId, ids) {
 }
 
 export async function createTemplate(data, contextId) {
-  const { title, description, emoji, source_id, status, area_ids, goal_ids, priority_ids, time_box_minutes } = data;
+  const { title, description, emoji, source_id, status, area_ids, goal_ids, priority_ids, time_box_minutes, start_time } = data;
 
   if (!title) {
     throw new ValidationError('Template title is required');
@@ -79,8 +79,8 @@ export async function createTemplate(data, contextId) {
   const nextOrder = (orderResult?.maxOrder ?? -1) + 1;
 
   const templateId = await db.insert(
-    'INSERT INTO work_item_templates (title, description, emoji, source_id, status, time_box_minutes, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [title, description ?? null, emoji ?? null, source_id || null, status || 'Not Started', normalizeTimeBox(time_box_minutes), nextOrder, contextId]
+    'INSERT INTO work_item_templates (title, description, emoji, source_id, status, time_box_minutes, start_time, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [title, description ?? null, emoji ?? null, source_id || null, status || 'Not Started', normalizeTimeBox(time_box_minutes), start_time || null, nextOrder, contextId]
   );
 
   if (Array.isArray(area_ids) && area_ids.length > 0) {
@@ -126,6 +126,10 @@ export async function updateTemplate(id, data) {
   if (data.time_box_minutes !== undefined) {
     setClauses.push('time_box_minutes = ?');
     values.push(normalizeTimeBox(data.time_box_minutes));
+  }
+  if (data.start_time !== undefined) {
+    setClauses.push('start_time = ?');
+    values.push(data.start_time || null);
   }
 
   if (setClauses.length > 0) {

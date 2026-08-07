@@ -399,6 +399,13 @@ export async function createMysqlSchema(connection) {
     );
   }
 
+  // Backfill start_time for pre-existing work_item_templates tables
+  if (!(await columnExists(connection, "work_item_templates", "start_time"))) {
+    await connection.query(
+      "ALTER TABLE work_item_templates ADD COLUMN start_time VARCHAR(5)",
+    );
+  }
+
   // Backfill order_index for pre-existing work_item_templates tables
   if (!(await columnExists(connection, "work_item_templates", "order_index"))) {
     await connection.query(
