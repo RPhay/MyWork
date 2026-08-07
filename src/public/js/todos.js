@@ -100,7 +100,7 @@ function renderToDoRow(toDo, depth) {
     : '';
 
   return `
-    <div class="todo-row" data-todo-id="${toDo.id}" data-type="to-do" data-id="${toDo.id}" data-name="${app.escapeHtml(toDo.title)}" draggable="true">
+    <div class="todo-row" data-todo-id="${toDo.id}" data-type="todo" data-id="${toDo.id}" data-name="${app.escapeHtml(toDo.title)}" draggable="true">
       <span class="todo-name-cell">
         <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
         <span class="todo-folder-toggle"></span>
@@ -133,7 +133,7 @@ function renderFolderNode(folder, foldersByParent, toDosByFolder, depth) {
 
   return `
     <div class="todo-folder-node ${isExpanded ? 'expanded' : ''}" data-folder-id="${folder.id}">
-      <div class="todo-folder-header" data-type="to-do-folder" data-id="${folder.id}" data-name="${app.escapeHtml(folder.name)}" draggable="true">
+      <div class="todo-folder-header" data-type="folder" data-id="${folder.id}" data-name="${app.escapeHtml(folder.name)}" draggable="true">
         <span class="todo-name-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
           ${hasChildren
