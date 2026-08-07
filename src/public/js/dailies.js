@@ -2564,17 +2564,23 @@ function initDailies() {
   const isOpen = savedState === "true"; // default to closed
 
   if (isOpen && associatePanel) {
-    associatePanel.style.left = "0";
+    associatePanel.style.width = "220px";
+    associatePanel.style.padding = "15px";
+    associatePanel.dataset.drawerOpen = "true";
   }
 
   associateToggle?.addEventListener("click", () => {
     if (associatePanel) {
-      const isCurrentlyOpen = associatePanel.style.left === "0px" || associatePanel.style.left === "0";
+      const isCurrentlyOpen = associatePanel.dataset.drawerOpen === "true";
       if (isCurrentlyOpen) {
-        associatePanel.style.left = "-220px";
+        associatePanel.style.width = "0";
+        associatePanel.style.padding = "0 15px";
+        associatePanel.dataset.drawerOpen = "false";
         localStorage.setItem("dailiesDrawerOpen", "false");
       } else {
-        associatePanel.style.left = "0";
+        associatePanel.style.width = "220px";
+        associatePanel.style.padding = "15px";
+        associatePanel.dataset.drawerOpen = "true";
         localStorage.setItem("dailiesDrawerOpen", "true");
       }
     }
