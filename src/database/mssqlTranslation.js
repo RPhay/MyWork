@@ -18,6 +18,12 @@ export function rewriteInsertIgnoreForMssql(sqlText, values) {
   return { sql: rewrittenSql, values: [...values, ...values] };
 }
 
+// The rest of the app writes MySQL's NOW() for current-timestamp columns;
+// MSSQL has no such function, so swap in its equivalent everywhere it appears.
+export function rewriteNowForMssql(sqlText) {
+  return sqlText.replace(/\bNOW\(\)/gi, "SYSUTCDATETIME()");
+}
+
 export function toNamedParams(sqlText, values) {
   let i = 0;
   const params = {};

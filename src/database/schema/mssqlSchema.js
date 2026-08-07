@@ -559,6 +559,57 @@ export async function createMssqlSchema(pool) {
 
   await createTableIfNotExists(
     pool,
+    "to_do_links",
+    `
+    CREATE TABLE [MyWork].[to_do_links] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      to_do_id INT NOT NULL,
+      url NVARCHAR(2048) NOT NULL,
+      title NVARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_to_do_links_to_do FOREIGN KEY (to_do_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
+    "idea_links",
+    `
+    CREATE TABLE [MyWork].[idea_links] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      idea_id INT NOT NULL,
+      url NVARCHAR(2048) NOT NULL,
+      title NVARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_idea_links_idea FOREIGN KEY (idea_id) REFERENCES [MyWork].[ideas](id) ON DELETE CASCADE
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
+    "priority_links",
+    `
+    CREATE TABLE [MyWork].[priority_links] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      priority_id INT NOT NULL,
+      url NVARCHAR(2048) NOT NULL,
+      title NVARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_priority_links_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE CASCADE
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
     "tasks",
     `
     CREATE TABLE [MyWork].[tasks] (
