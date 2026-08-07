@@ -306,12 +306,21 @@ async function saveToDo() {
   }
 }
 
+function closeToDoEditor() {
+  const editorPane = document.getElementById('todoEditorPane');
+  if (editorPane) {
+    editorPane.classList.add('hidden');
+    document.getElementById('toDoEditorForm').style.display = 'none';
+  }
+}
+
 async function editToDo(toDoId) {
   try {
     const response = await fetch(`/api/to-dos/${toDoId}`);
     const result = await response.json();
     const toDo = result.data;
 
+    // Populate both modal and side-panel forms
     document.getElementById('toDoId').value = toDo.id;
     document.getElementById('toDoTitle').value = toDo.title;
     document.getElementById('toDoNotes').value = toDo.notes || '';
@@ -337,8 +346,16 @@ async function editToDo(toDoId) {
     // Setup URL drag-drop
     setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
 
-    const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
-    modal.show();
+    // Show side-panel editor if split pane exists, otherwise use modal
+    const editorPane = document.getElementById('todoEditorPane');
+    if (editorPane && window.todoSplitPane) {
+      editorPane.classList.remove('hidden');
+      document.getElementById('toDoEditorForm').style.display = 'block';
+      document.getElementById('editorTitle').textContent = toDo.title;
+    } else {
+      const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
+      modal.show();
+    }
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error loading to do', 'danger');
@@ -760,6 +777,19 @@ function initToDosEventListeners() {
   document.getElementById('saveToDoBtn').addEventListener('click', saveToDo);
   document.getElementById('addFolderBtn').addEventListener('click', openNewFolderForm);
   document.getElementById('saveFolderBtn').addEventListener('click', saveFolder);
+
+  // Side-panel editor buttons
+  const saveEditorBtn = document.getElementById('saveToDoEditorBtn');
+  const closeEditorBtn = document.getElementById('closeToDoEditorBtn');
+  if (saveEditorBtn) {
+    saveEditorBtn.addEventListener('click', async () => {
+      await saveToDo();
+      closeToDoEditor();
+    });
+  }
+  if (closeEditorBtn) {
+    closeEditorBtn.addEventListener('click', closeToDoEditor);
+  }
   document.getElementById('convertType').addEventListener('change', updateConvertFormVisibility);
   document.getElementById('doConvertBtn').addEventListener('click', doConvertToDo);
 
@@ -977,6 +1007,11 @@ function initToDos() {
   // whenever that tab isn't active, so Bootstrap's backdrop would show but the
   // dialog itself never could - move it to the body so it always renders.
   document.body.appendChild(document.getElementById('toDoModal'));
+
+  // Initialize split pane for side-panel editing
+  if (document.getElementById('todoSplitPane')) {
+    window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
+  }
 
   initToDosEventListeners();
   loadToDos();
