@@ -2574,7 +2574,7 @@ function initDailies() {
       const isCurrentlyOpen = associatePanel.dataset.drawerOpen === "true";
       if (isCurrentlyOpen) {
         associatePanel.style.width = "0";
-        associatePanel.style.padding = "0 15px";
+        associatePanel.style.padding = "0";
         associatePanel.dataset.drawerOpen = "false";
         localStorage.setItem("dailiesDrawerOpen", "false");
       } else {
