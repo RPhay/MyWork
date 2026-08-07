@@ -32,9 +32,10 @@
   <!-- Right Pane (Editor) -->
   <div class="split-pane-right hidden" id="ideaEditorPane">
     <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="ideaEditorTitle">Select an idea to edit</div>
+      <div class="split-pane-editor-title" id="ideaEditorTitle">Select an item to edit</div>
       <form id="ideaEditorForm">
         <input type="hidden" id="ideaEditorId" name="ideaId">
+        <input type="hidden" id="ideaEditorType" name="type" value="idea">
         <input type="hidden" id="ideaEditorPresetFolderId">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 

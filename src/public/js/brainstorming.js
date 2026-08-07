@@ -364,11 +364,15 @@ function openNewIdeaFolderForm() {
 }
 
 async function saveIdeaFolder() {
-  const folderId = document.getElementById('ideaFolderId').value;
+  const folderId = document.getElementById('ideaEditorId').value;
+  const name = document.getElementById('ideaEditorFormTitle').value;
 
-  const data = {
-    name: document.getElementById('ideaFolderName').value
-  };
+  if (!name.trim()) {
+    app.notify('Folder name is required', 'danger');
+    return;
+  }
+
+  const data = { name };
 
   try {
     const url = folderId ? `/api/idea-folders/${folderId}` : '/api/idea-folders';
@@ -386,7 +390,6 @@ async function saveIdeaFolder() {
     const result = await response.json();
     if (result.success) {
       app.notify('Folder saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('ideaFolderModal')).hide();
       loadIdeas();
     } else {
       app.notify('Error: ' + result.message, 'danger');
@@ -403,11 +406,17 @@ async function editIdeaFolder(folderId) {
     const result = await response.json();
     const folder = result.data;
 
-    document.getElementById('ideaFolderId').value = folder.id;
-    document.getElementById('ideaFolderName').value = folder.name;
+    document.getElementById('ideaEditorId').value = folder.id;
+    document.getElementById('ideaEditorType').value = 'folder';
+    document.getElementById('ideaEditorFormTitle').value = folder.name;
+    document.getElementById('ideaEditorNotes').value = '';
+    document.getElementById('ideaEditorTitle').textContent = folder.name;
+    document.getElementById('ideaEditorLinksList').innerHTML = '';
 
-    const modal = new bootstrap.Modal(document.getElementById('ideaFolderModal'));
-    modal.show();
+    // Show split-pane editor
+    if (window.ideaSplitPane) {
+      window.ideaSplitPane.showRightPane();
+    }
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error loading folder', 'danger');
@@ -760,7 +769,12 @@ function initBrainstormingEventListeners() {
   const closeEditorBtn = document.getElementById('closeIdeaEditorBtn');
   if (saveEditorBtn) {
     saveEditorBtn.addEventListener('click', async () => {
-      await saveIdea();
+      const type = document.getElementById('ideaEditorType').value;
+      if (type === 'folder') {
+        await saveIdeaFolder();
+      } else {
+        await saveIdea();
+      }
       closeIdeaEditor();
     });
   }
