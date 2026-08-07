@@ -59,6 +59,7 @@ footer {
 .tab-content-pane {
   display: none;
   animation: fadeIn 0.3s ease-in;
+  width: 100%;
 }
 
 .tab-content-pane.active {

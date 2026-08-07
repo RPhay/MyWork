@@ -160,13 +160,16 @@
     grid-template-columns: 1fr 1fr 112px;
     align-items: center;
     gap: 8px;
+    width: 100%;
   }
 
   .todo-row, .todo-folder-header {
-    padding: 6px 8px;
+    padding: 8px;
     border: 1px solid #dee2e6;
     border-radius: 4px;
     margin-bottom: 6px;
+    height: auto;
+    min-height: 44px;
   }
 
   .todo-row:hover, .todo-folder-header:hover {
@@ -183,6 +186,10 @@
     outline-offset: -2px;
   }
 
+  #toDosList {
+    width: 100%;
+  }
+
   #toDosList.todo-drop-target-root {
     outline: 2px dashed #007bff;
     outline-offset: -2px;
@@ -194,6 +201,7 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
+    width: 100%;
   }
 
   .todo-folder-toggle {
