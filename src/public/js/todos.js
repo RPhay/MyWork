@@ -100,7 +100,7 @@ function renderToDoRow(toDo, depth) {
     : '';
 
   return `
-    <div class="todo-row" data-todo-id="${toDo.id}" draggable="true">
+    <div class="todo-row" data-todo-id="${toDo.id}" data-type="to-do" data-id="${toDo.id}" data-name="${app.escapeHtml(toDo.title)}" draggable="true">
       <span class="todo-name-cell">
         <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
         <span class="todo-folder-toggle"></span>
@@ -133,7 +133,7 @@ function renderFolderNode(folder, foldersByParent, toDosByFolder, depth) {
 
   return `
     <div class="todo-folder-node ${isExpanded ? 'expanded' : ''}" data-folder-id="${folder.id}">
-      <div class="todo-folder-header" draggable="true">
+      <div class="todo-folder-header" data-type="to-do-folder" data-id="${folder.id}" data-name="${app.escapeHtml(folder.name)}" draggable="true">
         <span class="todo-name-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
           ${hasChildren
@@ -170,6 +170,8 @@ function renderToDosList() {
   container.innerHTML =
     topFolders.map(f => renderFolderNode(f, foldersByParent, toDosByFolder, 0)).join('') +
     topToDos.map(t => renderToDoRow(t, 0)).join('');
+
+  setupDragListeners();
 }
 
 async function loadToDos() {
@@ -863,7 +865,9 @@ function initToDosEventListeners() {
     const types = Array.from(e.dataTransfer.types || []);
     // Accept any text data - emails, calendar events, etc
     const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
-    const hasInternalDrag = types.some(t => t === 'type');
+    // Check if this is an internal drag (has 'type' data from setupDragListeners)
+    const hasInternalDrag = e.dataTransfer.types.includes && e.dataTransfer.types.includes('type') ||
+                            (e.dataTransfer.getData && !!e.dataTransfer.getData('type'));
 
     if (!hasTextData && !hasInternalDrag) return;
 
