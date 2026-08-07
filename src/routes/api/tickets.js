@@ -1,5 +1,7 @@
 import express from 'express';
 import * as ticketService from '../../services/ticketService.js';
+import * as activeContextService from '../../services/activeContextService.js';
+import logger from '../../utils/logger.js';
 import { AppError } from '../../config/errors.js';
 
 const router = express.Router();
@@ -7,7 +9,8 @@ const router = express.Router();
 // Get all tickets for current context
 router.get('/', async (req, res, next) => {
   try {
-    const tickets = await ticketService.getTickets(req.session.contextId);
+    const contextId = await activeContextService.getActiveContextId();
+    const tickets = await ticketService.getTickets(contextId);
     res.json({ success: true, data: tickets });
   } catch (error) {
     next(error);
@@ -17,7 +20,8 @@ router.get('/', async (req, res, next) => {
 // Get single ticket
 router.get('/:id', async (req, res, next) => {
   try {
-    const ticket = await ticketService.getTicket(parseInt(req.params.id), req.session.contextId);
+    const contextId = await activeContextService.getActiveContextId();
+    const ticket = await ticketService.getTicket(parseInt(req.params.id), contextId);
     res.json({ success: true, data: ticket });
   } catch (error) {
     next(error);
@@ -27,7 +31,8 @@ router.get('/:id', async (req, res, next) => {
 // Create ticket
 router.post('/', async (req, res, next) => {
   try {
-    const ticket = await ticketService.createTicket(req.body, req.session.contextId);
+    const contextId = await activeContextService.getActiveContextId();
+    const ticket = await ticketService.createTicket(req.body, contextId);
     res.json({ success: true, data: ticket });
   } catch (error) {
     next(error);
@@ -37,7 +42,8 @@ router.post('/', async (req, res, next) => {
 // Update ticket
 router.put('/:id', async (req, res, next) => {
   try {
-    const ticket = await ticketService.updateTicket(parseInt(req.params.id), req.body, req.session.contextId);
+    const contextId = await activeContextService.getActiveContextId();
+    const ticket = await ticketService.updateTicket(parseInt(req.params.id), req.body, contextId);
     res.json({ success: true, data: ticket });
   } catch (error) {
     next(error);
@@ -47,7 +53,8 @@ router.put('/:id', async (req, res, next) => {
 // Delete ticket
 router.delete('/:id', async (req, res, next) => {
   try {
-    await ticketService.deleteTicket(parseInt(req.params.id), req.session.contextId);
+    const contextId = await activeContextService.getActiveContextId();
+    await ticketService.deleteTicket(parseInt(req.params.id), contextId);
     res.json({ success: true, message: 'Ticket deleted' });
   } catch (error) {
     next(error);
@@ -63,8 +70,9 @@ router.get('/types/list', (req, res) => {
 // Add link to ticket
 router.post('/:id/links', async (req, res, next) => {
   try {
+    const contextId = await activeContextService.getActiveContextId();
     const { url, title } = req.body;
-    const link = await ticketService.addTicketLink(parseInt(req.params.id), url, title, req.session.contextId);
+    const link = await ticketService.addTicketLink(parseInt(req.params.id), url, title, contextId);
     res.json({ success: true, data: link });
   } catch (error) {
     next(error);
@@ -74,7 +82,8 @@ router.post('/:id/links', async (req, res, next) => {
 // Remove link from ticket
 router.delete('/:id/links/:linkId', async (req, res, next) => {
   try {
-    await ticketService.removeTicketLink(parseInt(req.params.linkId), parseInt(req.params.id), req.session.contextId);
+    const contextId = await activeContextService.getActiveContextId();
+    await ticketService.removeTicketLink(parseInt(req.params.linkId), parseInt(req.params.id), contextId);
     res.json({ success: true, message: 'Link removed' });
   } catch (error) {
     next(error);
