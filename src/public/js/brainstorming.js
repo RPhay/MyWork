@@ -940,12 +940,16 @@ function initBrainstormingEventListeners() {
     const ideaRow = e.target.closest('.idea-row');
     if (ideaRow && !e.target.closest('.idea-actions')) {
       editIdea(ideaRow.dataset.ideaId);
+      return;
     }
 
-    // Single-click on folder header to open editor
-    const folderHeader = e.target.closest('.idea-folder-header');
-    if (folderHeader && !e.target.closest('[data-action]')) {
-      editIdeaFolder(folderHeader.closest('.idea-folder-node').dataset.folderId);
+    // Single-click on folder header to open editor (but not if inside an idea-row)
+    if (!ideaRow) {
+      const folderHeader = e.target.closest('.idea-folder-header');
+      if (folderHeader && !e.target.closest('[data-action]')) {
+        editIdeaFolder(folderHeader.closest('.idea-folder-node').dataset.folderId);
+        return;
+      }
     }
   });
 
