@@ -189,16 +189,21 @@ async function loadToDos() {
     const foldersResult = await foldersResponse.json();
     const toDosResult = await toDosResponse.json();
 
+    console.log('Loaded folders:', foldersResult.data?.length || 0);
+    console.log('Loaded to-dos:', toDosResult.data?.length || 0);
+
     if (foldersResult.success && toDosResult.success) {
-      allFolders = foldersResult.data;
-      allToDos = toDosResult.data;
+      allFolders = foldersResult.data || [];
+      allToDos = toDosResult.data || [];
+      console.log('Rendering with', allToDos.length, 'todos');
       renderToDosList();
     } else {
+      console.error('API response failed', foldersResult, toDosResult);
       container.innerHTML = '<p class="text-center text-danger">Error loading to dos</p>';
     }
   } catch (error) {
     console.error('Error loading to dos:', error);
-    container.innerHTML = '<p class="text-center text-danger">Error loading to dos</p>';
+    container.innerHTML = `<p class="text-center text-danger">Error loading to dos: ${error.message}</p>`;
   }
 }
 
