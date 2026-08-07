@@ -1,6 +1,9 @@
-let expandedFolders = new Set();
-let allFolders = [];
-let allToDos = [];
+// Guard against multiple script loads
+if (typeof expandedFolders === 'undefined') {
+  var expandedFolders = new Set();
+  var allFolders = [];
+  var allToDos = [];
+}
 
 // Parse email data from drag event
 function parseEmailData(text) {
@@ -1040,10 +1043,13 @@ function initToDos() {
   // Left inside the #tab-todos pane, it's a descendant of a display:none ancestor
   // whenever that tab isn't active, so Bootstrap's backdrop would show but the
   // dialog itself never could - move it to the body so it always renders.
-  document.body.appendChild(document.getElementById('toDoModal'));
+  const modal = document.getElementById('toDoModal');
+  if (modal && modal.parentElement !== document.body) {
+    document.body.appendChild(modal);
+  }
 
   // Initialize split pane for side-panel editing
-  if (document.getElementById('todoSplitPane')) {
+  if (document.getElementById('todoSplitPane') && !window.todoSplitPane) {
     window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
   }
 
@@ -1051,8 +1057,12 @@ function initToDos() {
   loadToDos();
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initToDos);
-} else {
-  initToDos();
+// Only initialize once
+if (!window.todosInitialized) {
+  window.todosInitialized = true;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initToDos);
+  } else {
+    initToDos();
+  }
 }
