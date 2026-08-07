@@ -270,20 +270,39 @@ export async function updateSystemDbSchema() {
 }
 
 export async function checkSystemDbSchema() {
+  const config = loadSystemDbConfig();
+  const current = getCurrentConfig();
+
+  const targetConfig = config || {
+    dbType: current.type || 'mysql',
+    host: current.host,
+    port: current.port,
+    database: current.database,
+    user: current.user,
+    password: current.password,
+  };
+
+  if (!targetConfig.host || !targetConfig.user || !targetConfig.database) {
+    throw new ValidationError('System database configuration is incomplete');
+  }
+
   try {
-    const config = await getSystemDbConfig();
-    if (!config.dbType || !config.config) {
-      throw new ValidationError('System database is not configured');
-    }
+    if (targetConfig.dbType === 'mssql') {
+      const password = targetConfig.password_enc
+        ? resolvePassword(targetConfig.password_enc, undefined)
+        : targetConfig.password;
 
-    const isMssql = config.dbType === 'mssql';
-    const connection = isMssql
-      ? await createMssqlConnection(config.config)
-      : await createMysqlConnection(config.config);
+      const pool = await mssql.connect({
+        server: targetConfig.host,
+        port: targetConfig.port ? Number(targetConfig.port) : 1433,
+        user: targetConfig.user,
+        password,
+        database: targetConfig.database,
+        options: { encrypt: true, trustServerCertificate: false },
+      });
 
-    try {
-      if (isMssql) {
-        const result = await connection.request().query(`
+      try {
+        const result = await pool.request().query(`
           SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
           WHERE TABLE_SCHEMA = 'MyWork'
         `);
@@ -296,13 +315,28 @@ export async function checkSystemDbSchema() {
           'tasks', 'tickets', 'priority_links', 'to_do_links', 'idea_links', 'task_links',
           'ticket_links', 'context_tab_settings'
         ];
-        const missingTables = allTables.filter(t => !existingTables.has(t));
-        return missingTables;
-      } else {
+        return allTables.filter(t => !existingTables.has(t));
+      } finally {
+        await pool.close();
+      }
+    } else {
+      const password = targetConfig.password_enc
+        ? resolvePassword(targetConfig.password_enc, undefined)
+        : targetConfig.password;
+
+      const connection = await mysql.createConnection({
+        host: targetConfig.host,
+        port: targetConfig.port ? Number(targetConfig.port) : 3306,
+        user: targetConfig.user,
+        password,
+        database: targetConfig.database,
+      });
+
+      try {
         const [rows] = await connection.query(`
           SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
           WHERE TABLE_SCHEMA = ?
-        `, [config.config.database]);
+        `, [targetConfig.database]);
         const existingTables = new Set(rows.map(r => r.TABLE_NAME));
         const allTables = [
           'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
@@ -312,13 +346,8 @@ export async function checkSystemDbSchema() {
           'tasks', 'tickets', 'priority_links', 'to_do_links', 'idea_links', 'task_links',
           'ticket_links', 'context_tab_settings'
         ];
-        const missingTables = allTables.filter(t => !existingTables.has(t));
-        return missingTables;
-      }
-    } finally {
-      if (isMssql) {
-        await connection.close();
-      } else {
+        return allTables.filter(t => !existingTables.has(t));
+      } finally {
         await connection.end();
       }
     }
@@ -329,40 +358,65 @@ export async function checkSystemDbSchema() {
 }
 
 export async function createSystemDbTable(tableName) {
+  const config = loadSystemDbConfig();
+  const current = getCurrentConfig();
+
+  const targetConfig = config || {
+    dbType: current.type || 'mysql',
+    host: current.host,
+    port: current.port,
+    database: current.database,
+    user: current.user,
+    password: current.password,
+  };
+
+  if (!targetConfig.host || !targetConfig.user || !targetConfig.database) {
+    throw new ValidationError('System database configuration is incomplete');
+  }
+
   try {
-    const config = await getSystemDbConfig();
-    if (!config.dbType || !config.config) {
-      throw new ValidationError('System database is not configured');
-    }
+    if (targetConfig.dbType === 'mssql') {
+      const password = targetConfig.password_enc
+        ? resolvePassword(targetConfig.password_enc, undefined)
+        : targetConfig.password;
 
-    const isMssql = config.dbType === 'mssql';
-    const connection = isMssql
-      ? await createMssqlConnection(config.config)
-      : await createMysqlConnection(config.config);
+      const pool = await mssql.connect({
+        server: targetConfig.host,
+        port: targetConfig.port ? Number(targetConfig.port) : 1433,
+        user: targetConfig.user,
+        password,
+        database: targetConfig.database,
+        options: { encrypt: true, trustServerCertificate: false },
+      });
 
-    try {
-      if (isMssql) {
-        await connection.request().query(`USE [${config.config.database}]`);
-        // Import and execute MSSQL schema - create only the requested table
-        const { createMssqlSchema } = await import('../database/schema/mssqlSchema.js');
-        // This is a simplified approach - in production you'd want to create individual tables
-        // For now, we'll just create the full schema which includes the table
-        await createMssqlSchema(connection);
-      } else {
-        // For MySQL, we need to create individual table
-        // The easiest way is to run the full schema which is idempotent
-        const { createMysqlSchema } = await import('../database/schema/mysqlSchema.js');
-        await createMysqlSchema(connection);
+      try {
+        // Run full schema which is idempotent - will create the table if missing
+        await createMssqlSchema(pool);
+      } finally {
+        await pool.close();
       }
+    } else {
+      const password = targetConfig.password_enc
+        ? resolvePassword(targetConfig.password_enc, undefined)
+        : targetConfig.password;
 
-      return { message: `Table ${tableName} created successfully` };
-    } finally {
-      if (isMssql) {
-        await connection.close();
-      } else {
+      const connection = await mysql.createConnection({
+        host: targetConfig.host,
+        port: targetConfig.port ? Number(targetConfig.port) : 3306,
+        user: targetConfig.user,
+        password,
+        database: targetConfig.database,
+      });
+
+      try {
+        // Run full schema which is idempotent - will create the table if missing
+        await createMysqlSchema(connection);
+      } finally {
         await connection.end();
       }
     }
+
+    return { message: `Table ${tableName} created successfully` };
   } catch (error) {
     console.error(`Error creating table ${tableName}:`, error);
     throw new ValidationError(`Failed to create table ${tableName}: ${error.message}`);
