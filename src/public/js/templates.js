@@ -1,5 +1,6 @@
 let expandedTemplates = new Set();
 let allTemplates = [];
+let templatesSplitPane; // Reference to the split pane for template editor
 
 const TEMPLATE_ASSOCIATION_PATHS = { priority: 'priorities', goal: 'goals', area: 'areas' };
 
@@ -227,9 +228,8 @@ async function editTemplate(templateId) {
     setTimeBoxField('templateEditorTimeBox', template.time_box_minutes);
 
     // Show split-pane editor
-    const editorPane = document.getElementById('templateEditorPane');
-    if (editorPane) {
-      editorPane.classList.remove('hidden');
+    if (templatesSplitPane) {
+      templatesSplitPane.showRightPane();
     }
   } catch (error) {
     console.error('Error:', error);
@@ -238,9 +238,8 @@ async function editTemplate(templateId) {
 }
 
 function closeTemplateEditor() {
-  const editorPane = document.getElementById('templateEditorPane');
-  if (editorPane) {
-    editorPane.classList.add('hidden');
+  if (templatesSplitPane) {
+    templatesSplitPane.hideRightPane();
   }
 }
 
@@ -908,7 +907,9 @@ function initTemplates() {
   document.body.appendChild(document.getElementById('templateModal'));
 
   // Setup split-pane
-  const splitPane = new SplitPane("templatesSplitPane", "templatesLeftPane", "templatesDivider", "templateEditorPane", 66.66);
+  templatesSplitPane = new SplitPane("templatesSplitPane", "templatesLeftPane", "templatesDivider", "templateEditorPane", 66.66);
+  // Start with editor hidden
+  templatesSplitPane.hideRightPane();
 
   // Setup drawer toggle for associate items
   const associateToggle = document.getElementById("templatesAssociateItemsToggle");
