@@ -1673,6 +1673,7 @@ async function instantiateTemplateOnDate(templateId, date) {
 
 function initWorkItemsListEventListeners() {
   const container = document.getElementById("workItemsList");
+  const centerPane = document.getElementById("dailiesCenterPane");
   let clickTimer = null;
 
   app.bindInlineRename(
@@ -1781,7 +1782,7 @@ function initWorkItemsListEventListeners() {
     clearWorkItemDropIndicators(container);
   });
 
-  container.addEventListener("dragover", (e) => {
+  centerPane.addEventListener("dragover", (e) => {
     const types = Array.from(e.dataTransfer.types || []);
     const hasCalendarData =
       types.includes("text/calendar") ||
@@ -1797,7 +1798,7 @@ function initWorkItemsListEventListeners() {
     if (hasCalendarData || currentDragType) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
-      container.classList.add("work-items-drop-target");
+      centerPane.classList.add("work-items-drop-target");
     }
 
     const workItemEl = e.target.closest(".work-item");
@@ -1823,7 +1824,7 @@ function initWorkItemsListEventListeners() {
     }
   });
 
-  container.addEventListener("dragleave", (e) => {
+  centerPane.addEventListener("dragleave", (e) => {
     const workItemEl = e.target.closest(".work-item");
     if (workItemEl && !workItemEl.contains(e.relatedTarget)) {
       workItemEl.classList.remove(
@@ -1832,14 +1833,14 @@ function initWorkItemsListEventListeners() {
         "drop-indicator-after",
       );
     }
-    if (!container.contains(e.relatedTarget)) {
-      container.classList.remove("work-items-drop-target");
+    if (!centerPane.contains(e.relatedTarget)) {
+      centerPane.classList.remove("work-items-drop-target");
     }
   });
 
-  container.addEventListener("drop", async (e) => {
+  centerPane.addEventListener("drop", async (e) => {
     e.preventDefault();
-    container.classList.remove("work-items-drop-target");
+    centerPane.classList.remove("work-items-drop-target");
 
     const type = e.dataTransfer.getData("type");
     const id = e.dataTransfer.getData("id");
