@@ -50,6 +50,15 @@ async function openTaskForm(taskId = null) {
       document.getElementById('taskTitle').value = task.title;
       document.getElementById('taskNotes').value = task.notes || '';
       renderTaskLinks(task.links || []);
+
+      // Show side-panel editor if split pane exists, otherwise use modal
+      const editorPane = document.getElementById('taskEditorPane');
+      if (editorPane && window.taskSplitPane) {
+        editorPane.classList.remove('hidden');
+        document.getElementById('taskEditorForm').style.display = 'block';
+        document.getElementById('editorTitle').textContent = task.title;
+        return;
+      }
     }
   } else {
     document.getElementById('taskId').value = '';
@@ -60,6 +69,14 @@ async function openTaskForm(taskId = null) {
 
   const modal = new bootstrap.Modal(document.getElementById('taskModal'));
   modal.show();
+}
+
+function closeTaskEditor() {
+  const editorPane = document.getElementById('taskEditorPane');
+  if (editorPane) {
+    editorPane.classList.add('hidden');
+    document.getElementById('taskEditorForm').style.display = 'none';
+  }
 }
 
 function renderTaskLinks(links) {
@@ -170,6 +187,19 @@ function initTasksEventListeners() {
   document.getElementById('saveTaskBtn')?.addEventListener('click', saveTask);
   document.getElementById('addTaskLinkBtn')?.addEventListener('click', addTaskLink);
 
+  // Side-panel editor buttons
+  const saveEditorBtn = document.getElementById('saveTaskEditorBtn');
+  const closeEditorBtn = document.getElementById('closeTaskEditorBtn');
+  if (saveEditorBtn) {
+    saveEditorBtn.addEventListener('click', async () => {
+      await saveTask();
+      closeTaskEditor();
+    });
+  }
+  if (closeEditorBtn) {
+    closeEditorBtn.addEventListener('click', closeTaskEditor);
+  }
+
   document.getElementById('tasksList').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -187,6 +217,11 @@ function initTasksEventListeners() {
 }
 
 function initTasks() {
+  // Initialize split pane for side-panel editing
+  if (document.getElementById('taskSplitPane')) {
+    window.taskSplitPane = new SplitPane('taskSplitPane', 'taskListPane', 'taskDivider', 'taskEditorPane', 66.66);
+  }
+
   initTasksEventListeners();
   loadTasks();
 }

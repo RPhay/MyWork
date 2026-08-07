@@ -1,19 +1,65 @@
-<div class="row mb-2">
-  <div class="col-md-12 text-end">
-    <button class="btn btn-primary" id="addTaskBtn" data-bs-toggle="modal" data-bs-target="#taskModal">
-      + Add Task
-    </button>
+<div class="split-pane-container" id="taskSplitPane">
+  <!-- Left Pane -->
+  <div class="split-pane-left" id="taskListPane">
+    <div class="row mb-2">
+      <div class="col-md-12 text-end">
+        <button class="btn btn-primary" id="addTaskBtn" data-bs-toggle="modal" data-bs-target="#taskModal">
+          + Add Task
+        </button>
+      </div>
+    </div>
+
+    <div class="task-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
+      <span>Title</span>
+      <span>Notes</span>
+      <span>Actions</span>
+    </div>
+
+    <div id="tasksList">
+      <p class="text-center text-muted">No tasks yet</p>
+    </div>
   </div>
-</div>
 
-<div class="task-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
-  <span>Title</span>
-  <span>Notes</span>
-  <span>Actions</span>
-</div>
+  <!-- Divider -->
+  <div class="split-pane-divider" id="taskDivider"></div>
 
-<div id="tasksList">
-  <p class="text-center text-muted">No tasks yet</p>
+  <!-- Right Pane (Editor) -->
+  <div class="split-pane-right hidden" id="taskEditorPane">
+    <div class="split-pane-editor">
+      <div class="split-pane-editor-title" id="editorTitle">Select a task to edit</div>
+      <form id="taskEditorForm" style="display: none;">
+        <input type="hidden" id="taskId" name="taskId">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <div class="mb-3">
+          <label for="taskTitle" class="form-label">Title *</label>
+          <input type="text" class="form-control" id="taskTitle" name="title" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="taskNotes" class="form-label">Notes</label>
+          <textarea class="form-control" id="taskNotes" name="notes" rows="4"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Links</label>
+          <div id="taskLinksList" class="mb-2"></div>
+          <div class="input-group input-group-sm">
+            <input type="url" class="form-control" id="taskLinkUrl" placeholder="https://example.com">
+            <input type="text" class="form-control" id="taskLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+            <button type="button" class="btn btn-outline-secondary" id="addTaskLinkBtn">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary" id="saveTaskEditorBtn">Save</button>
+          <button type="button" class="btn btn-secondary" id="closeTaskEditorBtn">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Task Modal -->

@@ -1,24 +1,71 @@
-<div class="row mb-2">
-  <div class="col-md-12 text-end">
-    <button class="btn btn-outline-secondary" id="addIdeaFolderBtn" data-bs-toggle="modal" data-bs-target="#ideaFolderModal">
-      + Add Folder
-    </button>
-    <button class="btn btn-primary" id="addIdeaBtn" data-bs-toggle="modal" data-bs-target="#ideaModal">
-      + Add Idea
-    </button>
+<div class="split-pane-container" id="ideaSplitPane">
+  <!-- Left Pane -->
+  <div class="split-pane-left" id="ideaListPane">
+    <div class="row mb-2">
+      <div class="col-md-12 text-end">
+        <button class="btn btn-outline-secondary" id="addIdeaFolderBtn" data-bs-toggle="modal" data-bs-target="#ideaFolderModal">
+          + Add Folder
+        </button>
+        <button class="btn btn-primary" id="addIdeaBtn" data-bs-toggle="modal" data-bs-target="#ideaModal">
+          + Add Idea
+        </button>
+      </div>
+    </div>
+
+    <p class="text-muted small mb-2">Drag an idea onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+
+    <div class="idea-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
+      <span>Title</span>
+      <span>Notes</span>
+      <span>Actions</span>
+    </div>
+
+    <div id="ideasList">
+      <p class="text-center text-muted">No ideas yet</p>
+    </div>
   </div>
-</div>
 
-<p class="text-muted small mb-2">Drag an idea onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+  <!-- Divider -->
+  <div class="split-pane-divider" id="ideaDivider"></div>
 
-<div class="idea-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
-  <span>Title</span>
-  <span>Notes</span>
-  <span>Actions</span>
-</div>
+  <!-- Right Pane (Editor) -->
+  <div class="split-pane-right hidden" id="ideaEditorPane">
+    <div class="split-pane-editor">
+      <div class="split-pane-editor-title" id="editorTitle">Select an idea to edit</div>
+      <form id="ideaEditorForm" style="display: none;">
+        <input type="hidden" id="ideaId" name="ideaId">
+        <input type="hidden" id="ideaPresetFolderId">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-<div id="ideasList">
-  <p class="text-center text-muted">No ideas yet</p>
+        <div class="mb-3">
+          <label for="ideaTitle" class="form-label">Title *</label>
+          <input type="text" class="form-control" id="ideaTitle" name="title" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="ideaNotes" class="form-label">Notes</label>
+          <textarea class="form-control" id="ideaNotes" name="notes" rows="4"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Links</label>
+          <div id="ideaLinksList" class="mb-2"></div>
+          <div class="input-group input-group-sm">
+            <input type="url" class="form-control" id="ideaLinkUrl" placeholder="https://example.com">
+            <input type="text" class="form-control" id="ideaLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+            <button type="button" class="btn btn-outline-secondary" id="addIdeaLinkBtn">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary" id="saveIdeaEditorBtn">Save</button>
+          <button type="button" class="btn btn-secondary" id="closeIdeaEditorBtn">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Idea Convert Context Menu (right-click an idea) -->

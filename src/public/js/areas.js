@@ -147,6 +147,14 @@ async function saveArea() {
   }
 }
 
+function closeAreaEditor() {
+  const editorPane = document.getElementById('areaEditorPane');
+  if (editorPane) {
+    editorPane.classList.add('hidden');
+    document.getElementById('areaEditorForm').style.display = 'none';
+  }
+}
+
 async function editArea(areaId) {
   try {
     const response = await fetch(`/api/areas/${areaId}`);
@@ -159,8 +167,16 @@ async function editArea(areaId) {
     document.getElementById('areaParentId').value = '';
     document.getElementById('areaParentHint').classList.add('d-none');
 
-    const modal = new bootstrap.Modal(document.getElementById('areaModal'));
-    modal.show();
+    // Show side-panel editor if split pane exists, otherwise use modal
+    const editorPane = document.getElementById('areaEditorPane');
+    if (editorPane && window.areaSplitPane) {
+      editorPane.classList.remove('hidden');
+      document.getElementById('areaEditorForm').style.display = 'block';
+      document.getElementById('editorTitle').textContent = area.name;
+    } else {
+      const modal = new bootstrap.Modal(document.getElementById('areaModal'));
+      modal.show();
+    }
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error loading category', 'danger');
@@ -371,6 +387,20 @@ function initAreaContextMenu() {
 function initAreasEventListeners() {
   document.getElementById('addAreaBtn').addEventListener('click', () => openNewAreaForm());
   document.getElementById('saveAreaBtn').addEventListener('click', saveArea);
+
+  // Side-panel editor buttons
+  const saveEditorBtn = document.getElementById('saveAreaEditorBtn');
+  const closeEditorBtn = document.getElementById('closeAreaEditorBtn');
+  if (saveEditorBtn) {
+    saveEditorBtn.addEventListener('click', async () => {
+      await saveArea();
+      closeAreaEditor();
+    });
+  }
+  if (closeEditorBtn) {
+    closeEditorBtn.addEventListener('click', closeAreaEditor);
+  }
+
   initAreaContextMenu();
 
   const container = document.getElementById('areasList');
@@ -487,6 +517,11 @@ function initAreas() {
   // whenever that tab isn't active, so Bootstrap's backdrop would show but the
   // dialog itself never could - move it to the body so it always renders.
   document.body.appendChild(document.getElementById('areaModal'));
+
+  // Initialize split pane for side-panel editing
+  if (document.getElementById('areaSplitPane')) {
+    window.areaSplitPane = new SplitPane('areaSplitPane', 'areaListPane', 'areaDivider', 'areaEditorPane', 66.66);
+  }
 
   initAreasEventListeners();
   loadAreas();

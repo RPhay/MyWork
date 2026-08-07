@@ -1,21 +1,58 @@
-<div class="row mb-2">
-  <div class="col-md-12 text-end">
-    <button class="btn btn-primary" id="addAreaBtn" data-bs-toggle="modal" data-bs-target="#areaModal">
-      + Add Category
-    </button>
+<div class="split-pane-container" id="areaSplitPane">
+  <!-- Left Pane -->
+  <div class="split-pane-left" id="areaListPane">
+    <div class="row mb-2">
+      <div class="col-md-12 text-end">
+        <button class="btn btn-primary" id="addAreaBtn" data-bs-toggle="modal" data-bs-target="#areaModal">
+          + Add Category
+        </button>
+      </div>
+    </div>
+
+    <p class="text-muted small mb-2">Drop a category on another to make it a sub-category, between two categories to reorder it there, or onto empty space to make it top-level.</p>
+
+    <div class="area-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
+      <span>Name</span>
+      <span>Description</span>
+      <span>Actions</span>
+    </div>
+
+    <div id="areasList">
+      <p class="text-center text-muted">No categories yet</p>
+    </div>
   </div>
-</div>
 
-<p class="text-muted small mb-2">Drop a category on another to make it a sub-category, between two categories to reorder it there, or onto empty space to make it top-level.</p>
+  <!-- Divider -->
+  <div class="split-pane-divider" id="areaDivider"></div>
 
-<div class="area-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
-  <span>Name</span>
-  <span>Description</span>
-  <span>Actions</span>
-</div>
+  <!-- Right Pane (Editor) -->
+  <div class="split-pane-right hidden" id="areaEditorPane">
+    <div class="split-pane-editor">
+      <div class="split-pane-editor-title" id="editorTitle">Select a category to edit</div>
+      <form id="areaEditorForm" style="display: none;">
+        <input type="hidden" id="areaId" name="areaId">
+        <input type="hidden" id="areaParentId" name="parentId">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-<div id="areasList">
-  <p class="text-center text-muted">No categories yet</p>
+        <p class="text-muted small mb-2 d-none" id="areaParentHint"></p>
+
+        <div class="mb-3">
+          <label for="areaName" class="form-label">Name *</label>
+          <input type="text" class="form-control" id="areaName" name="name" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="areaDescription" class="form-label">Description</label>
+          <textarea class="form-control" id="areaDescription" name="description" rows="4"></textarea>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary" id="saveAreaEditorBtn">Save</button>
+          <button type="button" class="btn btn-secondary" id="closeAreaEditorBtn">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Category Context Menu -->

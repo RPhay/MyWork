@@ -381,6 +381,11 @@ async function initGoals() {
   // dialog itself never could - move it to the body so it always renders.
   document.body.appendChild(document.getElementById('goalModal'));
 
+  // Initialize split pane for side-panel viewing
+  if (document.getElementById('goalSplitPane')) {
+    window.goalSplitPane = new SplitPane('goalSplitPane', 'goalListPane', 'goalDivider', 'goalEditorPane', 66.66);
+  }
+
   initGoalsEventListeners();
   loadGoalCategoryOptions();
   await loadYears();

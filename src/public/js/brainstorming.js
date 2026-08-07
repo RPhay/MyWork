@@ -287,6 +287,14 @@ async function saveIdea() {
   }
 }
 
+function closeIdeaEditor() {
+  const editorPane = document.getElementById('ideaEditorPane');
+  if (editorPane) {
+    editorPane.classList.add('hidden');
+    document.getElementById('ideaEditorForm').style.display = 'none';
+  }
+}
+
 async function editIdea(ideaId) {
   try {
     const response = await fetch(`/api/ideas/${ideaId}`);
@@ -318,8 +326,16 @@ async function editIdea(ideaId) {
     // Setup URL drag-drop
     setupURLDragDrop('idea', 'ideaLinksList', () => idea.id);
 
-    const modal = new bootstrap.Modal(document.getElementById('ideaModal'));
-    modal.show();
+    // Show side-panel editor if split pane exists, otherwise use modal
+    const editorPane = document.getElementById('ideaEditorPane');
+    if (editorPane && window.ideaSplitPane) {
+      editorPane.classList.remove('hidden');
+      document.getElementById('ideaEditorForm').style.display = 'block';
+      document.getElementById('editorTitle').textContent = idea.title;
+    } else {
+      const modal = new bootstrap.Modal(document.getElementById('ideaModal'));
+      modal.show();
+    }
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error loading idea', 'danger');
@@ -745,6 +761,19 @@ function initBrainstormingEventListeners() {
   document.getElementById('convertIdeaType').addEventListener('change', updateConvertIdeaFormVisibility);
   document.getElementById('doConvertIdeaBtn').addEventListener('click', doConvertIdea);
 
+  // Side-panel editor buttons
+  const saveEditorBtn = document.getElementById('saveIdeaEditorBtn');
+  const closeEditorBtn = document.getElementById('closeIdeaEditorBtn');
+  if (saveEditorBtn) {
+    saveEditorBtn.addEventListener('click', async () => {
+      await saveIdea();
+      closeIdeaEditor();
+    });
+  }
+  if (closeEditorBtn) {
+    closeEditorBtn.addEventListener('click', closeIdeaEditor);
+  }
+
   document.getElementById('addIdeaItemBtn').addEventListener('click', addIdeaItemRow);
   document.getElementById('ideaItemsList').addEventListener('click', (e) => {
     const removeBtn = e.target.closest('[data-action="remove-item"]');
@@ -935,6 +964,11 @@ function initBrainstorming() {
   // #ideaModal can be opened from other tabs in the future, same reasoning as
   // #toDoModal - move it to the body so a hidden ancestor tab pane never blocks it.
   document.body.appendChild(document.getElementById('ideaModal'));
+
+  // Initialize split pane for side-panel editing
+  if (document.getElementById('ideaSplitPane')) {
+    window.ideaSplitPane = new SplitPane('ideaSplitPane', 'ideaListPane', 'ideaDivider', 'ideaEditorPane', 66.66);
+  }
 
   initBrainstormingEventListeners();
   loadIdeas();

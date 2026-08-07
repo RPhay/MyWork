@@ -40,25 +40,43 @@
   </div>
 </div>
 
-<p class="text-muted small mb-2">Drag a goal between two others to reorder it.</p>
+<div class="split-pane-container" id="goalSplitPane" style="height: 600px;">
+  <!-- Left Pane -->
+  <div class="split-pane-left" id="goalListPane">
+    <p class="text-muted small mb-2">Drag a goal between two others to reorder it.</p>
 
-<div class="table-responsive">
-  <table class="table table-hover" id="goalsTable">
-    <thead class="table-light">
-      <tr>
-        <th>Name</th>
-        <th>Goal Categories</th>
-        <th>Status</th>
-        <th>Due Date</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody id="goalsTableBody">
-      <tr>
-        <td colspan="5" class="text-center text-muted">No goals for this year</td>
-      </tr>
-    </tbody>
-  </table>
+    <div class="table-responsive">
+      <table class="table table-hover" id="goalsTable">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Goal Categories</th>
+            <th>Status</th>
+            <th>Due Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="goalsTableBody">
+          <tr>
+            <td colspan="5" class="text-center text-muted">No goals for this year</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div class="split-pane-divider" id="goalDivider"></div>
+
+  <!-- Right Pane (Editor) -->
+  <div class="split-pane-right hidden" id="goalEditorPane">
+    <div class="split-pane-editor">
+      <div class="split-pane-editor-title" id="editorTitle">Select a goal to edit</div>
+      <div id="goalEditorForm" style="display: none;">
+        <!-- Goal form content will go here, moved from modal -->
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Goal Modal -->
