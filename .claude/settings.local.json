@@ -58,7 +58,12 @@
       "Bash(curl -s http://localhost:3000/settings?tab=contexts)",
       "Bash(curl -s 'http://localhost:3000/settings?tab=contexts')",
       "Bash(curl -s 'http://localhost:3000/api/system-database')",
-      "Bash(mysql *)"
+      "Bash(mysql *)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)",
+      "Bash(git stash *)",
+      "Bash(git pull *)",
+      "Bash(git apply *)"
     ]
   }
 }
