@@ -408,10 +408,16 @@ async function editToDo(toDoId) {
       setupURLDragDrop('to-do', 'toDoEditorLinksList', () => toDo.id);
 
       // Show side-panel editor
-      if (window.todoSplitPane) {
+      if (window.todoSplitPane && typeof window.todoSplitPane.showRightPane === 'function') {
         window.todoSplitPane.showRightPane();
+      } else {
+        // Fallback to modal if split pane isn't working
+        useSplitPane = false;
       }
-      document.getElementById('todoEditorTitle').textContent = toDo.title;
+
+      if (useSplitPane) {
+        document.getElementById('todoEditorTitle').textContent = toDo.title;
+      }
     } else {
       // Populate modal form
       document.getElementById('toDoId').value = toDo.id;
@@ -534,8 +540,15 @@ async function editFolder(folderId) {
     document.getElementById('toDoEditorLinksList').innerHTML = '';
 
     // Show split-pane editor
-    if (window.todoSplitPane) {
+    if (window.todoSplitPane && typeof window.todoSplitPane.showRightPane === 'function') {
       window.todoSplitPane.showRightPane();
+    } else {
+      // Fallback to modal if split pane isn't working
+      const modal = new bootstrap.Modal(document.getElementById('folderModal'));
+      document.getElementById('folderId').value = folder.id;
+      document.getElementById('folderName').value = folder.name;
+      modal.show();
+      return;
     }
   } catch (error) {
     console.error('Error:', error);
@@ -1140,7 +1153,12 @@ function initToDos() {
 
   // Initialize split pane for side-panel editing
   if (document.getElementById('todoSplitPane') && !window.todoSplitPane) {
-    window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
+    console.log('[Todos] Attempting to create SplitPane...');
+    const instance = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
+    console.log('[Todos] SplitPane instance created:', instance);
+    console.log('[Todos] Instance has showRightPane?', typeof instance.showRightPane);
+    window.todoSplitPane = instance;
+    console.log('[Todos] window.todoSplitPane assigned:', window.todoSplitPane);
   }
 
   initToDosEventListeners();

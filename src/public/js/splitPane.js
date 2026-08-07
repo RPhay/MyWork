@@ -1,6 +1,7 @@
 // Resizable split pane utility
 class SplitPane {
   constructor(containerId, leftPaneId, dividerId, rightPaneId, initialLeftPercent = 66.66) {
+    console.log(`[SplitPane] Creating with containerID=${containerId}`);
     this.container = document.getElementById(containerId);
     this.leftPane = document.getElementById(leftPaneId);
     this.divider = document.getElementById(dividerId);
@@ -8,12 +9,16 @@ class SplitPane {
     this.initialLeftPercent = initialLeftPercent;
     this.isDragging = false;
 
+    console.log(`[SplitPane] Found elements: container=${!!this.container}, leftPane=${!!this.leftPane}, divider=${!!this.divider}, rightPane=${!!this.rightPane}`);
+
     if (!this.container || !this.leftPane || !this.divider || !this.rightPane) {
       console.error('[SplitPane] Missing required elements');
       return;
     }
 
+    console.log(`[SplitPane] Calling init()`);
     this.init();
+    console.log(`[SplitPane] Init complete`);
   }
 
   init() {
