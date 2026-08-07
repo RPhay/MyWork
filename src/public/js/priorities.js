@@ -21,7 +21,7 @@ function renderToDoInTree(toDo, depth) {
         <span class="priority-badges"><small class="text-muted">${app.escapeHtml(toDo.notes || '')}</small></span>
         <span class="priority-badges"></span>
         <span class="priority-actions">
-          <button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="todo" data-child-id="${toDo.id}" title="Remove" aria-label="Remove"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="todo" data-child-id="${toDo.id}" title="Remove" aria-label="Remove"><i class="bi bi-x-circle"></i></button>
         </span>
       </div>
     </div>
@@ -860,9 +860,8 @@ function initPriorities() {
   document.body.appendChild(document.getElementById('priorityModal'));
 
   // Initialize split pane for side-panel editing
-  if (document.getElementById('prioritySplitPane')) {
-    window.prioritySplitPane = new SplitPane('prioritySplitPane', 'priorityListPane', 'priorityDivider', 'priorityEditorPane', 66.66);
-  }
+  // Initialize split-pane for side-panel editing
+  window.prioritySplitPane = new SplitPane('prioritySplitPane', 'priorityListPane', 'priorityDivider', 'priorityEditorPane', 66.66);
 
   // Setup drawer toggle for associate items
   const associateToggle = document.getElementById('associateItemsToggle');
