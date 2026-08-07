@@ -236,17 +236,33 @@ async function loadPriorityRightPanel() {
 }
 
 function initProjRightPanelTabs() {
-  document.getElementById('projRightPanelTabs').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-panel-tab]');
-    if (!btn) return;
+  // Handle folder toggling for associate items
+  document.querySelectorAll('.associate-folder-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const folder = header.dataset.folder;
+      const content = document.querySelector(`.associate-folder-content[data-folder="${folder}"]`);
+      const toggle = header.querySelector('.associate-folder-toggle');
 
-    document.querySelectorAll('#projRightPanelTabs [data-panel-tab]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    const target = btn.dataset.panelTab;
-    document.querySelectorAll('#tab-my-priorities .right-panel-list').forEach(panel => {
-      panel.classList.toggle('d-none', panel.dataset.panel !== target);
+      if (content) {
+        const isOpen = content.style.display !== 'none';
+        content.style.display = isOpen ? 'none' : 'block';
+        if (toggle) {
+          toggle.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+        }
+        localStorage.setItem(`projFolder_${folder}`, isOpen ? 'closed' : 'open');
+      }
     });
+
+    // Restore state from localStorage
+    const folder = header.dataset.folder;
+    const savedState = localStorage.getItem(`projFolder_${folder}`);
+    const content = document.querySelector(`.associate-folder-content[data-folder="${folder}"]`);
+    const toggle = header.querySelector('.associate-folder-toggle');
+
+    if (savedState === 'open' && content) {
+      content.style.display = 'block';
+      if (toggle) toggle.style.transform = 'rotate(90deg)';
+    }
   });
 }
 

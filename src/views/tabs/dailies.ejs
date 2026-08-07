@@ -11,42 +11,62 @@
     <div style="margin-bottom: 15px;">
       <h6 class="mb-3">Associate Items</h6>
 
-        <ul class="nav nav-tabs nav-fill mb-2" id="dailiesAssociateTabs" style="font-size: 0.8rem;">
-          <li class="nav-item">
-            <button class="nav-link active px-1" data-panel-tab="projects" type="button">Projects</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link px-1" data-panel-tab="goals" type="button">Goals</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link px-1" data-panel-tab="areas" type="button">Categories</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link px-1" data-panel-tab="templates" type="button">Templates</button>
-          </li>
-        </ul>
-
-        <div id="prioritiesListRight" class="right-panel-list small" data-panel="projects">
+      <!-- Projects Folder -->
+      <div class="associate-folder mb-2">
+        <div class="associate-folder-header" data-folder="projects" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
+          <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
+          <i class="bi bi-folder" style="font-size: 14px;"></i>
+          <span style="font-size: 13px; font-weight: 500;">Projects</span>
+        </div>
+        <div id="prioritiesListRight" class="associate-folder-content small" data-folder="projects" style="display: none; padding-left: 24px; margin-top: 4px;">
           <small class="text-muted">No projects</small>
         </div>
-        <div id="goalsListRight" class="right-panel-list small d-none" data-panel="goals">
+      </div>
+
+      <!-- Goals Folder -->
+      <div class="associate-folder mb-2">
+        <div class="associate-folder-header" data-folder="goals" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
+          <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
+          <i class="bi bi-flag" style="font-size: 14px;"></i>
+          <span style="font-size: 13px; font-weight: 500;">Goals</span>
+        </div>
+        <div id="goalsListRight" class="associate-folder-content small" data-folder="goals" style="display: none; padding-left: 24px; margin-top: 4px;">
           <small class="text-muted">No goals</small>
         </div>
-        <div id="areasListRight" class="right-panel-list small d-none" data-panel="areas">
+      </div>
+
+      <!-- Categories Folder -->
+      <div class="associate-folder mb-2">
+        <div class="associate-folder-header" data-folder="areas" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
+          <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
+          <i class="bi bi-tags" style="font-size: 14px;"></i>
+          <span style="font-size: 13px; font-weight: 500;">Categories</span>
+        </div>
+        <div id="areasListRight" class="associate-folder-content small" data-folder="areas" style="display: none; padding-left: 24px; margin-top: 4px;">
           <small class="text-muted">No categories</small>
         </div>
-        <div id="templatesListRight" class="right-panel-list small d-none" data-panel="templates">
+      </div>
+
+      <!-- Templates Folder -->
+      <div class="associate-folder mb-2">
+        <div class="associate-folder-header" data-folder="templates" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
+          <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
+          <i class="bi bi-list-check" style="font-size: 14px;"></i>
+          <span style="font-size: 13px; font-weight: 500;">Templates</span>
+        </div>
+        <div id="templatesListRight" class="associate-folder-content small" data-folder="templates" style="display: none; padding-left: 24px; margin-top: 4px;">
           <small class="text-muted">No templates</small>
         </div>
+      </div>
 
-        <!-- Data Sources Import Section -->
-        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
-          <div class="text-muted small fw-bold mb-2">Import from</div>
-          <div id="dataSourcesIcons" style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <!-- Data source icons will be added here by JavaScript -->
-          </div>
+      <!-- Data Sources Import Section -->
+      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+        <div class="text-muted small fw-bold mb-2">Import from</div>
+        <div id="dataSourcesIcons" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <!-- Data source icons will be added here by JavaScript -->
         </div>
       </div>
+    </div>
     </div>
 
   <!-- Outer Split Pane (Calendar | Content) -->

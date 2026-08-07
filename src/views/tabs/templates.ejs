@@ -10,26 +10,41 @@
   <div class="drawer-panel" id="templatesAssociateItemsPanel" style="width: 0; background: white; border-right: 1px solid #dee2e6; overflow: hidden; padding: 0; transition: width 0.3s ease; overflow-y: auto;" data-drawer-open="false">
       <div style="margin-bottom: 15px;">
         <h6 class="mb-3">Associate Items</h6>
-        <ul class="nav nav-tabs nav-fill mb-2" id="templatesAssociateTabs" style="font-size: 0.8rem;">
-          <li class="nav-item">
-            <button class="nav-link active px-1" data-panel-tab="projects" type="button">Projects</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link px-1" data-panel-tab="goals" type="button">Goals</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link px-1" data-panel-tab="areas" type="button">Categories</button>
-          </li>
-        </ul>
 
-        <div id="tplPrioritiesListRight" class="tpl-right-panel-list small" data-panel="projects">
-          <small class="text-muted">No projects</small>
+        <!-- Projects Folder -->
+        <div class="associate-folder mb-2">
+          <div class="associate-folder-header" data-folder="projects" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
+            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
+            <i class="bi bi-folder" style="font-size: 14px;"></i>
+            <span style="font-size: 13px; font-weight: 500;">Projects</span>
+          </div>
+          <div id="tplPrioritiesListRight" class="associate-folder-content small" data-folder="projects" style="display: none; padding-left: 24px; margin-top: 4px;">
+            <small class="text-muted">No projects</small>
+          </div>
         </div>
-        <div id="tplGoalsListRight" class="tpl-right-panel-list small d-none" data-panel="goals">
-          <small class="text-muted">No goals</small>
+
+        <!-- Goals Folder -->
+        <div class="associate-folder mb-2">
+          <div class="associate-folder-header" data-folder="goals" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
+            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
+            <i class="bi bi-flag" style="font-size: 14px;"></i>
+            <span style="font-size: 13px; font-weight: 500;">Goals</span>
+          </div>
+          <div id="tplGoalsListRight" class="associate-folder-content small" data-folder="goals" style="display: none; padding-left: 24px; margin-top: 4px;">
+            <small class="text-muted">No goals</small>
+          </div>
         </div>
-        <div id="tplAreasListRight" class="tpl-right-panel-list small d-none" data-panel="areas">
-          <small class="text-muted">No categories</small>
+
+        <!-- Categories Folder -->
+        <div class="associate-folder mb-2">
+          <div class="associate-folder-header" data-folder="areas" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
+            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
+            <i class="bi bi-tags" style="font-size: 14px;"></i>
+            <span style="font-size: 13px; font-weight: 500;">Categories</span>
+          </div>
+          <div id="tplAreasListRight" class="associate-folder-content small" data-folder="areas" style="display: none; padding-left: 24px; margin-top: 4px;">
+            <small class="text-muted">No categories</small>
+          </div>
         </div>
       </div>
     </div>
