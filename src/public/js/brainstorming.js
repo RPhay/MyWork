@@ -830,12 +830,13 @@ function initBrainstormingEventListeners() {
     const types = Array.from(e.dataTransfer.types || []);
     // Accept any text data - emails, calendar events, etc
     const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
-    const hasInternalDrag = types.some(t => t === 'type');
+    // Check if this is an internal drag (has custom 'type' data from dragstart)
+    const hasInternalDrag = !!e.dataTransfer.getData('type');
 
     if (!hasTextData && !hasInternalDrag) return;
 
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    e.dataTransfer.dropEffect = hasInternalDrag ? 'move' : 'copy';
     const folderHeader = e.target.closest('.idea-folder-header');
     clearIdeaDropTargets(container);
     if (folderHeader) {

@@ -865,14 +865,13 @@ function initToDosEventListeners() {
     const types = Array.from(e.dataTransfer.types || []);
     // Accept any text data - emails, calendar events, etc
     const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
-    // Check if this is an internal drag (has 'type' data from setupDragListeners)
-    const hasInternalDrag = e.dataTransfer.types.includes && e.dataTransfer.types.includes('type') ||
-                            (e.dataTransfer.getData && !!e.dataTransfer.getData('type'));
+    // Check if this is an internal drag (has custom 'type' data from dragstart)
+    const hasInternalDrag = !!e.dataTransfer.getData('type');
 
     if (!hasTextData && !hasInternalDrag) return;
 
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    e.dataTransfer.dropEffect = hasInternalDrag ? 'move' : 'copy';
     const folderHeader = e.target.closest('.todo-folder-header');
     clearToDoDropTargets(container);
     if (folderHeader) {
