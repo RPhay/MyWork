@@ -2550,7 +2550,10 @@ function initDailies() {
   dateInput.value = today;
   document.body.appendChild(dateInput);
 
-  // Setup split-pane
+  // Setup outer split-pane (Calendar | Content)
+  const outerSplitPane = new SplitPane("dailiesOuterSplitPane", "dailiesCalendarPane", "dailiesOuterDivider", "dailiesSplitPane", 25);
+
+  // Setup inner split-pane (Work Items | Editor)
   const splitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
 
   // Setup drawer toggle for associate items
