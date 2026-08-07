@@ -559,6 +559,38 @@ export async function createMssqlSchema(pool) {
 
   await createTableIfNotExists(
     pool,
+    "tasks",
+    `
+    CREATE TABLE [MyWork].[tasks] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      title NVARCHAR(255) NOT NULL,
+      notes NVARCHAR(MAX),
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "tasks");
+
+  await createTableIfNotExists(
+    pool,
+    "task_links",
+    `
+    CREATE TABLE [MyWork].[task_links] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      task_id INT NOT NULL,
+      url NVARCHAR(2048) NOT NULL,
+      title NVARCHAR(255),
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_task_links_task FOREIGN KEY (task_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
     "context_folders",
     `
     CREATE TABLE [MyWork].[context_folders] (
@@ -749,6 +781,7 @@ export async function createMssqlSchema(pool) {
     "to_dos",
     "idea_folders",
     "ideas",
+    "tasks",
   ];
   for (const table of contextTables) {
     if (!(await columnExists(pool, table, "context_id"))) {
