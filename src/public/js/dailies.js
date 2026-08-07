@@ -2084,7 +2084,9 @@ function initDailiesEventListeners() {
     return;
   }
 
+  console.log("[Dailies] Attaching click listener to calendar element");
   calendarEl.addEventListener("click", (e) => {
+    console.log("[Dailies] Calendar click event fired", e.target, e.target.closest("[data-date]"));
     const navBtn = e.target.closest("[data-cal-nav]");
     if (navBtn) {
       changeCalendarMonth(navBtn.dataset.calNav === "prev" ? -1 : 1);
@@ -2555,7 +2557,7 @@ function initDailies() {
 
   // Setup outer split-pane (Calendar | Content)
   const outerSplitPane = new SplitPane("dailiesOuterSplitPane", "dailiesCalendarPane", "dailiesOuterDivider", "dailiesContentRight", 25);
-  outerSplitPane.showRightPane();
+  outerSplitPane.showRightPane(75);
 
   // Setup inner split-pane (Work Items | Editor)
   dailiesSplitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
