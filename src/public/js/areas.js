@@ -23,7 +23,6 @@ function renderAreaNode(area, byParent, depth) {
         </span>
         <span class="area-description text-muted small">${app.escapeHtml(area.description || '')}</span>
         <span class="area-actions">
-          <button class="btn btn-sm btn-info" data-action="edit" data-id="${area.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-danger" data-action="delete" data-id="${area.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
         </span>
       </div>

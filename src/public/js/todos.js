@@ -121,7 +121,6 @@ function renderToDoRow(toDo, depth) {
       </span>
       <span class="todo-notes text-muted">${app.escapeHtml(toDo.notes) || '-'}</span>
       <span class="todo-actions">
-        <button class="btn btn-sm btn-info" data-action="edit" data-id="${toDo.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-danger" data-action="delete" data-id="${toDo.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
       </span>
     </div>

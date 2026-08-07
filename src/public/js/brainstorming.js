@@ -112,7 +112,6 @@ function renderIdeaRow(idea, depth) {
       <span class="idea-notes text-muted">${app.escapeHtml(idea.notes) || '-'}</span>
       <span class="idea-actions">
         <button class="btn btn-sm btn-outline-primary" data-action="convert" data-id="${idea.id}" title="Convert" aria-label="Convert"><i class="bi bi-arrow-right-circle"></i></button>
-        <button class="btn btn-sm btn-info" data-action="edit" data-id="${idea.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-danger" data-action="delete" data-id="${idea.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
       </span>
     </div>

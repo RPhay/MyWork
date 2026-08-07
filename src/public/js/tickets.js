@@ -159,7 +159,6 @@ function renderTickets() {
             <div class="ticket-title">${app.escapeHtml(ticket.title)}</div>
             <div class="ticket-notes">${app.escapeHtml(ticket.notes || '')}</div>
             <div class="d-flex gap-1">
-              <button class="btn btn-sm btn-info" data-action="edit" data-id="${ticket.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
               <button class="btn btn-sm btn-danger" data-action="delete" data-id="${ticket.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
             </div>
           `;
