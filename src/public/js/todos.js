@@ -836,30 +836,8 @@ function initToDosEventListeners() {
     }
   });
 
-  container.addEventListener('dragstart', (e) => {
-    const folderHeader = e.target.closest('.todo-folder-header');
-    const todoRow = e.target.closest('.todo-row');
-
-    if (folderHeader) {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('type', 'folder');
-      e.dataTransfer.setData('id', folderHeader.closest('.todo-folder-node').dataset.folderId);
-      folderHeader.classList.add('dragging-item');
-    } else if (todoRow) {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('type', 'todo');
-      e.dataTransfer.setData('id', todoRow.dataset.todoId);
-      todoRow.classList.add('dragging-item');
-    }
-  });
-
-  container.addEventListener('dragend', (e) => {
-    const folderHeader = e.target.closest('.todo-folder-header');
-    const todoRow = e.target.closest('.todo-row');
-    if (folderHeader) folderHeader.classList.remove('dragging-item');
-    if (todoRow) todoRow.classList.remove('dragging-item');
-    clearToDoDropTargets(container);
-  });
+  // dragstart doesn't bubble, so we rely on setupDragListeners() to attach
+  // handlers directly to individual items
 
   container.addEventListener('dragover', (e) => {
     const types = Array.from(e.dataTransfer.types || []);

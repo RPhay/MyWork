@@ -100,7 +100,7 @@ function renderIdeaRow(idea, depth) {
     : '';
 
   return `
-    <div class="idea-row" data-idea-id="${idea.id}" draggable="true">
+    <div class="idea-row" data-idea-id="${idea.id}" data-type="idea" data-id="${idea.id}" data-name="${app.escapeHtml(idea.title)}" draggable="true">
       <span class="idea-name-cell">
         <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
         <span class="idea-folder-toggle"></span>
@@ -134,7 +134,7 @@ function renderIdeaFolderNode(folder, foldersByParent, ideasByFolder, depth) {
 
   return `
     <div class="idea-folder-node ${isExpanded ? 'expanded' : ''}" data-folder-id="${folder.id}">
-      <div class="idea-folder-header" draggable="true">
+      <div class="idea-folder-header" data-type="folder" data-id="${folder.id}" data-name="${app.escapeHtml(folder.name)}" draggable="true">
         <span class="idea-name-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
           ${hasChildren
@@ -801,30 +801,8 @@ function initBrainstormingEventListeners() {
     }
   });
 
-  container.addEventListener('dragstart', (e) => {
-    const folderHeader = e.target.closest('.idea-folder-header');
-    const ideaRow = e.target.closest('.idea-row');
-
-    if (folderHeader) {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('type', 'folder');
-      e.dataTransfer.setData('id', folderHeader.closest('.idea-folder-node').dataset.folderId);
-      folderHeader.classList.add('dragging-item');
-    } else if (ideaRow) {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('type', 'idea');
-      e.dataTransfer.setData('id', ideaRow.dataset.ideaId);
-      ideaRow.classList.add('dragging-item');
-    }
-  });
-
-  container.addEventListener('dragend', (e) => {
-    const folderHeader = e.target.closest('.idea-folder-header');
-    const ideaRow = e.target.closest('.idea-row');
-    if (folderHeader) folderHeader.classList.remove('dragging-item');
-    if (ideaRow) ideaRow.classList.remove('dragging-item');
-    clearIdeaDropTargets(container);
-  });
+  // dragstart doesn't bubble, so we rely on setupDragListeners() to attach
+  // handlers directly to individual items
 
   container.addEventListener('dragover', (e) => {
     const types = Array.from(e.dataTransfer.types || []);
