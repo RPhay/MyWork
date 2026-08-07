@@ -196,7 +196,9 @@ async function saveTemplate() {
     const result = await response.json();
     if (result.success) {
       app.notify('Template saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('templateModal')).hide();
+      const modalEl = document.getElementById('templateModal');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
       loadTemplates();
     } else {
       app.notify('Error: ' + result.message, 'danger');

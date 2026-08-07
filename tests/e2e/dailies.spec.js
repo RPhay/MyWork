@@ -8,12 +8,13 @@ test.describe('Dailies Tab', () => {
 
   test('should display calendar on load', async ({ page }) => {
     const calendar = await page.locator('#calendar').textContent();
-    expect(calendar).toContain('Jan') || expect(calendar).toContain('Feb') || expect(calendar).toContain('Mar');
+    // Calendar should contain month name or year
+    expect(calendar).toMatch(/\d{4}|January|February|March|April|May|June|July|August|September|October|November|December/);
   });
 
   test('should not show loading message when no data', async ({ page }) => {
     await page.waitForTimeout(2000); // Wait for load
-    const loadingText = await page.locator('#workItemsTableBody').textContent();
+    const loadingText = await page.locator('#workItemsList').textContent();
     expect(loadingText).not.toContain('Loading');
   });
 
@@ -46,7 +47,7 @@ test.describe('Dailies Tab', () => {
     await expect(notification).toBeVisible();
   });
 
-  test('should show work item in table after creation', async ({ page }) => {
+  test('should show work item in list after creation', async ({ page }) => {
     // Add a work item
     const addButton = page.locator('button:has-text("+ Add")').first();
     await addButton.click();
@@ -57,10 +58,10 @@ test.describe('Dailies Tab', () => {
     const saveButton = page.locator('#workModal button:has-text("Save Work")');
     await saveButton.click();
 
-    // Wait and check table
+    // Wait and check list
     await page.waitForTimeout(1000);
-    const tableContent = await page.locator('#workItemsTableBody').textContent();
-    expect(tableContent).toContain('My Test Task');
+    const listContent = await page.locator('#workItemsList').textContent();
+    expect(listContent).toContain('My Test Task');
   });
 });
 
@@ -72,7 +73,7 @@ test.describe('Priorities Tab', () => {
 
   test('should not show loading message when no data', async ({ page }) => {
     await page.waitForTimeout(2000);
-    const loadingText = await page.locator('#prioritiesTableBody').textContent();
+    const loadingText = await page.locator('#prioritiesList').textContent();
     expect(loadingText).not.toContain('Loading');
   });
 
@@ -112,7 +113,7 @@ test.describe('Yearly Goals Tab', () => {
 
   test('should not show loading message when no data', async ({ page }) => {
     await page.waitForTimeout(2000);
-    const loadingText = await page.locator('#goalsTableBody').textContent();
+    const loadingText = await page.locator('#goalsList').textContent();
     expect(loadingText).not.toContain('Loading');
   });
 

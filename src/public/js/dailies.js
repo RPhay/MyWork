@@ -809,7 +809,9 @@ async function saveWorkItem() {
     const result = await response.json();
     if (result.success) {
       app.notify("Work item saved!", "success");
-      bootstrap.Modal.getInstance(document.getElementById("workModal")).hide();
+      const modalEl = document.getElementById("workModal");
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
       loadWorkItems();
       loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
     } else {

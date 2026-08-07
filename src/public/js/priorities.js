@@ -406,7 +406,9 @@ async function savePriority() {
     const result = await response.json();
     if (result.success) {
       app.notify('Project saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('priorityModal')).hide();
+      const modalEl = document.getElementById('priorityModal');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
       loadPriorities();
     } else {
       app.notify('Error: ' + result.message, 'danger');
