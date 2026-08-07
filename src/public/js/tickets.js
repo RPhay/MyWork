@@ -1,4 +1,22 @@
 let allTickets = [];
+let expandedTicketFolders = new Set(['ServiceNow', 'Azure DevOps', 'Other']);
+const TICKET_TYPE_ORDER = ['ServiceNow', 'Azure DevOps', 'Other'];
+
+function saveTicketFolderState() {
+  localStorage.setItem('expandedTicketFolders', JSON.stringify(Array.from(expandedTicketFolders)));
+  localStorage.setItem('ticketTypeOrder', JSON.stringify(TICKET_TYPE_ORDER));
+}
+
+function loadTicketFolderState() {
+  const saved = localStorage.getItem('expandedTicketFolders');
+  if (saved) {
+    try {
+      expandedTicketFolders = new Set(JSON.parse(saved));
+    } catch (e) {
+      expandedTicketFolders = new Set(['ServiceNow', 'Azure DevOps', 'Other']);
+    }
+  }
+}
 
 async function loadTickets() {
   const ticketsList = document.getElementById('ticketsList');
@@ -33,61 +51,122 @@ function renderTickets() {
     }
   });
 
-  // Render each group
-  Object.entries(grouped).forEach(([type, tickets]) => {
+  // Render each group in order
+  TICKET_TYPE_ORDER.forEach(type => {
+    const tickets = grouped[type];
+    const isExpanded = expandedTicketFolders.has(type);
+
     const groupDiv = document.createElement('div');
     groupDiv.className = 'ticket-group';
+    groupDiv.dataset.ticketType = type;
+    groupDiv.draggable = true;
 
     const headerDiv = document.createElement('div');
     headerDiv.className = `ticket-group-header ${type.toLowerCase().replace(' ', '-')}`;
-    headerDiv.innerHTML = `<i class="bi bi-folder2"></i> <strong>${app.escapeHtml(type)}</strong> (${tickets.length})`;
+    headerDiv.innerHTML = `
+      <i class="bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'} ticket-folder-toggle"></i>
+      <i class="bi bi-folder2"></i>
+      <strong>${app.escapeHtml(type)}</strong>
+      <span class="badge bg-light text-dark ms-2">${tickets.length}</span>
+    `;
     headerDiv.dataset.ticketType = type;
-    headerDiv.addEventListener('contextmenu', (e) => showTicketContextMenu(e, type));
-    // Allow drag-drop onto folder headers
-    headerDiv.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-      headerDiv.style.background = '#d9e8f5';
+    headerDiv.style.cursor = 'pointer';
+
+    // Toggle expand/collapse
+    headerDiv.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (expandedTicketFolders.has(type)) {
+        expandedTicketFolders.delete(type);
+      } else {
+        expandedTicketFolders.add(type);
+      }
+      saveTicketFolderState();
+      renderTickets();
     });
-    headerDiv.addEventListener('dragleave', () => {
+
+    headerDiv.addEventListener('contextmenu', (e) => showTicketContextMenu(e, type));
+
+    // Drag to reorder folders
+    groupDiv.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('ticketType', type);
+      groupDiv.style.opacity = '0.5';
+    });
+
+    groupDiv.addEventListener('dragend', () => {
+      groupDiv.style.opacity = '1';
+    });
+
+    groupDiv.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const draggedType = e.dataTransfer.getData('ticketType');
+      if (draggedType && draggedType !== type) {
+        groupDiv.style.borderTop = '3px solid #0d6efd';
+      } else {
+        // Allow URL drop
+        e.dataTransfer.dropEffect = 'copy';
+        headerDiv.style.background = '#d9e8f5';
+      }
+    });
+
+    groupDiv.addEventListener('dragleave', () => {
+      groupDiv.style.borderTop = '';
       headerDiv.style.background = '';
     });
-    headerDiv.addEventListener('drop', (e) => {
+
+    groupDiv.addEventListener('drop', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      groupDiv.style.borderTop = '';
       headerDiv.style.background = '';
-      const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-      if (url) {
-        // Parse URL to get title if needed
-        const parsed = parseTicketUrl(url);
-        const title = parsed?.title || url.split('/').pop() || 'Ticket';
-        createTicketFromUrl(title, type, url);
+
+      const draggedType = e.dataTransfer.getData('ticketType');
+      if (draggedType && draggedType !== type) {
+        // Reorder folders
+        const draggedIdx = TICKET_TYPE_ORDER.indexOf(draggedType);
+        const targetIdx = TICKET_TYPE_ORDER.indexOf(type);
+        if (draggedIdx !== -1 && targetIdx !== -1) {
+          [TICKET_TYPE_ORDER[draggedIdx], TICKET_TYPE_ORDER[targetIdx]] = [TICKET_TYPE_ORDER[targetIdx], TICKET_TYPE_ORDER[draggedIdx]];
+          saveTicketFolderState();
+          renderTickets();
+        }
+      } else {
+        // URL drop
+        const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+        if (url) {
+          const parsed = parseTicketUrl(url);
+          const title = parsed?.title || url.split('/').pop() || 'Ticket';
+          createTicketFromUrl(title, type, url);
+        }
       }
     });
 
     groupDiv.appendChild(headerDiv);
 
-    if (tickets.length === 0) {
-      const emptyDiv = document.createElement('div');
-      emptyDiv.className = 'text-muted small ms-3';
-      emptyDiv.textContent = 'No tickets';
-      groupDiv.appendChild(emptyDiv);
-    } else {
-      tickets.forEach(ticket => {
-        const ticketRow = document.createElement('div');
-        ticketRow.className = `ticket-row ${type.toLowerCase().replace(' ', '-')}`;
-        ticketRow.dataset.ticketId = ticket.id;
-        ticketRow.innerHTML = `
-          <div class="ticket-title">${app.escapeHtml(ticket.title)}</div>
-          <div class="ticket-notes">${app.escapeHtml(ticket.notes || '')}</div>
-          <div class="d-flex gap-1">
-            <button class="btn btn-sm btn-info" data-action="edit" data-id="${ticket.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
-            <button class="btn btn-sm btn-danger" data-action="delete" data-id="${ticket.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
-          </div>
-        `;
-        ticketRow.addEventListener('click', () => editTicket(ticket.id));
-        groupDiv.appendChild(ticketRow);
-      });
+    // Render tickets only if expanded
+    if (isExpanded) {
+      if (tickets.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'text-muted small ms-3';
+        emptyDiv.textContent = 'No tickets';
+        groupDiv.appendChild(emptyDiv);
+      } else {
+        tickets.forEach(ticket => {
+          const ticketRow = document.createElement('div');
+          ticketRow.className = `ticket-row ${type.toLowerCase().replace(' ', '-')}`;
+          ticketRow.dataset.ticketId = ticket.id;
+          ticketRow.innerHTML = `
+            <div class="ticket-title">${app.escapeHtml(ticket.title)}</div>
+            <div class="ticket-notes">${app.escapeHtml(ticket.notes || '')}</div>
+            <div class="d-flex gap-1">
+              <button class="btn btn-sm btn-info" data-action="edit" data-id="${ticket.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-danger" data-action="delete" data-id="${ticket.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
+            </div>
+          `;
+          ticketRow.addEventListener('click', () => editTicket(ticket.id));
+          groupDiv.appendChild(ticketRow);
+        });
+      }
     }
 
     ticketsList.appendChild(groupDiv);
@@ -479,6 +558,9 @@ async function createTicketFromUrl(title, ticketType, url) {
 }
 
 function initTickets() {
+  // Load saved state
+  loadTicketFolderState();
+
   // Initialize split pane for side-panel editing
   if (document.getElementById('ticketSplitPane')) {
     window.ticketSplitPane = new SplitPane('ticketSplitPane', 'ticketListPane', 'ticketDivider', 'ticketEditorPane', 66.66);
