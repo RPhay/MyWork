@@ -360,3 +360,26 @@ function isEmailData(text) {
     (text.includes('To:') && text.includes('Date:'))
   );
 }
+
+// Setup drag listeners for draggable items (tabs, priorities, etc.)
+let currentDragType = null;
+function setupDragListeners() {
+  const draggables = document.querySelectorAll('[draggable="true"]:not([data-drag-bound])');
+  draggables.forEach(item => {
+    item.dataset.dragBound = 'true';
+
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData('type', item.dataset.type);
+      e.dataTransfer.setData('id', item.dataset.id);
+      e.dataTransfer.setData('name', item.dataset.name || item.textContent.trim());
+      currentDragType = item.dataset.type;
+      item.classList.add('dragging-item');
+    });
+
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging-item');
+      currentDragType = null;
+    });
+  });
+}

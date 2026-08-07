@@ -3,11 +3,6 @@ let calendarViewMonth; // 0-indexed
 let expandedWorkItems = new Set();
 let currentWorkItems = [];
 
-// Tracks what's currently being dragged (dataTransfer values aren't readable
-// during dragover, only at drop, so this mirrors 'type' for dragover-time zone
-// calculations). Set at dragstart, cleared at dragend.
-let currentDragType = null;
-
 const ASSOCIATION_PATHS = { priority: 'priorities', goal: 'goals', area: 'areas' };
 const STATUS_CYCLE = ['Not Started', 'In Progress', 'Complete'];
 
@@ -683,30 +678,6 @@ async function loadPrioritiesAndGoals() {
   } catch (error) {
     console.error('Error loading templates:', error);
   }
-}
-
-// Shared across every tab that has draggable priority/goal/area/template chips
-// (Dailies, Templates). Only binds elements that aren't already bound, since all
-// tab panes live in the DOM at once and each tab's load function calls this again.
-function setupDragListeners() {
-  const draggables = document.querySelectorAll('[draggable="true"]:not([data-drag-bound])');
-  draggables.forEach(item => {
-    item.dataset.dragBound = 'true';
-
-    item.addEventListener('dragstart', (e) => {
-      e.dataTransfer.effectAllowed = 'copy';
-      e.dataTransfer.setData('type', item.dataset.type);
-      e.dataTransfer.setData('id', item.dataset.id);
-      e.dataTransfer.setData('name', item.dataset.name || item.textContent.trim());
-      currentDragType = item.dataset.type;
-      item.classList.add('dragging-item');
-    });
-
-    item.addEventListener('dragend', () => {
-      item.classList.remove('dragging-item');
-      currentDragType = null;
-    });
-  });
 }
 
 function openNewWorkForm() {

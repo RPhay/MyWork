@@ -24,7 +24,7 @@ export async function getLinks(type, entityId) {
   const table = LINK_TABLES[type];
   const idColumn = ID_COLUMNS[type];
 
-  const [rows] = await query(
+  const rows = await query(
     `SELECT id, url, title, order_index FROM ${table} WHERE ${idColumn} = ? ORDER BY order_index ASC`,
     [entityId]
   );
@@ -41,20 +41,20 @@ export async function addLink(type, entityId, url, title) {
   const idColumn = ID_COLUMNS[type];
 
   // Get the next order_index
-  const [maxRow] = await query(
+  const maxRows = await query(
     `SELECT MAX(order_index) as max_index FROM ${table} WHERE ${idColumn} = ?`,
     [entityId]
   );
-  const nextIndex = (maxRow[0].max_index ?? -1) + 1;
+  const nextIndex = (maxRows[0]?.max_index ?? -1) + 1;
 
-  const [result] = await query(
+  const result = await insert(
     `INSERT INTO ${table} (${idColumn}, url, title, order_index, created_at, updated_at)
      VALUES (?, ?, ?, ?, NOW(), NOW())`,
     [entityId, url, title || url, nextIndex]
   );
 
   return {
-    id: result.insertId,
+    id: result,
     url,
     title: title || url,
     order_index: nextIndex
