@@ -337,9 +337,9 @@ export async function checkSystemDbSchema() {
 
       try {
         const [rows] = await connection.query(`
-          SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
-          WHERE TABLE_SCHEMA = ?
-        `, [targetConfig.database]);
+          SELECT TABLE_NAME FROM information_schema.TABLES
+          WHERE TABLE_SCHEMA = DATABASE()
+        `);
         const existingTables = new Set(rows.map(r => r.TABLE_NAME));
         const allTables = [
           'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
@@ -395,8 +395,10 @@ export async function createSystemDbTable(tableName) {
       });
 
       try {
+        console.log(`Creating MSSQL table: ${tableName}`);
         // Run full schema which is idempotent - will create the table if missing
         await createMssqlSchema(pool);
+        console.log(`Successfully created/verified MSSQL table: ${tableName}`);
       } finally {
         await pool.close();
       }
@@ -414,8 +416,10 @@ export async function createSystemDbTable(tableName) {
       });
 
       try {
+        console.log(`Creating MySQL table: ${tableName}`);
         // Run full schema which is idempotent - will create the table if missing
         await createMysqlSchema(connection);
+        console.log(`Successfully created/verified MySQL table: ${tableName}`);
       } finally {
         await connection.end();
       }
