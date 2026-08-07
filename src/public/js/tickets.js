@@ -466,16 +466,24 @@ function initTicketsEventListeners() {
   // Modal form link removal
   document.getElementById('ticketsList').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    if (btn.dataset.action === 'edit') editTicket(parseInt(btn.dataset.id));
-    else if (btn.dataset.action === 'delete') deleteTicket(parseInt(btn.dataset.id));
-    else if (btn.dataset.action === 'remove-link' && btn.closest('#ticketLinksList')) {
-      const links = Array.from(document.querySelectorAll('#ticketLinksList a')).map(a => ({
-        url: a.href,
-        title: a.textContent
-      }));
-      links.splice(parseInt(btn.dataset.index), 1);
-      renderTicketLinks(links);
+    if (btn) {
+      if (btn.dataset.action === 'edit') editTicket(parseInt(btn.dataset.id));
+      else if (btn.dataset.action === 'delete') deleteTicket(parseInt(btn.dataset.id));
+      else if (btn.dataset.action === 'remove-link' && btn.closest('#ticketLinksList')) {
+        const links = Array.from(document.querySelectorAll('#ticketLinksList a')).map(a => ({
+          url: a.href,
+          title: a.textContent
+        }));
+        links.splice(parseInt(btn.dataset.index), 1);
+        renderTicketLinks(links);
+      }
+      return;
+    }
+
+    // Single-click on row to open editor
+    const row = e.target.closest('.ticket-row');
+    if (row && row.dataset.ticketId) {
+      editTicket(parseInt(row.dataset.ticketId));
     }
   });
 

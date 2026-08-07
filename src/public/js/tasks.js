@@ -28,6 +28,7 @@ function renderTasks() {
   allTasks.forEach(task => {
     const taskRow = document.createElement('div');
     taskRow.className = 'task-row';
+    taskRow.dataset.id = task.id;
     taskRow.innerHTML = `
       <div class="task-name-cell">
         <span class="task-title">${app.escapeHtml(task.title)}</span>
@@ -241,16 +242,24 @@ function initTasksEventListeners() {
   // Modal form link removal
   document.getElementById('tasksList').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    if (btn.dataset.action === 'edit') openTaskForm(parseInt(btn.dataset.id));
-    else if (btn.dataset.action === 'delete') deleteTask(parseInt(btn.dataset.id));
-    else if (btn.dataset.action === 'remove-link' && btn.closest('#taskLinksList')) {
-      const links = Array.from(document.querySelectorAll('#taskLinksList a')).map(a => ({
-        url: a.href,
-        title: a.textContent
-      }));
-      links.splice(parseInt(btn.dataset.index), 1);
-      renderTaskLinks(links);
+    if (btn) {
+      if (btn.dataset.action === 'edit') openTaskForm(parseInt(btn.dataset.id));
+      else if (btn.dataset.action === 'delete') deleteTask(parseInt(btn.dataset.id));
+      else if (btn.dataset.action === 'remove-link' && btn.closest('#taskLinksList')) {
+        const links = Array.from(document.querySelectorAll('#taskLinksList a')).map(a => ({
+          url: a.href,
+          title: a.textContent
+        }));
+        links.splice(parseInt(btn.dataset.index), 1);
+        renderTaskLinks(links);
+      }
+      return;
+    }
+
+    // Single-click on row to open editor
+    const row = e.target.closest('.task-row');
+    if (row && row.dataset.id) {
+      openTaskForm(parseInt(row.dataset.id));
     }
   });
 

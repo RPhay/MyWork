@@ -323,11 +323,19 @@ function initGoalsEventListeners() {
 
   tbody.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    if (btn.dataset.action === 'edit') editGoal(btn.dataset.id);
-    else if (btn.dataset.action === 'delete') deleteGoal(btn.dataset.id);
-    else if (btn.dataset.action === 'cycle-status') {
-      cycleGoalStatus(btn.dataset.id, btn.textContent.trim());
+    if (btn) {
+      if (btn.dataset.action === 'edit') editGoal(btn.dataset.id);
+      else if (btn.dataset.action === 'delete') deleteGoal(btn.dataset.id);
+      else if (btn.dataset.action === 'cycle-status') {
+        cycleGoalStatus(btn.dataset.id, btn.textContent.trim());
+      }
+      return;
+    }
+
+    // Single-click on row to open editor
+    const row = e.target.closest('tr[data-goal-id]');
+    if (row) {
+      editGoal(row.dataset.goalId);
     }
   });
 
