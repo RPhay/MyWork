@@ -8,10 +8,14 @@ const router = express.Router();
 // Get all priorities
 router.get('/', async (req, res) => {
   try {
+    console.log('[API] GET /api/priorities called');
     const contextId = await activeContextService.getActiveContextId();
+    console.log('[API] Got contextId:', contextId);
     const priorities = await priorityService.getAllPriorities(contextId);
+    console.log('[API] Got priorities:', priorities.length);
     res.json({ success: true, data: priorities });
   } catch (error) {
+    console.error('[API] Error in GET /api/priorities:', error);
     logger.error('Error fetching priorities:', error);
     res.status(500).json({ success: false, message: error.message });
   }
@@ -84,6 +88,28 @@ router.patch('/reorder-siblings', async (req, res) => {
     res.json({ success: true, message: 'Priorities reordered', data: priorities });
   } catch (error) {
     logger.error('Error reordering priorities:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// Get links for a priority
+router.get('/:id/links', async (req, res) => {
+  try {
+    const links = await priorityService.getLinksForPriority(req.params.id);
+    res.json({ success: true, data: links });
+  } catch (error) {
+    logger.error('Error fetching priority links:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Add a link to a priority
+router.post('/:id/links', async (req, res) => {
+  try {
+    const link = await priorityService.addLinkToPriority(req.params.id, req.body.url, req.body.title);
+    res.status(201).json({ success: true, data: link });
+  } catch (error) {
+    logger.error('Error adding link to priority:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });

@@ -280,3 +280,17 @@ export async function removeGoalAssociation(priorityId, goalId) {
     [priorityId, goalId]
   );
 }
+
+export async function getLinksForPriority(priorityId) {
+  const links = await db.query('SELECT id, url, title, created_at FROM priority_links WHERE priority_id = ? ORDER BY created_at ASC', [priorityId]);
+  return links;
+}
+
+export async function addLinkToPriority(priorityId, url, title) {
+  if (!url || !url.trim()) {
+    throw new ValidationError('URL is required');
+  }
+  await db.insert('INSERT INTO priority_links (priority_id, url, title) VALUES (?, ?, ?)', [priorityId, url.trim(), title?.trim() || null]);
+  const links = await getLinksForPriority(priorityId);
+  return links[links.length - 1];
+}
