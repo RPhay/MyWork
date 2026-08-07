@@ -71,10 +71,55 @@
   <!-- Right Pane (Editor) -->
   <div class="split-pane-right hidden" id="goalEditorPane">
     <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="editorTitle">Select a goal to edit</div>
-      <div id="goalEditorForm" style="display: none;">
-        <!-- Goal form content will go here, moved from modal -->
-      </div>
+      <div class="split-pane-editor-title">Edit Goal</div>
+      <form id="goalEditorForm">
+        <input type="hidden" id="goalEditorId" name="goalId">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <div class="mb-3">
+          <label for="goalEditorName" class="form-label">Name *</label>
+          <input type="text" class="form-control" id="goalEditorName" name="name" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="goalEditorDescription" class="form-label">Description</label>
+          <textarea class="form-control" id="goalEditorDescription" name="description" rows="3"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="goalEditorMeasurements" class="form-label">Measurements</label>
+          <textarea class="form-control" id="goalEditorMeasurements" name="measurements" rows="3"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="goalEditorUpdates" class="form-label">Goal Updates</label>
+          <textarea class="form-control" id="goalEditorUpdates" name="goal_updates" rows="3"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="goalEditorCategories" class="form-label">Goal Categories</label>
+          <select class="form-select" id="goalEditorCategories" name="categories" multiple></select>
+        </div>
+
+        <div class="mb-3">
+          <label for="goalEditorStatus" class="form-label">Status</label>
+          <select class="form-select" id="goalEditorStatus" name="status">
+            <option value="Not Started">Not Started</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="goalEditorDueDate" class="form-label">Due Date</label>
+          <input type="date" class="form-control" id="goalEditorDueDate" name="due_date">
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary" id="saveGoalEditorBtn">Save</button>
+          <button type="button" class="btn btn-secondary" id="closeGoalEditorBtn">Close</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

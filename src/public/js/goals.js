@@ -187,6 +187,13 @@ function selectGoalCategories(categories) {
   });
 }
 
+function selectGoalCategoriesEditor(categories) {
+  const ids = new Set((categories || []).map(c => String(c.id)));
+  Array.from(document.getElementById('goalEditorCategories').options).forEach(opt => {
+    opt.selected = ids.has(opt.value);
+  });
+}
+
 function openNewGoalForm() {
   document.getElementById('goalId').value = '';
   document.getElementById('goalForm').reset();
@@ -194,18 +201,42 @@ function openNewGoalForm() {
 }
 
 async function saveGoal() {
-  const goalId = document.getElementById('goalId').value;
+  const editorPane = document.getElementById('goalEditorPane');
+  const useSplitPane = editorPane && !editorPane.classList.contains('hidden');
+
+  let goalId, nameEl, descEl, measEl, updatesEl, statusEl, dueDateEl, categoriesEl;
+
+  if (useSplitPane) {
+    goalId = document.getElementById('goalEditorId').value;
+    nameEl = document.getElementById('goalEditorName');
+    descEl = document.getElementById('goalEditorDescription');
+    measEl = document.getElementById('goalEditorMeasurements');
+    updatesEl = document.getElementById('goalEditorUpdates');
+    statusEl = document.getElementById('goalEditorStatus');
+    dueDateEl = document.getElementById('goalEditorDueDate');
+    categoriesEl = document.getElementById('goalEditorCategories');
+  } else {
+    goalId = document.getElementById('goalId').value;
+    nameEl = document.getElementById('goalName');
+    descEl = document.getElementById('goalDescription');
+    measEl = document.getElementById('goalMeasurements');
+    updatesEl = document.getElementById('goalUpdates');
+    statusEl = document.getElementById('goalStatus');
+    dueDateEl = document.getElementById('goalDueDate');
+    categoriesEl = document.getElementById('goalCategories');
+  }
+
   const year = document.getElementById('yearSelect').value;
 
   const data = {
     year: parseInt(year),
-    name: document.getElementById('goalName').value,
-    description: document.getElementById('goalDescription').value,
-    measurements: document.getElementById('goalMeasurements').value,
-    goal_updates: document.getElementById('goalUpdates').value,
-    status: document.getElementById('goalStatus').value,
-    due_date: document.getElementById('goalDueDate').value,
-    categories: Array.from(document.getElementById('goalCategories').selectedOptions).map(opt => opt.value)
+    name: nameEl.value,
+    description: descEl.value,
+    measurements: measEl.value,
+    goal_updates: updatesEl.value,
+    status: statusEl.value,
+    due_date: dueDateEl.value,
+    categories: Array.from(categoriesEl.selectedOptions).map(opt => opt.value)
   };
 
   try {
@@ -248,17 +279,20 @@ async function editGoal(goalId) {
     const result = await response.json();
     const goal = result.data;
 
-    document.getElementById('goalId').value = goal.id;
-    document.getElementById('goalName').value = goal.name;
-    document.getElementById('goalDescription').value = goal.description;
-    document.getElementById('goalMeasurements').value = goal.measurements;
-    document.getElementById('goalUpdates').value = goal.goal_updates;
-    document.getElementById('goalStatus').value = goal.status;
-    document.getElementById('goalDueDate').value = goal.due_date;
-    selectGoalCategories(goal.categories);
+    // Populate split-pane editor
+    document.getElementById('goalEditorId').value = goal.id;
+    document.getElementById('goalEditorName').value = goal.name;
+    document.getElementById('goalEditorDescription').value = goal.description;
+    document.getElementById('goalEditorMeasurements').value = goal.measurements;
+    document.getElementById('goalEditorUpdates').value = goal.goal_updates;
+    document.getElementById('goalEditorStatus').value = goal.status;
+    document.getElementById('goalEditorDueDate').value = goal.due_date;
+    selectGoalCategoriesEditor(goal.categories);
 
-    const modal = new bootstrap.Modal(document.getElementById('goalModal'));
-    modal.show();
+    // Show split-pane editor
+    if (window.goalSplitPane) {
+      window.goalSplitPane.showRightPane();
+    }
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error loading goal', 'danger');
@@ -287,12 +321,25 @@ async function deleteGoal(goalId) {
   }
 }
 
+function closeGoalEditor() {
+  if (window.goalSplitPane) {
+    window.goalSplitPane.hideRightPane();
+  }
+}
+
 function initGoalsEventListeners() {
   document.getElementById('yearSelect').addEventListener('change', loadYearlyGoals);
   document.getElementById('addYearBtn').addEventListener('click', openNewYearForm);
   document.getElementById('saveYearBtn').addEventListener('click', saveYear);
   document.getElementById('addGoalBtn').addEventListener('click', openNewGoalForm);
   document.getElementById('saveGoalBtn').addEventListener('click', saveGoal);
+
+  // Split-pane editor buttons
+  document.getElementById('saveGoalEditorBtn')?.addEventListener('click', async () => {
+    await saveGoal();
+    closeGoalEditor();
+  });
+  document.getElementById('closeGoalEditorBtn')?.addEventListener('click', closeGoalEditor);
 
   const tbody = document.getElementById('goalsTableBody');
 
