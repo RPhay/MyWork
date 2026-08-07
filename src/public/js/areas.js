@@ -500,6 +500,13 @@ function initAreasEventListeners() {
     const toggleIcon = e.target.closest('[data-action="toggle-expand"]');
     if (toggleIcon) {
       toggleAreaNode(toggleIcon.closest('.area-node'));
+      return;
+    }
+
+    // Click on row itself to edit
+    const header = e.target.closest('.area-node-header');
+    if (header && !e.target.closest('[data-action]')) {
+      editArea(header.closest('.area-node').dataset.areaId);
     }
   });
 

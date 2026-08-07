@@ -25,6 +25,11 @@ class SplitPane {
       this.setLeftWidth(this.initialLeftPercent);
     }
 
+    // Hide divider if right pane is hidden
+    if (this.rightPane.classList.contains('hidden')) {
+      this.divider.style.display = 'none';
+    }
+
     this.divider.addEventListener('mousedown', (e) => this.startDrag(e));
     document.addEventListener('mousemove', (e) => this.drag(e));
     document.addEventListener('mouseup', () => this.stopDrag());
@@ -76,11 +81,13 @@ class SplitPane {
 
   showRightPane(savedPercent = 33.34) {
     this.rightPane.classList.remove('hidden');
+    this.divider.style.display = 'block';
     const leftPercent = 100 - savedPercent;
     this.setLeftWidth(leftPercent);
   }
 
   hideRightPane() {
     this.rightPane.classList.add('hidden');
+    this.divider.style.display = 'none';
   }
 }
