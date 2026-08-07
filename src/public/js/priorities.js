@@ -1,14 +1,49 @@
 let expandedPriorities = new Set();
 let allPriorities = [];
+let allToDos = [];
+
+function renderToDoInTree(toDo, depth) {
+  const hasLinks = toDo.links && toDo.links.length > 0;
+  const linksBadge = hasLinks
+    ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
+    : '';
+
+  return `
+    <div class="priority-node todo-node" data-todo-id="${toDo.id}">
+      <div class="priority-node-header todo-node-header" draggable="true" style="cursor: grab;">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          <span class="priority-toggle"></span>
+          <i class="bi bi-check2-square text-muted"></i>
+          <span class="priority-title">${app.escapeHtml(toDo.title)}</span>
+          ${linksBadge}
+        </span>
+        <span class="priority-badges"><small class="text-muted">${app.escapeHtml(toDo.notes || '')}</small></span>
+        <span class="priority-badges"></span>
+        <span class="priority-actions">
+          <button class="btn btn-sm btn-info" data-action="edit-todo" data-id="${toDo.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-warning" data-action="unfile-todo" data-id="${toDo.id}" title="Unfile" aria-label="Unfile"><i class="bi bi-eject"></i></button>
+        </span>
+      </div>
+    </div>
+  `;
+}
 
 function renderPriorityNode(priority, byParent, depth) {
   const children = byParent.get(priority.id) || [];
-  const hasChildren = children.length > 0;
+  const associatedToDos = allToDos.filter(td => td.folder_id === priority.id);
+  const hasChildren = children.length > 0 || associatedToDos.length > 0;
   const isExpanded = expandedPriorities.has(String(priority.id));
 
-  const childrenHtml = hasChildren
-    ? `<div class="priority-node-children">${children.map(c => renderPriorityNode(c, byParent, depth + 1)).join('')}</div>`
-    : '';
+  let childrenHtml = '';
+  if (hasChildren) {
+    let html = '';
+    // Render sub-projects
+    html += children.map(c => renderPriorityNode(c, byParent, depth + 1)).join('');
+    // Render associated todos
+    html += associatedToDos.map(td => renderToDoInTree(td, depth + 1)).join('');
+    childrenHtml = `<div class="priority-node-children">${html}</div>`;
+  }
 
   const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.path || a.name)}</span>`).join('');
   const goalBadges = (priority.goals || []).map(g => `<span class="badge bg-info text-dark"><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>`).join('');
@@ -65,12 +100,19 @@ async function loadPriorities() {
   container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
 
   try {
-    const response = await fetch('/api/priorities');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
+    // Load projects
+    const prioResponse = await fetch('/api/priorities');
+    if (!prioResponse.ok) throw new Error(`HTTP ${prioResponse.status}`);
+    const prioResult = await prioResponse.json();
 
-    if (result.success) {
-      allPriorities = result.data;
+    // Load todos
+    const todoResponse = await fetch('/api/to-dos');
+    if (!todoResponse.ok) throw new Error(`HTTP ${todoResponse.status}`);
+    const todoResult = await todoResponse.json();
+
+    if (prioResult.success && todoResult.success) {
+      allPriorities = prioResult.data;
+      allToDos = todoResult.data || [];
       renderPrioritiesList(allPriorities);
     } else {
       container.innerHTML = '<p class="text-center text-danger">Error loading projects</p>';
@@ -272,6 +314,30 @@ async function openToDoModal(toDoId) {
   } catch (error) {
     console.error('Error opening to do:', error);
     app.notify('Error opening to do', 'danger');
+  }
+}
+
+async function unfileToDoFromProject(toDoId) {
+  try {
+    const response = await fetch(`/api/to-dos/${toDoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ folder_id: null })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('To Do removed from project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unfiling to do:', error);
+    app.notify('Error removing to do from project', 'danger');
   }
 }
 
@@ -529,8 +595,17 @@ function initPrioritiesEventListeners() {
     const header = e.target.closest('.priority-node-header');
     if (!header) return;
     const node = header.closest('.priority-node');
+
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('priority-id', node.dataset.priorityId);
+
+    // Check if it's a todo or project
+    if (node.classList.contains('todo-node')) {
+      e.dataTransfer.setData('type', 'todo');
+      e.dataTransfer.setData('id', node.dataset.todoId);
+    } else {
+      e.dataTransfer.setData('priority-id', node.dataset.priorityId);
+    }
+
     header.classList.add('dragging-item');
   });
 
@@ -603,10 +678,12 @@ function initPrioritiesEventListeners() {
   });
 
   container.addEventListener('click', (e) => {
-    const actionBtn = e.target.closest('[data-action="edit"], [data-action="delete"]');
+    const actionBtn = e.target.closest('[data-action="edit"], [data-action="delete"], [data-action="edit-todo"], [data-action="unfile-todo"]');
     if (actionBtn) {
       if (actionBtn.dataset.action === 'edit') editPriority(actionBtn.dataset.id);
       else if (actionBtn.dataset.action === 'delete') deletePriority(actionBtn.dataset.id);
+      else if (actionBtn.dataset.action === 'edit-todo') openToDoModal(actionBtn.dataset.id);
+      else if (actionBtn.dataset.action === 'unfile-todo') unfileToDoFromProject(actionBtn.dataset.id);
       return;
     }
 
@@ -620,7 +697,17 @@ function initPrioritiesEventListeners() {
     if (e.target.closest('[data-action]')) return;
     const header = e.target.closest('.priority-node-header');
     if (!header) return;
-    editPriority(header.closest('.priority-node').dataset.priorityId);
+
+    // Check if it's a todo node or project node
+    const todoNode = header.closest('.todo-node');
+    if (todoNode) {
+      openToDoModal(todoNode.dataset.todoId);
+    } else {
+      const priorityNode = header.closest('.priority-node');
+      if (priorityNode && priorityNode.dataset.priorityId) {
+        editPriority(priorityNode.dataset.priorityId);
+      }
+    }
   });
 }
 
