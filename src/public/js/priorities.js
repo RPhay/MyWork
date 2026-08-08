@@ -425,8 +425,6 @@ async function savePriority() {
 }
 
 async function editToDo(toDoId) {
-  // Set type to 'todo' in the hidden field so save knows which type to update
-  document.getElementById('priorityEditorType').value = 'todo';
   try {
     const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -438,11 +436,17 @@ async function editToDo(toDoId) {
     }
 
     const toDo = result.data;
-    document.getElementById('priorityEditorId').value = toDo.id;
-    document.getElementById('priorityEditorFormTitle').value = toDo.title;
-    document.getElementById('priorityEditorNotes').value = toDo.notes || '';
+
+    // Show todo form, hide priority form
+    document.getElementById('priorityEditorForm').style.display = 'none';
+    document.getElementById('toDoEditorForm').style.display = 'block';
     document.getElementById('priorityEditorTitle').textContent = toDo.title;
-    document.getElementById('priorityEditorLinksList').innerHTML = '';
+
+    // Populate todo form
+    document.getElementById('toDoEditorId').value = toDo.id;
+    document.getElementById('toDoEditorFormTitle').value = toDo.title;
+    document.getElementById('toDoEditorNotes').value = toDo.notes || '';
+    document.getElementById('toDoEditorLinksList').innerHTML = '';
 
     window.prioritySplitPane.showRightPane();
   } catch (error) {
@@ -452,6 +456,10 @@ async function editToDo(toDoId) {
 }
 
 async function editPriority(priorityId) {
+  // Show priority form, hide todo form
+  document.getElementById('priorityEditorForm').style.display = 'block';
+  document.getElementById('toDoEditorForm').style.display = 'none';
+
   await PriorityEditor.populate(priorityId);
 
   // Setup link input handlers
@@ -905,6 +913,51 @@ function initPriorities() {
 
   if (closePriorityEditorBtn) {
     closePriorityEditorBtn.addEventListener('click', closePriorityEditor);
+  }
+
+  // Todo editor buttons
+  const saveToDoEditorBtn = document.getElementById('saveToDoEditorBtn');
+  const closeToDoEditorBtn = document.getElementById('closeToDoEditorBtn');
+
+  if (saveToDoEditorBtn) {
+    saveToDoEditorBtn.addEventListener('click', async () => {
+      const toDoId = document.getElementById('toDoEditorId').value;
+      const title = document.getElementById('toDoEditorFormTitle').value;
+      const notes = document.getElementById('toDoEditorNotes').value;
+
+      if (!title.trim()) {
+        app.notify('Title is required', 'warning');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/to-dos/${toDoId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+          },
+          body: JSON.stringify({ title, notes })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          app.notify('To Do updated!', 'success');
+          closePriorityEditor();
+          loadPriorities();
+          loadPriorityRightPanel();
+        } else {
+          app.notify('Error: ' + result.message, 'danger');
+        }
+      } catch (error) {
+        console.error('Error saving to do:', error);
+        app.notify('Error saving to do', 'danger');
+      }
+    });
+  }
+
+  if (closeToDoEditorBtn) {
+    closeToDoEditorBtn.addEventListener('click', closePriorityEditor);
   }
 
   initPrioritiesEventListeners();

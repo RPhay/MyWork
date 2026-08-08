@@ -113,6 +113,39 @@
               <button type="button" class="btn btn-secondary" id="closePriorityEditorBtn">Close</button>
             </div>
           </form>
+
+          <!-- Todo Editor Form (shown when editing a todo) -->
+          <form id="toDoEditorForm" style="display: none;">
+            <input type="hidden" id="toDoEditorId" name="toDoId">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <div class="mb-3">
+              <label for="toDoEditorFormTitle" class="form-label">Title *</label>
+              <input type="text" class="form-control" id="toDoEditorFormTitle" name="title" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="toDoEditorNotes" class="form-label">Notes</label>
+              <textarea class="form-control" id="toDoEditorNotes" name="notes" rows="4"></textarea>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Links</label>
+              <div id="toDoEditorLinksList" class="mb-2"></div>
+              <div class="input-group input-group-sm">
+                <input type="url" class="form-control" id="toDoEditorLinkUrl" placeholder="https://example.com">
+                <input type="text" class="form-control" id="toDoEditorLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+                <button type="button" class="btn btn-outline-secondary" id="toDoEditorAddLinkBtn">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-primary" id="saveToDoEditorBtn">Save</button>
+              <button type="button" class="btn btn-secondary" id="closeToDoEditorBtn">Close</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
