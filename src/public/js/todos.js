@@ -365,60 +365,37 @@ function closeToDoEditor() {
 }
 
 async function editToDo(toDoId) {
-  try {
-    const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+  const editorPane = document.getElementById('todoEditorPane');
+  const useSplitPane = editorPane && window.todoSplitPane;
+
+  if (useSplitPane) {
+    await TodoEditor.populate(toDoId);
+
+    // Setup link input handlers for split-pane (TodoEditor handles the fetch)
+    const addEditorLinkBtn = document.getElementById('toDoEditorAddLinkBtn');
+    if (addEditorLinkBtn) {
+      addEditorLinkBtn.onclick = async (e) => {
+        e.preventDefault();
+        const url = document.getElementById('toDoEditorLinkUrl').value;
+        const title = document.getElementById('toDoEditorLinkTitle').value;
+        if (await addLinkToEntity('to-do', toDoId, url, title, 'toDoEditorLinksList')) {
+          document.getElementById('toDoEditorLinkUrl').value = '';
+          document.getElementById('toDoEditorLinkTitle').value = '';
+        }
+      };
     }
-    const result = await response.json();
-    if (!result.success || !result.data) {
-      throw new Error(result.message || 'Failed to load to do');
-    }
-    const toDo = result.data;
-
-    // Check if split-pane exists
-    const editorPane = document.getElementById('todoEditorPane');
-    const useSplitPane = editorPane && window.todoSplitPane;
-
-    if (useSplitPane) {
-      // Populate split-pane form
-      document.getElementById('toDoEditorId').value = toDo.id;
-      document.getElementById('toDoEditorFormTitle').value = toDo.title;
-      document.getElementById('toDoEditorNotes').value = toDo.notes || '';
-      renderToDoItemsEditor(toDo.items || [], 'toDoEditorItemsList');
-
-      // Load and display links for split-pane
-      loadLinksForEntity('to-do', toDo.id, 'toDoEditorLinksList');
-
-      // Setup link input handlers for split-pane
-      const addEditorLinkBtn = document.getElementById('toDoEditorAddLinkBtn');
-      if (addEditorLinkBtn) {
-        addEditorLinkBtn.onclick = async (e) => {
-          e.preventDefault();
-          const url = document.getElementById('toDoEditorLinkUrl').value;
-          const title = document.getElementById('toDoEditorLinkTitle').value;
-          if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoEditorLinksList')) {
-            document.getElementById('toDoEditorLinkUrl').value = '';
-            document.getElementById('toDoEditorLinkTitle').value = '';
-          }
-        };
+  } else {
+    try {
+      const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
       }
-
-      // Setup URL drag-drop for split-pane
-      setupURLDragDrop('to-do', 'toDoEditorLinksList', () => toDo.id);
-
-      // Show side-panel editor
-      if (window.todoSplitPane && typeof window.todoSplitPane.showRightPane === 'function') {
-        window.todoSplitPane.showRightPane();
-      } else {
-        // Fallback to modal if split pane isn't working
-        useSplitPane = false;
+      const result = await response.json();
+      if (!result.success || !result.data) {
+        throw new Error(result.message || 'Failed to load to do');
       }
+      const toDo = result.data;
 
-      if (useSplitPane) {
-        document.getElementById('todoEditorTitle').textContent = toDo.title;
-      }
-    } else {
       // Populate modal form
       document.getElementById('toDoId').value = toDo.id;
       document.getElementById('toDoTitle').value = toDo.title;
@@ -448,10 +425,10 @@ async function editToDo(toDoId) {
       // Show modal
       const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
       modal.show();
+    } catch (error) {
+      console.error('Error:', error);
+      app.notify('Error loading to do', 'danger');
     }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading to do', 'danger');
   }
 }
 
@@ -1151,6 +1128,7 @@ function initToDos() {
 
   // Setup split-pane
   window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
+  TodoEditor.init(window.todoSplitPane);
 
   initToDosEventListeners();
   loadToDos();

@@ -213,34 +213,11 @@ async function saveTemplate() {
 }
 
 async function editTemplate(templateId) {
-  try {
-    const response = await fetch(`/api/work-item-templates/${templateId}`);
-    const result = await response.json();
-    const template = result.data;
-
-    document.getElementById('templateEditorId').value = template.id;
-    document.getElementById('templateEditorTitle').value = template.title;
-    document.getElementById('templateEditorDisplayTitle').textContent = template.title;
-    document.getElementById('templateEditorDescription').value = template.description || '';
-    document.getElementById('templateEditorEmoji').value = template.emoji || '';
-    document.getElementById('templateEditorStartTime').value = template.start_time || '';
-    updateEmojiFieldButton('templateEditorEmojiBtn', template.emoji || '');
-    setTimeBoxField('templateEditorTimeBox', template.time_box_minutes);
-
-    // Show split-pane editor
-    if (templatesSplitPane) {
-      templatesSplitPane.showRightPane();
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading template', 'danger');
-  }
+  await TemplateEditor.populate(templateId);
 }
 
 function closeTemplateEditor() {
-  if (templatesSplitPane) {
-    templatesSplitPane.hideRightPane();
-  }
+  TemplateEditor.close();
 }
 
 async function deleteTemplate(templateId) {
@@ -908,6 +885,7 @@ function initTemplates() {
 
   // Setup split-pane
   templatesSplitPane = new SplitPane("templatesSplitPane", "templatesLeftPane", "templatesDivider", "templateEditorPane", 66.66);
+  TemplateEditor.init(templatesSplitPane);
 
   // Setup drawer toggle for associate items
   const associateToggle = document.getElementById("templatesAssociateItemsToggle");

@@ -425,35 +425,26 @@ async function savePriority() {
 }
 
 async function editToDo(toDoId) {
+  // Set type to 'todo' in the hidden field so save knows which type to update
+  document.getElementById('priorityEditorType').value = 'todo';
   try {
     const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
-    }
-    const result = await response.json().catch(() => ({}));
-    if (!result.success || !result.data) {
-      throw new Error(result.message || 'Failed to load to do');
-    }
-    const toDo = result.data;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
 
-    // Populate split-pane editor
-    document.getElementById('priorityEditorType').value = 'todo';
+    if (!result.success || !result.data) {
+      app.notify('Error loading to do', 'danger');
+      return;
+    }
+
+    const toDo = result.data;
     document.getElementById('priorityEditorId').value = toDo.id;
     document.getElementById('priorityEditorFormTitle').value = toDo.title;
-    document.getElementById('priorityEditorNotes').value = toDo.notes;
+    document.getElementById('priorityEditorNotes').value = toDo.notes || '';
     document.getElementById('priorityEditorTitle').textContent = toDo.title;
-
-    // Clear links (todos don't have links in this context)
     document.getElementById('priorityEditorLinksList').innerHTML = '';
 
-    // Show split-pane editor
-    console.log('[Priorities] window.prioritySplitPane:', !!window.prioritySplitPane);
-    if (window.prioritySplitPane) {
-      console.log('[Priorities] Calling showRightPane()');
-      window.prioritySplitPane.showRightPane();
-    } else {
-      console.error('[Priorities] prioritySplitPane not found!');
-    }
+    window.prioritySplitPane.showRightPane();
   } catch (error) {
     console.error('Error loading to do:', error);
     app.notify('Error loading to do', 'danger');
@@ -461,69 +452,39 @@ async function editToDo(toDoId) {
 }
 
 async function editPriority(priorityId) {
-  try {
-    const response = await fetch(`/api/priorities/${priorityId}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
-    }
-    const result = await response.json().catch(() => ({}));
-    if (!result.success || !result.data) {
-      throw new Error(result.message || 'Failed to load project');
-    }
-    const priority = result.data;
+  await PriorityEditor.populate(priorityId);
 
-    // Populate split-pane editor
-    document.getElementById('priorityEditorType').value = 'priority';
-    document.getElementById('priorityEditorId').value = priority.id;
-    document.getElementById('priorityEditorFormTitle').value = priority.title;
-    document.getElementById('priorityEditorNotes').value = priority.notes;
-    document.getElementById('priorityEditorTitle').textContent = priority.title;
-
-    // Load and display links
-    const linksResponse = await fetch(`/api/priorities/${priorityId}/links`).catch(() => ({ json: () => ({ data: [] }) }));
-    const linksResult = await linksResponse.json();
-    renderPriorityLinks(linksResult.data || []);
-
-    // Setup link input handlers
-    const addLinkBtn = document.getElementById('priorityEditorAddLinkBtn');
-    if (addLinkBtn) {
-      addLinkBtn.onclick = async (e) => {
-        e.preventDefault();
-        const url = document.getElementById('priorityEditorLinkUrl').value;
-        const title = document.getElementById('priorityEditorLinkTitle').value;
-        if (url && title) {
-          const linkResponse = await fetch(`/api/priorities/${priority.id}/links`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-            },
-            body: JSON.stringify({ url, title })
-          });
-          if (linkResponse.ok) {
-            const linkResult = await linkResponse.json();
-            if (linkResult.success) {
-              const links = Array.from(document.querySelectorAll('#priorityEditorLinksList a')).map(a => ({
-                url: a.href,
-                title: a.textContent
-              }));
-              links.push({ url, title });
-              renderPriorityLinks(links);
-              document.getElementById('priorityEditorLinkUrl').value = '';
-              document.getElementById('priorityEditorLinkTitle').value = '';
-            }
+  // Setup link input handlers
+  const addLinkBtn = document.getElementById('priorityEditorAddLinkBtn');
+  if (addLinkBtn) {
+    addLinkBtn.onclick = async (e) => {
+      e.preventDefault();
+      const url = document.getElementById('priorityEditorLinkUrl').value;
+      const title = document.getElementById('priorityEditorLinkTitle').value;
+      if (url && title) {
+        const linkResponse = await fetch(`/api/priorities/${priorityId}/links`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+          },
+          body: JSON.stringify({ url, title })
+        });
+        if (linkResponse.ok) {
+          const linkResult = await linkResponse.json();
+          if (linkResult.success) {
+            const links = Array.from(document.querySelectorAll('#priorityEditorLinksList a')).map(a => ({
+              url: a.href,
+              title: a.textContent
+            }));
+            links.push({ url, title });
+            PriorityEditor.renderLinks(links);
+            document.getElementById('priorityEditorLinkUrl').value = '';
+            document.getElementById('priorityEditorLinkTitle').value = '';
           }
         }
-      };
-    }
-
-    // Show split-pane editor
-    if (window.prioritySplitPane) {
-      window.prioritySplitPane.showRightPane();
-    }
-  } catch (error) {
-    console.error('Error loading project:', error);
-    app.notify('Error loading project', 'danger');
+      }
+    };
   }
 }
 
@@ -864,8 +825,8 @@ function initPriorities() {
   document.body.appendChild(document.getElementById('priorityModal'));
 
   // Initialize split pane for side-panel editing
-  // Initialize split-pane for side-panel editing
   window.prioritySplitPane = new SplitPane('prioritySplitPane', 'priorityListPane', 'priorityDivider', 'priorityEditorPane', 66.66);
+  PriorityEditor.init(window.prioritySplitPane);
 
   // Setup drawer toggle for associate items
   const associateToggle = document.getElementById('associateItemsToggle');

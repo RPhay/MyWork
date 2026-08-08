@@ -215,10 +215,7 @@ function openNewTicketFormWithType(ticketType) {
 }
 
 function closeTicketEditor() {
-  const editorPane = document.getElementById('ticketEditorPane');
-  if (editorPane) {
-    editorPane.classList.add('hidden');
-  }
+  TicketEditor.close();
 }
 
 function renderTicketLinks(links) {
@@ -259,40 +256,7 @@ function renderTicketLinks(links) {
 }
 
 function renderTicketLinksEditor(links) {
-  const linksList = document.getElementById('ticketEditorLinksList');
-  linksList.innerHTML = '';
-
-  links.forEach((link, index) => {
-    const linkEl = document.createElement('div');
-    linkEl.className = 'mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center';
-
-    const titleSpan = document.createElement('span');
-    titleSpan.className = 'flex-grow-1 cursor-pointer';
-    titleSpan.innerHTML = `<a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>`;
-    titleSpan.title = 'Click to rename';
-    titleSpan.style.cursor = 'pointer';
-
-    titleSpan.addEventListener('click', () => {
-      const newTitle = prompt('Enter link title:', link.title || '');
-      if (newTitle !== null) {
-        link.title = newTitle;
-        renderTicketLinksEditor(links);
-      }
-    });
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-sm btn-outline-danger';
-    removeBtn.innerHTML = '<i class="bi bi-x"></i>';
-    removeBtn.addEventListener('click', () => {
-      links.splice(index, 1);
-      renderTicketLinksEditor(links);
-    });
-
-    linkEl.appendChild(titleSpan);
-    linkEl.appendChild(removeBtn);
-    linksList.appendChild(linkEl);
-  });
+  TicketEditor.renderLinks(links);
 }
 
 function addTicketLink(isEditor = false) {
@@ -314,7 +278,7 @@ function addTicketLink(isEditor = false) {
   currentLinks.push({ url, title: title || url });
 
   if (isEditor) {
-    renderTicketLinksEditor(currentLinks);
+    TicketEditor.renderLinks(currentLinks);
   } else {
     renderTicketLinks(currentLinks);
   }
@@ -324,76 +288,69 @@ function addTicketLink(isEditor = false) {
 }
 
 async function saveTicket() {
-  // Check which form is being used
   const editorPane = document.getElementById('ticketEditorPane');
   const useSplitPane = editorPane && !editorPane.classList.contains('hidden');
 
-  let ticketId, title, notes, ticket_type;
-  let linkListSelector;
-
   if (useSplitPane) {
-    ticketId = document.getElementById('ticketEditorId').value;
-    title = document.getElementById('ticketEditorFormTitle').value;
-    notes = document.getElementById('ticketEditorNotes').value;
-    ticket_type = document.getElementById('ticketEditorType').value;
-    linkListSelector = '#ticketEditorLinksList';
-  } else {
-    ticketId = document.getElementById('ticketId').value;
-    title = document.getElementById('ticketTitle').value;
-    notes = document.getElementById('ticketNotes').value;
-    ticket_type = document.getElementById('ticketType').value;
-    linkListSelector = '#ticketLinksList';
-  }
-
-  if (!title.trim()) {
-    app.notify('Title is required', 'warning');
-    return;
-  }
-
-  try {
-    const method = ticketId ? 'PUT' : 'POST';
-    const url = ticketId ? `/api/tickets/${ticketId}` : '/api/tickets';
-
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ title, notes, ticket_type })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      const newTicketId = ticketId || result.data.id;
-
-      // Save links if any exist in the form
-      const linkElements = document.querySelectorAll(`${linkListSelector} a`);
-      for (const linkEl of linkElements) {
-        const linkUrl = linkEl.href;
-        const linkTitle = linkEl.textContent;
-
-        // Only save if not already in database (check by trying to add)
-        await fetch(`/api/tickets/${newTicketId}/links`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-          },
-          body: JSON.stringify({ url: linkUrl, title: linkTitle })
-        }).catch(() => {}); // Ignore errors if link already exists
-      }
-
-      app.notify(ticketId ? 'Ticket updated!' : 'Ticket created!', 'success');
-      const modal = bootstrap.Modal.getInstance(document.getElementById('ticketModal'));
-      if (modal) modal.hide();
+    const success = await TicketEditor.save();
+    if (success) {
       loadTickets();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
     }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving ticket', 'danger');
+  } else {
+    const ticketId = document.getElementById('ticketId').value;
+    const title = document.getElementById('ticketTitle').value;
+    const notes = document.getElementById('ticketNotes').value;
+    const ticket_type = document.getElementById('ticketType').value;
+
+    if (!title.trim()) {
+      app.notify('Title is required', 'warning');
+      return;
+    }
+
+    try {
+      const method = ticketId ? 'PUT' : 'POST';
+      const url = ticketId ? `/api/tickets/${ticketId}` : '/api/tickets';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ title, notes, ticket_type })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        const newTicketId = ticketId || result.data.id;
+
+        // Save links if any exist in the form
+        const linkElements = document.querySelectorAll('#ticketLinksList a');
+        for (const linkEl of linkElements) {
+          const linkUrl = linkEl.href;
+          const linkTitle = linkEl.textContent;
+
+          await fetch(`/api/tickets/${newTicketId}/links`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+            },
+            body: JSON.stringify({ url: linkUrl, title: linkTitle })
+          }).catch(() => {});
+        }
+
+        app.notify(ticketId ? 'Ticket updated!' : 'Ticket created!', 'success');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('ticketModal'));
+        if (modal) modal.hide();
+        loadTickets();
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      app.notify('Error saving ticket', 'danger');
+    }
   }
 }
 
@@ -420,41 +377,29 @@ async function deleteTicket(ticketId) {
 }
 
 async function editTicket(ticketId) {
-  try {
-    const response = await fetch(`/api/tickets/${ticketId}`);
-    const result = await response.json();
-    const ticket = result.data;
+  const editorPane = document.getElementById('ticketEditorPane');
+  const useSplitPane = editorPane && window.ticketSplitPane;
 
-    // Check if split-pane exists
-    const editorPane = document.getElementById('ticketEditorPane');
-    const useSplitPane = editorPane && window.ticketSplitPane;
+  if (useSplitPane) {
+    await TicketEditor.populate(ticketId);
+  } else {
+    try {
+      const response = await fetch(`/api/tickets/${ticketId}`);
+      const result = await response.json();
+      const ticket = result.data;
 
-    if (useSplitPane) {
-      // Populate split-pane form
-      document.getElementById('ticketEditorId').value = ticket.id;
-      document.getElementById('ticketEditorFormTitle').value = ticket.title;
-      document.getElementById('ticketEditorNotes').value = ticket.notes || '';
-      document.getElementById('ticketEditorType').value = ticket.ticket_type;
-      renderTicketLinksEditor(ticket.links || []);
-
-      // Show side-panel editor
-      editorPane.classList.remove('hidden');
-      document.getElementById('ticketEditorTitle').textContent = ticket.title;
-    } else {
-      // Populate modal form
       document.getElementById('ticketId').value = ticket.id;
       document.getElementById('ticketTitle').value = ticket.title;
       document.getElementById('ticketNotes').value = ticket.notes || '';
       document.getElementById('ticketType').value = ticket.ticket_type;
       renderTicketLinks(ticket.links || []);
 
-      // Show modal
       const modal = new bootstrap.Modal(document.getElementById('ticketModal'));
       modal.show();
+    } catch (error) {
+      console.error('Error:', error);
+      app.notify('Error loading ticket', 'danger');
     }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading ticket', 'danger');
   }
 }
 
@@ -496,7 +441,6 @@ function initTicketsEventListeners() {
     saveEditorBtn.addEventListener('click', async () => {
       await saveTicket();
       closeTicketEditor();
-      loadTickets();
     });
   }
   if (closeEditorBtn) {
@@ -609,9 +553,8 @@ function initTickets() {
   loadTicketFolderState();
 
   // Initialize split pane for side-panel editing
-  if (document.getElementById('ticketSplitPane')) {
-    window.ticketSplitPane = new SplitPane('ticketSplitPane', 'ticketListPane', 'ticketDivider', 'ticketEditorPane', 66.66);
-  }
+  window.ticketSplitPane = new SplitPane('ticketSplitPane', 'ticketListPane', 'ticketDivider', 'ticketEditorPane', 66.66);
+  TicketEditor.init(window.ticketSplitPane);
 
   initTicketsEventListeners();
   loadTickets();

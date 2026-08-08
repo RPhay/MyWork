@@ -43,57 +43,34 @@ function renderTasks() {
 }
 
 async function openTaskForm(taskId = null) {
-  // Check if split-pane exists
-  const editorPane = document.getElementById('taskEditorPane');
-  const useSplitPane = editorPane && window.taskSplitPane;
-
   if (taskId) {
-    const task = allTasks.find(t => t.id === taskId);
-    if (task) {
-      if (useSplitPane) {
-        // Populate split-pane editor fields
-        document.getElementById('taskEditorId').value = task.id;
-        document.getElementById('taskEditorFormTitle').value = task.title;
-        document.getElementById('taskEditorNotes').value = task.notes || '';
-        renderTaskLinksEditor(task.links || []);
-
-        // Show split-pane editor
-        editorPane.classList.remove('hidden');
-        document.getElementById('taskEditorTitle').textContent = task.title;
-      } else {
-        // Populate modal form fields
-        document.getElementById('taskId').value = task.id;
-        document.getElementById('taskTitle').value = task.title;
-        document.getElementById('taskNotes').value = task.notes || '';
-        renderTaskLinks(task.links || []);
-      }
-    }
+    await TaskEditor.populate(taskId);
   } else {
+    const editorPane = document.getElementById('taskEditorPane');
+    const useSplitPane = editorPane && window.taskSplitPane;
+
     if (useSplitPane) {
       document.getElementById('taskEditorId').value = '';
       document.getElementById('taskEditorFormTitle').value = '';
       document.getElementById('taskEditorNotes').value = '';
-      renderTaskLinksEditor([]);
+      TaskEditor.renderLinks([]);
     } else {
       document.getElementById('taskId').value = '';
       document.getElementById('taskTitle').value = '';
       document.getElementById('taskNotes').value = '';
       renderTaskLinks([]);
     }
-  }
 
-  // Only show modal if split-pane doesn't exist
-  if (!useSplitPane) {
-    const modal = new bootstrap.Modal(document.getElementById('taskModal'));
-    modal.show();
+    // Only show modal if split-pane doesn't exist
+    if (!useSplitPane) {
+      const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+      modal.show();
+    }
   }
 }
 
 function closeTaskEditor() {
-  const editorPane = document.getElementById('taskEditorPane');
-  if (editorPane) {
-    editorPane.classList.add('hidden');
-  }
+  TaskEditor.close();
 }
 
 function renderTaskLinksEditor(links) {
@@ -131,56 +108,52 @@ function renderTaskLinks(links) {
 }
 
 async function saveTask() {
-  // Check which form is being used
   const editorPane = document.getElementById('taskEditorPane');
   const useSplitPane = editorPane && !editorPane.classList.contains('hidden');
 
-  let taskId, title, notes;
   if (useSplitPane) {
-    taskId = document.getElementById('taskEditorId').value;
-    title = document.getElementById('taskEditorFormTitle').value;
-    notes = document.getElementById('taskEditorNotes').value;
-  } else {
-    taskId = document.getElementById('taskId').value;
-    title = document.getElementById('taskTitle').value;
-    notes = document.getElementById('taskNotes').value;
-  }
-
-  if (!title.trim()) {
-    app.notify('Title is required', 'warning');
-    return;
-  }
-
-  const taskData = {
-    title,
-    notes
-  };
-
-  try {
-    const method = taskId ? 'PUT' : 'POST';
-    const url = taskId ? `/api/tasks/${taskId}` : '/api/tasks';
-
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(taskData)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(taskId ? 'Task updated!' : 'Task created!', 'success');
-      const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
-      if (modal) modal.hide();
+    const success = await TaskEditor.save();
+    if (success) {
       loadTasks();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
     }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving task', 'danger');
+  } else {
+    const taskId = document.getElementById('taskId').value;
+    const title = document.getElementById('taskTitle').value;
+    const notes = document.getElementById('taskNotes').value;
+
+    if (!title.trim()) {
+      app.notify('Title is required', 'warning');
+      return;
+    }
+
+    const taskData = { title, notes };
+
+    try {
+      const method = taskId ? 'PUT' : 'POST';
+      const url = taskId ? `/api/tasks/${taskId}` : '/api/tasks';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify(taskData)
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify(taskId ? 'Task updated!' : 'Task created!', 'success');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
+        if (modal) modal.hide();
+        loadTasks();
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      app.notify('Error saving task', 'danger');
+    }
   }
 }
 
@@ -225,7 +198,7 @@ function addTaskLink(isEditor = false) {
   currentLinks.push({ url, title: title || url });
 
   if (isEditor) {
-    renderTaskLinksEditor(currentLinks);
+    TaskEditor.renderLinks(currentLinks);
   } else {
     renderTaskLinks(currentLinks);
   }
@@ -272,7 +245,6 @@ function initTasksEventListeners() {
     saveEditorBtn.addEventListener('click', async () => {
       await saveTask();
       closeTaskEditor();
-      loadTasks();
     });
   }
   if (closeEditorBtn) {
@@ -293,7 +265,7 @@ function initTasksEventListeners() {
           title: a.textContent
         }));
         links.splice(parseInt(btn.dataset.index), 1);
-        renderTaskLinksEditor(links);
+        TaskEditor.renderLinks(links);
       }
     });
   }
@@ -301,9 +273,8 @@ function initTasksEventListeners() {
 
 function initTasks() {
   // Initialize split pane for side-panel editing
-  if (document.getElementById('taskSplitPane')) {
-    window.taskSplitPane = new SplitPane('taskSplitPane', 'taskListPane', 'taskDivider', 'taskEditorPane', 66.66);
-  }
+  window.taskSplitPane = new SplitPane('taskSplitPane', 'taskListPane', 'taskDivider', 'taskEditorPane', 66.66);
+  TaskEditor.init(window.taskSplitPane);
 
   initTasksEventListeners();
   loadTasks();

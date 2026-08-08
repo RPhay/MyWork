@@ -209,99 +209,64 @@ async function saveGoal() {
   const editorPane = document.getElementById('goalEditorPane');
   const useSplitPane = editorPane && !editorPane.classList.contains('hidden');
 
-  let goalId, nameEl, descEl, measEl, updatesEl, statusEl, dueDateEl, categoriesEl;
-
   if (useSplitPane) {
-    goalId = document.getElementById('goalEditorId').value;
-    nameEl = document.getElementById('goalEditorName');
-    descEl = document.getElementById('goalEditorDescription');
-    measEl = document.getElementById('goalEditorMeasurements');
-    updatesEl = document.getElementById('goalEditorUpdates');
-    statusEl = document.getElementById('goalEditorStatus');
-    dueDateEl = document.getElementById('goalEditorDueDate');
-    categoriesEl = document.getElementById('goalEditorCategories');
-  } else {
-    goalId = document.getElementById('goalId').value;
-    nameEl = document.getElementById('goalName');
-    descEl = document.getElementById('goalDescription');
-    measEl = document.getElementById('goalMeasurements');
-    updatesEl = document.getElementById('goalUpdates');
-    statusEl = document.getElementById('goalStatus');
-    dueDateEl = document.getElementById('goalDueDate');
-    categoriesEl = document.getElementById('goalCategories');
-  }
-
-  const year = document.getElementById('yearSelect').value;
-
-  const data = {
-    year: parseInt(year),
-    name: nameEl.value,
-    description: descEl.value,
-    measurements: measEl.value,
-    goal_updates: updatesEl.value,
-    status: statusEl.value,
-    due_date: dueDateEl.value,
-    categories: Array.from(categoriesEl.selectedOptions).map(opt => opt.value)
-  };
-
-  try {
-    const url = goalId ? `/api/goals/${goalId}` : '/api/goals';
-    const method = goalId ? 'PUT' : 'POST';
-
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Goal saved!', 'success');
-      const modal = bootstrap.Modal.getInstance(document.getElementById('goalModal'));
-      if (modal) {
-        modal.hide();
-      } else {
-        document.getElementById('goalModal').classList.remove('show');
-        document.getElementById('goalModal').style.display = 'none';
-        document.body.classList.remove('modal-open');
-      }
+    const success = await GoalEditor.save();
+    if (success) {
+      GoalEditor.close();
       loadYearlyGoals();
-    } else {
-      app.notify('Error saving goal: ' + result.message, 'danger');
     }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving goal', 'danger');
+  } else {
+    const goalId = document.getElementById('goalId').value;
+    const year = document.getElementById('yearSelect').value;
+
+    const data = {
+      year: parseInt(year),
+      name: document.getElementById('goalName').value,
+      description: document.getElementById('goalDescription').value,
+      measurements: document.getElementById('goalMeasurements').value,
+      goal_updates: document.getElementById('goalUpdates').value,
+      status: document.getElementById('goalStatus').value,
+      due_date: document.getElementById('goalDueDate').value,
+      categories: Array.from(document.getElementById('goalCategories').selectedOptions).map(opt => opt.value)
+    };
+
+    try {
+      const url = goalId ? `/api/goals/${goalId}` : '/api/goals';
+      const method = goalId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Goal saved!', 'success');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('goalModal'));
+        if (modal) {
+          modal.hide();
+        } else {
+          document.getElementById('goalModal').classList.remove('show');
+          document.getElementById('goalModal').style.display = 'none';
+          document.body.classList.remove('modal-open');
+        }
+        loadYearlyGoals();
+      } else {
+        app.notify('Error saving goal: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      app.notify('Error saving goal', 'danger');
+    }
   }
 }
 
 async function editGoal(goalId) {
-  try {
-    const response = await fetch(`/api/goals/${goalId}`);
-    const result = await response.json();
-    const goal = result.data;
-
-    // Populate split-pane editor
-    document.getElementById('goalEditorId').value = goal.id;
-    document.getElementById('goalEditorName').value = goal.name;
-    document.getElementById('goalEditorDescription').value = goal.description;
-    document.getElementById('goalEditorMeasurements').value = goal.measurements;
-    document.getElementById('goalEditorUpdates').value = goal.goal_updates;
-    document.getElementById('goalEditorStatus').value = goal.status;
-    document.getElementById('goalEditorDueDate').value = goal.due_date;
-    selectGoalCategoriesEditor(goal.categories);
-
-    // Show split-pane editor
-    if (window.goalSplitPane) {
-      window.goalSplitPane.showRightPane();
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading goal', 'danger');
-  }
+  await GoalEditor.populate(goalId);
 }
 
 async function deleteGoal(goalId) {
@@ -449,9 +414,8 @@ async function initGoals() {
   document.body.appendChild(document.getElementById('goalModal'));
 
   // Initialize split pane for side-panel viewing
-  if (document.getElementById('goalSplitPane')) {
-    window.goalSplitPane = new SplitPane('goalSplitPane', 'goalListPane', 'goalDivider', 'goalEditorPane', 66.66);
-  }
+  window.goalSplitPane = new SplitPane('goalSplitPane', 'goalListPane', 'goalDivider', 'goalEditorPane', 66.66);
+  GoalEditor.init(window.goalSplitPane);
 
   initGoalsEventListeners();
   loadGoalCategoryOptions();
