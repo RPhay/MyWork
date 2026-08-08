@@ -447,8 +447,12 @@ async function editToDo(toDoId) {
     document.getElementById('priorityEditorLinksList').innerHTML = '';
 
     // Show split-pane editor
+    console.log('[Priorities] window.prioritySplitPane:', !!window.prioritySplitPane);
     if (window.prioritySplitPane) {
+      console.log('[Priorities] Calling showRightPane()');
       window.prioritySplitPane.showRightPane();
+    } else {
+      console.error('[Priorities] prioritySplitPane not found!');
     }
   } catch (error) {
     console.error('Error loading to do:', error);
