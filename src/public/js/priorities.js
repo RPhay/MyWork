@@ -224,12 +224,12 @@ async function loadPriorityRightPanel() {
       div.innerHTML = html || '<small class="text-muted">No to dos</small>';
       setupDragListeners();
 
-      // Add double-click handlers for todo items
+      // Add click handlers for todo items
       div.querySelectorAll('.todo-item').forEach(item => {
-        item.addEventListener('dblclick', (e) => {
+        item.addEventListener('click', (e) => {
           e.stopPropagation();
-          const todoId = item.dataset.id;
-          openToDoModal(todoId);
+          const todoId = parseInt(item.dataset.id);
+          editToDo(todoId);
         });
       });
     } else {
