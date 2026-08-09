@@ -224,6 +224,37 @@ footer {
   padding-bottom: 0.5rem;
 }
 
+/* Right-click context menus (Todos, Tickets, Categories, Brainstorming) - JS sets
+   left/top from the click's clientX/clientY, which requires position: fixed. */
+.context-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 200px;
+  padding: 4px;
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  border-radius: 0.25rem;
+  text-align: left;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.context-menu-item:hover {
+  background-color: #f8f9fa;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .container-fluid {

@@ -114,36 +114,38 @@
             </div>
           </form>
 
-          <!-- Todo Editor Form (shown when editing a todo) -->
-          <form id="toDoEditorForm" style="display: none;">
-            <input type="hidden" id="toDoEditorId" name="toDoId">
+          <!-- Todo Editor Form (shown when editing a todo). IDs are prefixed proj*
+               because the Todos tab's own editor form (todos.ejs) is rendered into
+               this same page and would otherwise collide on plain toDoEditor* ids. -->
+          <form id="projToDoEditorForm" style="display: none;">
+            <input type="hidden" id="projToDoEditorId" name="toDoId">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
             <div class="mb-3">
-              <label for="toDoEditorFormTitle" class="form-label">Title *</label>
-              <input type="text" class="form-control" id="toDoEditorFormTitle" name="title" required>
+              <label for="projToDoEditorFormTitle" class="form-label">Title *</label>
+              <input type="text" class="form-control" id="projToDoEditorFormTitle" name="title" required>
             </div>
 
             <div class="mb-3">
-              <label for="toDoEditorNotes" class="form-label">Notes</label>
-              <textarea class="form-control" id="toDoEditorNotes" name="notes" rows="4"></textarea>
+              <label for="projToDoEditorNotes" class="form-label">Notes</label>
+              <textarea class="form-control" id="projToDoEditorNotes" name="notes" rows="4"></textarea>
             </div>
 
             <div class="mb-3">
               <label class="form-label">Links</label>
-              <div id="toDoEditorLinksList" class="mb-2"></div>
+              <div id="projToDoEditorLinksList" class="mb-2"></div>
               <div class="input-group input-group-sm">
-                <input type="url" class="form-control" id="toDoEditorLinkUrl" placeholder="https://example.com">
-                <input type="text" class="form-control" id="toDoEditorLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
-                <button type="button" class="btn btn-outline-secondary" id="toDoEditorAddLinkBtn">
+                <input type="url" class="form-control" id="projToDoEditorLinkUrl" placeholder="https://example.com">
+                <input type="text" class="form-control" id="projToDoEditorLinkTitle" placeholder="Link title (optional)" style="max-width: 150px;">
+                <button type="button" class="btn btn-outline-secondary" id="projToDoEditorAddLinkBtn">
                   <i class="bi bi-plus-lg"></i>
                 </button>
               </div>
             </div>
 
             <div class="d-flex gap-2">
-              <button type="button" class="btn btn-primary" id="saveToDoEditorBtn">Save</button>
-              <button type="button" class="btn btn-secondary" id="closeToDoEditorBtn">Close</button>
+              <button type="button" class="btn btn-primary" id="saveProjToDoEditorBtn">Save</button>
+              <button type="button" class="btn btn-secondary" id="closeProjToDoEditorBtn">Close</button>
             </div>
           </form>
         </div>

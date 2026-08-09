@@ -1,6 +1,8 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 
+const VALID_TODO_STATUSES = ['incomplete', 'complete', 'failed', 'skipped'];
+
 async function attachItems(toDos) {
   if (toDos.length === 0) return toDos;
 
@@ -48,15 +50,15 @@ export async function getToDoById(id) {
 }
 
 export async function createToDo(data, contextId) {
-  const { title, notes, folder_id, items } = data;
+  const { title, notes, folder_id, priority_id, items } = data;
 
   if (!title) {
     throw new ValidationError('To do title is required');
   }
 
   const toDoId = await db.insert(
-    'INSERT INTO to_dos (title, notes, folder_id, context_id) VALUES (?, ?, ?, ?)',
-    [title, notes ?? null, folder_id || null, contextId]
+    'INSERT INTO to_dos (title, notes, folder_id, priority_id, context_id) VALUES (?, ?, ?, ?, ?)',
+    [title, notes ?? null, folder_id || null, priority_id || null, contextId]
   );
 
   if (items !== undefined) {
@@ -87,6 +89,22 @@ export async function updateToDo(id, data) {
   if (data.folder_id !== undefined) {
     setClauses.push('folder_id = ?');
     values.push(data.folder_id || null);
+  }
+
+  // priority_id (Projects-tab association) is intentionally separate from folder_id
+  // (Todos-tab folder) so linking/unlinking a project has no effect on Todos-tab
+  // organization, and vice versa.
+  if (data.priority_id !== undefined) {
+    setClauses.push('priority_id = ?');
+    values.push(data.priority_id || null);
+  }
+
+  if (data.status !== undefined) {
+    if (!VALID_TODO_STATUSES.includes(data.status)) {
+      throw new ValidationError('Invalid to do status');
+    }
+    setClauses.push('status = ?');
+    values.push(data.status);
   }
 
   if (setClauses.length > 0) {

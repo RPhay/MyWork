@@ -1,11 +1,22 @@
 let expandedPriorities = new Set();
+let expandedProjectFolders = new Set();
+let expandedProjectTaskFolders = new Set();
 let allPriorities = [];
 let allToDos = [];
+let allToDoFolders = [];
+let allTasks = [];
+let allTaskFolders = [];
 
-function renderToDoInTree(toDo, depth) {
+function renderToDoInTree(toDo, depth, showRemove = true) {
   const hasLinks = toDo.links && toDo.links.length > 0;
   const linksBadge = hasLinks
     ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
+    : '';
+  const status = toDo.status || 'incomplete';
+  const statusIcon = app.statusIcon(status);
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+  const removeBtn = showRemove
+    ? `<button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="todo" data-child-id="${toDo.id}" title="Remove" aria-label="Remove"><i class="bi bi-x-circle"></i></button>`
     : '';
 
   return `
@@ -14,24 +25,149 @@ function renderToDoInTree(toDo, depth) {
         <span class="priority-title-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
           <span class="priority-toggle"></span>
-          <i class="bi bi-check2-square text-muted"></i>
-          <span class="priority-title">${app.escapeHtml(toDo.title)}</span>
+          <button type="button" class="todo-item-checkbox ${status !== 'incomplete' ? 'status-' + status : ''}" data-action="toggle-complete" data-id="${toDo.id}" data-status="${status}" title="${statusLabel} — click to change" aria-label="${statusLabel} — click to change">
+            ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
+          </button>
+          <span class="priority-title" ${status === 'complete' ? 'style="text-decoration: line-through; opacity: 0.6;"' : ''}>${app.escapeHtml(toDo.title)}</span>
           ${linksBadge}
         </span>
         <span class="priority-badges"><small class="text-muted">${app.escapeHtml(toDo.notes || '')}</small></span>
         <span class="priority-badges"></span>
         <span class="priority-actions">
-          <button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="todo" data-child-id="${toDo.id}" title="Remove" aria-label="Remove"><i class="bi bi-x-circle"></i></button>
+          ${removeBtn}
         </span>
       </div>
     </div>
   `;
 }
 
+// Aggregate status for a folder shown under a project: failed beats incomplete
+// beats skipped, and only "all complete" reads as complete. An empty folder
+// (nothing in it yet) reads as incomplete rather than trivially "complete".
+function computeFolderStatus(todos) {
+  if (todos.length === 0) return 'incomplete';
+  if (todos.some(td => (td.status || 'incomplete') === 'failed')) return 'failed';
+  if (todos.some(td => (td.status || 'incomplete') === 'incomplete')) return 'incomplete';
+  if (todos.some(td => (td.status || 'incomplete') === 'skipped')) return 'skipped';
+  return 'complete';
+}
+
+function renderFolderInProjectTree(folder, todosInFolder, depth) {
+  const hasChildren = todosInFolder.length > 0;
+  const isExpanded = expandedProjectFolders.has(String(folder.id));
+  const status = computeFolderStatus(todosInFolder);
+  const statusIcon = app.statusIcon(status);
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
+  const childrenHtml = hasChildren
+    ? `<div class="priority-node-children">${todosInFolder.map(td => renderToDoInTree(td, depth + 1, false)).join('')}</div>`
+    : '';
+
+  return `
+    <div class="priority-node project-folder-node ${isExpanded ? 'expanded' : ''}" data-project-folder-id="${folder.id}">
+      <div class="priority-node-header">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          ${hasChildren
+            ? '<i class="bi bi-chevron-right priority-toggle" data-action="toggle-expand"></i>'
+            : '<span class="priority-toggle"></span>'}
+          <span class="todo-item-checkbox todo-item-checkbox-readonly ${status !== 'incomplete' ? 'status-' + status : ''}" title="${statusLabel} (all to-dos in this folder)" aria-label="${statusLabel}">
+            ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
+          </span>
+          <span class="priority-title">${app.escapeHtml(folder.name)}</span>
+        </span>
+        <span class="priority-badges"></span>
+        <span class="priority-badges"></span>
+        <span class="priority-actions">
+          <button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink-folder" data-type="todo-folder" data-folder-id="${folder.id}" title="Remove folder from project" aria-label="Remove folder from project"><i class="bi bi-x-circle"></i></button>
+        </span>
+      </div>
+      ${childrenHtml}
+    </div>
+  `;
+}
+
+function renderTaskInTree(task, depth, showRemove = true) {
+  const hasLinks = task.links && task.links.length > 0;
+  const linksBadge = hasLinks
+    ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
+    : '';
+  const status = task.status || 'incomplete';
+  const statusIcon = app.statusIcon(status);
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+  const removeBtn = showRemove
+    ? `<button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="task" data-child-id="${task.id}" title="Remove" aria-label="Remove"><i class="bi bi-x-circle"></i></button>`
+    : '';
+
+  return `
+    <div class="priority-node task-node" data-task-id="${task.id}">
+      <div class="priority-node-header task-node-header" draggable="true" style="cursor: grab;">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          <span class="priority-toggle"></span>
+          <button type="button" class="todo-item-checkbox ${status !== 'incomplete' ? 'status-' + status : ''}" data-action="toggle-complete" data-id="${task.id}" data-status="${status}" title="${statusLabel} — click to change" aria-label="${statusLabel} — click to change">
+            ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
+          </button>
+          <span class="priority-title" ${status === 'complete' ? 'style="text-decoration: line-through; opacity: 0.6;"' : ''}>${app.escapeHtml(task.title)}</span>
+          ${linksBadge}
+        </span>
+        <span class="priority-badges"><small class="text-muted">${app.escapeHtml(task.notes || '')}</small></span>
+        <span class="priority-badges"></span>
+        <span class="priority-actions">
+          ${removeBtn}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function renderTaskFolderInProjectTree(folder, tasksInFolder, depth) {
+  const hasChildren = tasksInFolder.length > 0;
+  const isExpanded = expandedProjectTaskFolders.has(String(folder.id));
+  const status = computeFolderStatus(tasksInFolder);
+  const statusIcon = app.statusIcon(status);
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
+  const childrenHtml = hasChildren
+    ? `<div class="priority-node-children">${tasksInFolder.map(t => renderTaskInTree(t, depth + 1, false)).join('')}</div>`
+    : '';
+
+  return `
+    <div class="priority-node project-task-folder-node ${isExpanded ? 'expanded' : ''}" data-project-task-folder-id="${folder.id}">
+      <div class="priority-node-header">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          ${hasChildren
+            ? '<i class="bi bi-chevron-right priority-toggle" data-action="toggle-expand"></i>'
+            : '<span class="priority-toggle"></span>'}
+          <span class="todo-item-checkbox todo-item-checkbox-readonly ${status !== 'incomplete' ? 'status-' + status : ''}" title="${statusLabel} (all tasks in this folder)" aria-label="${statusLabel}">
+            ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
+          </span>
+          <span class="priority-title">${app.escapeHtml(folder.name)}</span>
+        </span>
+        <span class="priority-badges"></span>
+        <span class="priority-badges"></span>
+        <span class="priority-actions">
+          <button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink-folder" data-type="task-folder" data-folder-id="${folder.id}" title="Remove folder from project" aria-label="Remove folder from project"><i class="bi bi-x-circle"></i></button>
+        </span>
+      </div>
+      ${childrenHtml}
+    </div>
+  `;
+}
+
 function renderPriorityNode(priority, byParent, depth) {
   const children = byParent.get(priority.id) || [];
-  const associatedToDos = allToDos.filter(td => td.folder_id === priority.id);
-  const hasChildren = children.length > 0 || associatedToDos.length > 0;
+  const linkedFolders = allToDoFolders.filter(f => f.priority_id === priority.id);
+  const linkedFolderIds = new Set(linkedFolders.map(f => f.id));
+  // Exclude to-dos already covered by a linked folder so they don't render twice
+  // if both the to-do and its folder end up associated with this project.
+  const directToDos = allToDos.filter(td => td.priority_id === priority.id && !linkedFolderIds.has(td.folder_id));
+  const linkedTaskFolders = allTaskFolders.filter(f => f.priority_id === priority.id);
+  const linkedTaskFolderIds = new Set(linkedTaskFolders.map(f => f.id));
+  const directTasks = allTasks.filter(t => t.priority_id === priority.id && !linkedTaskFolderIds.has(t.folder_id));
+  const hasChildren = children.length > 0 || linkedFolders.length > 0 || directToDos.length > 0
+    || linkedTaskFolders.length > 0 || directTasks.length > 0;
   const isExpanded = expandedPriorities.has(String(priority.id));
 
   let childrenHtml = '';
@@ -39,8 +175,14 @@ function renderPriorityNode(priority, byParent, depth) {
     let html = '';
     // Render sub-projects
     html += children.map(c => renderPriorityNode(c, byParent, depth + 1)).join('');
-    // Render associated todos
-    html += associatedToDos.map(td => renderToDoInTree(td, depth + 1)).join('');
+    // Render linked to-do folders (live - always shows whatever's currently in the folder)
+    html += linkedFolders.map(f => renderFolderInProjectTree(f, allToDos.filter(td => td.folder_id === f.id), depth + 1)).join('');
+    // Render directly associated todos
+    html += directToDos.map(td => renderToDoInTree(td, depth + 1)).join('');
+    // Render linked task folders (live)
+    html += linkedTaskFolders.map(f => renderTaskFolderInProjectTree(f, allTasks.filter(t => t.folder_id === f.id), depth + 1)).join('');
+    // Render directly associated tasks
+    html += directTasks.map(t => renderTaskInTree(t, depth + 1)).join('');
     childrenHtml = `<div class="priority-node-children">${html}</div>`;
   }
 
@@ -112,9 +254,27 @@ async function loadPriorities() {
     if (!todoResponse.ok) throw new Error(`HTTP ${todoResponse.status}`);
     const todoResult = await todoResponse.json();
 
-    if (prioResult.success && todoResult.success) {
+    // Load todo folders
+    const folderResponse = await fetch('/api/to-do-folders');
+    if (!folderResponse.ok) throw new Error(`HTTP ${folderResponse.status}`);
+    const folderResult = await folderResponse.json();
+
+    // Load tasks
+    const taskResponse = await fetch('/api/tasks');
+    if (!taskResponse.ok) throw new Error(`HTTP ${taskResponse.status}`);
+    const taskResult = await taskResponse.json();
+
+    // Load task folders
+    const taskFolderResponse = await fetch('/api/task-folders');
+    if (!taskFolderResponse.ok) throw new Error(`HTTP ${taskFolderResponse.status}`);
+    const taskFolderResult = await taskFolderResponse.json();
+
+    if (prioResult.success && todoResult.success && folderResult.success && taskResult.success && taskFolderResult.success) {
       allPriorities = prioResult.data;
       allToDos = todoResult.data || [];
+      allToDoFolders = folderResult.data || [];
+      allTasks = taskResult.data || [];
+      allTaskFolders = taskFolderResult.data || [];
       renderPrioritiesList(allPriorities);
       loadPriorityRightPanel();
     } else {
@@ -181,15 +341,17 @@ async function loadPriorityRightPanel() {
 
     if (result.success && result.data.length > 0) {
       const toDos = result.data;
+      const folderById = new Map(allToDoFolders.map(f => [f.id, f]));
 
-      // Group by folder
-      const folders = {};
+      // Group by Todos-tab folder, so this drawer stays a "browse to-dos to drag
+      // onto a project" view regardless of any existing project association.
+      const folderGroups = {};
       const unfiledToDos = [];
 
       toDos.forEach(td => {
         if (td.folder_id) {
-          if (!folders[td.folder_id]) folders[td.folder_id] = { name: '', items: [] };
-          folders[td.folder_id].items.push(td);
+          if (!folderGroups[td.folder_id]) folderGroups[td.folder_id] = { items: [] };
+          folderGroups[td.folder_id].items.push(td);
         } else {
           unfiledToDos.push(td);
         }
@@ -208,12 +370,13 @@ async function loadPriorityRightPanel() {
         `).join('');
       }
 
-      // Render todos in folders
-      Object.entries(folders).forEach(([folderId, folder]) => {
-        const folderObj = toDos.find(td => td.id === parseInt(folderId));
-        const folderName = folderObj ? folderObj.title : 'Folder';
-        html += `<div class="todo-group-header mb-2" data-folder-id="${folderId}" style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 4px; cursor: pointer; font-weight: 500;"><i class="bi bi-folder-check" style="transform: rotate(0deg); transition: transform 0.15s;"></i> ${app.escapeHtml(folderName)} (${folder.items.length})</div>`;
-        html += folder.items.map(td => `
+      // Render todos grouped by folder; the group header is itself a drag source
+      // (type "todo-folder") so the whole folder can be dropped onto a project.
+      Object.entries(folderGroups).forEach(([folderId, group]) => {
+        const folder = folderById.get(parseInt(folderId));
+        const folderName = folder ? folder.name : 'Folder';
+        html += `<div class="todo-group-header mb-2" draggable="true" data-type="todo-folder" data-id="${folderId}" data-name="${app.escapeHtml(folderName)}" data-folder-id="${folderId}" style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 4px; cursor: move; font-weight: 500;"><i class="bi bi-folder-check" style="transform: rotate(0deg); transition: transform 0.15s;"></i> ${app.escapeHtml(folderName)} (${group.items.length})</div>`;
+        html += group.items.map(td => `
           <div class="todo-item" draggable="true" data-type="todo" data-id="${td.id}" data-name="${app.escapeHtml(td.title)}" data-folder-id="${folderId}" style="padding: 0.25rem 0.5rem; cursor: move; margin-left: 1.5rem;">
             <small><i class="bi bi-check2-square"></i> ${app.escapeHtml(td.title)}</small>
             <small class="text-muted float-end">→</small>
@@ -229,7 +392,7 @@ async function loadPriorityRightPanel() {
         item.addEventListener('click', (e) => {
           e.stopPropagation();
           const todoId = parseInt(item.dataset.id);
-          editToDo(todoId);
+          editProjectToDo(todoId);
         });
       });
     } else {
@@ -237,6 +400,67 @@ async function loadPriorityRightPanel() {
     }
   } catch (error) {
     console.error('Error loading todos:', error);
+  }
+
+  // Tasks
+  try {
+    const response = await fetch('/api/tasks');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const div = document.getElementById('projTasksListRight');
+
+    if (result.success && result.data.length > 0) {
+      const tasks = result.data;
+      const folderById = new Map(allTaskFolders.map(f => [f.id, f]));
+
+      // Group by Tasks-tab folder, so this drawer stays a "browse tasks to drag
+      // onto a project" view regardless of any existing project association.
+      const folderGroups = {};
+      const unfiledTasks = [];
+
+      tasks.forEach(t => {
+        if (t.folder_id) {
+          if (!folderGroups[t.folder_id]) folderGroups[t.folder_id] = { items: [] };
+          folderGroups[t.folder_id].items.push(t);
+        } else {
+          unfiledTasks.push(t);
+        }
+      });
+
+      let html = '';
+
+      // Render unfiled tasks
+      if (unfiledTasks.length > 0) {
+        html += '<div class="todo-group-header mb-2" data-folder-id="null" style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 4px; cursor: pointer; font-weight: 500;">Unfiled</div>';
+        html += unfiledTasks.map(t => `
+          <div class="todo-item" draggable="true" data-type="task" data-id="${t.id}" data-name="${app.escapeHtml(t.title)}" data-folder-id="null" style="padding: 0.25rem 0.5rem; cursor: move; margin-left: 0.5rem;">
+            <small><i class="bi bi-card-checklist"></i> ${app.escapeHtml(t.title)}</small>
+            <small class="text-muted float-end">→</small>
+          </div>
+        `).join('');
+      }
+
+      // Render tasks grouped by folder; the group header is itself a drag source
+      // (type "task-folder") so the whole folder can be dropped onto a project.
+      Object.entries(folderGroups).forEach(([folderId, group]) => {
+        const folder = folderById.get(parseInt(folderId));
+        const folderName = folder ? folder.name : 'Folder';
+        html += `<div class="todo-group-header mb-2" draggable="true" data-type="task-folder" data-id="${folderId}" data-name="${app.escapeHtml(folderName)}" data-folder-id="${folderId}" style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 4px; cursor: move; font-weight: 500;"><i class="bi bi-folder-check" style="transform: rotate(0deg); transition: transform 0.15s;"></i> ${app.escapeHtml(folderName)} (${group.items.length})</div>`;
+        html += group.items.map(t => `
+          <div class="todo-item" draggable="true" data-type="task" data-id="${t.id}" data-name="${app.escapeHtml(t.title)}" data-folder-id="${folderId}" style="padding: 0.25rem 0.5rem; cursor: move; margin-left: 1.5rem;">
+            <small><i class="bi bi-card-checklist"></i> ${app.escapeHtml(t.title)}</small>
+            <small class="text-muted float-end">→</small>
+          </div>
+        `).join('');
+      });
+
+      div.innerHTML = html || '<small class="text-muted">No tasks</small>';
+      setupDragListeners();
+    } else {
+      div.innerHTML = '<small class="text-muted">No tasks</small>';
+    }
+  } catch (error) {
+    console.error('Error loading tasks:', error);
   }
 }
 
@@ -300,11 +524,12 @@ async function linkToDoToPriority(toDoId, priorityId) {
         'Content-Type': 'application/json',
         'X-CSRF-Token': window.APP_CONFIG?.csrfToken
       },
-      body: JSON.stringify({ folder_id: priorityId })
+      body: JSON.stringify({ priority_id: priorityId })
     });
     const result = await response.json();
     if (result.success) {
       app.notify('To Do associated with project', 'success');
+      loadPriorities();
       loadPriorityRightPanel();
     } else {
       app.notify('Error: ' + result.message, 'danger');
@@ -312,6 +537,183 @@ async function linkToDoToPriority(toDoId, priorityId) {
   } catch (error) {
     console.error('Error linking to do to project:', error);
     app.notify('Error linking to do to project', 'danger');
+  }
+}
+
+async function unlinkToDoFromProject(toDoId) {
+  try {
+    const response = await fetch(`/api/to-dos/${toDoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: null })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('To Do removed from project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking to do from project:', error);
+    app.notify('Error unlinking to do from project', 'danger');
+  }
+}
+
+async function linkFolderToPriority(folderId, priorityId) {
+  try {
+    const response = await fetch(`/api/to-do-folders/${folderId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: priorityId })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Folder linked to project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error linking folder to project:', error);
+    app.notify('Error linking folder to project', 'danger');
+  }
+}
+
+async function unlinkFolderFromProject(folderId) {
+  try {
+    const response = await fetch(`/api/to-do-folders/${folderId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: null })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Folder removed from project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking folder from project:', error);
+    app.notify('Error unlinking folder from project', 'danger');
+  }
+}
+
+async function linkTaskToPriority(taskId, priorityId) {
+  try {
+    const response = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: priorityId })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Task associated with project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error linking task to project:', error);
+    app.notify('Error linking task to project', 'danger');
+  }
+}
+
+async function unlinkTaskFromProject(taskId) {
+  try {
+    const response = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: null })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Task removed from project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking task from project:', error);
+    app.notify('Error unlinking task from project', 'danger');
+  }
+}
+
+async function linkTaskFolderToPriority(folderId, priorityId) {
+  try {
+    const response = await fetch(`/api/task-folders/${folderId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: priorityId })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Folder linked to project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error linking task folder to project:', error);
+    app.notify('Error linking task folder to project', 'danger');
+  }
+}
+
+async function unlinkTaskFolderFromProject(folderId) {
+  try {
+    const response = await fetch(`/api/task-folders/${folderId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: null })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Folder removed from project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking task folder from project:', error);
+    app.notify('Error unlinking task folder from project', 'danger');
+  }
+}
+
+async function cycleProjectTaskStatus(taskId, currentStatus) {
+  const result = await app.cycleStatus(`/api/tasks/${taskId}`, currentStatus);
+  if (result.success) {
+    loadPriorities();
+  } else {
+    app.notify('Error: ' + result.message, 'danger');
   }
 }
 
@@ -357,6 +759,15 @@ async function deleteToDoFromProject(toDoId) {
   } catch (error) {
     console.error('Error deleting to do:', error);
     app.notify('Error deleting to do', 'danger');
+  }
+}
+
+async function cycleProjectToDoStatus(toDoId, currentStatus) {
+  const result = await app.cycleStatus(`/api/to-dos/${toDoId}`, currentStatus);
+  if (result.success) {
+    loadPriorities();
+  } else {
+    app.notify('Error: ' + result.message, 'danger');
   }
 }
 
@@ -424,7 +835,7 @@ async function savePriority() {
   }
 }
 
-async function editToDo(toDoId) {
+async function editProjectToDo(toDoId) {
   try {
     const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -439,14 +850,14 @@ async function editToDo(toDoId) {
 
     // Show todo form, hide priority form
     document.getElementById('priorityEditorForm').style.display = 'none';
-    document.getElementById('toDoEditorForm').style.display = 'block';
+    document.getElementById('projToDoEditorForm').style.display = 'block';
     document.getElementById('priorityEditorTitle').textContent = toDo.title;
 
     // Populate todo form
-    document.getElementById('toDoEditorId').value = toDo.id;
-    document.getElementById('toDoEditorFormTitle').value = toDo.title;
-    document.getElementById('toDoEditorNotes').value = toDo.notes || '';
-    document.getElementById('toDoEditorLinksList').innerHTML = '';
+    document.getElementById('projToDoEditorId').value = toDo.id;
+    document.getElementById('projToDoEditorFormTitle').value = toDo.title;
+    document.getElementById('projToDoEditorNotes').value = toDo.notes || '';
+    document.getElementById('projToDoEditorLinksList').innerHTML = '';
 
     window.prioritySplitPane.showRightPane();
   } catch (error) {
@@ -458,7 +869,7 @@ async function editToDo(toDoId) {
 async function editPriority(priorityId) {
   // Show priority form, hide todo form
   document.getElementById('priorityEditorForm').style.display = 'block';
-  document.getElementById('toDoEditorForm').style.display = 'none';
+  document.getElementById('projToDoEditorForm').style.display = 'none';
 
   await PriorityEditor.populate(priorityId);
 
@@ -530,6 +941,28 @@ function togglePriorityNode(nodeEl) {
     nodeEl.classList.remove('expanded');
   } else {
     expandedPriorities.add(id);
+    nodeEl.classList.add('expanded');
+  }
+}
+
+function toggleProjectFolderNode(nodeEl) {
+  const id = String(nodeEl.dataset.projectFolderId);
+  if (expandedProjectFolders.has(id)) {
+    expandedProjectFolders.delete(id);
+    nodeEl.classList.remove('expanded');
+  } else {
+    expandedProjectFolders.add(id);
+    nodeEl.classList.add('expanded');
+  }
+}
+
+function toggleProjectTaskFolderNode(nodeEl) {
+  const id = String(nodeEl.dataset.projectTaskFolderId);
+  if (expandedProjectTaskFolders.has(id)) {
+    expandedProjectTaskFolders.delete(id);
+    nodeEl.classList.remove('expanded');
+  } else {
+    expandedProjectTaskFolders.add(id);
     nodeEl.classList.add('expanded');
   }
 }
@@ -622,9 +1055,11 @@ function initPrioritiesEventListeners() {
   const container = document.getElementById('prioritiesList');
 
   app.bindInlineRename(container, '.priority-title', async (newTitle, titleEl) => {
-    const priorityId = titleEl.closest('.priority-node').dataset.priorityId;
+    const node = titleEl.closest('.priority-node');
+    const isTodo = node.classList.contains('todo-node');
+    const url = isTodo ? `/api/to-dos/${node.dataset.todoId}` : `/api/priorities/${node.dataset.priorityId}`;
     try {
-      const response = await fetch(`/api/priorities/${priorityId}`, {
+      const response = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -640,8 +1075,8 @@ function initPrioritiesEventListeners() {
       loadPriorities();
       return true;
     } catch (error) {
-      console.error('Error renaming project:', error);
-      app.notify('Error renaming project', 'danger');
+      console.error(`Error renaming ${isTodo ? 'to do' : 'project'}:`, error);
+      app.notify(`Error renaming ${isTodo ? 'to do' : 'project'}`, 'danger');
       return false;
     }
   });
@@ -653,11 +1088,14 @@ function initPrioritiesEventListeners() {
 
     e.dataTransfer.effectAllowed = 'move';
 
-    // Check if it's a todo or project
+    // Check if it's a todo, task, or project
     if (node.classList.contains('todo-node')) {
       e.dataTransfer.setData('type', 'todo');
       e.dataTransfer.setData('id', node.dataset.todoId);
-    } else {
+    } else if (node.classList.contains('task-node')) {
+      e.dataTransfer.setData('type', 'task');
+      e.dataTransfer.setData('id', node.dataset.taskId);
+    } else if (node.dataset.priorityId) {
       e.dataTransfer.setData('priority-id', node.dataset.priorityId);
     }
 
@@ -725,8 +1163,13 @@ function initPrioritiesEventListeners() {
     const priorityId = header.closest('.priority-node').dataset.priorityId;
 
     if (type === 'todo') {
-      // For todos, folder_id represents the associated project
       linkToDoToPriority(id, priorityId);
+    } else if (type === 'todo-folder') {
+      linkFolderToPriority(id, priorityId);
+    } else if (type === 'task') {
+      linkTaskToPriority(id, priorityId);
+    } else if (type === 'task-folder') {
+      linkTaskFolderToPriority(id, priorityId);
     } else {
       linkCategoryOrGoalToPriority(priorityId, type, id);
     }
@@ -734,7 +1177,7 @@ function initPrioritiesEventListeners() {
 
   container.addEventListener('click', (e) => {
     console.log('[Priorities] Click on:', e.target, 'closest priority-node-header:', e.target.closest('.priority-node-header'));
-    const actionBtn = e.target.closest('[data-action="delete"], [data-action="edit-todo"], [data-action="unlink"]');
+    const actionBtn = e.target.closest('[data-action="delete"], [data-action="edit-todo"], [data-action="unlink"], [data-action="unlink-folder"], [data-action="toggle-complete"]');
     if (actionBtn) {
       console.log('[Priorities] Action button:', actionBtn.dataset.action);
       if (actionBtn.dataset.action === 'delete') {
@@ -745,19 +1188,39 @@ function initPrioritiesEventListeners() {
           deletePriority(actionBtn.dataset.id);
         }
       } else if (actionBtn.dataset.action === 'unlink') {
-        const priorityNode = actionBtn.closest('.priority-node');
-        if (priorityNode && priorityNode.dataset.priorityId) {
-          deleteToDoFromProject(actionBtn.dataset.childId);
+        if (actionBtn.closest('.task-node')) {
+          unlinkTaskFromProject(actionBtn.dataset.childId);
+        } else {
+          unlinkToDoFromProject(actionBtn.dataset.childId);
+        }
+      } else if (actionBtn.dataset.action === 'unlink-folder') {
+        if (actionBtn.closest('.project-task-folder-node')) {
+          unlinkTaskFolderFromProject(actionBtn.dataset.folderId);
+        } else {
+          unlinkFolderFromProject(actionBtn.dataset.folderId);
         }
       } else if (actionBtn.dataset.action === 'edit-todo') {
         openToDoModal(actionBtn.dataset.id);
+      } else if (actionBtn.dataset.action === 'toggle-complete') {
+        if (actionBtn.closest('.task-node')) {
+          cycleProjectTaskStatus(actionBtn.dataset.id, actionBtn.dataset.status);
+        } else {
+          cycleProjectToDoStatus(actionBtn.dataset.id, actionBtn.dataset.status);
+        }
       }
       return;
     }
 
     const toggleIcon = e.target.closest('[data-action="toggle-expand"]');
     if (toggleIcon) {
-      togglePriorityNode(toggleIcon.closest('.priority-node'));
+      const toggleNode = toggleIcon.closest('.priority-node');
+      if (toggleNode.classList.contains('project-folder-node')) {
+        toggleProjectFolderNode(toggleNode);
+      } else if (toggleNode.classList.contains('project-task-folder-node')) {
+        toggleProjectTaskFolderNode(toggleNode);
+      } else {
+        togglePriorityNode(toggleNode);
+      }
       return;
     }
 
@@ -765,9 +1228,13 @@ function initPrioritiesEventListeners() {
     const header = e.target.closest('.priority-node-header');
     if (header) {
       const todoNode = header.closest('.todo-node');
+      const taskNode = header.closest('.task-node');
       if (todoNode && todoNode.dataset.todoId) {
         console.log('[Priorities] Opening todo:', todoNode.dataset.todoId);
-        editToDo(todoNode.dataset.todoId);
+        editProjectToDo(todoNode.dataset.todoId);
+      } else if (taskNode && taskNode.dataset.taskId) {
+        // Tasks don't have a quick-edit form embedded in the Projects page;
+        // editing happens on the Tasks tab itself.
       } else {
         const priorityNode = header.closest('.priority-node');
         if (priorityNode && priorityNode.dataset.priorityId) {
@@ -916,14 +1383,14 @@ function initPriorities() {
   }
 
   // Todo editor buttons
-  const saveToDoEditorBtn = document.getElementById('saveToDoEditorBtn');
-  const closeToDoEditorBtn = document.getElementById('closeToDoEditorBtn');
+  const saveToDoEditorBtn = document.getElementById('saveProjToDoEditorBtn');
+  const closeToDoEditorBtn = document.getElementById('closeProjToDoEditorBtn');
 
   if (saveToDoEditorBtn) {
     saveToDoEditorBtn.addEventListener('click', async () => {
-      const toDoId = document.getElementById('toDoEditorId').value;
-      const title = document.getElementById('toDoEditorFormTitle').value;
-      const notes = document.getElementById('toDoEditorNotes').value;
+      const toDoId = document.getElementById('projToDoEditorId').value;
+      const title = document.getElementById('projToDoEditorFormTitle').value;
+      const notes = document.getElementById('projToDoEditorNotes').value;
 
       if (!title.trim()) {
         app.notify('Title is required', 'warning');

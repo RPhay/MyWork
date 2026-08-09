@@ -340,6 +340,32 @@
     border-color: #28a745;
     color: #fff;
   }
+
+  .todo-item-checkbox.status-complete {
+    background: #28a745;
+    border-color: #28a745;
+    color: #fff;
+  }
+
+  .todo-item-checkbox.status-failed {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: #fff;
+  }
+
+  .todo-item-checkbox.status-skipped {
+    background: #6c757d;
+    border-color: #6c757d;
+    color: #fff;
+  }
+
+  /* Aggregate status shown on a project-linked folder - display only, not a
+     button. pointer-events: none also suppresses :hover so the colored
+     status backgrounds above don't flicker back to the default hover style. */
+  .todo-item-checkbox-readonly {
+    cursor: default;
+    pointer-events: none;
+  }
 </style>
 
 <script src="/js/linksHelper.js"></script>

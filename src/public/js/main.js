@@ -29,6 +29,10 @@ window.APP_ICONS = {
   idea: 'bi-lightbulb',
 };
 
+// Order a status checkbox cycles through on click, shared by every page that
+// renders a to-do or task row.
+window.STATUS_CYCLE = ['incomplete', 'complete', 'failed', 'skipped'];
+
 // Utility functions
 const app = {
   // Format date for display
@@ -146,6 +150,29 @@ const app = {
         resolve(false);
       }
     });
+  },
+
+  // Icon shown inside a status checkbox; empty for 'incomplete' (empty box).
+  statusIcon(status) {
+    return { complete: 'bi-check-lg', failed: 'bi-x-lg', skipped: 'bi-dash-lg' }[status] || '';
+  },
+
+  // Advance a to-do's or task's status to the next state in STATUS_CYCLE and
+  // save it; shared by every page that renders a status checkbox. `endpoint`
+  // is the full REST URL for the item being updated (e.g. `/api/to-dos/5` or
+  // `/api/tasks/5`).
+  async cycleStatus(endpoint, currentStatus) {
+    const idx = STATUS_CYCLE.indexOf(currentStatus);
+    const nextStatus = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+    const response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ status: nextStatus })
+    });
+    return response.json();
   },
 
   // For flat (non-hierarchical) drag-reorder lists: which half of the hovered

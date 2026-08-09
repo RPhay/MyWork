@@ -488,14 +488,25 @@ export async function createMssqlSchema(pool) {
       id INT IDENTITY(1,1) PRIMARY KEY,
       name NVARCHAR(255) NOT NULL,
       parent_id INT NULL,
+      priority_id INT NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       -- NO ACTION, not CASCADE - see the note on fk_areas_parent above.
-      CONSTRAINT fk_to_do_folders_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_do_folders](id) ON DELETE NO ACTION
+      CONSTRAINT fk_to_do_folders_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_do_folders](id) ON DELETE NO ACTION,
+      CONSTRAINT fk_to_do_folders_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
     )
   `,
   );
   await createUpdatedAtTrigger(pool, "to_do_folders");
+
+  // Backfill priority_id for pre-existing to_do_folders tables - see the matching
+  // note in mysqlSchema.js for why a whole folder can link to a project.
+  if (!(await columnExists(pool, "to_do_folders", "priority_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_do_folders] ADD priority_id INT NULL
+        CONSTRAINT fk_to_do_folders_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
+    `);
+  }
 
   await createTableIfNotExists(
     pool,
@@ -506,13 +517,40 @@ export async function createMssqlSchema(pool) {
       title NVARCHAR(255) NOT NULL,
       notes NVARCHAR(MAX),
       folder_id INT NULL,
+      priority_id INT NULL,
+      status NVARCHAR(20) NOT NULL DEFAULT 'incomplete',
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_to_dos_folder FOREIGN KEY (folder_id) REFERENCES [MyWork].[to_do_folders](id) ON DELETE SET NULL
+      CONSTRAINT fk_to_dos_folder FOREIGN KEY (folder_id) REFERENCES [MyWork].[to_do_folders](id) ON DELETE SET NULL,
+      CONSTRAINT fk_to_dos_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
     )
   `,
   );
   await createUpdatedAtTrigger(pool, "to_dos");
+
+  // Backfill for to_dos created before status existed.
+  if (!(await columnExists(pool, "to_dos", "status"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_dos] ADD status NVARCHAR(20) NOT NULL DEFAULT 'incomplete'
+    `);
+  }
+
+  // Backfill priority_id for pre-existing to_dos tables - see the matching note in
+  // mysqlSchema.js for why this is a separate column from folder_id.
+  if (!(await columnExists(pool, "to_dos", "priority_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_dos] ADD priority_id INT NULL
+        CONSTRAINT fk_to_dos_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
+    `);
+  }
+
+  // The boolean `completed` column was superseded by the 4-state `status` column
+  // above before it shipped; migrate any data and drop it on installs that already
+  // picked it up.
+  if (await columnExists(pool, "to_dos", "completed")) {
+    await pool.request().query(`UPDATE [MyWork].[to_dos] SET status = 'complete' WHERE completed = 1`);
+    await pool.request().query(`ALTER TABLE [MyWork].[to_dos] DROP COLUMN completed`);
+  }
 
   await createTableIfNotExists(
     pool,
@@ -633,18 +671,69 @@ export async function createMssqlSchema(pool) {
 
   await createTableIfNotExists(
     pool,
+    "task_folders",
+    `
+    CREATE TABLE [MyWork].[task_folders] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      name NVARCHAR(255) NOT NULL,
+      parent_id INT NULL,
+      priority_id INT NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      -- NO ACTION, not CASCADE - see the note on fk_areas_parent above.
+      CONSTRAINT fk_task_folders_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[task_folders](id) ON DELETE NO ACTION,
+      CONSTRAINT fk_task_folders_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "task_folders");
+
+  // Backfill priority_id for pre-existing task_folders tables
+  if (!(await columnExists(pool, "task_folders", "priority_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[task_folders] ADD priority_id INT NULL
+        CONSTRAINT fk_task_folders_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
+    `);
+  }
+
+  await createTableIfNotExists(
+    pool,
     "tasks",
     `
     CREATE TABLE [MyWork].[tasks] (
       id INT IDENTITY(1,1) PRIMARY KEY,
       title NVARCHAR(255) NOT NULL,
       notes NVARCHAR(MAX),
+      folder_id INT NULL,
+      priority_id INT NULL,
+      status NVARCHAR(20) NOT NULL DEFAULT 'incomplete',
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_tasks_folder FOREIGN KEY (folder_id) REFERENCES [MyWork].[task_folders](id) ON DELETE SET NULL,
+      CONSTRAINT fk_tasks_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
     )
   `,
   );
   await createUpdatedAtTrigger(pool, "tasks");
+
+  // Backfill folder_id/priority_id/status for pre-existing tasks tables
+  if (!(await columnExists(pool, "tasks", "folder_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[tasks] ADD folder_id INT NULL
+        CONSTRAINT fk_tasks_folder FOREIGN KEY REFERENCES [MyWork].[task_folders](id) ON DELETE SET NULL
+    `);
+  }
+  if (!(await columnExists(pool, "tasks", "priority_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[tasks] ADD priority_id INT NULL
+        CONSTRAINT fk_tasks_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
+    `);
+  }
+  if (!(await columnExists(pool, "tasks", "status"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[tasks] ADD status NVARCHAR(20) NOT NULL DEFAULT 'incomplete'
+    `);
+  }
 
   await createTableIfNotExists(
     pool,
@@ -922,6 +1011,7 @@ export async function createMssqlSchema(pool) {
     "idea_folders",
     "ideas",
     "tasks",
+    "task_folders",
     "tickets",
   ];
   for (const table of contextTables) {

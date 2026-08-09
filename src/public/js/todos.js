@@ -108,14 +108,19 @@ function renderToDoRow(toDo, depth) {
   const linksBadge = hasLinks
     ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
     : '';
+  const status = toDo.status || 'incomplete';
+  const statusIcon = app.statusIcon(status);
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
 
   return `
     <div class="todo-row" data-todo-id="${toDo.id}" data-type="todo" data-id="${toDo.id}" data-name="${app.escapeHtml(toDo.title)}" draggable="true">
       <span class="todo-name-cell">
         <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
         <span class="todo-folder-toggle"></span>
-        <i class="bi ${APP_ICONS.todo} text-muted" title="To Do"></i>
-        <span class="todo-title">${app.escapeHtml(toDo.title)}</span>
+        <button type="button" class="todo-item-checkbox ${status !== 'incomplete' ? 'status-' + status : ''}" data-action="toggle-complete" data-id="${toDo.id}" data-status="${status}" title="${statusLabel} — click to change" aria-label="${statusLabel} — click to change">
+          ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
+        </button>
+        <span class="todo-title" ${status === 'complete' ? 'style="text-decoration: line-through; opacity: 0.6;"' : ''}>${app.escapeHtml(toDo.title)}</span>
         ${itemsBadge}
         ${linksBadge}
       </span>
@@ -153,7 +158,6 @@ function renderFolderNode(folder, foldersByParent, toDosByFolder, depth) {
         </span>
         <span></span>
         <span class="todo-actions">
-          <button class="btn btn-sm btn-info" data-action="edit-folder" data-id="${folder.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-danger" data-action="delete-folder" data-id="${folder.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
         </span>
       </div>
@@ -451,6 +455,15 @@ async function deleteToDo(toDoId) {
   } catch (error) {
     console.error('Error:', error);
     app.notify('Error deleting to do', 'danger');
+  }
+}
+
+async function cycleToDoStatus(toDoId, currentStatus) {
+  const result = await app.cycleStatus(`/api/to-dos/${toDoId}`, currentStatus);
+  if (result.success) {
+    loadToDos();
+  } else {
+    app.notify('Error: ' + result.message, 'danger');
   }
 }
 
@@ -1057,9 +1070,9 @@ function initToDosEventListeners() {
       if (action === 'edit') editToDo(id);
       else if (action === 'delete') deleteToDo(id);
       else if (action === 'convert') openConvertToDoForm(id);
-      else if (action === 'edit-folder') editFolder(id);
       else if (action === 'delete-folder') deleteFolder(id);
       else if (action === 'toggle-expand') toggleFolderNode(actionBtn.closest('.todo-folder-node'));
+      else if (action === 'toggle-complete') cycleToDoStatus(id, actionBtn.dataset.status);
       return;
     }
 

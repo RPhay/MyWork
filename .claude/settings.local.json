@@ -65,7 +65,8 @@
       "Bash(sed -i 's/^export async function/async function/g' /Users/aslynn/git/github/MyWork/src/public/js/dataSourceAuth.js)",
       "Bash(sed -i 's/^export function/function/g' /Users/aslynn/git/github/MyWork/src/public/js/dataSourceAuth.js)",
       "Bash(sed -i 's/^export default/\\\\/\\\\/ export default/g' /Users/aslynn/git/github/MyWork/src/public/js/dataSourceAuth.js)",
-      "Bash(curl -s http://localhost:3000/)"
+      "Bash(curl -s http://localhost:3000/)",
+      "WebFetch(domain:www.autotrader.com)"
     ]
   }
 }

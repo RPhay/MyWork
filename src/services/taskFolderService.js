@@ -2,11 +2,11 @@ import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 
 export async function getAllFolders(contextId) {
-  return await db.query('SELECT * FROM to_do_folders WHERE context_id = ? OR context_id IS NULL ORDER BY name ASC', [contextId]);
+  return await db.query('SELECT * FROM task_folders WHERE context_id = ? OR context_id IS NULL ORDER BY name ASC', [contextId]);
 }
 
 export async function getFolderById(id) {
-  const folder = await db.queryOne('SELECT * FROM to_do_folders WHERE id = ?', [id]);
+  const folder = await db.queryOne('SELECT * FROM task_folders WHERE id = ?', [id]);
   if (!folder) {
     throw new NotFoundError('Folder not found');
   }
@@ -14,7 +14,7 @@ export async function getFolderById(id) {
 }
 
 async function getDescendantIds(id) {
-  const all = await db.query('SELECT id, parent_id FROM to_do_folders');
+  const all = await db.query('SELECT id, parent_id FROM task_folders');
   const descendants = new Set();
   const queue = [Number(id)];
 
@@ -39,7 +39,7 @@ export async function createFolder(data, contextId) {
   }
 
   const folderId = await db.insert(
-    'INSERT INTO to_do_folders (name, parent_id, context_id) VALUES (?, ?, ?)',
+    'INSERT INTO task_folders (name, parent_id, context_id) VALUES (?, ?, ?)',
     [name, parent_id || null, contextId]
   );
 
@@ -79,7 +79,7 @@ export async function updateFolder(id, data) {
   }
 
   // priority_id links/unlinks this whole folder to a project - independent of
-  // name/parent_id, and independent of any individual to-do's own priority_id.
+  // name/parent_id, and independent of any individual task's own priority_id.
   if (data.priority_id !== undefined) {
     setClauses.push('priority_id = ?');
     values.push(data.priority_id || null);
@@ -87,13 +87,13 @@ export async function updateFolder(id, data) {
 
   if (setClauses.length > 0) {
     values.push(id);
-    await db.update(`UPDATE to_do_folders SET ${setClauses.join(', ')} WHERE id = ?`, values);
+    await db.update(`UPDATE task_folders SET ${setClauses.join(', ')} WHERE id = ?`, values);
   }
 
   return getFolderById(id);
 }
 
 export async function deleteFolder(id) {
-  const affectedRows = await db.deleteRecord('DELETE FROM to_do_folders WHERE id = ?', [id]);
+  const affectedRows = await db.deleteRecord('DELETE FROM task_folders WHERE id = ?', [id]);
   return affectedRows > 0;
 }

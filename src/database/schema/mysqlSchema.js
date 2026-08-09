@@ -462,11 +462,22 @@ export async function createMysqlSchema(connection) {
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       parent_id INT,
+      priority_id INT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (parent_id) REFERENCES to_do_folders(id) ON DELETE CASCADE
+      FOREIGN KEY (parent_id) REFERENCES to_do_folders(id) ON DELETE CASCADE,
+      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
+
+  // Backfill priority_id for pre-existing to_do_folders tables. This lets a whole
+  // Todos-tab folder be linked to a project (live - shows whatever's currently in
+  // the folder), independent of any individual to-do's own priority_id.
+  if (!(await columnExists(connection, "to_do_folders", "priority_id"))) {
+    await connection.query(
+      "ALTER TABLE to_do_folders ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL",
+    );
+  }
 
   // Create to_dos table
   await connection.query(`
@@ -475,9 +486,12 @@ export async function createMysqlSchema(connection) {
       title VARCHAR(255) NOT NULL,
       notes LONGTEXT,
       folder_id INT,
+      priority_id INT,
+      status VARCHAR(20) NOT NULL DEFAULT 'incomplete',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (folder_id) REFERENCES to_do_folders(id) ON DELETE SET NULL
+      FOREIGN KEY (folder_id) REFERENCES to_do_folders(id) ON DELETE SET NULL,
+      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
 
@@ -486,6 +500,32 @@ export async function createMysqlSchema(connection) {
     await connection.query(
       "ALTER TABLE to_dos ADD COLUMN folder_id INT, ADD FOREIGN KEY (folder_id) REFERENCES to_do_folders(id) ON DELETE SET NULL",
     );
+  }
+
+  // Backfill priority_id for pre-existing to_dos tables. This is a separate column
+  // from folder_id (Todos-tab folder) so that a to-do's Projects-tab association is
+  // fully independent of its Todos-tab organization - they used to share folder_id,
+  // which conflated the two and could violate folder_id's FK to to_do_folders
+  // whenever a priority id didn't coincidentally also match a to_do_folders id.
+  if (!(await columnExists(connection, "to_dos", "priority_id"))) {
+    await connection.query(
+      "ALTER TABLE to_dos ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL",
+    );
+  }
+
+  // Backfill status for pre-existing to_dos tables
+  if (!(await columnExists(connection, "to_dos", "status"))) {
+    await connection.query(
+      "ALTER TABLE to_dos ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'incomplete'",
+    );
+  }
+
+  // The boolean `completed` column was superseded by the 4-state `status` column
+  // above before it shipped; migrate any data and drop it on installs that already
+  // picked it up.
+  if (await columnExists(connection, "to_dos", "completed")) {
+    await connection.query("UPDATE to_dos SET status = 'complete' WHERE completed = TRUE");
+    await connection.query("ALTER TABLE to_dos DROP COLUMN completed");
   }
 
   // Create to_do_items table (a to-do's checklist of 1-n sub-items)
@@ -582,16 +622,60 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Create task_folders table (supports sub-folders via parent_id, structurally
+  // identical to to_do_folders)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS task_folders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      parent_id INT,
+      priority_id INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (parent_id) REFERENCES task_folders(id) ON DELETE CASCADE,
+      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
+    )
+  `);
+
+  // Backfill priority_id for pre-existing task_folders tables
+  if (!(await columnExists(connection, "task_folders", "priority_id"))) {
+    await connection.query(
+      "ALTER TABLE task_folders ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL",
+    );
+  }
+
   // Create tasks table
   await connection.query(`
     CREATE TABLE IF NOT EXISTS tasks (
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
       notes LONGTEXT,
+      folder_id INT,
+      priority_id INT,
+      status VARCHAR(20) NOT NULL DEFAULT 'incomplete',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (folder_id) REFERENCES task_folders(id) ON DELETE SET NULL,
+      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
+
+  // Backfill folder_id/priority_id/status for pre-existing tasks tables
+  if (!(await columnExists(connection, "tasks", "folder_id"))) {
+    await connection.query(
+      "ALTER TABLE tasks ADD COLUMN folder_id INT, ADD FOREIGN KEY (folder_id) REFERENCES task_folders(id) ON DELETE SET NULL",
+    );
+  }
+  if (!(await columnExists(connection, "tasks", "priority_id"))) {
+    await connection.query(
+      "ALTER TABLE tasks ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL",
+    );
+  }
+  if (!(await columnExists(connection, "tasks", "status"))) {
+    await connection.query(
+      "ALTER TABLE tasks ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'incomplete'",
+    );
+  }
 
   // Create task_links table (1-n links associated with tasks)
   await connection.query(`
@@ -897,6 +981,7 @@ export async function createMysqlSchema(connection) {
     "idea_folders",
     "ideas",
     "tasks",
+    "task_folders",
     "tickets",
   ];
   for (const table of contextTables) {
