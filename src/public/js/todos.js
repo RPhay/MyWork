@@ -222,6 +222,9 @@ async function saveToDo() {
         }),
         new Promise(resolve => setTimeout(resolve, 500))
       ]);
+      // Force remove any lingering backdrop
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.style.overflow = '';
       loadToDos();
     } else {
       app.notify('Error: ' + result.message, 'danger');
