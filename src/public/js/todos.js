@@ -2,7 +2,8 @@
 if (!window.todoState) {
   window.todoState = {
     expandedTodos: new Set(),
-    allToDos: []
+    allToDos: [],
+    draggedTodoId: null
   };
 }
 
@@ -58,7 +59,7 @@ function renderToDoRow(toDo, depth, childrenMap, statusMap) {
 
   return `
     <div class="todo-node ${isExpanded ? 'expanded' : ''}" data-todo-id="${toDo.id}">
-      <div class="todo-row" data-type="todo" data-id="${toDo.id}" data-name="${app.escapeHtml(toDo.title)}" draggable="true">
+      <div class="todo-row" data-todo-id="${toDo.id}" data-type="todo" data-id="${toDo.id}" data-name="${app.escapeHtml(toDo.title)}" draggable="true" style="cursor: grab;">
         <span class="todo-name-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
           ${hasChildren
@@ -218,70 +219,49 @@ async function saveToDo() {
 }
 
 async function editToDo(toDoId) {
-  const editorPane = document.getElementById('todoEditorPane');
-  const useSplitPane = editorPane && window.todoSplitPane;
+  try {
+    const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to load to do');
+    }
+    const toDo = result.data;
 
-  if (useSplitPane) {
-    await TodoEditor.populate(toDoId);
+    // Populate modal form
+    document.getElementById('toDoId').value = toDo.id;
+    document.getElementById('toDoTitle').value = toDo.title;
+    document.getElementById('toDoNotes').value = toDo.notes || '';
+    renderToDoItemsEditor(toDo.items || [], 'toDoItemsList');
 
-    // Setup link input handlers for split-pane (TodoEditor handles the fetch)
-    const addEditorLinkBtn = document.getElementById('toDoEditorAddLinkBtn');
-    if (addEditorLinkBtn) {
-      addEditorLinkBtn.onclick = async (e) => {
+    // Load and display links
+    loadLinksForEntity('to-do', toDo.id, 'toDoLinksList');
+
+    // Setup link input handlers
+    const addLinkBtn = document.getElementById('addToDoLinkBtn');
+    if (addLinkBtn) {
+      addLinkBtn.onclick = async (e) => {
         e.preventDefault();
-        const url = document.getElementById('toDoEditorLinkUrl').value;
-        const title = document.getElementById('toDoEditorLinkTitle').value;
-        if (await addLinkToEntity('to-do', toDoId, url, title, 'toDoEditorLinksList')) {
-          document.getElementById('toDoEditorLinkUrl').value = '';
-          document.getElementById('toDoEditorLinkTitle').value = '';
+        const url = document.getElementById('toDoLinkUrl').value;
+        const title = document.getElementById('toDoLinkTitle').value;
+        if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoLinksList')) {
+          document.getElementById('toDoLinkUrl').value = '';
+          document.getElementById('toDoLinkTitle').value = '';
         }
       };
     }
-  } else {
-    try {
-      const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      const result = await response.json();
-      if (!result.success || !result.data) {
-        throw new Error(result.message || 'Failed to load to do');
-      }
-      const toDo = result.data;
 
-      // Populate modal form
-      document.getElementById('toDoId').value = toDo.id;
-      document.getElementById('toDoTitle').value = toDo.title;
-      document.getElementById('toDoNotes').value = toDo.notes || '';
-      renderToDoItemsEditor(toDo.items || [], 'toDoItemsList');
+    // Setup URL drag-drop
+    setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
 
-      // Load and display links
-      loadLinksForEntity('to-do', toDo.id, 'toDoLinksList');
-
-      // Setup link input handlers
-      const addLinkBtn = document.getElementById('addToDoLinkBtn');
-      if (addLinkBtn) {
-        addLinkBtn.onclick = async (e) => {
-          e.preventDefault();
-          const url = document.getElementById('toDoLinkUrl').value;
-          const title = document.getElementById('toDoLinkTitle').value;
-          if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoLinksList')) {
-            document.getElementById('toDoLinkUrl').value = '';
-            document.getElementById('toDoLinkTitle').value = '';
-          }
-        };
-      }
-
-      // Setup URL drag-drop
-      setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
-
-      // Show modal
-      const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
-      modal.show();
-    } catch (error) {
-      console.error('Error:', error);
-      app.notify('Error loading to do', 'danger');
-    }
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
+    modal.show();
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error loading to do', 'danger');
   }
 }
 
@@ -316,45 +296,6 @@ async function cycleToDoStatus(toDoId, currentStatus) {
   }
 }
 
-async function saveToDoEditor() {
-  const toDoId = document.getElementById('toDoEditorId').value;
-
-  const data = {
-    title: document.getElementById('toDoEditorFormTitle').value,
-    notes: document.getElementById('toDoEditorNotes').value
-  };
-
-  try {
-    const url = toDoId ? `/api/to-dos/${toDoId}` : '/api/to-dos';
-    const method = toDoId ? 'PUT' : 'POST';
-
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('To do saved!', 'success');
-      loadToDos();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving to do', 'danger');
-  }
-}
-
-function closeToDoEditor() {
-  if (window.todoSplitPane) {
-    window.todoSplitPane.hideRightPane();
-  }
-}
 
 function setupDragListeners() {
   const container = document.getElementById('toDosList');
@@ -484,19 +425,6 @@ async function updateToDoParent(toDoId, parentId) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize split-pane if it exists
-  const splitPaneContainer = document.getElementById('todoSplitPane');
-  const editorPane = document.getElementById('todoEditorPane');
-  if (splitPaneContainer && editorPane) {
-    window.todoSplitPane = new SplitPane(
-      document.getElementById('todoListPane'),
-      editorPane,
-      document.getElementById('todoDivider')
-    );
-    TodoEditor.init(window.todoSplitPane, 'toDoEditorForm');
-    editorPane.classList.add('hidden');
-  }
-
   loadToDos();
 
   const addBtn = document.getElementById('addToDoBtn');
@@ -512,15 +440,5 @@ document.addEventListener('DOMContentLoaded', () => {
   const addItemBtn = document.getElementById('addToDoItemBtn');
   if (addItemBtn) {
     addItemBtn.addEventListener('click', addToDoItemRow);
-  }
-
-  const saveEditorBtn = document.getElementById('saveToDoEditorBtn');
-  if (saveEditorBtn) {
-    saveEditorBtn.addEventListener('click', saveToDoEditor);
-  }
-
-  const closeEditorBtn = document.getElementById('closeToDoEditorBtn');
-  if (closeEditorBtn) {
-    closeEditorBtn.addEventListener('click', closeToDoEditor);
   }
 });

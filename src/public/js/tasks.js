@@ -2,7 +2,8 @@
 if (!window.taskState) {
   window.taskState = {
     expandedTasks: new Set(),
-    allTasks: []
+    allTasks: [],
+    draggedTaskId: null
   };
 }
 
@@ -62,7 +63,7 @@ function renderTaskRow(task, depth, childrenMap, statusMap) {
 
   return `
     <div class="task-node ${isExpanded ? 'expanded' : ''}" data-task-id="${task.id}">
-      <div class="task-row" data-type="task" data-id="${task.id}" data-name="${app.escapeHtml(task.title)}" draggable="true">
+      <div class="task-row" data-task-id="${task.id}" data-type="task" data-id="${task.id}" data-name="${app.escapeHtml(task.title)}" draggable="true" style="cursor: grab;">
         <span class="task-name-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
           ${hasChildren
@@ -258,97 +259,71 @@ async function cycleTaskStatus(taskId, currentStatus) {
   }
 }
 
-async function saveTaskEditor() {
-  const taskId = document.getElementById('taskEditorId').value;
-
-  const data = {
-    title: document.getElementById('taskEditorFormTitle').value,
-    notes: document.getElementById('taskEditorNotes').value
-  };
-
-  try {
-    const url = taskId ? `/api/tasks/${taskId}` : '/api/tasks';
-    const method = taskId ? 'PUT' : 'POST';
-
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Task saved!', 'success');
-      loadTasks();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving task', 'danger');
-  }
-}
-
 function setupDragListeners() {
   const container = document.getElementById('tasksList');
+  if (!container) return;
 
-  container.addEventListener('dragstart', (e) => {
+  // Clear existing listeners by cloning and replacing
+  const newContainer = container.cloneNode(false);
+  container.parentNode.replaceChild(newContainer, container);
+
+  newContainer.addEventListener('dragstart', (e) => {
     const row = e.target.closest('.task-row');
     if (!row) return;
 
-    const taskId = row.getAttribute('data-id');
+    const taskId = row.getAttribute('data-task-id');
     const name = row.getAttribute('data-name');
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', `${taskId}|${name}`);
+    e.dataTransfer.setData('application/json', JSON.stringify({ taskId, name }));
+    row.style.opacity = '0.5';
   });
 
-  container.addEventListener('dragover', (e) => {
+  newContainer.addEventListener('dragend', (e) => {
+    const row = e.target.closest('.task-row');
+    if (row) row.style.opacity = '1';
+  });
+
+  newContainer.addEventListener('dragover', (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
     const row = e.target.closest('.task-row');
     if (row) {
       row.classList.add('task-drop-target');
-    } else if (e.target === container || e.target.closest('#tasksList')) {
-      container.classList.add('task-drop-target-root');
     }
   });
 
-  container.addEventListener('dragleave', (e) => {
-    if (!e.relatedTarget?.closest('.task-row')) {
-      document.querySelectorAll('.task-row').forEach(r => r.classList.remove('task-drop-target'));
-    }
-    if (!e.relatedTarget?.closest('#tasksList')) {
-      container.classList.remove('task-drop-target-root');
+  newContainer.addEventListener('dragleave', (e) => {
+    const row = e.target.closest('.task-row');
+    if (row && !e.relatedTarget?.closest('.task-row[data-task-id="' + row.getAttribute('data-task-id') + '"]')) {
+      row.classList.remove('task-drop-target');
     }
   });
 
-  container.addEventListener('drop', async (e) => {
+  newContainer.addEventListener('drop', async (e) => {
     e.preventDefault();
-    container.classList.remove('task-drop-target-root');
     document.querySelectorAll('.task-row').forEach(r => r.classList.remove('task-drop-target'));
 
-    const data = e.dataTransfer.getData('text/plain');
-    if (!data) return;
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+      const taskId = data.taskId;
+      const dropTarget = e.target.closest('.task-row');
 
-    const [taskId] = data.split('|');
-    const dropTarget = e.target.closest('.task-row');
-
-    if (dropTarget) {
-      const parentId = dropTarget.getAttribute('data-id');
-      if (Number(parentId) === Number(taskId)) return;
-
-      await updateTaskParent(taskId, parentId);
-    } else {
-      await updateTaskParent(taskId, null);
+      if (dropTarget) {
+        const parentId = dropTarget.getAttribute('data-task-id');
+        if (Number(parentId) !== Number(taskId)) {
+          await updateTaskParent(taskId, parentId);
+        }
+      } else {
+        await updateTaskParent(taskId, null);
+      }
+    } catch (error) {
+      console.error('Error handling drop:', error);
     }
   });
 
   // Toggle expand/collapse
-  container.addEventListener('click', (e) => {
+  newContainer.addEventListener('click', (e) => {
     if (e.target.classList.contains('task-folder-toggle')) {
       const row = e.target.closest('.task-row');
       const node = row?.closest('.task-node');
@@ -361,34 +336,38 @@ function setupDragListeners() {
         }
         renderTasksList();
       }
+      e.stopPropagation();
     }
   });
 
   // Status toggle
-  container.addEventListener('click', (e) => {
+  newContainer.addEventListener('click', (e) => {
     if (e.target.closest('.todo-item-checkbox[data-action="toggle-complete"]')) {
       const btn = e.target.closest('.todo-item-checkbox[data-action="toggle-complete"]');
       const taskId = btn.getAttribute('data-id');
       const status = btn.getAttribute('data-status');
       cycleTaskStatus(taskId, status);
+      e.stopPropagation();
     }
   });
 
   // Delete
-  container.addEventListener('click', (e) => {
+  newContainer.addEventListener('click', (e) => {
     if (e.target.closest('button[data-action="delete"]')) {
       const btn = e.target.closest('button[data-action="delete"]');
       const taskId = btn.getAttribute('data-id');
       deleteTask(taskId);
+      e.stopPropagation();
     }
   });
 
   // Edit
-  container.addEventListener('click', (e) => {
+  newContainer.addEventListener('click', (e) => {
     if (e.target.closest('.task-title')) {
       const row = e.target.closest('.task-row');
-      const taskId = row.getAttribute('data-id');
+      const taskId = row.getAttribute('data-task-id');
       openTaskForm(taskId);
+      e.stopPropagation();
     }
   });
 }
@@ -420,19 +399,6 @@ async function updateTaskParent(taskId, parentId) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize split-pane if it exists
-  const splitPaneContainer = document.getElementById('taskSplitPane');
-  const editorPane = document.getElementById('taskEditorPane');
-  if (splitPaneContainer && editorPane) {
-    window.taskSplitPane = new SplitPane(
-      document.getElementById('taskListPane'),
-      editorPane,
-      document.getElementById('taskDivider')
-    );
-    TaskEditor.init(window.taskSplitPane, 'taskEditorForm');
-    editorPane.classList.add('hidden');
-  }
-
   loadTasks();
 
   const addBtn = document.getElementById('addTaskBtn');
@@ -443,15 +409,5 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveBtn = document.getElementById('saveTaskBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', saveTask);
-  }
-
-  const saveEditorBtn = document.getElementById('saveTaskEditorBtn');
-  if (saveEditorBtn) {
-    saveEditorBtn.addEventListener('click', saveTaskEditor);
-  }
-
-  const closeEditorBtn = document.getElementById('closeTaskEditorBtn');
-  if (closeEditorBtn) {
-    closeEditorBtn.addEventListener('click', closeTaskEditor);
   }
 });
