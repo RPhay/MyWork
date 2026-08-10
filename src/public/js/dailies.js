@@ -906,7 +906,6 @@ function closeAddItemPicker() {
 function initAddItemPickerResize() {
   const pickerPanel = document.getElementById("addItemPickerPanel");
   const resizeHandle = document.getElementById("addItemPickerResizeHandle");
-  const outerSplitPane = document.getElementById("dailiesOuterSplitPane");
 
   if (!resizeHandle || !pickerPanel) return;
 
@@ -924,12 +923,9 @@ function initAddItemPickerResize() {
     const containerRect = pickerPanel.parentElement.getBoundingClientRect();
     const newWidth = e.clientX - containerRect.left;
 
-    // Constrain width between 200px and 600px
-    if (newWidth >= 200 && newWidth <= 600) {
+    // Constrain width between 250px and 800px
+    if (newWidth >= 250 && newWidth <= 800) {
       pickerPanel.style.width = newWidth + "px";
-      if (outerSplitPane) {
-        outerSplitPane.style.marginLeft = newWidth + "px";
-      }
     }
   });
 
