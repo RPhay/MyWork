@@ -101,6 +101,7 @@ function renderToDosList() {
     .map(t => renderToDoRow(t, 0, childrenMap, statusMap))
     .join('');
 
+  // Re-attach drag listeners without cloning (listeners were lost on innerHTML change)
   setupDragListeners();
 }
 
@@ -311,11 +312,7 @@ function setupDragListeners() {
   const container = document.getElementById('toDosList');
   if (!container) return;
 
-  // Clone and replace to remove old listeners
-  const newContainer = container.cloneNode(false);
-  container.parentNode.replaceChild(newContainer, container);
-
-  newContainer.addEventListener('dragstart', (e) => {
+  container.addEventListener('dragstart', (e) => {
     const row = e.target.closest('.todo-row');
     if (!row) return;
 
@@ -325,7 +322,7 @@ function setupDragListeners() {
     e.dataTransfer.setData('text/plain', `${toDoId}|${name}`);
   });
 
-  newContainer.addEventListener('dragover', (e) => {
+  container.addEventListener('dragover', (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
@@ -333,20 +330,20 @@ function setupDragListeners() {
     if (row) {
       row.classList.add('todo-drop-target');
     } else if (e.target === container || e.target.closest('#toDosList')) {
-      newContainer.classList.add('todo-drop-target-root');
+      container.classList.add('todo-drop-target-root');
     }
   });
 
-  newContainer.addEventListener('dragleave', (e) => {
+  container.addEventListener('dragleave', (e) => {
     if (!e.relatedTarget?.closest('.todo-row')) {
       document.querySelectorAll('.todo-row').forEach(r => r.classList.remove('todo-drop-target'));
     }
     if (!e.relatedTarget?.closest('#toDosList')) {
-      newContainer.classList.remove('todo-drop-target-root');
+      container.classList.remove('todo-drop-target-root');
     }
   });
 
-  newContainer.addEventListener('drop', async (e) => {
+  container.addEventListener('drop', async (e) => {
     e.preventDefault();
     container.classList.remove('todo-drop-target-root');
     document.querySelectorAll('.todo-row').forEach(r => r.classList.remove('todo-drop-target'));

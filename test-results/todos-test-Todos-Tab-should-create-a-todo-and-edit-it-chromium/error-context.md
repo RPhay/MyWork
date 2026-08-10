@@ -16,21 +16,21 @@ Error: expect(locator).toContainText(expected) failed
 
 Locator: locator('.todo-title').first()
 Expected substring: "Test Todo 1"
-Received string:    "Todo to Edit"
+Received string:    "Parent Todo"
 Timeout: 5000ms
 
 Call log:
   - Expect "toContainText" with timeout 5000ms
   - waiting for locator('.todo-title').first()
-    10 × locator resolved to <span class="todo-title">Child Todo</span>
-       - unexpected value "Child Todo"
-    3 × locator resolved to <span class="todo-title">Todo to Edit</span>
+    6 × locator resolved to <span class="todo-title">Todo to Edit</span>
       - unexpected value "Todo to Edit"
+    8 × locator resolved to <span class="todo-title">Parent Todo</span>
+      - unexpected value "Parent Todo"
 
 ```
 
 ```yaml
-- text: Todo to Edit
+- text: Parent Todo
 ```
 
 # Test source
