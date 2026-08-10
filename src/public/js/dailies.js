@@ -957,13 +957,23 @@ async function editWorkItem(workId) {
     const result = await response.json();
     const item = result.data;
 
-    document.getElementById("workItemEditorId").value = item.id;
-    document.getElementById("workItemEditorTitle").value = item.title;
-    document.getElementById("workItemEditorDisplayTitle").textContent = item.title;
-    document.getElementById("workItemEditorDescription").value = item.description;
-    document.getElementById("workItemEditorEmoji").value = item.emoji || "";
-    document.getElementById("workItemEditorStatus").value = item.status || "";
-    document.getElementById("workItemEditorTimeBox").value = item.time_box_minutes ? (item.time_box_minutes / 60).toFixed(1) : "";
+    const setFieldValue = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    };
+
+    const setFieldText = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+
+    setFieldValue("workItemEditorId", item.id);
+    setFieldValue("workItemEditorTitle", item.title);
+    setFieldText("workItemEditorDisplayTitle", item.title);
+    setFieldValue("workItemEditorDescription", item.description);
+    setFieldValue("workItemEditorEmoji", item.emoji || "");
+    setFieldValue("workItemEditorStatus", item.status || "");
+    setFieldValue("workItemEditorTimeBox", item.time_box_minutes ? (item.time_box_minutes / 60).toFixed(1) : "");
     updateEmojiFieldButton("workItemEditorEmojiBtn", item.emoji || "");
 
     // Show split-pane editor
@@ -971,7 +981,7 @@ async function editWorkItem(workId) {
       dailiesSplitPane.showRightPane();
     }
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error loading work item:", error);
     app.notify("Error loading work item", "danger");
   }
 }

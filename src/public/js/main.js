@@ -145,10 +145,22 @@ const app = {
   confirm(message, title = 'Confirm Action') {
     return new Promise((resolve) => {
       const modalElement = document.getElementById('confirmModal');
+      if (!modalElement) {
+        // Fallback to browser confirm if modal doesn't exist
+        resolve(window.confirm(message));
+        return;
+      }
+
       const titleElement = document.getElementById('confirmModalTitle');
       const messageElement = document.getElementById('confirmModalMessage');
       const confirmBtn = document.getElementById('confirmModalConfirm');
       const cancelBtn = document.getElementById('confirmModalCancel');
+
+      if (!titleElement || !messageElement || !confirmBtn || !cancelBtn) {
+        // Fallback to browser confirm if any element is missing
+        resolve(window.confirm(message));
+        return;
+      }
 
       titleElement.textContent = title;
       messageElement.textContent = message;
