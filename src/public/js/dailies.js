@@ -877,7 +877,9 @@ async function addItemToDailies(itemType, itemId) {
       app.notify(`Added "${item.title || item.name}" to dailies`, 'success');
       loadWorkItems();
       loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
-      closeAddItemPicker();
+      // Switch back to calendar tab to show the newly added item
+      const calendarTab = document.getElementById("calendar-tab");
+      if (calendarTab) calendarTab.click();
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -888,53 +890,12 @@ async function addItemToDailies(itemType, itemId) {
 }
 
 function openAddItemPicker() {
-  const pickerPanel = document.getElementById("addItemPickerPanel");
-  if (pickerPanel) {
-    pickerPanel.classList.remove("hidden");
+  // Click the "Work Picker" tab to show it
+  const pickerTab = document.getElementById("picker-tab");
+  if (pickerTab) {
+    pickerTab.click();
     loadItemsForModal();
-    initAddItemPickerResize();
   }
-}
-
-function closeAddItemPicker() {
-  const pickerPanel = document.getElementById("addItemPickerPanel");
-  if (pickerPanel) {
-    pickerPanel.classList.add("hidden");
-  }
-}
-
-function initAddItemPickerResize() {
-  const pickerPanel = document.getElementById("addItemPickerPanel");
-  const resizeHandle = document.getElementById("addItemPickerResizeHandle");
-
-  if (!resizeHandle || !pickerPanel) return;
-
-  let isResizing = false;
-
-  resizeHandle.addEventListener("mousedown", (e) => {
-    isResizing = true;
-    document.body.style.cursor = "col-resize";
-    e.preventDefault();
-  });
-
-  document.addEventListener("mousemove", (e) => {
-    if (!isResizing) return;
-
-    const containerRect = pickerPanel.parentElement.getBoundingClientRect();
-    const newWidth = e.clientX - containerRect.left;
-
-    // Constrain width between 250px and 800px
-    if (newWidth >= 250 && newWidth <= 800) {
-      pickerPanel.style.width = newWidth + "px";
-    }
-  });
-
-  document.addEventListener("mouseup", () => {
-    if (isResizing) {
-      isResizing = false;
-      document.body.style.cursor = "auto";
-    }
-  });
 }
 
 function openNewWorkForm() {
@@ -2231,16 +2192,10 @@ function initDailiesEventListeners() {
     .getElementById("importOutlookEmailsBtn")
     ?.addEventListener("click", importSelectedOutlookEmails);
 
-  // Handle close button for add item picker
-  const closePickerBtn = document.getElementById("closeAddItemPickerBtn");
-  if (closePickerBtn) {
-    closePickerBtn.addEventListener("click", closeAddItemPicker);
-  }
-
-  // Handle clicking items in the "Add item to dailies" panel
-  const addItemPickerPanel = document.getElementById("addItemPickerPanel");
-  if (addItemPickerPanel) {
-    addItemPickerPanel.addEventListener("click", (e) => {
+  // Handle clicking items in the work picker
+  const pickerPane = document.getElementById("picker-pane");
+  if (pickerPane) {
+    pickerPane.addEventListener("click", (e) => {
       const addItemBtn = e.target.closest("[data-action='add-item-to-dailies']");
       if (addItemBtn) {
         const itemType = addItemBtn.dataset.itemType;

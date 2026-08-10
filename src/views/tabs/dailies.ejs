@@ -71,9 +71,111 @@
 
   <!-- Outer Split Pane (Calendar | Content) -->
   <div class="split-pane-container" id="dailiesOuterSplitPane" style="flex: 1; display: flex; gap: 0; overflow: hidden;">
-    <!-- Left Pane: Calendar -->
-    <div class="split-pane-left" id="dailiesCalendarPane" style="overflow-y: auto; padding: 15px; font-size: 0.9rem;">
-      <div id="calendar"></div>
+    <!-- Left Pane: Tabbed Calendar/Picker -->
+    <div class="split-pane-left" id="dailiesCalendarPane" style="display: flex; flex-direction: column; overflow: hidden;">
+      <!-- Tabs -->
+      <ul class="nav nav-tabs" role="tablist" style="border-bottom: 1px solid #dee2e6; margin: 0; padding: 0 15px; padding-top: 15px;">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="calendar-tab" data-bs-toggle="tab" data-bs-target="#calendar-pane" type="button" role="tab" aria-controls="calendar-pane" aria-selected="true">Calendar</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="picker-tab" data-bs-toggle="tab" data-bs-target="#picker-pane" type="button" role="tab" aria-controls="picker-pane" aria-selected="false">Work Picker</button>
+        </li>
+      </ul>
+
+      <!-- Tab Content -->
+      <div class="tab-content" style="flex: 1; overflow: hidden;">
+        <!-- Calendar Tab -->
+        <div class="tab-pane fade show active" id="calendar-pane" role="tabpanel" aria-labelledby="calendar-tab" style="overflow-y: auto; padding: 15px; font-size: 0.9rem; height: 100%;">
+          <div id="calendar"></div>
+        </div>
+
+        <!-- Work Picker Tab -->
+        <div class="tab-pane fade" id="picker-pane" role="tabpanel" aria-labelledby="picker-tab" style="overflow-y: auto; padding: 15px; height: 100%;">
+          <!-- Tabs for different item types -->
+          <ul class="nav nav-tabs mb-3" id="addItemTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="project-tab" data-bs-toggle="tab" data-bs-target="#project-content" type="button" role="tab" aria-controls="project-content" aria-selected="true">Project</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="task-tab" data-bs-toggle="tab" data-bs-target="#task-content" type="button" role="tab" aria-controls="task-content" aria-selected="false">Task</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="ticket-tab" data-bs-toggle="tab" data-bs-target="#ticket-content" type="button" role="tab" aria-controls="ticket-content" aria-selected="false">Ticket</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="idea-tab" data-bs-toggle="tab" data-bs-target="#idea-content" type="button" role="tab" aria-controls="idea-content" aria-selected="false">Brainstorm</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="template-tab" data-bs-toggle="tab" data-bs-target="#template-content" type="button" role="tab" aria-controls="template-content" aria-selected="false">Template</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="goal-tab" data-bs-toggle="tab" data-bs-target="#goal-content" type="button" role="tab" aria-controls="goal-content" aria-selected="false">Goal</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="todo-tab" data-bs-toggle="tab" data-bs-target="#todo-content" type="button" role="tab" aria-controls="todo-content" aria-selected="false">To Do</button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="addItemTabContent">
+            <!-- Project Tab -->
+            <div class="tab-pane fade show active" id="project-content" role="tabpanel" aria-labelledby="project-tab">
+              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="priority">+ Create New Project</button>
+              <div id="projectsList" class="list-group">
+                <p class="text-muted small">Loading projects...</p>
+              </div>
+            </div>
+
+            <!-- Task Tab -->
+            <div class="tab-pane fade" id="task-content" role="tabpanel" aria-labelledby="task-tab">
+              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="task">+ Create New Task</button>
+              <div id="tasksList" class="list-group">
+                <p class="text-muted small">Loading tasks...</p>
+              </div>
+            </div>
+
+            <!-- Ticket Tab -->
+            <div class="tab-pane fade" id="ticket-content" role="tabpanel" aria-labelledby="ticket-tab">
+              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="ticket">+ Create New Ticket</button>
+              <div id="ticketsList" class="list-group">
+                <p class="text-muted small">Loading tickets...</p>
+              </div>
+            </div>
+
+            <!-- Brainstorm Tab -->
+            <div class="tab-pane fade" id="idea-content" role="tabpanel" aria-labelledby="idea-tab">
+              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="idea">+ Create New Brainstorm</button>
+              <div id="ideaList" class="list-group">
+                <p class="text-muted small">Loading brainstorms...</p>
+              </div>
+            </div>
+
+            <!-- Template Tab -->
+            <div class="tab-pane fade" id="template-content" role="tabpanel" aria-labelledby="template-tab">
+              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="template">+ Create New Template</button>
+              <div id="templatesList" class="list-group">
+                <p class="text-muted small">Loading templates...</p>
+              </div>
+            </div>
+
+            <!-- Goal Tab -->
+            <div class="tab-pane fade" id="goal-content" role="tabpanel" aria-labelledby="goal-tab">
+              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="goal">+ Create New Goal</button>
+              <div id="goalsList" class="list-group">
+                <p class="text-muted small">Loading goals...</p>
+              </div>
+            </div>
+
+            <!-- To Do Tab -->
+            <div class="tab-pane fade" id="todo-content" role="tabpanel" aria-labelledby="todo-tab">
+              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="todo">+ Create New To Do</button>
+              <div id="todosList" class="list-group">
+                <p class="text-muted small">Loading to dos...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Divider between calendar and work items -->
@@ -163,102 +265,6 @@
     </div>
   </div>
 
-  <!-- Add Item Picker Panel (Left Overlay with Resize) -->
-  <div id="addItemPickerPanel" class="add-item-picker-panel hidden">
-    <div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-      <div style="padding: 15px; border-bottom: 1px solid #dee2e6; flex-shrink: 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <h6 class="mb-0">Add Item</h6>
-          <button type="button" class="btn-close" id="closeAddItemPickerBtn"></button>
-        </div>
-      </div>
-      <div style="flex: 1; overflow-y: auto; padding: 15px;">
-        <!-- Tabs for different item types -->
-        <ul class="nav nav-tabs mb-3" id="addItemTabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="project-tab" data-bs-toggle="tab" data-bs-target="#project-content" type="button" role="tab" aria-controls="project-content" aria-selected="true">Project</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="task-tab" data-bs-toggle="tab" data-bs-target="#task-content" type="button" role="tab" aria-controls="task-content" aria-selected="false">Task</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="ticket-tab" data-bs-toggle="tab" data-bs-target="#ticket-content" type="button" role="tab" aria-controls="ticket-content" aria-selected="false">Ticket</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="idea-tab" data-bs-toggle="tab" data-bs-target="#idea-content" type="button" role="tab" aria-controls="idea-content" aria-selected="false">Brainstorm</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="template-tab" data-bs-toggle="tab" data-bs-target="#template-content" type="button" role="tab" aria-controls="template-content" aria-selected="false">Template</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="goal-tab" data-bs-toggle="tab" data-bs-target="#goal-content" type="button" role="tab" aria-controls="goal-content" aria-selected="false">Goal</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="todo-tab" data-bs-toggle="tab" data-bs-target="#todo-content" type="button" role="tab" aria-controls="todo-content" aria-selected="false">To Do</button>
-          </li>
-        </ul>
-
-        <div class="tab-content" id="addItemTabContent">
-          <!-- Project Tab -->
-          <div class="tab-pane fade show active" id="project-content" role="tabpanel" aria-labelledby="project-tab">
-            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="priority">+ Create New Project</button>
-            <div id="projectsList" class="list-group">
-              <p class="text-muted small">Loading projects...</p>
-            </div>
-          </div>
-
-          <!-- Task Tab -->
-          <div class="tab-pane fade" id="task-content" role="tabpanel" aria-labelledby="task-tab">
-            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="task">+ Create New Task</button>
-            <div id="tasksList" class="list-group">
-              <p class="text-muted small">Loading tasks...</p>
-            </div>
-          </div>
-
-          <!-- Ticket Tab -->
-          <div class="tab-pane fade" id="ticket-content" role="tabpanel" aria-labelledby="ticket-tab">
-            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="ticket">+ Create New Ticket</button>
-            <div id="ticketsList" class="list-group">
-              <p class="text-muted small">Loading tickets...</p>
-            </div>
-          </div>
-
-          <!-- Brainstorm Tab -->
-          <div class="tab-pane fade" id="idea-content" role="tabpanel" aria-labelledby="idea-tab">
-            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="idea">+ Create New Brainstorm</button>
-            <div id="ideaList" class="list-group">
-              <p class="text-muted small">Loading brainstorms...</p>
-            </div>
-          </div>
-
-          <!-- Template Tab -->
-          <div class="tab-pane fade" id="template-content" role="tabpanel" aria-labelledby="template-tab">
-            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="template">+ Create New Template</button>
-            <div id="templatesList" class="list-group">
-              <p class="text-muted small">Loading templates...</p>
-            </div>
-          </div>
-
-          <!-- Goal Tab -->
-          <div class="tab-pane fade" id="goal-content" role="tabpanel" aria-labelledby="goal-tab">
-            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="goal">+ Create New Goal</button>
-            <div id="goalsList" class="list-group">
-              <p class="text-muted small">Loading goals...</p>
-            </div>
-          </div>
-
-          <!-- To Do Tab -->
-          <div class="tab-pane fade" id="todo-content" role="tabpanel" aria-labelledby="todo-tab">
-            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="todo">+ Create New To Do</button>
-            <div id="todosList" class="list-group">
-              <p class="text-muted small">Loading to dos...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div id="addItemPickerResizeHandle" class="split-pane-divider" style="position: absolute; right: 0; top: 0; height: 100%;"></div>
-  </div>
 </div>
 
 
@@ -363,34 +369,6 @@
     cursor: pointer;
   }
 
-  .add-item-picker-panel {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 400px;
-    height: 100%;
-    background: white;
-    border-right: 1px solid #dee2e6;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .add-item-picker-panel.hidden {
-    display: none !important;
-  }
-
-  #addItemPickerResizeHandle {
-    cursor: col-resize;
-    width: 8px;
-    background: transparent;
-    position: absolute;
-    right: -4px;
-    top: 0;
-    height: 100%;
-    z-index: 101;
-  }
 
   .work-item-actions {
     display: flex;
