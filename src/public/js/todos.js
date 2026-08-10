@@ -236,54 +236,20 @@ async function saveToDo() {
 }
 
 async function editToDo(toDoId) {
-  try {
-    const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-    const result = await response.json();
-    if (!result.success || !result.data) {
-      throw new Error(result.message || 'Failed to load to do');
-    }
-    const toDo = result.data;
-
-    // Populate modal form
-    document.getElementById('toDoId').value = toDo.id;
-    document.getElementById('toDoTitle').value = toDo.title;
-    document.getElementById('toDoNotes').value = toDo.notes || '';
-    renderToDoItemsEditor(toDo.items || [], 'toDoItemsList');
-
-    // Load and display links
-    loadLinksForEntity('to-do', toDo.id, 'toDoLinksList');
-
-    // Setup link input handlers
-    const addLinkBtn = document.getElementById('addToDoLinkBtn');
-    if (addLinkBtn) {
-      addLinkBtn.onclick = async (e) => {
-        e.preventDefault();
-        const url = document.getElementById('toDoLinkUrl').value;
-        const title = document.getElementById('toDoLinkTitle').value;
-        if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoLinksList')) {
-          document.getElementById('toDoLinkUrl').value = '';
-          document.getElementById('toDoLinkTitle').value = '';
-        }
-      };
-    }
-
-    // Setup URL drag-drop
-    setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
-
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
-    modal.show();
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading to do', 'danger');
-  }
+  await TodoEditor.populate(toDoId);
 }
 
 async function deleteToDo(toDoId) {
-  if (!await app.confirm('Delete this to do?')) return;
+  // Check if this todo has children
+  const childrenMap = buildChildrenMap(getState().allToDos);
+  const children = childrenMap[toDoId] || [];
+
+  let message = 'Delete this to do?';
+  if (children.length > 0) {
+    message = `Delete this to do? It has ${children.length} child item${children.length !== 1 ? 's' : ''} that will also be deleted.`;
+  }
+
+  if (!await app.confirm(message)) return;
 
   try {
     const response = await fetch(`/api/to-dos/${toDoId}`, {
@@ -294,6 +260,7 @@ async function deleteToDo(toDoId) {
     const result = await response.json();
     if (result.success) {
       app.notify('To do deleted', 'success');
+      TodoEditor.close();
       loadToDos();
     } else {
       app.notify('Error deleting to do', 'danger');
@@ -443,8 +410,15 @@ async function updateToDoParent(toDoId, parentId) {
 
 // Initialize on page load
 function initializeToDosTab() {
+  // Initialize SplitPane for editor
+  window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
+
+  // Initialize TodoEditor
+  TodoEditor.init(window.todoSplitPane, 'toDoEditorForm');
+
   loadToDos();
 
+  // Wire up modal buttons for creating new todos
   const addBtn = document.getElementById('addToDoBtn');
   if (addBtn) {
     addBtn.addEventListener('click', openNewToDoForm);
@@ -458,6 +432,35 @@ function initializeToDosTab() {
   const addItemBtn = document.getElementById('addToDoItemBtn');
   if (addItemBtn) {
     addItemBtn.addEventListener('click', addToDoItemRow);
+  }
+
+  // Wire up editor pane buttons
+  const saveEditorBtn = document.getElementById('saveToDoEditorBtn');
+  if (saveEditorBtn) {
+    saveEditorBtn.addEventListener('click', async () => {
+      if (await TodoEditor.save()) {
+        TodoEditor.close();
+        loadToDos();
+      }
+    });
+  }
+
+  const closeEditorBtn = document.getElementById('closeToDoEditorBtn');
+  if (closeEditorBtn) {
+    closeEditorBtn.addEventListener('click', () => {
+      TodoEditor.close();
+    });
+  }
+
+  // Wire up delete button in editor pane if it exists
+  const deleteEditorBtn = document.getElementById('deleteToDoEditorBtn');
+  if (deleteEditorBtn) {
+    deleteEditorBtn.addEventListener('click', async () => {
+      const todoId = document.getElementById('toDoEditorId').value;
+      if (todoId) {
+        await deleteToDo(todoId);
+      }
+    });
   }
 }
 

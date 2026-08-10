@@ -245,7 +245,16 @@ async function saveTask() {
 }
 
 async function deleteTask(taskId) {
-  if (!await app.confirm('Delete this task?')) return;
+  // Check if this task has children
+  const childrenMap = buildTaskChildrenMap(getTaskState().allTasks);
+  const children = childrenMap[taskId] || [];
+
+  let message = 'Delete this task?';
+  if (children.length > 0) {
+    message = `Delete this task? It has ${children.length} child item${children.length !== 1 ? 's' : ''} that will also be deleted.`;
+  }
+
+  if (!await app.confirm(message)) return;
 
   try {
     const response = await fetch(`/api/tasks/${taskId}`, {
@@ -256,6 +265,7 @@ async function deleteTask(taskId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Task deleted', 'success');
+      TaskEditor.close();
       loadTasks();
     } else {
       app.notify('Error deleting task', 'danger');
@@ -415,6 +425,12 @@ async function updateTaskParent(taskId, parentId) {
 
 // Initialize on page load
 function initializeTasksTab() {
+  // Initialize SplitPane for editor
+  window.taskSplitPane = new SplitPane('taskSplitPane', 'taskListPane', 'taskDivider', 'taskEditorPane', 66.66);
+
+  // Initialize TaskEditor
+  TaskEditor.init(window.taskSplitPane);
+
   loadTasks();
 
   const addBtn = document.getElementById('addTaskBtn');
@@ -425,6 +441,35 @@ function initializeTasksTab() {
   const saveBtn = document.getElementById('saveTaskBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', saveTask);
+  }
+
+  // Wire up editor pane buttons
+  const saveEditorBtn = document.getElementById('saveTaskEditorBtn');
+  if (saveEditorBtn) {
+    saveEditorBtn.addEventListener('click', async () => {
+      if (await TaskEditor.save()) {
+        TaskEditor.close();
+        loadTasks();
+      }
+    });
+  }
+
+  const closeEditorBtn = document.getElementById('closeTaskEditorBtn');
+  if (closeEditorBtn) {
+    closeEditorBtn.addEventListener('click', () => {
+      TaskEditor.close();
+    });
+  }
+
+  // Wire up delete button in editor pane if it exists
+  const deleteEditorBtn = document.getElementById('deleteTaskEditorBtn');
+  if (deleteEditorBtn) {
+    deleteEditorBtn.addEventListener('click', async () => {
+      const taskId = document.getElementById('taskEditorId').value;
+      if (taskId) {
+        await deleteTask(taskId);
+      }
+    });
   }
 }
 
