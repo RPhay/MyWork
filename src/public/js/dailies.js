@@ -877,8 +877,7 @@ async function addItemToDailies(itemType, itemId) {
       app.notify(`Added "${item.title || item.name}" to dailies`, 'success');
       loadWorkItems();
       loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
-      const dismissBtn = document.querySelector('#workModal .btn-close');
-      if (dismissBtn) dismissBtn.click();
+      closeAddItemPicker();
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -888,12 +887,23 @@ async function addItemToDailies(itemType, itemId) {
   }
 }
 
+function openAddItemPicker() {
+  const pickerPane = document.getElementById("addItemPickerPane");
+  if (pickerPane) {
+    pickerPane.classList.remove("hidden");
+    loadItemsForModal();
+  }
+}
+
+function closeAddItemPicker() {
+  const pickerPane = document.getElementById("addItemPickerPane");
+  if (pickerPane) {
+    pickerPane.classList.add("hidden");
+  }
+}
+
 function openNewWorkForm() {
-  // Load items for the modal when it opens
-  loadItemsForModal();
-  document.getElementById("workId").value = "";
-  document.getElementById("workForm").reset();
-  updateEmojiFieldButton("workEmojiBtn", "");
+  openAddItemPicker();
 }
 
 async function saveWorkItem() {
@@ -2186,10 +2196,16 @@ function initDailiesEventListeners() {
     .getElementById("importOutlookEmailsBtn")
     ?.addEventListener("click", importSelectedOutlookEmails);
 
-  // Handle clicking items in the "Add item to dailies" modal
-  const workModal = document.getElementById("workModal");
-  if (workModal) {
-    workModal.addEventListener("click", (e) => {
+  // Handle close button for add item picker
+  const closePickerBtn = document.getElementById("closeAddItemPickerBtn");
+  if (closePickerBtn) {
+    closePickerBtn.addEventListener("click", closeAddItemPicker);
+  }
+
+  // Handle clicking items in the "Add item to dailies" panel
+  const addItemPickerPane = document.getElementById("addItemPickerPane");
+  if (addItemPickerPane) {
+    addItemPickerPane.addEventListener("click", (e) => {
       const addItemBtn = e.target.closest("[data-action='add-item-to-dailies']");
       if (addItemBtn) {
         const itemType = addItemBtn.dataset.itemType;
