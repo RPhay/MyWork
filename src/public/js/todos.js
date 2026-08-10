@@ -309,8 +309,13 @@ async function cycleToDoStatus(toDoId, currentStatus) {
 
 function setupDragListeners() {
   const container = document.getElementById('toDosList');
+  if (!container) return;
 
-  container.addEventListener('dragstart', (e) => {
+  // Clone and replace to remove old listeners
+  const newContainer = container.cloneNode(false);
+  container.parentNode.replaceChild(newContainer, container);
+
+  newContainer.addEventListener('dragstart', (e) => {
     const row = e.target.closest('.todo-row');
     if (!row) return;
 
@@ -320,7 +325,7 @@ function setupDragListeners() {
     e.dataTransfer.setData('text/plain', `${toDoId}|${name}`);
   });
 
-  container.addEventListener('dragover', (e) => {
+  newContainer.addEventListener('dragover', (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
@@ -328,20 +333,20 @@ function setupDragListeners() {
     if (row) {
       row.classList.add('todo-drop-target');
     } else if (e.target === container || e.target.closest('#toDosList')) {
-      container.classList.add('todo-drop-target-root');
+      newContainer.classList.add('todo-drop-target-root');
     }
   });
 
-  container.addEventListener('dragleave', (e) => {
+  newContainer.addEventListener('dragleave', (e) => {
     if (!e.relatedTarget?.closest('.todo-row')) {
       document.querySelectorAll('.todo-row').forEach(r => r.classList.remove('todo-drop-target'));
     }
     if (!e.relatedTarget?.closest('#toDosList')) {
-      container.classList.remove('todo-drop-target-root');
+      newContainer.classList.remove('todo-drop-target-root');
     }
   });
 
-  container.addEventListener('drop', async (e) => {
+  newContainer.addEventListener('drop', async (e) => {
     e.preventDefault();
     container.classList.remove('todo-drop-target-root');
     document.querySelectorAll('.todo-row').forEach(r => r.classList.remove('todo-drop-target'));
