@@ -890,16 +890,55 @@ async function addItemToDailies(itemType, itemId) {
 function openAddItemPicker() {
   const pickerPanel = document.getElementById("addItemPickerPanel");
   if (pickerPanel) {
-    pickerPanel.classList.add("open");
+    pickerPanel.classList.remove("hidden");
     loadItemsForModal();
+    initAddItemPickerResize();
   }
 }
 
 function closeAddItemPicker() {
   const pickerPanel = document.getElementById("addItemPickerPanel");
   if (pickerPanel) {
-    pickerPanel.classList.remove("open");
+    pickerPanel.classList.add("hidden");
   }
+}
+
+function initAddItemPickerResize() {
+  const pickerPanel = document.getElementById("addItemPickerPanel");
+  const resizeHandle = document.getElementById("addItemPickerResizeHandle");
+  const outerSplitPane = document.getElementById("dailiesOuterSplitPane");
+
+  if (!resizeHandle || !pickerPanel) return;
+
+  let isResizing = false;
+
+  resizeHandle.addEventListener("mousedown", (e) => {
+    isResizing = true;
+    document.body.style.cursor = "col-resize";
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isResizing) return;
+
+    const containerRect = pickerPanel.parentElement.getBoundingClientRect();
+    const newWidth = e.clientX - containerRect.left;
+
+    // Constrain width between 200px and 600px
+    if (newWidth >= 200 && newWidth <= 600) {
+      pickerPanel.style.width = newWidth + "px";
+      if (outerSplitPane) {
+        outerSplitPane.style.marginLeft = newWidth + "px";
+      }
+    }
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isResizing) {
+      isResizing = false;
+      document.body.style.cursor = "auto";
+    }
+  });
 }
 
 function openNewWorkForm() {
