@@ -22,9 +22,9 @@ Timeout: 5000ms
 Call log:
   - Expect "toContainText" with timeout 5000ms
   - waiting for locator('.todo-title').first()
-    6 × locator resolved to <span class="todo-title">Todo to Edit</span>
-      - unexpected value "Todo to Edit"
-    8 × locator resolved to <span class="todo-title">Parent Todo</span>
+    7 × locator resolved to <span class="todo-title">Child Todo</span>
+      - unexpected value "Child Todo"
+    7 × locator resolved to <span class="todo-title">Parent Todo</span>
       - unexpected value "Parent Todo"
 
 ```

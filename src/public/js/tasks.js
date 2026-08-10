@@ -218,16 +218,16 @@ async function saveTask() {
     if (result.success) {
       app.notify('Task saved!', 'success');
       const modalElement = document.getElementById('taskModal');
-      const modalInstance = bootstrap.Modal.getInstance(modalElement);
-      if (modalInstance) {
-        modalInstance.hide();
-      }
-      // Force-clean the modal state
-      modalElement.classList.remove('show');
-      modalElement.style.display = 'none';
-      document.body.classList.remove('modal-open');
-      const backdrops = document.querySelectorAll('.modal-backdrop');
-      backdrops.forEach(backdrop => backdrop.remove());
+      const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+      modal.hide();
+      // Wait for the modal hide transition to complete
+      await new Promise(resolve => {
+        const onHidden = () => {
+          modalElement.removeEventListener('hidden.bs.modal', onHidden);
+          resolve();
+        };
+        modalElement.addEventListener('hidden.bs.modal', onHidden);
+      });
       loadTasks();
     } else {
       app.notify('Error: ' + result.message, 'danger');

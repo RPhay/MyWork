@@ -51,6 +51,24 @@ Call log:
 - paragraph: Drag a to do under another to nest it. Drag to the empty space above to unfile it.
 - text: Title Notes Actions
 - button "Incomplete — click to change"
+- text: Parent Todo -
+- button "Delete": 
+- button "Incomplete — click to change"
+- text: Test Todo 1 Test notes
+- button "Delete": 
+- button "Incomplete — click to change"
+- text: Todo to Edit -
+- button "Delete": 
+- button "Incomplete — click to change"
+- text: Child Todo -
+- button "Delete": 
+- button "Incomplete — click to change"
+- text: Parent Todo -
+- button "Delete": 
+- button "Incomplete — click to change"
+- text: Test Todo 1 Test notes
+- button "Delete": 
+- button "Incomplete — click to change"
 - text: Todo to Edit -
 - button "Delete": 
 - button "Incomplete — click to change"
@@ -78,10 +96,10 @@ Call log:
 - text: Todo to Edit -
 - button "Delete": 
 - button "Incomplete — click to change"
-- text: Parent Todo -
+- text: Test Todo 1 Test notes
 - button "Delete": 
 - button "Incomplete — click to change"
-- text: Test Todo 1 Test notes
+- text: Parent Todo -
 - button "Delete": 
 - button "Incomplete — click to change"
 - text: Todo to Edit -
