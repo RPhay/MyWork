@@ -208,21 +208,16 @@ async function saveToDo() {
     if (result.success) {
       app.notify('To do saved!', 'success');
       const modalElement = document.getElementById('toDoModal');
-      const modalInstance = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
-      modalInstance.hide();
-      // Wait for modal to actually hide (Bootstrap uses transition)
-      await new Promise(resolve => {
-        let attempts = 0;
-        const checkHidden = () => {
-          attempts++;
-          if (!modalElement.classList.contains('show') || attempts > 100) {
-            resolve();
-          } else {
-            setTimeout(checkHidden, 20);
-          }
-        };
-        setTimeout(checkHidden, 0);
-      });
+      const modalInstance = bootstrap.Modal.getInstance(modalElement);
+      if (modalInstance) {
+        modalInstance.hide();
+      }
+      // Force-clean the modal state
+      modalElement.classList.remove('show');
+      modalElement.style.display = 'none';
+      document.body.classList.remove('modal-open');
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      backdrops.forEach(backdrop => backdrop.remove());
       loadToDos();
     } else {
       app.notify('Error: ' + result.message, 'danger');

@@ -218,21 +218,16 @@ async function saveTask() {
     if (result.success) {
       app.notify('Task saved!', 'success');
       const modalElement = document.getElementById('taskModal');
-      const modalInstance = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
-      modalInstance.hide();
-      // Wait for modal to actually hide (Bootstrap uses transition)
-      await new Promise(resolve => {
-        let attempts = 0;
-        const checkHidden = () => {
-          attempts++;
-          if (!modalElement.classList.contains('show') || attempts > 100) {
-            resolve();
-          } else {
-            setTimeout(checkHidden, 20);
-          }
-        };
-        setTimeout(checkHidden, 0);
-      });
+      const modalInstance = bootstrap.Modal.getInstance(modalElement);
+      if (modalInstance) {
+        modalInstance.hide();
+      }
+      // Force-clean the modal state
+      modalElement.classList.remove('show');
+      modalElement.style.display = 'none';
+      document.body.classList.remove('modal-open');
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      backdrops.forEach(backdrop => backdrop.remove());
       loadTasks();
     } else {
       app.notify('Error: ' + result.message, 'danger');
