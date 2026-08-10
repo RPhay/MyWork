@@ -218,13 +218,19 @@ async function saveTask() {
     if (result.success) {
       app.notify('Task saved!', 'success');
       const modalElement = document.getElementById('taskModal');
-      const modalInstance = bootstrap.Modal.getInstance(modalElement);
-      if (modalInstance) {
-        modalInstance.hide();
-      } else {
-        modalElement.classList.remove('show');
-        document.querySelector('.modal-backdrop')?.remove();
-      }
+      const modalInstance = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
+      modalInstance.hide();
+      // Wait for modal to actually hide
+      await new Promise(resolve => {
+        const checkHidden = () => {
+          if (!modalElement.classList.contains('show')) {
+            resolve();
+          } else {
+            setTimeout(checkHidden, 50);
+          }
+        };
+        checkHidden();
+      });
       loadTasks();
     } else {
       app.notify('Error: ' + result.message, 'danger');

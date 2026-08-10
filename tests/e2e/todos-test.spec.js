@@ -27,7 +27,7 @@ test.describe('Todos Tab', () => {
     await page.waitForSelector('.todo-row', { timeout: 3000 });
 
     // Should see the todo in the list
-    await expect(page.locator('text=Test Todo 1')).toBeVisible();
+    await expect(page.locator('.todo-title').first()).toContainText('Test Todo 1');
   });
 
   test('should edit a todo by clicking on it', async ({ page }) => {
