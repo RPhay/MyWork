@@ -220,14 +220,17 @@ async function saveTask() {
       const modalElement = document.getElementById('taskModal');
       const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
       modal.hide();
-      // Wait for the modal hide transition to complete
-      await new Promise(resolve => {
-        const onHidden = () => {
-          modalElement.removeEventListener('hidden.bs.modal', onHidden);
-          resolve();
-        };
-        modalElement.addEventListener('hidden.bs.modal', onHidden);
-      });
+      // Wait for the modal hide transition, with timeout fallback
+      await Promise.race([
+        new Promise(resolve => {
+          const onHidden = () => {
+            modalElement.removeEventListener('hidden.bs.modal', onHidden);
+            resolve();
+          };
+          modalElement.addEventListener('hidden.bs.modal', onHidden);
+        }),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
       loadTasks();
     } else {
       app.notify('Error: ' + result.message, 'danger');

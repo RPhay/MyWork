@@ -12,16 +12,55 @@
 # Error details
 
 ```
-TimeoutError: page.waitForSelector: Timeout 3000ms exceeded.
+Test timeout of 30000ms exceeded.
+```
+
+```
+Error: page.click: Test timeout of 30000ms exceeded.
 Call log:
-  - waiting for locator('.todo-row:nth-child(2)') to be visible
+  - waiting for locator('#addToDoBtn')
+    - locator resolved to <button id="addToDoBtn" data-bs-toggle="modal" class="btn btn-primary" data-bs-target="#toDoModal">↵          + Add To Do↵        </button>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div class="mb-3">…</div> from <div tabindex="-1" role="dialog" id="toDoModal" aria-modal="true" class="modal fade show">…</div> subtree intercepts pointer events
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div class="mb-3">…</div> from <div tabindex="-1" role="dialog" id="toDoModal" aria-modal="true" class="modal fade show">…</div> subtree intercepts pointer events
+    - retrying click action
+      - waiting 100ms
+    - waiting for element to be visible, enabled and stable
+    - element is not stable
+  - retrying click action
+    - waiting 500ms
+    - waiting for element to be visible, enabled and stable
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - <div class="modal-backdrop fade"></div> intercepts pointer events
+  51 × retrying click action
+       - waiting 500ms
+       - waiting for element to be visible, enabled and stable
+       - element is visible, enabled and stable
+       - scrolling into view if needed
+       - done scrolling
+       - <div class="modal-backdrop fade show"></div> intercepts pointer events
+  - retrying click action
+    - waiting 500ms
+    - waiting for element to be visible, enabled and stable
 
 ```
 
 # Page snapshot
 
 ```yaml
-- generic [active] [ref=e1]:
+- generic [ref=e1]:
   - navigation [ref=e2]:
     - generic [ref=e3]:
       - link "MyWork - v2026.07.28.0" [ref=e4] [cursor=pointer]:
@@ -72,11 +111,11 @@ Call log:
         - generic [ref=e35]: 
         - text: Reporting
     - generic [ref=e36]:
-      - text:                                                                                                                               
+      - text:                                                                                                                                                     
       - generic [ref=e37]:
         - generic [ref=e39]:
           - generic [ref=e40]:
-            - button "+ Add To Do" [ref=e43] [cursor=pointer]
+            - button "+ Add To Do" [active] [ref=e43] [cursor=pointer]
             - paragraph [ref=e44]: Drag a to do under another to nest it. Drag to the empty space above to unfile it.
             - generic [ref=e45]:
               - generic [ref=e46]: Title
@@ -86,7 +125,7 @@ Call log:
               - generic [ref=e51]:
                 - generic [ref=e52]:
                   - button "Incomplete — click to change" [ref=e53] [cursor=pointer]
-                  - generic [ref=e54]: Child Todo
+                  - generic [ref=e54]: Todo to Edit
                 - generic [ref=e55]: "-"
                 - button "Delete" [ref=e57] [cursor=pointer]:
                   - generic [ref=e58]: 
@@ -107,57 +146,57 @@ Call log:
               - generic [ref=e78]:
                 - generic [ref=e79]:
                   - button "Incomplete — click to change" [ref=e80] [cursor=pointer]
-                  - generic [ref=e81]: Todo to Edit
+                  - generic [ref=e81]: Child Todo
                 - generic [ref=e82]: "-"
                 - button "Delete" [ref=e84] [cursor=pointer]:
                   - generic [ref=e85]: 
               - generic [ref=e87]:
                 - generic [ref=e88]:
                   - button "Incomplete — click to change" [ref=e89] [cursor=pointer]
-                  - generic [ref=e90]: Child Todo
+                  - generic [ref=e90]: Parent Todo
                 - generic [ref=e91]: "-"
                 - button "Delete" [ref=e93] [cursor=pointer]:
                   - generic [ref=e94]: 
               - generic [ref=e96]:
                 - generic [ref=e97]:
                   - button "Incomplete — click to change" [ref=e98] [cursor=pointer]
-                  - generic [ref=e99]: Parent Todo
-                - generic [ref=e100]: "-"
+                  - generic [ref=e99]: Test Todo 1
+                - generic [ref=e100]: Test notes
                 - button "Delete" [ref=e102] [cursor=pointer]:
                   - generic [ref=e103]: 
               - generic [ref=e105]:
                 - generic [ref=e106]:
                   - button "Incomplete — click to change" [ref=e107] [cursor=pointer]
-                  - generic [ref=e108]: Test Todo 1
-                - generic [ref=e109]: Test notes
+                  - generic [ref=e108]: Todo to Edit
+                - generic [ref=e109]: "-"
                 - button "Delete" [ref=e111] [cursor=pointer]:
                   - generic [ref=e112]: 
               - generic [ref=e114]:
                 - generic [ref=e115]:
                   - button "Incomplete — click to change" [ref=e116] [cursor=pointer]
-                  - generic [ref=e117]: Todo to Edit
+                  - generic [ref=e117]: Child Todo
                 - generic [ref=e118]: "-"
                 - button "Delete" [ref=e120] [cursor=pointer]:
                   - generic [ref=e121]: 
               - generic [ref=e123]:
                 - generic [ref=e124]:
                   - button "Incomplete — click to change" [ref=e125] [cursor=pointer]
-                  - generic [ref=e126]: Todo to Edit
+                  - generic [ref=e126]: Parent Todo
                 - generic [ref=e127]: "-"
                 - button "Delete" [ref=e129] [cursor=pointer]:
                   - generic [ref=e130]: 
               - generic [ref=e132]:
                 - generic [ref=e133]:
                   - button "Incomplete — click to change" [ref=e134] [cursor=pointer]
-                  - generic [ref=e135]: Test Todo 1
-                - generic [ref=e136]: Test notes
+                  - generic [ref=e135]: Todo to Edit
+                - generic [ref=e136]: "-"
                 - button "Delete" [ref=e138] [cursor=pointer]:
                   - generic [ref=e139]: 
               - generic [ref=e141]:
                 - generic [ref=e142]:
                   - button "Incomplete — click to change" [ref=e143] [cursor=pointer]
-                  - generic [ref=e144]: Child Todo
-                - generic [ref=e145]: "-"
+                  - generic [ref=e144]: Test Todo 1
+                - generic [ref=e145]: Test notes
                 - button "Delete" [ref=e147] [cursor=pointer]:
                   - generic [ref=e148]: 
               - generic [ref=e150]:
@@ -170,57 +209,57 @@ Call log:
               - generic [ref=e159]:
                 - generic [ref=e160]:
                   - button "Incomplete — click to change" [ref=e161] [cursor=pointer]
-                  - generic [ref=e162]: Parent Todo
-                - generic [ref=e163]: "-"
+                  - generic [ref=e162]: Test Todo 1
+                - generic [ref=e163]: Test notes
                 - button "Delete" [ref=e165] [cursor=pointer]:
                   - generic [ref=e166]: 
               - generic [ref=e168]:
                 - generic [ref=e169]:
                   - button "Incomplete — click to change" [ref=e170] [cursor=pointer]
-                  - generic [ref=e171]: Test Todo 1
-                - generic [ref=e172]: Test notes
+                  - generic [ref=e171]: Child Todo
+                - generic [ref=e172]: "-"
                 - button "Delete" [ref=e174] [cursor=pointer]:
                   - generic [ref=e175]: 
               - generic [ref=e177]:
                 - generic [ref=e178]:
                   - button "Incomplete — click to change" [ref=e179] [cursor=pointer]
-                  - generic [ref=e180]: Parent Todo
+                  - generic [ref=e180]: Todo to Edit
                 - generic [ref=e181]: "-"
                 - button "Delete" [ref=e183] [cursor=pointer]:
                   - generic [ref=e184]: 
               - generic [ref=e186]:
                 - generic [ref=e187]:
                   - button "Incomplete — click to change" [ref=e188] [cursor=pointer]
-                  - generic [ref=e189]: Todo to Edit
+                  - generic [ref=e189]: Parent Todo
                 - generic [ref=e190]: "-"
                 - button "Delete" [ref=e192] [cursor=pointer]:
                   - generic [ref=e193]: 
               - generic [ref=e195]:
                 - generic [ref=e196]:
                   - button "Incomplete — click to change" [ref=e197] [cursor=pointer]
-                  - generic [ref=e198]: Test Todo 1
-                - generic [ref=e199]: Test notes
+                  - generic [ref=e198]: Todo to Edit
+                - generic [ref=e199]: "-"
                 - button "Delete" [ref=e201] [cursor=pointer]:
                   - generic [ref=e202]: 
               - generic [ref=e204]:
                 - generic [ref=e205]:
                   - button "Incomplete — click to change" [ref=e206] [cursor=pointer]
-                  - generic [ref=e207]: Parent Todo
-                - generic [ref=e208]: "-"
+                  - generic [ref=e207]: Test Todo 1
+                - generic [ref=e208]: Test notes
                 - button "Delete" [ref=e210] [cursor=pointer]:
                   - generic [ref=e211]: 
               - generic [ref=e213]:
                 - generic [ref=e214]:
                   - button "Incomplete — click to change" [ref=e215] [cursor=pointer]
-                  - generic [ref=e216]: Todo to Edit
+                  - generic [ref=e216]: Parent Todo
                 - generic [ref=e217]: "-"
                 - button "Delete" [ref=e219] [cursor=pointer]:
                   - generic [ref=e220]: 
               - generic [ref=e222]:
                 - generic [ref=e223]:
                   - button "Incomplete — click to change" [ref=e224] [cursor=pointer]
-                  - generic [ref=e225]: Test Todo 1
-                - generic [ref=e226]: Test notes
+                  - generic [ref=e225]: Parent Todo
+                - generic [ref=e226]: "-"
                 - button "Delete" [ref=e228] [cursor=pointer]:
                   - generic [ref=e229]: 
               - generic [ref=e231]:
@@ -233,22 +272,22 @@ Call log:
               - generic [ref=e240]:
                 - generic [ref=e241]:
                   - button "Incomplete — click to change" [ref=e242] [cursor=pointer]
-                  - generic [ref=e243]: Test Todo 1
-                - generic [ref=e244]: Test notes
+                  - generic [ref=e243]: Todo to Edit
+                - generic [ref=e244]: "-"
                 - button "Delete" [ref=e246] [cursor=pointer]:
                   - generic [ref=e247]: 
               - generic [ref=e249]:
                 - generic [ref=e250]:
                   - button "Incomplete — click to change" [ref=e251] [cursor=pointer]
-                  - generic [ref=e252]: Parent Todo
-                - generic [ref=e253]: "-"
+                  - generic [ref=e252]: Test Todo 1
+                - generic [ref=e253]: Test notes
                 - button "Delete" [ref=e255] [cursor=pointer]:
                   - generic [ref=e256]: 
               - generic [ref=e258]:
                 - generic [ref=e259]:
                   - button "Incomplete — click to change" [ref=e260] [cursor=pointer]
-                  - generic [ref=e261]: Todo to Edit
-                - generic [ref=e262]: "-"
+                  - generic [ref=e261]: Test Todo 1
+                - generic [ref=e262]: Test notes
                 - button "Delete" [ref=e264] [cursor=pointer]:
                   - generic [ref=e265]: 
               - generic [ref=e267]:
@@ -261,86 +300,100 @@ Call log:
               - generic [ref=e276]:
                 - generic [ref=e277]:
                   - button "Incomplete — click to change" [ref=e278] [cursor=pointer]
-                  - generic [ref=e279]: Todo to Edit
-                - generic [ref=e280]: "-"
+                  - generic [ref=e279]: Test Todo 1
+                - generic [ref=e280]: Test notes
                 - button "Delete" [ref=e282] [cursor=pointer]:
                   - generic [ref=e283]: 
               - generic [ref=e285]:
                 - generic [ref=e286]:
                   - button "Incomplete — click to change" [ref=e287] [cursor=pointer]
-                  - generic [ref=e288]: Parent Todo
+                  - generic [ref=e288]: Todo to Edit
                 - generic [ref=e289]: "-"
                 - button "Delete" [ref=e291] [cursor=pointer]:
                   - generic [ref=e292]: 
               - generic [ref=e294]:
                 - generic [ref=e295]:
                   - button "Incomplete — click to change" [ref=e296] [cursor=pointer]
-                  - generic [ref=e297]: Todo to Edit
+                  - generic [ref=e297]: Parent Todo
                 - generic [ref=e298]: "-"
                 - button "Delete" [ref=e300] [cursor=pointer]:
                   - generic [ref=e301]: 
               - generic [ref=e303]:
                 - generic [ref=e304]:
                   - button "Incomplete — click to change" [ref=e305] [cursor=pointer]
-                  - generic [ref=e306]: Parent Todo
+                  - generic [ref=e306]: Todo to Edit
                 - generic [ref=e307]: "-"
                 - button "Delete" [ref=e309] [cursor=pointer]:
                   - generic [ref=e310]: 
               - generic [ref=e312]:
                 - generic [ref=e313]:
                   - button "Incomplete — click to change" [ref=e314] [cursor=pointer]
-                  - generic [ref=e315]: Test Todo 1
-                - generic [ref=e316]: Test notes
+                  - generic [ref=e315]: Parent Todo
+                - generic [ref=e316]: "-"
                 - button "Delete" [ref=e318] [cursor=pointer]:
                   - generic [ref=e319]: 
               - generic [ref=e321]:
                 - generic [ref=e322]:
                   - button "Incomplete — click to change" [ref=e323] [cursor=pointer]
-                  - generic [ref=e324]: Test Item
+                  - generic [ref=e324]: Todo to Edit
                 - generic [ref=e325]: "-"
                 - button "Delete" [ref=e327] [cursor=pointer]:
                   - generic [ref=e328]: 
               - generic [ref=e330]:
                 - generic [ref=e331]:
                   - button "Incomplete — click to change" [ref=e332] [cursor=pointer]
-                  - generic [ref=e333]: Add SSO toggle for contexts
-                - generic [ref=e334]: "Add ability to enable/configure SSO for a context so if SSO is enabled, users must log in via SSO with a given user. Requirements: Support OAuth2 initially, context-level enforcement, auto user mapping, redirect to SSO login if not authenticated."
+                  - generic [ref=e333]: Parent Todo
+                - generic [ref=e334]: "-"
                 - button "Delete" [ref=e336] [cursor=pointer]:
                   - generic [ref=e337]: 
               - generic [ref=e339]:
                 - generic [ref=e340]:
                   - button "Incomplete — click to change" [ref=e341] [cursor=pointer]
-                  - generic [ref=e342]: To do folder context menu
-                - generic [ref=e343]: Right clicking on a folder in the to dos should open up a context menu that allows me to create a todo under that folder.
+                  - generic [ref=e342]: Test Todo 1
+                - generic [ref=e343]: Test notes
                 - button "Delete" [ref=e345] [cursor=pointer]:
                   - generic [ref=e346]: 
               - generic [ref=e348]:
                 - generic [ref=e349]:
                   - button "Incomplete — click to change" [ref=e350] [cursor=pointer]
-                  - generic [ref=e351]: Context menu on dailys calendar
-                - generic [ref=e352]: If I right click on a day in the calander I should get a context menu. The first item allows me to highlight that day, that should have sub-menus that allow me to pick a color to highlight it with.
+                  - generic [ref=e351]: Test Item
+                - generic [ref=e352]: "-"
                 - button "Delete" [ref=e354] [cursor=pointer]:
                   - generic [ref=e355]: 
               - generic [ref=e357]:
                 - generic [ref=e358]:
                   - button "Incomplete — click to change" [ref=e359] [cursor=pointer]
-                  - generic [ref=e360]: Todo Context Menu
-                - generic [ref=e361]: Right clicking on Todo's should bring up a context menu allowing me to convert the todo to a category or project. Remove the button on the todo that effectively does the same thing
+                  - generic [ref=e360]: Add SSO toggle for contexts
+                - generic [ref=e361]: "Add ability to enable/configure SSO for a context so if SSO is enabled, users must log in via SSO with a given user. Requirements: Support OAuth2 initially, context-level enforcement, auto user mapping, redirect to SSO login if not authenticated."
                 - button "Delete" [ref=e363] [cursor=pointer]:
                   - generic [ref=e364]: 
+              - generic [ref=e366]:
+                - generic [ref=e367]:
+                  - button "Incomplete — click to change" [ref=e368] [cursor=pointer]
+                  - generic [ref=e369]: To do folder context menu
+                - generic [ref=e370]: Right clicking on a folder in the to dos should open up a context menu that allows me to create a todo under that folder.
+                - button "Delete" [ref=e372] [cursor=pointer]:
+                  - generic [ref=e373]: 
+              - generic [ref=e375]:
+                - generic [ref=e376]:
+                  - button "Incomplete — click to change" [ref=e377] [cursor=pointer]
+                  - generic [ref=e378]: Context menu on dailys calendar
+                - generic [ref=e379]: If I right click on a day in the calander I should get a context menu. The first item allows me to highlight that day, that should have sub-menus that allow me to pick a color to highlight it with.
+                - button "Delete" [ref=e381] [cursor=pointer]:
+                  - generic [ref=e382]: 
+              - generic [ref=e384]:
+                - generic [ref=e385]:
+                  - button "Incomplete — click to change" [ref=e386] [cursor=pointer]
+                  - generic [ref=e387]: Todo Context Menu
+                - generic [ref=e388]: Right clicking on Todo's should bring up a context menu allowing me to convert the todo to a category or project. Remove the button on the todo that effectively does the same thing
+                - button "Delete" [ref=e390] [cursor=pointer]:
+                  - generic [ref=e391]: 
           - text:  
         - text:       
       - text:                             
-  - contentinfo [ref=e366]:
-    - paragraph [ref=e368]: © 2026 MyWork. Licensed under the MIT License.
+  - contentinfo [ref=e393]:
+    - paragraph [ref=e395]: © 2026 MyWork. Licensed under the MIT License.
   - text:   
-  - generic [ref=e369]:
-    - alert [ref=e370]:
-      - text: To do saved!
-      - button "Close" [ref=e371] [cursor=pointer]
-    - alert [ref=e372]:
-      - text: To do saved!
-      - button "Close" [ref=e373] [cursor=pointer]
 ```
 
 # Test source
@@ -404,11 +457,11 @@ Call log:
   56 |     await page.waitForSelector('.todo-row', { timeout: 3000 });
   57 | 
   58 |     // Create second todo
-  59 |     await page.click('#addToDoBtn');
+> 59 |     await page.click('#addToDoBtn');
+     |                ^ Error: page.click: Test timeout of 30000ms exceeded.
   60 |     await page.fill('#toDoTitle', 'Child Todo');
   61 |     await page.click('#saveToDoBtn');
-> 62 |     await page.waitForSelector('.todo-row:nth-child(2)', { timeout: 3000 });
-     |                ^ TimeoutError: page.waitForSelector: Timeout 3000ms exceeded.
+  62 |     await page.waitForSelector('.todo-row:nth-child(2)', { timeout: 3000 });
   63 | 
   64 |     // Get the todo rows
   65 |     const todoRows = await page.locator('.todo-row').all();
