@@ -888,17 +888,17 @@ async function addItemToDailies(itemType, itemId) {
 }
 
 function openAddItemPicker() {
-  const pickerPane = document.getElementById("addItemPickerPane");
-  if (pickerPane) {
-    pickerPane.classList.remove("hidden");
+  const pickerPanel = document.getElementById("addItemPickerPanel");
+  if (pickerPanel) {
+    pickerPanel.classList.add("open");
     loadItemsForModal();
   }
 }
 
 function closeAddItemPicker() {
-  const pickerPane = document.getElementById("addItemPickerPane");
-  if (pickerPane) {
-    pickerPane.classList.add("hidden");
+  const pickerPanel = document.getElementById("addItemPickerPanel");
+  if (pickerPanel) {
+    pickerPanel.classList.remove("open");
   }
 }
 
@@ -2203,9 +2203,9 @@ function initDailiesEventListeners() {
   }
 
   // Handle clicking items in the "Add item to dailies" panel
-  const addItemPickerPane = document.getElementById("addItemPickerPane");
-  if (addItemPickerPane) {
-    addItemPickerPane.addEventListener("click", (e) => {
+  const addItemPickerPanel = document.getElementById("addItemPickerPanel");
+  if (addItemPickerPanel) {
+    addItemPickerPanel.addEventListener("click", (e) => {
       const addItemBtn = e.target.closest("[data-action='add-item-to-dailies']");
       if (addItemBtn) {
         const itemType = addItemBtn.dataset.itemType;
