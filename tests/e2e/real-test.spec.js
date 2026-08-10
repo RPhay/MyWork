@@ -1,6 +1,12 @@
 import { test } from '@playwright/test';
 
 test('Test ACTUAL broken things', async ({ page }) => {
+  // Capture ALL console logs including errors
+  page.on('console', msg => {
+    const text = msg.text();
+    console.log('[BROWSER]', text);
+  });
+
   await page.goto('http://localhost:3000');
   await page.click('[data-tab="todos"]');
   await page.waitForSelector('#toDosList');
@@ -37,10 +43,14 @@ test('Test ACTUAL broken things', async ({ page }) => {
     await page.waitForTimeout(500);
 
     const modalVisible = await page.locator('#toDoModal').isVisible();
-    const editorFormTitle = await page.locator('#toDoEditorFormTitle').inputValue();
+    const modalFormTitle = await page.locator('#toDoTitle').inputValue();
     console.log('Modal open after click?', modalVisible);
-    console.log('Editor form title value:', editorFormTitle);
+    console.log('Modal form title value:', modalFormTitle);
     await page.screenshot({ path: '/private/tmp/claude-501/-Users-aslynn-git-github-MyWork/4d4e9b81-1706-4723-aad4-52d5cf9cb523/scratchpad/issue2-after-click.png' });
+
+    // Close the modal so drag works
+    await page.press('body', 'Escape');
+    await page.waitForTimeout(500);
   }
 
   // ISSUE 3: Drag and drop
@@ -51,10 +61,18 @@ test('Test ACTUAL broken things', async ({ page }) => {
   if (todoRows.length >= 2) {
     console.log('Attempting drag: row 1 -> row 0');
     await todoRows[1].dragTo(todoRows[0]);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(3000);
+
     await page.screenshot({ path: '/private/tmp/claude-501/-Users-aslynn-git-github-MyWork/4d4e9b81-1706-4723-aad4-52d5cf9cb523/scratchpad/issue3-after-drag.png' });
 
-    const todosList = await page.locator('#toDosList').innerHTML();
-    console.log('Todos list changed after drag?', todosList.includes('todo-node-children'));
+    // Check if the drag-and-drop worked by fetching the todos from the API
+    const todosResponse = await page.evaluate(() => fetch('/api/to-dos').then(r => r.json()));
+    const allTodos = todosResponse.data || [];
+    const todosWithParent = allTodos.filter(t => t.parent_id !== null);
+    console.log('Total todos: ' + allTodos.length);
+    console.log('Todos with parent: ' + todosWithParent.length);
+    if (todosWithParent.length > 0) {
+      console.log('✓ Drag and drop successful! Todo ' + todosWithParent[0].id + ' (' + todosWithParent[0].title + ') now has parent ' + todosWithParent[0].parent_id);
+    }
   }
 });

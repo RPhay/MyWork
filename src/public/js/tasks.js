@@ -414,7 +414,7 @@ async function updateTaskParent(taskId, parentId) {
 }
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
+function initializeTasksTab() {
   loadTasks();
 
   const addBtn = document.getElementById('addTaskBtn');
@@ -426,4 +426,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (saveBtn) {
     saveBtn.addEventListener('click', saveTask);
   }
-});
+}
+
+// If DOM is already loaded, initialize immediately; otherwise wait
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeTasksTab);
+} else {
+  initializeTasksTab();
+}

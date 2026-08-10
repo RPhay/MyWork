@@ -102,7 +102,7 @@ function renderToDosList() {
     .join('');
 
   // Re-attach drag listeners without cloning (listeners were lost on innerHTML change)
-  setupDragListeners();
+  setupToDoDragListeners();
 }
 
 async function loadToDos() {
@@ -314,7 +314,7 @@ async function cycleToDoStatus(toDoId, currentStatus) {
 }
 
 
-function setupDragListeners() {
+function setupToDoDragListeners() {
   const container = document.getElementById('toDosList');
   if (!container) return;
 
@@ -436,13 +436,13 @@ async function updateToDoParent(toDoId, parentId) {
       app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error updating to do:', error);
     app.notify('Error updating to do', 'danger');
   }
 }
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
+function initializeToDosTab() {
   loadToDos();
 
   const addBtn = document.getElementById('addToDoBtn');
@@ -459,4 +459,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (addItemBtn) {
     addItemBtn.addEventListener('click', addToDoItemRow);
   }
-});
+}
+
+// If DOM is already loaded, initialize immediately; otherwise wait
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeToDosTab);
+} else {
+  initializeToDosTab();
+}
