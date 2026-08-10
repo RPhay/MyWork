@@ -2182,15 +2182,15 @@ function initDailiesEventListeners() {
   const calendarEl = document.getElementById("calendar");
   console.log("[Dailies] Calendar element found:", !!calendarEl);
 
-  document
-    .getElementById("addWorkItemBtn")
-    .addEventListener("click", openNewWorkForm);
-  document
-    .getElementById("saveWorkItemBtn")
-    .addEventListener("click", saveWorkItem);
-  document
-    .getElementById("importOutlookEmailsBtn")
-    ?.addEventListener("click", importSelectedOutlookEmails);
+  const addWorkItemBtn = document.getElementById("addWorkItemBtn");
+  if (addWorkItemBtn) {
+    addWorkItemBtn.addEventListener("click", openNewWorkForm);
+  }
+
+  const importOutlookEmailsBtn = document.getElementById("importOutlookEmailsBtn");
+  if (importOutlookEmailsBtn) {
+    importOutlookEmailsBtn.addEventListener("click", importSelectedOutlookEmails);
+  }
 
   // Handle clicking items in the work picker
   const pickerPane = document.getElementById("picker-pane");
