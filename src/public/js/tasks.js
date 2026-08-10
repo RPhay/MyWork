@@ -217,7 +217,14 @@ async function saveTask() {
     const result = await response.json();
     if (result.success) {
       app.notify('Task saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('taskModal')).hide();
+      const modalElement = document.getElementById('taskModal');
+      const modalInstance = bootstrap.Modal.getInstance(modalElement);
+      if (modalInstance) {
+        modalInstance.hide();
+      } else {
+        modalElement.classList.remove('show');
+        document.querySelector('.modal-backdrop')?.remove();
+      }
       loadTasks();
     } else {
       app.notify('Error: ' + result.message, 'danger');

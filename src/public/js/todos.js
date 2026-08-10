@@ -207,7 +207,14 @@ async function saveToDo() {
     const result = await response.json();
     if (result.success) {
       app.notify('To do saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('toDoModal')).hide();
+      const modalElement = document.getElementById('toDoModal');
+      const modalInstance = bootstrap.Modal.getInstance(modalElement);
+      if (modalInstance) {
+        modalInstance.hide();
+      } else {
+        modalElement.classList.remove('show');
+        document.querySelector('.modal-backdrop')?.remove();
+      }
       loadToDos();
     } else {
       app.notify('Error: ' + result.message, 'danger');
