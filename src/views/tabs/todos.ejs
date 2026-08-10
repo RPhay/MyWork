@@ -4,16 +4,13 @@
   <div class="split-pane-left" id="todoListPane" style="padding: 15px; overflow-y: auto;">
     <div class="row mb-2">
       <div class="col-md-12 text-end">
-        <button class="btn btn-outline-secondary" id="addFolderBtn" data-bs-toggle="modal" data-bs-target="#folderModal">
-          + Add Folder
-        </button>
         <button class="btn btn-primary" id="addToDoBtn" data-bs-toggle="modal" data-bs-target="#toDoModal">
           + Add To Do
         </button>
       </div>
     </div>
 
-    <p class="text-muted small mb-2">Drag a to do onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+    <p class="text-muted small mb-2">Drag a to do under another to nest it. Drag to the empty space above to unfile it.</p>
 
     <div class="todo-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
       <span>Title</span>
@@ -85,38 +82,6 @@
   <button type="button" class="context-menu-item" data-convert-type="area"><i class="bi bi-diagram-3"></i> Convert to Category</button>
   <button type="button" class="context-menu-item" data-convert-type="sub-area"><i class="bi bi-diagram-3"></i> Convert to Sub-Category</button>
   <button type="button" class="context-menu-item" data-convert-type="work-item"><i class="bi bi-card-checklist"></i> Convert to Work Item</button>
-</div>
-
-<!-- Folder Context Menu -->
-<div id="folderContextMenu" class="context-menu d-none">
-  <button type="button" class="context-menu-item" data-menu-action="add-todo"><i class="bi bi-plus-lg"></i> Add To Do Here</button>
-</div>
-
-<!-- Folder Modal -->
-<div class="modal fade" id="folderModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Folder Form</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form id="folderForm">
-          <input type="hidden" id="folderId" name="folderId">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-          <div class="mb-3">
-            <label for="folderName" class="form-label">Name *</label>
-            <input type="text" class="form-control" id="folderName" name="name" required>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveFolderBtn">Save Folder</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- To Do Modal -->
@@ -212,7 +177,7 @@
 </div>
 
 <style>
-  .todo-tree-header, .todo-row, .todo-folder-header {
+  .todo-tree-header, .todo-row {
     display: grid;
     grid-template-columns: 1fr 1fr 112px;
     align-items: center;
@@ -220,7 +185,7 @@
     width: 100%;
   }
 
-  .todo-row, .todo-folder-header {
+  .todo-row {
     padding: 8px;
     border: 1px solid #dee2e6;
     border-radius: 4px;
@@ -229,15 +194,15 @@
     min-height: 44px;
   }
 
-  .todo-row:hover, .todo-folder-header:hover {
+  .todo-row:hover {
     background: #f8f9fa;
   }
 
-  .todo-row, .todo-folder-header {
+  .todo-row {
     cursor: move;
   }
 
-  .todo-folder-header.todo-drop-target {
+  .todo-row.todo-drop-target {
     background: #e7f3ff;
     outline: 2px dashed #007bff;
     outline-offset: -2px;
@@ -271,15 +236,15 @@
     transition: transform 0.15s ease;
   }
 
-  .todo-folder-node.expanded > .todo-folder-header .todo-folder-toggle {
+  .todo-node.expanded > .todo-row .todo-folder-toggle {
     transform: rotate(90deg);
   }
 
-  .todo-folder-node-children {
+  .todo-node-children {
     display: none;
   }
 
-  .todo-folder-node.expanded > .todo-folder-node-children {
+  .todo-node.expanded > .todo-node-children {
     display: block;
   }
 
@@ -359,9 +324,6 @@
     color: #fff;
   }
 
-  /* Aggregate status shown on a project-linked folder - display only, not a
-     button. pointer-events: none also suppresses :hover so the colored
-     status backgrounds above don't flicker back to the default hover style. */
   .todo-item-checkbox-readonly {
     cursor: default;
     pointer-events: none;

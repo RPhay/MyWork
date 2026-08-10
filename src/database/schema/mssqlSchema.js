@@ -482,51 +482,35 @@ export async function createMssqlSchema(pool) {
 
   await createTableIfNotExists(
     pool,
-    "to_do_folders",
-    `
-    CREATE TABLE [MyWork].[to_do_folders] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      name NVARCHAR(255) NOT NULL,
-      parent_id INT NULL,
-      priority_id INT NULL,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      -- NO ACTION, not CASCADE - see the note on fk_areas_parent above.
-      CONSTRAINT fk_to_do_folders_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_do_folders](id) ON DELETE NO ACTION,
-      CONSTRAINT fk_to_do_folders_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "to_do_folders");
-
-  // Backfill priority_id for pre-existing to_do_folders tables - see the matching
-  // note in mysqlSchema.js for why a whole folder can link to a project.
-  if (!(await columnExists(pool, "to_do_folders", "priority_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_do_folders] ADD priority_id INT NULL
-        CONSTRAINT fk_to_do_folders_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
-    `);
-  }
-
-  await createTableIfNotExists(
-    pool,
     "to_dos",
     `
     CREATE TABLE [MyWork].[to_dos] (
       id INT IDENTITY(1,1) PRIMARY KEY,
       title NVARCHAR(255) NOT NULL,
       notes NVARCHAR(MAX),
-      folder_id INT NULL,
+      parent_id INT NULL,
       priority_id INT NULL,
       status NVARCHAR(20) NOT NULL DEFAULT 'incomplete',
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_to_dos_folder FOREIGN KEY (folder_id) REFERENCES [MyWork].[to_do_folders](id) ON DELETE SET NULL,
+      CONSTRAINT fk_to_dos_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE,
       CONSTRAINT fk_to_dos_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
     )
   `,
   );
   await createUpdatedAtTrigger(pool, "to_dos");
+
+  // Backfill parent_id for pre-existing to_dos tables (migrate from folder_id if it exists)
+  if (!(await columnExists(pool, "to_dos", "parent_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_dos] ADD parent_id INT NULL
+        CONSTRAINT fk_to_dos_parent FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE
+    `);
+    // Set all folder_id references to NULL during migration for safety
+    if (await columnExists(pool, "to_dos", "folder_id")) {
+      await pool.request().query(`UPDATE [MyWork].[to_dos] SET parent_id = NULL WHERE folder_id IS NOT NULL`);
+    }
+  }
 
   // Backfill for to_dos created before status existed.
   if (!(await columnExists(pool, "to_dos", "status"))) {
@@ -535,8 +519,7 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  // Backfill priority_id for pre-existing to_dos tables - see the matching note in
-  // mysqlSchema.js for why this is a separate column from folder_id.
+  // Backfill priority_id for pre-existing to_dos tables
   if (!(await columnExists(pool, "to_dos", "priority_id"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[to_dos] ADD priority_id INT NULL
@@ -550,6 +533,11 @@ export async function createMssqlSchema(pool) {
   if (await columnExists(pool, "to_dos", "completed")) {
     await pool.request().query(`UPDATE [MyWork].[to_dos] SET status = 'complete' WHERE completed = 1`);
     await pool.request().query(`ALTER TABLE [MyWork].[to_dos] DROP COLUMN completed`);
+  }
+
+  // Drop old folder_id column if it still exists on to_dos
+  if (await columnExists(pool, "to_dos", "folder_id")) {
+    await pool.request().query(`ALTER TABLE [MyWork].[to_dos] DROP COLUMN folder_id`);
   }
 
   await createTableIfNotExists(
@@ -671,57 +659,34 @@ export async function createMssqlSchema(pool) {
 
   await createTableIfNotExists(
     pool,
-    "task_folders",
-    `
-    CREATE TABLE [MyWork].[task_folders] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      name NVARCHAR(255) NOT NULL,
-      parent_id INT NULL,
-      priority_id INT NULL,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      -- NO ACTION, not CASCADE - see the note on fk_areas_parent above.
-      CONSTRAINT fk_task_folders_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[task_folders](id) ON DELETE NO ACTION,
-      CONSTRAINT fk_task_folders_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "task_folders");
-
-  // Backfill priority_id for pre-existing task_folders tables
-  if (!(await columnExists(pool, "task_folders", "priority_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[task_folders] ADD priority_id INT NULL
-        CONSTRAINT fk_task_folders_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
-    `);
-  }
-
-  await createTableIfNotExists(
-    pool,
     "tasks",
     `
     CREATE TABLE [MyWork].[tasks] (
       id INT IDENTITY(1,1) PRIMARY KEY,
       title NVARCHAR(255) NOT NULL,
       notes NVARCHAR(MAX),
-      folder_id INT NULL,
+      parent_id INT NULL,
       priority_id INT NULL,
       status NVARCHAR(20) NOT NULL DEFAULT 'incomplete',
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_tasks_folder FOREIGN KEY (folder_id) REFERENCES [MyWork].[task_folders](id) ON DELETE SET NULL,
+      CONSTRAINT fk_tasks_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE,
       CONSTRAINT fk_tasks_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
     )
   `,
   );
   await createUpdatedAtTrigger(pool, "tasks");
 
-  // Backfill folder_id/priority_id/status for pre-existing tasks tables
-  if (!(await columnExists(pool, "tasks", "folder_id"))) {
+  // Backfill parent_id/priority_id/status for pre-existing tasks tables
+  if (!(await columnExists(pool, "tasks", "parent_id"))) {
     await pool.request().query(`
-      ALTER TABLE [MyWork].[tasks] ADD folder_id INT NULL
-        CONSTRAINT fk_tasks_folder FOREIGN KEY REFERENCES [MyWork].[task_folders](id) ON DELETE SET NULL
+      ALTER TABLE [MyWork].[tasks] ADD parent_id INT NULL
+        CONSTRAINT fk_tasks_parent FOREIGN KEY REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE
     `);
+    // Set all folder_id references to NULL during migration for safety
+    if (await columnExists(pool, "tasks", "folder_id")) {
+      await pool.request().query(`UPDATE [MyWork].[tasks] SET parent_id = NULL WHERE folder_id IS NOT NULL`);
+    }
   }
   if (!(await columnExists(pool, "tasks", "priority_id"))) {
     await pool.request().query(`
@@ -733,6 +698,11 @@ export async function createMssqlSchema(pool) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[tasks] ADD status NVARCHAR(20) NOT NULL DEFAULT 'incomplete'
     `);
+  }
+
+  // Drop old folder_id column if it still exists on tasks
+  if (await columnExists(pool, "tasks", "folder_id")) {
+    await pool.request().query(`ALTER TABLE [MyWork].[tasks] DROP COLUMN folder_id`);
   }
 
   await createTableIfNotExists(
@@ -1006,12 +976,10 @@ export async function createMssqlSchema(pool) {
     "goals",
     "work_items",
     "work_item_templates",
-    "to_do_folders",
     "to_dos",
     "idea_folders",
     "ideas",
     "tasks",
-    "task_folders",
     "tickets",
   ];
   for (const table of contextTables) {

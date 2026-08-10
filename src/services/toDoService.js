@@ -50,15 +50,15 @@ export async function getToDoById(id) {
 }
 
 export async function createToDo(data, contextId) {
-  const { title, notes, folder_id, priority_id, items } = data;
+  const { title, notes, parent_id, priority_id, items } = data;
 
   if (!title) {
     throw new ValidationError('To do title is required');
   }
 
   const toDoId = await db.insert(
-    'INSERT INTO to_dos (title, notes, folder_id, priority_id, context_id) VALUES (?, ?, ?, ?, ?)',
-    [title, notes ?? null, folder_id || null, priority_id || null, contextId]
+    'INSERT INTO to_dos (title, notes, parent_id, priority_id, context_id) VALUES (?, ?, ?, ?, ?)',
+    [title, notes ?? null, parent_id || null, priority_id || null, contextId]
   );
 
   if (items !== undefined) {
@@ -84,16 +84,18 @@ export async function updateToDo(id, data) {
     values.push(data.notes ?? null);
   }
 
-  // Only touch folder_id when the caller explicitly provided it (e.g. drag-to-file),
-  // so a plain title/notes edit from the modal leaves the current folder untouched.
-  if (data.folder_id !== undefined) {
-    setClauses.push('folder_id = ?');
-    values.push(data.folder_id || null);
+  // Only touch parent_id when the caller explicitly provided it (e.g. drag-to-nest),
+  // so a plain title/notes edit from the modal leaves the current parent untouched.
+  if (data.parent_id !== undefined) {
+    if (data.parent_id && Number(data.parent_id) === Number(id)) {
+      throw new ValidationError('A to do cannot be its own parent');
+    }
+    setClauses.push('parent_id = ?');
+    values.push(data.parent_id || null);
   }
 
-  // priority_id (Projects-tab association) is intentionally separate from folder_id
-  // (Todos-tab folder) so linking/unlinking a project has no effect on Todos-tab
-  // organization, and vice versa.
+  // priority_id (Projects-tab association) is separate from parent_id
+  // (nesting) so linking/unlinking a project has no effect on nesting.
   if (data.priority_id !== undefined) {
     setClauses.push('priority_id = ?');
     values.push(data.priority_id || null);
@@ -113,7 +115,7 @@ export async function updateToDo(id, data) {
   }
 
   // Only touch items when the caller explicitly provided them, so operations like
-  // drag-to-file (which only sends title/notes/folder_id) don't wipe the checklist.
+  // drag-to-nest (which only sends title/notes/parent_id) don't wipe the checklist.
   if (data.items !== undefined) {
     await replaceItems(id, data.items);
   }

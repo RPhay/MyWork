@@ -50,15 +50,15 @@ export async function getTaskById(id) {
 }
 
 export async function createTask(data, contextId) {
-  const { title, notes, folder_id, priority_id, links } = data;
+  const { title, notes, parent_id, priority_id, links } = data;
 
   if (!title) {
     throw new ValidationError('Task title is required');
   }
 
   const taskId = await db.insert(
-    'INSERT INTO tasks (title, notes, folder_id, priority_id, context_id) VALUES (?, ?, ?, ?, ?)',
-    [title, notes ?? null, folder_id || null, priority_id || null, contextId]
+    'INSERT INTO tasks (title, notes, parent_id, priority_id, context_id) VALUES (?, ?, ?, ?, ?)',
+    [title, notes ?? null, parent_id || null, priority_id || null, contextId]
   );
 
   if (links !== undefined) {
@@ -84,16 +84,18 @@ export async function updateTask(id, data) {
     values.push(data.notes ?? null);
   }
 
-  // Only touch folder_id when the caller explicitly provided it (e.g. drag-to-file),
-  // so a plain title/notes edit from the modal leaves the current folder untouched.
-  if (data.folder_id !== undefined) {
-    setClauses.push('folder_id = ?');
-    values.push(data.folder_id || null);
+  // Only touch parent_id when the caller explicitly provided it (e.g. drag-to-nest),
+  // so a plain title/notes edit from the modal leaves the current parent untouched.
+  if (data.parent_id !== undefined) {
+    if (data.parent_id && Number(data.parent_id) === Number(id)) {
+      throw new ValidationError('A task cannot be its own parent');
+    }
+    setClauses.push('parent_id = ?');
+    values.push(data.parent_id || null);
   }
 
-  // priority_id (Projects-tab association) is intentionally separate from folder_id
-  // (Tasks-tab folder) so linking/unlinking a project has no effect on Tasks-tab
-  // organization, and vice versa.
+  // priority_id (Projects-tab association) is separate from parent_id
+  // (nesting) so linking/unlinking a project has no effect on nesting.
   if (data.priority_id !== undefined) {
     setClauses.push('priority_id = ?');
     values.push(data.priority_id || null);

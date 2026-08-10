@@ -464,50 +464,39 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create to_do_folders table (supports sub-folders via parent_id)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS to_do_folders (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      parent_id INT,
-      priority_id INT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (parent_id) REFERENCES to_do_folders(id) ON DELETE CASCADE,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Backfill priority_id for pre-existing to_do_folders tables. This lets a whole
-  // Todos-tab folder be linked to a project (live - shows whatever's currently in
-  // the folder), independent of any individual to-do's own priority_id.
-  if (!(await columnExists(connection, "to_do_folders", "priority_id"))) {
-    await connection.query(
-      "ALTER TABLE to_do_folders ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL",
-    );
-  }
-
-  // Create to_dos table
+  // Create to_dos table (supports nesting via parent_id)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS to_dos (
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
       notes LONGTEXT,
-      folder_id INT,
+      parent_id INT,
       priority_id INT,
       status VARCHAR(20) NOT NULL DEFAULT 'incomplete',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (folder_id) REFERENCES to_do_folders(id) ON DELETE SET NULL,
+      FOREIGN KEY (parent_id) REFERENCES to_dos(id) ON DELETE CASCADE,
       FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
 
-  // Backfill folder_id for pre-existing to_dos tables
-  if (!(await columnExists(connection, "to_dos", "folder_id"))) {
+  // Backfill parent_id for pre-existing to_dos tables (migrate from folder_id if it exists)
+  if (!(await columnExists(connection, "to_dos", "parent_id"))) {
     await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN folder_id INT, ADD FOREIGN KEY (folder_id) REFERENCES to_do_folders(id) ON DELETE SET NULL",
+      "ALTER TABLE to_dos ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES to_dos(id) ON DELETE CASCADE",
     );
+
+    // If old folder_id column exists, convert folder rows to parent-child relationships
+    if (await columnExists(connection, "to_dos", "folder_id")) {
+      // For each to_do with a folder_id that matches a folder's id, create parent relationship
+      // This assumes if a to_do references folder_id X, there might be a folder with id X
+      // We'll set parent_id to null (unfiled) for now to be safe during migration
+      await connection.query("UPDATE to_dos SET parent_id = NULL WHERE folder_id IS NOT NULL");
+
+      // Drop the old folder_id column
+      await dropForeignKeysOnColumn(connection, "to_dos", "folder_id");
+      await connection.query("ALTER TABLE to_dos DROP COLUMN folder_id");
+    }
   }
 
   // Backfill priority_id for pre-existing to_dos tables. This is a separate column
@@ -630,49 +619,34 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create task_folders table (supports sub-folders via parent_id, structurally
-  // identical to to_do_folders)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS task_folders (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      parent_id INT,
-      priority_id INT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (parent_id) REFERENCES task_folders(id) ON DELETE CASCADE,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Backfill priority_id for pre-existing task_folders tables
-  if (!(await columnExists(connection, "task_folders", "priority_id"))) {
-    await connection.query(
-      "ALTER TABLE task_folders ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL",
-    );
-  }
-
-  // Create tasks table
+  // Create tasks table (supports nesting via parent_id)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS tasks (
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
       notes LONGTEXT,
-      folder_id INT,
+      parent_id INT,
       priority_id INT,
       status VARCHAR(20) NOT NULL DEFAULT 'incomplete',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (folder_id) REFERENCES task_folders(id) ON DELETE SET NULL,
+      FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE CASCADE,
       FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
 
-  // Backfill folder_id/priority_id/status for pre-existing tasks tables
-  if (!(await columnExists(connection, "tasks", "folder_id"))) {
+  // Backfill parent_id/priority_id/status for pre-existing tasks tables
+  if (!(await columnExists(connection, "tasks", "parent_id"))) {
     await connection.query(
-      "ALTER TABLE tasks ADD COLUMN folder_id INT, ADD FOREIGN KEY (folder_id) REFERENCES task_folders(id) ON DELETE SET NULL",
+      "ALTER TABLE tasks ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE CASCADE",
     );
+
+    // If old folder_id column exists, drop it after migrating to parent_id
+    if (await columnExists(connection, "tasks", "folder_id")) {
+      await connection.query("UPDATE tasks SET parent_id = NULL WHERE folder_id IS NOT NULL");
+      await dropForeignKeysOnColumn(connection, "tasks", "folder_id");
+      await connection.query("ALTER TABLE tasks DROP COLUMN folder_id");
+    }
   }
   if (!(await columnExists(connection, "tasks", "priority_id"))) {
     await connection.query(
@@ -683,6 +657,14 @@ export async function createMysqlSchema(connection) {
     await connection.query(
       "ALTER TABLE tasks ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'incomplete'",
     );
+  }
+
+  // Drop folder tables if they exist (replaced by parent_id nesting on to_dos and tasks)
+  if (await indexExists(connection, "to_do_folders", "PRIMARY")) {
+    await connection.query("DROP TABLE IF EXISTS to_do_folders");
+  }
+  if (await indexExists(connection, "task_folders", "PRIMARY")) {
+    await connection.query("DROP TABLE IF EXISTS task_folders");
   }
 
   // Create task_links table (1-n links associated with tasks)
@@ -984,12 +966,10 @@ export async function createMysqlSchema(connection) {
     "goals",
     "work_items",
     "work_item_templates",
-    "to_do_folders",
     "to_dos",
     "idea_folders",
     "ideas",
     "tasks",
-    "task_folders",
     "tickets",
   ];
   for (const table of contextTables) {

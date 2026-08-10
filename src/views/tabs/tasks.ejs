@@ -4,16 +4,13 @@
   <div class="split-pane-left" id="taskListPane" style="padding: 15px; overflow-y: auto;">
     <div class="row mb-2">
       <div class="col-md-12 text-end">
-        <button class="btn btn-outline-secondary" id="addTaskFolderBtn" data-bs-toggle="modal" data-bs-target="#taskFolderModal">
-          + Add Folder
-        </button>
         <button class="btn btn-primary" id="addTaskBtn" data-bs-toggle="modal" data-bs-target="#taskModal">
           + Add Task
         </button>
       </div>
     </div>
 
-    <p class="text-muted small mb-2">Drag a task onto a folder to file it there, or onto empty space to unfile it. Drag a folder onto another to nest it.</p>
+    <p class="text-muted small mb-2">Drag a task under another to nest it. Drag to the empty space above to unfile it.</p>
 
     <div class="task-tree-header text-muted small fw-bold border-bottom pb-1 mb-1">
       <span>Title</span>
@@ -70,37 +67,6 @@
   </div>
 </div>
 
-<!-- Folder Context Menu -->
-<div id="taskFolderContextMenu" class="context-menu d-none">
-  <button type="button" class="context-menu-item" data-menu-action="add-task"><i class="bi bi-plus-lg"></i> Add Task Here</button>
-</div>
-
-<!-- Folder Modal -->
-<div class="modal fade" id="taskFolderModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Folder Form</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form id="taskFolderForm">
-          <input type="hidden" id="taskFolderId" name="folderId">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-          <div class="mb-3">
-            <label for="taskFolderName" class="form-label">Name *</label>
-            <input type="text" class="form-control" id="taskFolderName" name="name" required>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveTaskFolderBtn">Save Folder</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- Task Modal -->
 <div class="modal fade" id="taskModal" tabindex="-1">
@@ -147,7 +113,7 @@
 </div>
 
 <style>
-  .task-tree-header, .task-row, .task-folder-header {
+  .task-tree-header, .task-row {
     display: grid;
     grid-template-columns: 1fr 1fr 112px;
     align-items: center;
@@ -155,7 +121,7 @@
     width: 100%;
   }
 
-  .task-row, .task-folder-header {
+  .task-row {
     padding: 8px;
     border: 1px solid #dee2e6;
     border-radius: 4px;
@@ -164,15 +130,15 @@
     min-height: 44px;
   }
 
-  .task-row:hover, .task-folder-header:hover {
+  .task-row:hover {
     background: #f8f9fa;
   }
 
-  .task-row, .task-folder-header {
+  .task-row {
     cursor: move;
   }
 
-  .task-folder-header.task-drop-target {
+  .task-row.task-drop-target {
     background: #e7f3ff;
     outline: 2px dashed #007bff;
     outline-offset: -2px;
@@ -206,15 +172,15 @@
     transition: transform 0.15s ease;
   }
 
-  .task-folder-node.expanded > .task-folder-header .task-folder-toggle {
+  .task-node.expanded > .task-row .task-folder-toggle {
     transform: rotate(90deg);
   }
 
-  .task-folder-node-children {
+  .task-node-children {
     display: none;
   }
 
-  .task-folder-node.expanded > .task-folder-node-children {
+  .task-node.expanded > .task-node-children {
     display: block;
   }
 
@@ -238,7 +204,7 @@
   }
 
   @media (prefers-color-scheme: dark) {
-    .task-row:hover, .task-folder-header:hover {
+    .task-row:hover {
       background: #2a2a2a;
     }
   }

@@ -2,7 +2,6 @@ import * as workItemService from './workItemService.js';
 import * as goalService from './goalService.js';
 import * as toDoService from './toDoService.js';
 import * as ideaService from './ideaService.js';
-import * as toDoFolderService from './toDoFolderService.js';
 import * as ideaFolderService from './ideaFolderService.js';
 import { ValidationError } from '../config/errors.js';
 
@@ -90,15 +89,21 @@ export async function getCategoryBreakdown(contextId, { startDate, endDate } = {
 export async function getToDosIdeasReport(contextId, { startDate, endDate } = {}) {
   requireDateRange(startDate, endDate);
 
-  const [toDos, ideas, toDoFolders, ideaFolders] = await Promise.all([
+  const [toDos, ideas, ideaFolders] = await Promise.all([
     toDoService.getAllToDos(contextId),
     ideaService.getAllIdeas(contextId),
-    toDoFolderService.getAllFolders(contextId),
     ideaFolderService.getAllFolders(contextId),
   ]);
 
-  const toDoFolderById = new Map(toDoFolders.map(f => [f.id, f.name]));
   const ideaFolderById = new Map(ideaFolders.map(f => [f.id, f.name]));
+  const toDoById = new Map(toDos.map(t => [t.id, t]));
+
+  // For todos with a parent, get the parent's title to display as a "folder"
+  function getToDoParentName(todo) {
+    if (!todo.parent_id) return null;
+    const parent = toDoById.get(todo.parent_id);
+    return parent ? parent.title : null;
+  }
 
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -115,7 +120,7 @@ export async function getToDosIdeasReport(contextId, { startDate, endDate } = {}
       type: 'To Do',
       id: t.id,
       title: t.title,
-      folder: t.folder_id ? (toDoFolderById.get(t.folder_id) || null) : null,
+      folder: getToDoParentName(t),
       createdAt: t.created_at,
       doneCount: (t.items || []).filter(i => i.is_done).length,
       totalCount: (t.items || []).length,

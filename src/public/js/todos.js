@@ -1,164 +1,77 @@
 // Store state on window to survive multiple script loads
 if (!window.todoState) {
   window.todoState = {
-    expandedFolders: new Set(),
-    allFolders: [],
+    expandedTodos: new Set(),
     allToDos: []
   };
 }
 
-// Parse email data from drag event
-function parseEmailData(text) {
-  // Outlook typically sends email in format:
-  // Subject line
-  // From: sender@example.com
-  // Sent: date/time
-  // Body content...
-
-  const lines = text.split(/[\r\n]+/);
-  const email = {
-    subject: '',
-    from: '',
-    body: ''
-  };
-
-  let bodyStartIndex = 0;
-
-  for (let i = 0; i < Math.min(lines.length, 10); i++) {
-    const line = lines[i].trim();
-
-    // First non-empty line is usually the subject
-    if (!email.subject && line && !line.startsWith('From:') && !line.startsWith('Sent:')) {
-      email.subject = line;
-      bodyStartIndex = i + 1;
-    } else if (line.startsWith('From:')) {
-      email.from = line.substring(5).trim();
-    }
-  }
-
-  // Everything after metadata is body
-  if (bodyStartIndex < lines.length) {
-    email.body = lines.slice(bodyStartIndex)
-      .map(l => l.trim())
-      .filter(l => l && !l.startsWith('Sent:'))
-      .join('\n')
-      .trim();
-  }
-
-  return email;
-}
-
-async function createToDoFromEmail(emailData, folderId = null) {
-  const title = emailData.subject || 'Email To Do';
-  const notes = emailData.from ? `From: ${emailData.from}` : '';
-
-  const toDoData = {
-    title: title,
-    notes: notes,
-    folder_id: folderId || null
-  };
-
-  try {
-    const response = await fetch('/api/to-dos', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(toDoData)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(`To Do created from email: "${title}"`, 'success');
-      loadToDos();
-      // Open the edit modal so user can add more details
-      editToDo(result.data.id);
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error creating to do from email:', error);
-    app.notify('Error creating to do from email', 'danger');
-  }
-}
-
-// Helper to get current state
 function getState() {
   return window.todoState;
 }
 
-function groupToDosByFolder(toDos) {
-  const byFolder = new Map();
+// Compute aggregated status for a todo based on its children
+function computeToDoStatus(todo, todoMap) {
+  const children = (todoMap[todo.id] || []);
+  if (children.length === 0) return todo.status;
+
+  const statuses = [todo.status, ...children.map(child => computeToDoStatus(child, todoMap))];
+  if (statuses.includes('failed')) return 'failed';
+  if (statuses.includes('incomplete')) return 'incomplete';
+  if (statuses.includes('skipped')) return 'skipped';
+  return 'complete';
+}
+
+// Build a map of parent_id -> [children]
+function buildChildrenMap(toDos) {
+  const map = {};
   toDos.forEach(t => {
-    const key = t.folder_id || null;
-    if (!byFolder.has(key)) byFolder.set(key, []);
-    byFolder.get(key).push(t);
+    if (!map[t.id]) map[t.id] = [];
   });
-  return byFolder;
+  toDos.forEach(t => {
+    if (t.parent_id) {
+      if (!map[t.parent_id]) map[t.parent_id] = [];
+      map[t.parent_id].push(t);
+    }
+  });
+  return map;
 }
 
-function renderToDoRow(toDo, depth) {
-  const items = toDo.items || [];
-  const doneCount = items.filter(i => i.is_done).length;
-  const itemsBadge = items.length > 0
-    ? `<span class="badge bg-light text-dark border" title="Items done">${doneCount}/${items.length}</span>`
-    : '';
-  const hasLinks = toDo.hasLinks || false;
-  const linksBadge = hasLinks
-    ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
-    : '';
-  const status = toDo.status || 'incomplete';
-  const statusIcon = app.statusIcon(status);
-  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
-
-  return `
-    <div class="todo-row" data-todo-id="${toDo.id}" data-type="todo" data-id="${toDo.id}" data-name="${app.escapeHtml(toDo.title)}" draggable="true">
-      <span class="todo-name-cell">
-        <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
-        <span class="todo-folder-toggle"></span>
-        <button type="button" class="todo-item-checkbox ${status !== 'incomplete' ? 'status-' + status : ''}" data-action="toggle-complete" data-id="${toDo.id}" data-status="${status}" title="${statusLabel} — click to change" aria-label="${statusLabel} — click to change">
-          ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
-        </button>
-        <span class="todo-title" ${status === 'complete' ? 'style="text-decoration: line-through; opacity: 0.6;"' : ''}>${app.escapeHtml(toDo.title)}</span>
-        ${itemsBadge}
-        ${linksBadge}
-      </span>
-      <span class="todo-notes text-muted">${app.escapeHtml(toDo.notes) || '-'}</span>
-      <span class="todo-actions">
-        <button class="btn btn-sm btn-danger" data-action="delete" data-id="${toDo.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
-      </span>
-    </div>
-  `;
+// Get all root-level todos (those with no parent)
+function getRootTodos(toDos) {
+  return toDos.filter(t => !t.parent_id);
 }
 
-function renderFolderNode(folder, foldersByParent, toDosByFolder, depth) {
-  const childFolders = foldersByParent.get(folder.id) || [];
-  const childToDos = toDosByFolder.get(folder.id) || [];
-  const hasChildren = childFolders.length > 0 || childToDos.length > 0;
-  const isExpanded = getState().expandedFolders.has(String(folder.id));
+function renderToDoRow(toDo, depth, childrenMap, statusMap) {
+  const children = childrenMap[toDo.id] || [];
+  const hasChildren = children.length > 0;
+  const isExpanded = getState().expandedTodos.has(String(toDo.id));
+  const displayStatus = statusMap[toDo.id] || toDo.status;
+  const statusIcon = app.statusIcon(displayStatus);
+  const statusLabel = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
 
-  const childrenHtml = hasChildren
-    ? `<div class="todo-folder-node-children">
-        ${childFolders.map(f => renderFolderNode(f, foldersByParent, toDosByFolder, depth + 1)).join('')}
-        ${childToDos.map(t => renderToDoRow(t, depth + 1)).join('')}
+  const childrenHtml = hasChildren && isExpanded
+    ? `<div class="todo-node-children">
+        ${children.map(c => renderToDoRow(c, depth + 1, childrenMap, statusMap)).join('')}
       </div>`
     : '';
 
   return `
-    <div class="todo-folder-node ${isExpanded ? 'expanded' : ''}" data-folder-id="${folder.id}">
-      <div class="todo-folder-header" data-type="folder" data-id="${folder.id}" data-name="${app.escapeHtml(folder.name)}" draggable="true">
+    <div class="todo-node ${isExpanded ? 'expanded' : ''}" data-todo-id="${toDo.id}">
+      <div class="todo-row" data-type="todo" data-id="${toDo.id}" data-name="${app.escapeHtml(toDo.title)}" draggable="true">
         <span class="todo-name-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
           ${hasChildren
             ? '<i class="bi bi-chevron-right todo-folder-toggle" data-action="toggle-expand"></i>'
             : '<span class="todo-folder-toggle"></span>'}
-          <i class="bi bi-folder-fill text-warning"></i>
-          <span class="todo-title">${app.escapeHtml(folder.name)}</span>
+          <button type="button" class="todo-item-checkbox ${displayStatus !== 'incomplete' ? 'status-' + displayStatus : ''}" data-action="toggle-complete" data-id="${toDo.id}" data-status="${toDo.status}" title="${statusLabel} — click to change" aria-label="${statusLabel} — click to change">
+            ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
+          </button>
+          <span class="todo-title" ${toDo.status === 'complete' ? 'style="text-decoration: line-through; opacity: 0.6;"' : ''}>${app.escapeHtml(toDo.title)}</span>
         </span>
-        <span></span>
+        <span class="todo-notes text-muted">${app.escapeHtml(toDo.notes) || '-'}</span>
         <span class="todo-actions">
-          <button class="btn btn-sm btn-danger" data-action="delete-folder" data-id="${folder.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-danger" data-action="delete" data-id="${toDo.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
         </span>
       </div>
       ${childrenHtml}
@@ -169,20 +82,23 @@ function renderFolderNode(folder, foldersByParent, toDosByFolder, depth) {
 function renderToDosList() {
   const container = document.getElementById('toDosList');
 
-  if (getState().allFolders.length === 0 && getState().allToDos.length === 0) {
+  if (getState().allToDos.length === 0) {
     container.innerHTML = '<p class="text-center text-muted">No to dos yet</p>';
     return;
   }
 
-  const foldersByParent = app.groupByParent(getState().allFolders);
-  const toDosByFolder = groupToDosByFolder(getState().allToDos);
+  const childrenMap = buildChildrenMap(getState().allToDos);
+  const rootTodos = getRootTodos(getState().allToDos);
 
-  const topFolders = foldersByParent.get(null) || [];
-  const topToDos = toDosByFolder.get(null) || [];
+  // Compute status map for all todos
+  const statusMap = {};
+  getState().allToDos.forEach(todo => {
+    statusMap[todo.id] = computeToDoStatus(todo, childrenMap);
+  });
 
-  container.innerHTML =
-    topFolders.map(f => renderFolderNode(f, foldersByParent, toDosByFolder, 0)).join('') +
-    topToDos.map(t => renderToDoRow(t, 0)).join('');
+  container.innerHTML = rootTodos
+    .map(t => renderToDoRow(t, 0, childrenMap, statusMap))
+    .join('');
 
   setupDragListeners();
 }
@@ -192,26 +108,16 @@ async function loadToDos() {
   container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
 
   try {
-    const [foldersResponse, toDosResponse] = await Promise.all([
-      fetch('/api/to-do-folders'),
-      fetch('/api/to-dos'),
-    ]);
-    if (!foldersResponse.ok) throw new Error(`HTTP ${foldersResponse.status}`);
-    if (!toDosResponse.ok) throw new Error(`HTTP ${toDosResponse.status}`);
+    const response = await fetch('/api/to-dos');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const foldersResult = await foldersResponse.json();
-    const toDosResult = await toDosResponse.json();
+    const result = await response.json();
 
-    console.log('Loaded folders:', foldersResult.data?.length || 0);
-    console.log('Loaded to-dos:', toDosResult.data?.length || 0);
-
-    if (foldersResult.success && toDosResult.success) {
-      getState().allFolders = foldersResult.data || [];
-      getState().allToDos = toDosResult.data || [];
-      console.log('Rendering with', getState().allToDos.length, 'todos');
+    if (result.success) {
+      getState().allToDos = result.data || [];
       renderToDosList();
     } else {
-      console.error('API response failed', foldersResult, toDosResult);
+      console.error('API response failed', result);
       container.innerHTML = '<p class="text-center text-danger">Error loading to dos</p>';
     }
   } catch (error) {
@@ -255,25 +161,14 @@ function collectToDoItemsFromEditor() {
 }
 
 function openNewToDoForm() {
-  openNewToDoFormWithFolder(null);
-}
-
-function openNewToDoFormWithFolder(folderId) {
   document.getElementById('toDoId').value = '';
   document.getElementById('toDoForm').reset();
-  if (folderId) {
-    document.getElementById('folderId').value = folderId;
-  }
   renderToDoItemsEditor([]);
 
   const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
   modal.show();
 }
 
-// Open the To Do modal pre-filled with a title/notes pair from another source (e.g.
-// right-clicking a work item in Dailies) instead of creating the to-do immediately,
-// so the user can review/edit before saving. Exposed globally since all tab scripts
-// share one global scope.
 function openToDoModalPrefilled(title, notes) {
   document.getElementById('toDoId').value = '';
   document.getElementById('toDoForm').reset();
@@ -289,8 +184,6 @@ window.openToDoModalPrefilled = openToDoModalPrefilled;
 async function saveToDo() {
   const toDoId = document.getElementById('toDoId').value;
 
-  // folder_id is intentionally omitted here - it's only ever changed via drag-and-drop,
-  // never through this form, so a plain title/notes edit must leave it untouched.
   const data = {
     title: document.getElementById('toDoTitle').value,
     notes: document.getElementById('toDoNotes').value,
@@ -324,115 +217,50 @@ async function saveToDo() {
   }
 }
 
-async function saveToDoEditor() {
-  const toDoId = document.getElementById('toDoEditorId').value;
-
-  const data = {
-    title: document.getElementById('toDoEditorFormTitle').value,
-    notes: document.getElementById('toDoEditorNotes').value
-  };
-
-  try {
-    const url = toDoId ? `/api/to-dos/${toDoId}` : '/api/to-dos';
-    const method = toDoId ? 'PUT' : 'POST';
-
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('To do saved!', 'success');
-      loadToDos();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving to do', 'danger');
-  }
-}
-
-function closeToDoEditor() {
-  if (window.todoSplitPane) {
-    window.todoSplitPane.hideRightPane();
-  }
-  const editorForm = document.getElementById('toDoEditorForm');
-  if (editorForm) {
-    editorForm.style.display = 'none';
-  }
-}
-
 async function editToDo(toDoId) {
-  const editorPane = document.getElementById('todoEditorPane');
-  const useSplitPane = editorPane && window.todoSplitPane;
+  try {
+    const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to load to do');
+    }
+    const toDo = result.data;
 
-  if (useSplitPane) {
-    await TodoEditor.populate(toDoId);
+    // Populate modal form
+    document.getElementById('toDoId').value = toDo.id;
+    document.getElementById('toDoTitle').value = toDo.title;
+    document.getElementById('toDoNotes').value = toDo.notes || '';
+    renderToDoItemsEditor(toDo.items || [], 'toDoItemsList');
 
-    // Setup link input handlers for split-pane (TodoEditor handles the fetch)
-    const addEditorLinkBtn = document.getElementById('toDoEditorAddLinkBtn');
-    if (addEditorLinkBtn) {
-      addEditorLinkBtn.onclick = async (e) => {
+    // Load and display links
+    loadLinksForEntity('to-do', toDo.id, 'toDoLinksList');
+
+    // Setup link input handlers
+    const addLinkBtn = document.getElementById('addToDoLinkBtn');
+    if (addLinkBtn) {
+      addLinkBtn.onclick = async (e) => {
         e.preventDefault();
-        const url = document.getElementById('toDoEditorLinkUrl').value;
-        const title = document.getElementById('toDoEditorLinkTitle').value;
-        if (await addLinkToEntity('to-do', toDoId, url, title, 'toDoEditorLinksList')) {
-          document.getElementById('toDoEditorLinkUrl').value = '';
-          document.getElementById('toDoEditorLinkTitle').value = '';
+        const url = document.getElementById('toDoLinkUrl').value;
+        const title = document.getElementById('toDoLinkTitle').value;
+        if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoLinksList')) {
+          document.getElementById('toDoLinkUrl').value = '';
+          document.getElementById('toDoLinkTitle').value = '';
         }
       };
     }
-  } else {
-    try {
-      const response = await fetch(`/api/to-dos/${toDoId}`, { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      const result = await response.json();
-      if (!result.success || !result.data) {
-        throw new Error(result.message || 'Failed to load to do');
-      }
-      const toDo = result.data;
 
-      // Populate modal form
-      document.getElementById('toDoId').value = toDo.id;
-      document.getElementById('toDoTitle').value = toDo.title;
-      document.getElementById('toDoNotes').value = toDo.notes || '';
-      renderToDoItemsEditor(toDo.items || [], 'toDoItemsList');
+    // Setup URL drag-drop
+    setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
 
-      // Load and display links
-      loadLinksForEntity('to-do', toDo.id, 'toDoLinksList');
-
-      // Setup link input handlers
-      const addLinkBtn = document.getElementById('addToDoLinkBtn');
-      if (addLinkBtn) {
-        addLinkBtn.onclick = async (e) => {
-          e.preventDefault();
-          const url = document.getElementById('toDoLinkUrl').value;
-          const title = document.getElementById('toDoLinkTitle').value;
-          if (await addLinkToEntity('to-do', toDo.id, url, title, 'toDoLinksList')) {
-            document.getElementById('toDoLinkUrl').value = '';
-            document.getElementById('toDoLinkTitle').value = '';
-          }
-        };
-      }
-
-      // Setup URL drag-drop
-      setupURLDragDrop('to-do', 'toDoLinksList', () => toDo.id);
-
-      // Show modal
-      const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
-      modal.show();
-    } catch (error) {
-      console.error('Error:', error);
-      app.notify('Error loading to do', 'danger');
-    }
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('toDoModal'));
+    modal.show();
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error loading to do', 'danger');
   }
 }
 
@@ -467,28 +295,113 @@ async function cycleToDoStatus(toDoId, currentStatus) {
   }
 }
 
-function openNewFolderForm() {
-  document.getElementById('folderId').value = '';
-  document.getElementById('folderForm').reset();
+function setupDragListeners() {
+  const container = document.getElementById('toDosList');
+
+  container.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.todo-row');
+    if (!row) return;
+
+    const toDoId = row.getAttribute('data-id');
+    const name = row.getAttribute('data-name');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `${toDoId}|${name}`);
+  });
+
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const row = e.target.closest('.todo-row');
+    if (row) {
+      row.classList.add('todo-drop-target');
+    } else if (e.target === container || e.target.closest('#toDosList')) {
+      container.classList.add('todo-drop-target-root');
+    }
+  });
+
+  container.addEventListener('dragleave', (e) => {
+    if (!e.relatedTarget?.closest('.todo-row')) {
+      document.querySelectorAll('.todo-row').forEach(r => r.classList.remove('todo-drop-target'));
+    }
+    if (!e.relatedTarget?.closest('#toDosList')) {
+      container.classList.remove('todo-drop-target-root');
+    }
+  });
+
+  container.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    container.classList.remove('todo-drop-target-root');
+    document.querySelectorAll('.todo-row').forEach(r => r.classList.remove('todo-drop-target'));
+
+    const data = e.dataTransfer.getData('text/plain');
+    if (!data) return;
+
+    const [toDoId] = data.split('|');
+    const dropTarget = e.target.closest('.todo-row');
+
+    if (dropTarget) {
+      const parentId = dropTarget.getAttribute('data-id');
+      if (Number(parentId) === Number(toDoId)) return;
+
+      await updateToDoParent(toDoId, parentId);
+    } else {
+      await updateToDoParent(toDoId, null);
+    }
+  });
+
+  // Toggle expand/collapse
+  container.addEventListener('click', (e) => {
+    if (e.target.classList.contains('todo-folder-toggle')) {
+      const row = e.target.closest('.todo-row');
+      const node = row?.closest('.todo-node');
+      if (node) {
+        const toDoId = node.getAttribute('data-todo-id');
+        if (getState().expandedTodos.has(toDoId)) {
+          getState().expandedTodos.delete(toDoId);
+        } else {
+          getState().expandedTodos.add(toDoId);
+        }
+        renderToDosList();
+      }
+    }
+  });
+
+  // Status toggle
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('.todo-item-checkbox[data-action="toggle-complete"]')) {
+      const btn = e.target.closest('.todo-item-checkbox[data-action="toggle-complete"]');
+      const toDoId = btn.getAttribute('data-id');
+      const status = btn.getAttribute('data-status');
+      cycleToDoStatus(toDoId, status);
+    }
+  });
+
+  // Delete
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('button[data-action="delete"]')) {
+      const btn = e.target.closest('button[data-action="delete"]');
+      const toDoId = btn.getAttribute('data-id');
+      deleteToDo(toDoId);
+    }
+  });
+
+  // Edit
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('.todo-title')) {
+      const row = e.target.closest('.todo-row');
+      const toDoId = row.getAttribute('data-id');
+      editToDo(toDoId);
+    }
+  });
 }
 
-async function saveFolder() {
-  const folderId = document.getElementById('toDoEditorId').value;
-  const name = document.getElementById('toDoEditorFormTitle').value;
-
-  if (!name.trim()) {
-    app.notify('Folder name is required', 'danger');
-    return;
-  }
-
-  const data = { name };
+async function updateToDoParent(toDoId, parentId) {
+  const data = { parent_id: parentId };
 
   try {
-    const url = folderId ? `/api/to-do-folders/${folderId}` : '/api/to-do-folders';
-    const method = folderId ? 'PUT' : 'POST';
-
-    const response = await fetch(url, {
-      method,
+    const response = await fetch(`/api/to-dos/${toDoId}`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': window.APP_CONFIG?.csrfToken
@@ -498,661 +411,32 @@ async function saveFolder() {
 
     const result = await response.json();
     if (result.success) {
-      app.notify('Folder saved!', 'success');
       loadToDos();
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error:', error);
-    app.notify('Error saving folder', 'danger');
+    app.notify('Error updating to do', 'danger');
   }
 }
 
-async function editFolder(folderId) {
-  try {
-    const response = await fetch(`/api/to-do-folders/${folderId}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-    const result = await response.json();
-    if (!result.success || !result.data) {
-      throw new Error(result.message || 'Failed to load folder');
-    }
-    const folder = result.data;
-
-    // Show split-pane editor if available
-    if (window.todoSplitPane && typeof window.todoSplitPane.showRightPane === 'function') {
-      document.getElementById('toDoEditorId').value = folder.id;
-      document.getElementById('toDoEditorType').value = 'folder';
-      document.getElementById('toDoEditorFormTitle').value = folder.name;
-      document.getElementById('toDoEditorNotes').value = '';
-      document.getElementById('todoEditorTitle').textContent = folder.name;
-      document.getElementById('toDoEditorItemsList').innerHTML = '';
-      document.getElementById('toDoEditorLinksList').innerHTML = '';
-      window.todoSplitPane.showRightPane();
-    } else {
-      // Fallback to modal if split pane isn't working
-      const modal = new bootstrap.Modal(document.getElementById('folderModal'));
-      document.getElementById('folderId').value = folder.id;
-      document.getElementById('folderName').value = folder.name;
-      modal.show();
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading folder', 'danger');
-  }
-}
-
-function getFolderDescendantIds(folderId) {
-  const descendants = new Set();
-  const byParent = app.groupByParent(getState().allFolders);
-  const queue = [Number(folderId)];
-
-  while (queue.length > 0) {
-    const current = queue.pop();
-    (byParent.get(current) || []).forEach(child => {
-      if (!descendants.has(child.id)) {
-        descendants.add(child.id);
-        queue.push(child.id);
-      }
-    });
-  }
-
-  return descendants;
-}
-
-function countToDosInFolders(folderIds) {
-  return getState().allToDos.filter(t => t.folder_id && folderIds.has(Number(t.folder_id))).length;
-}
-
-async function deleteFolder(folderId) {
-  const descendants = getFolderDescendantIds(folderId);
-  const allIds = new Set([Number(folderId), ...descendants]);
-  const toDoCount = countToDosInFolders(allIds);
-
-  let message = 'Delete this folder?';
-  if (descendants.size > 0 && toDoCount > 0) {
-    message = 'This folder has sub-folders and to dos in it. The sub-folders will be deleted and the to dos will become unfiled. Delete anyway?';
-  } else if (descendants.size > 0) {
-    message = 'This folder has sub-folders that will also be deleted. Delete anyway?';
-  } else if (toDoCount > 0) {
-    message = 'This folder has to dos in it that will become unfiled. Delete anyway?';
-  }
-
-  if (!await app.confirm(message)) return;
-
-  try {
-    const response = await fetch(`/api/to-do-folders/${folderId}`, {
-      method: 'DELETE',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Folder deleted', 'success');
-      loadToDos();
-    } else {
-      app.notify('Error deleting folder', 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error deleting folder', 'danger');
-  }
-}
-
-function toggleFolderNode(nodeEl) {
-  const id = String(nodeEl.dataset.folderId);
-  if (getState().expandedFolders.has(id)) {
-    getState().expandedFolders.delete(id);
-    nodeEl.classList.remove('expanded');
-  } else {
-    getState().expandedFolders.add(id);
-    nodeEl.classList.add('expanded');
-  }
-}
-
-async function reparentFolder(folderId, newParentId) {
-  const folder = getState().allFolders.find(f => String(f.id) === String(folderId));
-  if (!folder) return;
-
-  try {
-    const response = await fetch(`/api/to-do-folders/${folderId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ name: folder.name, parent_id: newParentId })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      if (newParentId) getState().expandedFolders.add(String(newParentId));
-      loadToDos();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error moving folder:', error);
-    app.notify('Error moving folder', 'danger');
-  }
-}
-
-async function fileToDoIntoFolder(toDoId, folderId) {
-  const toDo = getState().allToDos.find(t => String(t.id) === String(toDoId));
-  if (!toDo) return;
-
-  try {
-    const response = await fetch(`/api/to-dos/${toDoId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ title: toDo.title, notes: toDo.notes, folder_id: folderId })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      if (folderId) getState().expandedFolders.add(String(folderId));
-      loadToDos();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error filing to do:', error);
-    app.notify('Error filing to do', 'danger');
-  }
-}
-
-let convertingToDoData = null;
-
-async function loadConvertParentOptions(type) {
-  const select = document.getElementById('convertParent');
-  const endpoint = type === 'sub-project' ? '/api/priorities' : '/api/areas';
-  const labelField = type === 'sub-project' ? 'title' : 'name';
-
-  try {
-    const response = await fetch(endpoint);
-    const result = await response.json();
-    const records = (result.success && result.data) || [];
-
-    select.innerHTML = app.flattenTree(records)
-      .map(r => `<option value="${r.id}">${'— '.repeat(r.depth)}${r[labelField]}</option>`)
-      .join('');
-  } catch (error) {
-    console.error('Error loading parent options:', error);
-  }
-}
-
-function updateConvertFormVisibility() {
-  const type = document.getElementById('convertType').value;
-  const parentGroup = document.getElementById('convertParentGroup');
-  const dateGroup = document.getElementById('convertDateGroup');
-
-  parentGroup.classList.add('d-none');
-  dateGroup.classList.add('d-none');
-
-  if (type === 'sub-project' || type === 'sub-area') {
-    parentGroup.classList.remove('d-none');
-    loadConvertParentOptions(type);
-  } else if (type === 'work-item') {
-    dateGroup.classList.remove('d-none');
-  }
-}
-
-async function openConvertToDoForm(toDoId, presetType) {
-  try {
-    const response = await fetch(`/api/to-dos/${toDoId}`);
-    const result = await response.json();
-    convertingToDoData = result.data;
-
-    document.getElementById('convertToDoTitle').textContent = convertingToDoData.title;
-    document.getElementById('convertType').value = presetType || 'project';
-    document.getElementById('convertDate').value = new Date().toISOString().split('T')[0];
-    updateConvertFormVisibility();
-
-    const modal = new bootstrap.Modal(document.getElementById('convertToDoModal'));
-    modal.show();
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error loading to do', 'danger');
-  }
-}
-
-async function doConvertToDo() {
-  if (!convertingToDoData) return;
-
-  const type = document.getElementById('convertType').value;
-  const { title, notes } = convertingToDoData;
-  let endpoint;
-  let payload;
-
-  if (type === 'project') {
-    endpoint = '/api/priorities';
-    payload = { title, notes };
-  } else if (type === 'sub-project') {
-    endpoint = '/api/priorities';
-    payload = { title, notes, parent_id: document.getElementById('convertParent').value || null };
-  } else if (type === 'area') {
-    endpoint = '/api/areas';
-    payload = { name: title, description: notes };
-  } else if (type === 'sub-area') {
-    endpoint = '/api/areas';
-    payload = { name: title, description: notes, parent_id: document.getElementById('convertParent').value || null };
-  } else if (type === 'work-item') {
-    const date = document.getElementById('convertDate').value;
-    if (!date) {
-      app.notify('Pick a date', 'warning');
-      return;
-    }
-    endpoint = '/api/work';
-    payload = { date, title, description: notes };
-  } else {
-    return;
-  }
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(payload)
-    });
-    const result = await response.json();
-    if (!result.success) {
-      app.notify('Error: ' + result.message, 'danger');
-      return;
-    }
-
-    // The to-do has now become the new item, so remove the original
-    await fetch(`/api/to-dos/${convertingToDoData.id}`, {
-      method: 'DELETE',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
-
-    app.notify('Converted!', 'success');
-    bootstrap.Modal.getInstance(document.getElementById('convertToDoModal')).hide();
-    convertingToDoData = null;
-    loadToDos();
-  } catch (error) {
-    console.error('Error converting to do:', error);
-    app.notify('Error converting to do', 'danger');
-  }
-}
-
-let todoContextMenuId = null;
-
-function showTodoContextMenu(x, y, toDoId) {
-  todoContextMenuId = toDoId;
-  const menu = document.getElementById('todoContextMenu');
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
-  menu.classList.remove('d-none');
-}
-
-function hideTodoContextMenu() {
-  todoContextMenuId = null;
-  document.getElementById('todoContextMenu').classList.add('d-none');
-}
-
-function initTodoContextMenu() {
-  const menu = document.getElementById('todoContextMenu');
-
-  menu.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-convert-type]');
-    if (!btn || !todoContextMenuId) {
-      hideTodoContextMenu();
-      return;
-    }
-
-    const toDoId = todoContextMenuId;
-    const type = btn.dataset.convertType;
-    hideTodoContextMenu();
-    openConvertToDoForm(toDoId, type);
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!menu.classList.contains('d-none') && !menu.contains(e.target)) {
-      hideTodoContextMenu();
-    }
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hideTodoContextMenu();
-  });
-}
-
-let folderContextMenuId = null;
-
-function showFolderContextMenu(x, y, folderId) {
-  folderContextMenuId = folderId;
-  const menu = document.getElementById('folderContextMenu');
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
-  menu.classList.remove('d-none');
-}
-
-function hideFolderContextMenu() {
-  folderContextMenuId = null;
-  document.getElementById('folderContextMenu').classList.add('d-none');
-}
-
-function initFolderContextMenu() {
-  const menu = document.getElementById('folderContextMenu');
-
-  menu.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-menu-action]');
-    if (!btn || !folderContextMenuId) {
-      hideFolderContextMenu();
-      return;
-    }
-
-    if (btn.dataset.menuAction === 'add-todo') {
-      hideFolderContextMenu();
-      openNewToDoFormWithFolder(folderContextMenuId);
-      return;
-    }
-
-    hideFolderContextMenu();
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!menu.classList.contains('d-none') && !menu.contains(e.target)) {
-      hideFolderContextMenu();
-    }
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hideFolderContextMenu();
-  });
-}
-
-function clearToDoDropTargets(container) {
-  container.querySelectorAll('.todo-drop-target').forEach(el => el.classList.remove('todo-drop-target'));
-  container.classList.remove('todo-drop-target-root');
-}
-
-function initToDosEventListeners() {
-  document.getElementById('addToDoBtn').addEventListener('click', openNewToDoForm);
-  document.getElementById('saveToDoBtn').addEventListener('click', saveToDo);
-  document.getElementById('addFolderBtn').addEventListener('click', openNewFolderForm);
-  document.getElementById('saveFolderBtn').addEventListener('click', saveFolder);
-
-  // Side-panel editor buttons
-  const saveEditorBtn = document.getElementById('saveToDoEditorBtn');
-  const closeEditorBtn = document.getElementById('closeToDoEditorBtn');
-  if (saveEditorBtn) {
-    saveEditorBtn.addEventListener('click', async () => {
-      const type = document.getElementById('toDoEditorType').value;
-      if (type === 'folder') {
-        await saveFolder();
-      } else {
-        await saveToDoEditor();
-      }
-      closeToDoEditor();
-    });
-  }
-  if (closeEditorBtn) {
-    closeEditorBtn.addEventListener('click', closeToDoEditor);
-  }
-  document.getElementById('convertType').addEventListener('change', updateConvertFormVisibility);
-  document.getElementById('doConvertBtn').addEventListener('click', doConvertToDo);
-
-  document.getElementById('addToDoItemBtn').addEventListener('click', addToDoItemRow);
-  document.getElementById('toDoItemsList').addEventListener('click', (e) => {
-    const toggleBtn = e.target.closest('[data-action="toggle-item"]');
-    if (toggleBtn) {
-      toggleBtn.classList.toggle('checked');
-      toggleBtn.innerHTML = toggleBtn.classList.contains('checked') ? '<i class="bi bi-check-lg"></i>' : '';
-      const textInput = toggleBtn.closest('.todo-item-row').querySelector('input[type="text"]');
-      if (toggleBtn.classList.contains('checked')) {
-        textInput.style.textDecoration = 'line-through';
-        textInput.style.opacity = '0.6';
-      } else {
-        textInput.style.textDecoration = 'none';
-        textInput.style.opacity = '1';
-      }
-      return;
-    }
-
-    const removeBtn = e.target.closest('[data-action="remove-item"]');
-    if (removeBtn) removeBtn.closest('.todo-item-row').remove();
-  });
-
-  const container = document.getElementById('toDosList');
-
-  app.bindInlineRename(container, '.todo-row .todo-title', async (newTitle, titleEl) => {
-    const toDoId = titleEl.closest('.todo-row').dataset.todoId;
-    try {
-      const response = await fetch(`/api/to-dos/${toDoId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-        },
-        body: JSON.stringify({ title: newTitle })
-      });
-      const result = await response.json();
-      if (!result.success) {
-        app.notify('Error: ' + result.message, 'danger');
-        return false;
-      }
-      loadToDos();
-      return true;
-    } catch (error) {
-      console.error('Error renaming to do:', error);
-      app.notify('Error renaming to do', 'danger');
-      return false;
-    }
-  });
-
-  app.bindInlineRename(container, '.todo-folder-header .todo-title', async (newName, titleEl) => {
-    const folderId = titleEl.closest('.todo-folder-node').dataset.folderId;
-    try {
-      const response = await fetch(`/api/to-do-folders/${folderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-        },
-        body: JSON.stringify({ name: newName })
-      });
-      const result = await response.json();
-      if (!result.success) {
-        app.notify('Error: ' + result.message, 'danger');
-        return false;
-      }
-      loadToDos();
-      return true;
-    } catch (error) {
-      console.error('Error renaming folder:', error);
-      app.notify('Error renaming folder', 'danger');
-      return false;
-    }
-  });
-
-  // dragstart doesn't bubble, so we rely on setupDragListeners() to attach
-  // handlers directly to individual items
-
-  container.addEventListener('dragover', (e) => {
-    const types = Array.from(e.dataTransfer.types || []);
-    // Accept any text data - emails, calendar events, etc
-    const hasTextData = types.length > 0 && !types.every(t => t.startsWith('application/'));
-    // Check if this is an internal drag (has custom 'type' data from dragstart)
-    const dragType = e.dataTransfer.getData('type');
-    const hasInternalDrag = !!dragType;
-
-    if (!hasTextData && !hasInternalDrag) {
-      console.log('[todos dragover] No drag data - types:', types, 'dragType:', dragType);
-      return;
-    }
-
-    console.log('[todos dragover] Drag detected - hasTextData:', hasTextData, 'dragType:', dragType);
-    e.preventDefault();
-    e.dataTransfer.dropEffect = hasInternalDrag ? 'move' : 'copy';
-    const folderHeader = e.target.closest('.todo-folder-header');
-    clearToDoDropTargets(container);
-    if (folderHeader) {
-      folderHeader.classList.add('todo-drop-target');
-    } else {
-      container.classList.add('todo-drop-target-root');
-    }
-  });
-
-  container.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    clearToDoDropTargets(container);
-
-    const type = e.dataTransfer.getData('type');
-    const draggedId = e.dataTransfer.getData('id');
-    const folderHeader = e.target.closest('.todo-folder-header');
-    const targetFolderId = folderHeader ? folderHeader.closest('.todo-folder-node').dataset.folderId : null;
-
-    console.log('[todos drop] type:', type, 'draggedId:', draggedId, 'targetFolderId:', targetFolderId);
-
-    // Handle internal drag-drop (folder/todo reordering)
-    if (type && draggedId) {
-      if (type === 'folder') {
-        console.log('[todos drop] Moving folder');
-        if (targetFolderId && String(targetFolderId) === String(draggedId)) return;
-        reparentFolder(draggedId, targetFolderId);
-      } else if (type === 'todo') {
-        console.log('[todos drop] Moving todo');
-        fileToDoIntoFolder(draggedId, targetFolderId);
-      }
-      return;
-    }
-
-    // Handle external email/calendar drag-drop
-    const types = Array.from(e.dataTransfer.types || []);
-    let dropText = null;
-
-    if (e.dataTransfer.types.includes('text/calendar')) {
-      dropText = e.dataTransfer.getData('text/calendar');
-    } else if (e.dataTransfer.types.includes('text/plain')) {
-      dropText = e.dataTransfer.getData('text/plain');
-    } else if (e.dataTransfer.types.includes('text/html')) {
-      dropText = e.dataTransfer.getData('text/html');
-    }
-
-    if (dropText && dropText.trim().length > 0) {
-      console.log('[ToDos] Item dropped. Text length:', dropText.length);
-
-      // Check if this is an email
-      if (isEmailData(dropText)) {
-        const emailData = parseOutlookEmail(dropText);
-        console.log('[ToDos] Parsed email:', emailData);
-        if (emailData.subject) {
-          // Map sender to from for compatibility with createToDoFromEmail
-          await createToDoFromEmail({ ...emailData, from: emailData.sender }, targetFolderId);
-        }
-      }
-      // Check if this is a calendar event
-      else if (dropText.includes('BEGIN:VEVENT') || dropText.includes('DTSTART') || dropText.includes('When:') || dropText.includes('Location:')) {
-        const calendarEvent = parseCalendarEvent(dropText);
-        console.log('[ToDos] Parsed calendar event:', calendarEvent);
-        if (calendarEvent.title) {
-          await createTodoFromCalendarEvent(calendarEvent);
-        }
-      }
-    }
-  });
-
-  container.addEventListener('click', (e) => {
-    const actionBtn = e.target.closest('[data-action]');
-    if (actionBtn) {
-      const action = actionBtn.dataset.action;
-      const id = actionBtn.dataset.id;
-      if (action === 'edit') editToDo(id);
-      else if (action === 'delete') deleteToDo(id);
-      else if (action === 'convert') openConvertToDoForm(id);
-      else if (action === 'delete-folder') deleteFolder(id);
-      else if (action === 'toggle-expand') toggleFolderNode(actionBtn.closest('.todo-folder-node'));
-      else if (action === 'toggle-complete') cycleToDoStatus(id, actionBtn.dataset.status);
-      return;
-    }
-
-    // Single-click on todo row to open editor
-    const todoRow = e.target.closest('.todo-row');
-    if (todoRow && !e.target.closest('.todo-actions') && todoRow.dataset.todoId) {
-      editToDo(todoRow.dataset.todoId);
-      return;
-    }
-
-    // Single-click on folder header to open editor (but not if inside a todo-row)
-    if (!todoRow) {
-      const folderHeader = e.target.closest('.todo-folder-header');
-      if (folderHeader && !e.target.closest('[data-action]')) {
-        const folderId = folderHeader.closest('.todo-folder-node')?.dataset.folderId;
-        if (folderId) {
-          editFolder(folderId);
-          return;
-        }
-      }
-    }
-  });
-
-  container.addEventListener('dblclick', (e) => {
-    if (e.target.closest('[data-action]')) return;
-    const todoRow = e.target.closest('.todo-row');
-    if (todoRow) {
-      editToDo(todoRow.dataset.todoId);
-      return;
-    }
-    const folderHeader = e.target.closest('.todo-folder-header');
-    if (folderHeader) {
-      editFolder(folderHeader.closest('.todo-folder-node').dataset.folderId);
-    }
-  });
-
-  container.addEventListener('contextmenu', (e) => {
-    const todoRow = e.target.closest('.todo-row');
-    if (todoRow) {
-      e.preventDefault();
-      showTodoContextMenu(e.clientX, e.clientY, todoRow.dataset.todoId);
-      return;
-    }
-
-    const folderHeader = e.target.closest('.todo-folder-header');
-    if (folderHeader) {
-      e.preventDefault();
-      showFolderContextMenu(e.clientX, e.clientY, folderHeader.closest('.todo-folder-node').dataset.folderId);
-      return;
-    }
-  });
-
-  initTodoContextMenu();
-  initFolderContextMenu();
-}
-
-function initToDos() {
-  // #toDoModal can be opened from other tabs (e.g. the Dailies right-click menu).
-  // Left inside the #tab-todos pane, it's a descendant of a display:none ancestor
-  // whenever that tab isn't active, so Bootstrap's backdrop would show but the
-  // dialog itself never could - move it to the body so it always renders.
-  const modal = document.getElementById('toDoModal');
-  if (modal && modal.parentElement !== document.body) {
-    document.body.appendChild(modal);
-  }
-
-  // Setup split-pane
-  window.todoSplitPane = new SplitPane('todoSplitPane', 'todoListPane', 'todoDivider', 'todoEditorPane', 66.66);
-  TodoEditor.init(window.todoSplitPane);
-
-  initToDosEventListeners();
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
   loadToDos();
-}
 
-// Only initialize once
-if (!window.todosInitialized) {
-  window.todosInitialized = true;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initToDos);
-  } else {
-    initToDos();
+  const addBtn = document.getElementById('addToDoBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', openNewToDoForm);
   }
-}
+
+  const saveBtn = document.getElementById('saveToDoBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveToDo);
+  }
+
+  const addItemBtn = document.getElementById('addToDoItemBtn');
+  if (addItemBtn) {
+    addItemBtn.addEventListener('click', addToDoItemRow);
+  }
+});
