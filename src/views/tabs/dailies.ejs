@@ -169,79 +169,95 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Work Item Form</h5>
+        <h5 class="modal-title">Add Item to Dailies</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <form id="workForm">
-          <input type="hidden" id="workId" name="workId">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <!-- Tabs for different item types -->
+        <ul class="nav nav-tabs mb-3" id="addItemTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="project-tab" data-bs-toggle="tab" data-bs-target="#project-content" type="button" role="tab" aria-controls="project-content" aria-selected="true">Project</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="task-tab" data-bs-toggle="tab" data-bs-target="#task-content" type="button" role="tab" aria-controls="task-content" aria-selected="false">Task</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="ticket-tab" data-bs-toggle="tab" data-bs-target="#ticket-content" type="button" role="tab" aria-controls="ticket-content" aria-selected="false">Ticket</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="idea-tab" data-bs-toggle="tab" data-bs-target="#idea-content" type="button" role="tab" aria-controls="idea-content" aria-selected="false">Brainstorm</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="template-tab" data-bs-toggle="tab" data-bs-target="#template-content" type="button" role="tab" aria-controls="template-content" aria-selected="false">Template</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="goal-tab" data-bs-toggle="tab" data-bs-target="#goal-content" type="button" role="tab" aria-controls="goal-content" aria-selected="false">Goal</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="todo-tab" data-bs-toggle="tab" data-bs-target="#todo-content" type="button" role="tab" aria-controls="todo-content" aria-selected="false">To Do</button>
+          </li>
+        </ul>
 
-          <div class="mb-3">
-            <div class="d-flex gap-2 align-items-end">
-              <div class="flex-grow-1">
-                <label for="workTitle" class="form-label">Title *</label>
-                <input type="text" class="form-control" id="workTitle" name="title" required>
-              </div>
-              <div>
-                <label class="form-label d-block">Oh!</label>
-                <input type="hidden" id="workEmoji" name="emoji">
-                <button type="button" class="btn btn-outline-secondary emoji-field-btn text-muted" id="workEmojiBtn" data-action="pick-emoji-field" data-input="workEmoji">Pick an emoji</button>
-              </div>
+        <div class="tab-content" id="addItemTabContent">
+          <!-- Project Tab -->
+          <div class="tab-pane fade show active" id="project-content" role="tabpanel" aria-labelledby="project-tab">
+            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="priority">+ Create New Project</button>
+            <div id="projectsList" class="list-group">
+              <p class="text-muted small">Loading projects...</p>
             </div>
           </div>
 
-          <div class="mb-3">
-            <label for="workDescription" class="form-label">Description</label>
-            <textarea class="form-control" id="workDescription" name="description" rows="3"></textarea>
-          </div>
-
-          <div class="mb-3">
-            <label for="workNotes" class="form-label">Notes</label>
-            <textarea class="form-control" id="workNotes" name="notes" rows="2"></textarea>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label d-block">Status</label>
-            <div class="d-flex flex-wrap gap-2" id="workItemStatus">
-              <input type="radio" class="btn-check" name="workStatus" id="workStatusNotStarted" value="Not Started" autocomplete="off" checked>
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workStatusNotStarted">Not Started</label>
-
-              <input type="radio" class="btn-check" name="workStatus" id="workStatusInProgress" value="In Progress" autocomplete="off">
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workStatusInProgress">In Progress</label>
-
-              <input type="radio" class="btn-check" name="workStatus" id="workStatusBlocked" value="Blocked" autocomplete="off">
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workStatusBlocked">Blocked</label>
-
-              <input type="radio" class="btn-check" name="workStatus" id="workStatusComplete" value="Complete" autocomplete="off">
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workStatusComplete">Complete</label>
+          <!-- Task Tab -->
+          <div class="tab-pane fade" id="task-content" role="tabpanel" aria-labelledby="task-tab">
+            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="task">+ Create New Task</button>
+            <div id="tasksList" class="list-group">
+              <p class="text-muted small">Loading tasks...</p>
             </div>
           </div>
 
-          <div class="mb-3">
-            <label class="form-label d-block">Time Box</label>
-            <div class="d-flex flex-wrap gap-2" id="workItemTimeBox">
-              <input type="radio" class="btn-check" name="workTimeBoxBubble" id="workTimeBoxNone" value="" autocomplete="off" checked>
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workTimeBoxNone">No time box</label>
-
-              <input type="radio" class="btn-check" name="workTimeBoxBubble" id="workTimeBox15" value="15" autocomplete="off">
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workTimeBox15">15m</label>
-
-              <input type="radio" class="btn-check" name="workTimeBoxBubble" id="workTimeBox30" value="30" autocomplete="off">
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workTimeBox30">30m</label>
-
-              <input type="radio" class="btn-check" name="workTimeBoxBubble" id="workTimeBox45" value="45" autocomplete="off">
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workTimeBox45">45m</label>
-
-              <input type="radio" class="btn-check" name="workTimeBoxBubble" id="workTimeBox60" value="60" autocomplete="off">
-              <label class="btn btn-outline-secondary btn-sm rounded-pill" for="workTimeBox60">60m</label>
+          <!-- Ticket Tab -->
+          <div class="tab-pane fade" id="ticket-content" role="tabpanel" aria-labelledby="ticket-tab">
+            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="ticket">+ Create New Ticket</button>
+            <div id="ticketsList" class="list-group">
+              <p class="text-muted small">Loading tickets...</p>
             </div>
           </div>
-        </form>
+
+          <!-- Brainstorm Tab -->
+          <div class="tab-pane fade" id="idea-content" role="tabpanel" aria-labelledby="idea-tab">
+            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="idea">+ Create New Brainstorm</button>
+            <div id="ideaList" class="list-group">
+              <p class="text-muted small">Loading brainstorms...</p>
+            </div>
+          </div>
+
+          <!-- Template Tab -->
+          <div class="tab-pane fade" id="template-content" role="tabpanel" aria-labelledby="template-tab">
+            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="template">+ Create New Template</button>
+            <div id="templatesList" class="list-group">
+              <p class="text-muted small">Loading templates...</p>
+            </div>
+          </div>
+
+          <!-- Goal Tab -->
+          <div class="tab-pane fade" id="goal-content" role="tabpanel" aria-labelledby="goal-tab">
+            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="goal">+ Create New Goal</button>
+            <div id="goalsList" class="list-group">
+              <p class="text-muted small">Loading goals...</p>
+            </div>
+          </div>
+
+          <!-- To Do Tab -->
+          <div class="tab-pane fade" id="todo-content" role="tabpanel" aria-labelledby="todo-tab">
+            <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="todo">+ Create New To Do</button>
+            <div id="todosList" class="list-group">
+              <p class="text-muted small">Loading to dos...</p>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveWorkItemBtn">Save Work</button>
       </div>
     </div>
   </div>

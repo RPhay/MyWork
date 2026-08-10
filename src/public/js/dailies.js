@@ -774,7 +774,123 @@ function setupDragListeners() {
   });
 }
 
+// Load and display items of each type in the modal
+async function loadItemsForModal() {
+  const itemTypes = [
+    { id: 'project', endpoint: '/api/priorities', listId: 'projectsList', label: 'projects' },
+    { id: 'task', endpoint: '/api/tasks', listId: 'tasksList', label: 'tasks' },
+    { id: 'ticket', endpoint: '/api/tickets', listId: 'ticketsList', label: 'tickets' },
+    { id: 'idea', endpoint: '/api/ideas', listId: 'ideaList', label: 'ideas' },
+    { id: 'template', endpoint: '/api/work-item-templates', listId: 'templatesList', label: 'templates' },
+    { id: 'goal', endpoint: `/api/goals/year/${window.APP_CONFIG?.currentYear || new Date().getFullYear()}`, listId: 'goalsList', label: 'goals' },
+    { id: 'todo', endpoint: '/api/to-dos', listId: 'todosList', label: 'to dos' }
+  ];
+
+  for (const type of itemTypes) {
+    await loadItemsByType(type.endpoint, type.listId, type.id, type.label);
+  }
+}
+
+async function loadItemsByType(endpoint, listId, typeId, typeLabel) {
+  const container = document.getElementById(listId);
+  if (!container) return;
+
+  try {
+    const response = await fetch(endpoint);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+
+    if (result.success && result.data && result.data.length > 0) {
+      const items = result.data;
+      const html = items.map(item => `
+        <button type="button" class="list-group-item list-group-item-action text-start" data-action="add-item-to-dailies" data-item-type="${typeId}" data-item-id="${item.id}">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-500">${app.escapeHtml(item.title || item.name)}</div>
+              ${item.notes ? `<small class="text-muted d-block">${app.escapeHtml(item.notes)}</small>` : ''}
+            </div>
+          </div>
+        </button>
+      `).join('');
+      container.innerHTML = html;
+    } else {
+      container.innerHTML = `<p class="text-muted small">No ${typeLabel}</p>`;
+    }
+  } catch (error) {
+    console.error(`Error loading ${typeLabel}:`, error);
+    container.innerHTML = `<p class="text-muted small text-danger">Error loading ${typeLabel}</p>`;
+  }
+}
+
+async function addItemToDailies(itemType, itemId) {
+  const dateInput = document.getElementById("selectedDate");
+  const date = dateInput?.value || new Date().toISOString().split("T")[0];
+
+  try {
+    // Fetch the item to get its title and details
+    let endpoint = '';
+    let endpoint_map = {
+      'project': '/api/priorities',
+      'task': '/api/tasks',
+      'ticket': '/api/tickets',
+      'idea': '/api/ideas',
+      'template': '/api/work-item-templates',
+      'goal': '/api/goals',
+      'todo': '/api/to-dos'
+    };
+
+    endpoint = endpoint_map[itemType];
+    if (!endpoint) {
+      app.notify('Unknown item type', 'danger');
+      return;
+    }
+
+    const itemResponse = await fetch(`${endpoint}/${itemId}`);
+    if (!itemResponse.ok) throw new Error(`HTTP ${itemResponse.status}`);
+    const itemResult = itemResponse.json();
+
+    const item = (await itemResult).data;
+    if (!item) {
+      app.notify('Item not found', 'danger');
+      return;
+    }
+
+    // Create a work item for this item on the selected date
+    const data = {
+      date,
+      title: item.title || item.name,
+      description: item.description || item.notes || '',
+      emoji: item.emoji || '📋'
+    };
+
+    const response = await fetch('/api/work', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify(`Added "${item.title || item.name}" to dailies`, 'success');
+      loadWorkItems();
+      loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
+      const dismissBtn = document.querySelector('#workModal .btn-close');
+      if (dismissBtn) dismissBtn.click();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error adding item to dailies:', error);
+    app.notify('Error adding item to dailies', 'danger');
+  }
+}
+
 function openNewWorkForm() {
+  // Load items for the modal when it opens
+  loadItemsForModal();
   document.getElementById("workId").value = "";
   document.getElementById("workForm").reset();
   updateEmojiFieldButton("workEmojiBtn", "");
@@ -2069,6 +2185,27 @@ function initDailiesEventListeners() {
   document
     .getElementById("importOutlookEmailsBtn")
     ?.addEventListener("click", importSelectedOutlookEmails);
+
+  // Handle clicking items in the "Add item to dailies" modal
+  const workModal = document.getElementById("workModal");
+  if (workModal) {
+    workModal.addEventListener("click", (e) => {
+      const addItemBtn = e.target.closest("[data-action='add-item-to-dailies']");
+      if (addItemBtn) {
+        const itemType = addItemBtn.dataset.itemType;
+        const itemId = addItemBtn.dataset.itemId;
+        addItemToDailies(itemType, itemId);
+        return;
+      }
+
+      const createBtn = e.target.closest("[data-action='create-new-item']");
+      if (createBtn) {
+        const itemType = createBtn.dataset.type;
+        app.notify(`Creating new ${itemType} - navigate to the appropriate tab to create it`, 'info');
+        return;
+      }
+    });
+  }
 
   initWorkItemsListEventListeners();
   initRightPanelTabs();
