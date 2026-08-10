@@ -110,6 +110,22 @@ export async function updateArea(id, data) {
 }
 
 export async function deleteArea(id) {
+  // Get all descendants that will be deleted
+  const descendants = await getDescendantIds(id);
+  const allIds = [Number(id), ...descendants];
+
+  // Delete all associations for this area and its descendants
+  const idPlaceholders = allIds.map(() => '?').join(',');
+  await db.deleteRecord(`DELETE FROM work_area_associations WHERE area_id IN (${idPlaceholders})`, allIds);
+
+  // Delete all descendants first
+  if (descendants.size > 0) {
+    const descendantIds = Array.from(descendants);
+    const descendantPlaceholders = descendantIds.map(() => '?').join(',');
+    await db.deleteRecord(`DELETE FROM areas WHERE id IN (${descendantPlaceholders})`, descendantIds);
+  }
+
+  // Delete the area itself
   const affectedRows = await db.deleteRecord('DELETE FROM areas WHERE id = ?', [id]);
   return affectedRows > 0;
 }

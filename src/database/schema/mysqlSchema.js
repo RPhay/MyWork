@@ -285,6 +285,7 @@ export async function createMysqlSchema(connection) {
       status VARCHAR(50) DEFAULT 'Not Started',
       time_box_minutes INT,
       order_index INT DEFAULT 0,
+      worked_with_claude BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_date (date),
@@ -322,6 +323,13 @@ export async function createMysqlSchema(connection) {
   if (!(await columnExists(connection, "work_items", "start_time"))) {
     await connection.query(
       "ALTER TABLE work_items ADD COLUMN start_time VARCHAR(5)",
+    );
+  }
+
+  // Backfill worked_with_claude for pre-existing work_items tables
+  if (!(await columnExists(connection, "work_items", "worked_with_claude"))) {
+    await connection.query(
+      "ALTER TABLE work_items ADD COLUMN worked_with_claude BOOLEAN DEFAULT FALSE",
     );
   }
 

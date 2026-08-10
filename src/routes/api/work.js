@@ -132,6 +132,17 @@ router.patch('/:id/timebox', async (req, res) => {
   }
 });
 
+// Toggle the worked_with_claude flag
+router.patch('/:id/claude', async (req, res) => {
+  try {
+    const item = await workItemService.toggleWorkItemClaude(req.params.id);
+    res.json({ success: true, message: 'Claude flag toggled', data: item });
+  } catch (error) {
+    logger.error('Error toggling claude flag:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // Move a work item to a different date
 router.post('/:id/move', async (req, res) => {
   try {

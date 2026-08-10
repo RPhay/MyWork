@@ -512,6 +512,7 @@ function renderWorkItemsList(items) {
           <span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>
           <span class="badge bg-${item.status === "Complete" ? "success" : item.status === "In Progress" ? "warning" : "secondary"} work-item-status-badge" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
           <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${item.time_box_minutes ? item.time_box_minutes + "m" : "No time box"}</span>
+          <span class="work-item-claude-toggle" data-action="toggle-claude" data-id="${item.id}" title="Toggle: worked with Claude" style="text-align: center; cursor: pointer; font-size: 18px;"><i class="bi bi-sun-fill" style="color: ${item.worked_with_claude ? "#FFA500" : "#ddd"}; opacity: ${item.worked_with_claude ? "1" : "0.5"};"></i></span>
           <span class="work-item-actions">
             <button class="btn btn-sm btn-danger" data-action="delete" data-id="${item.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
           </span>
@@ -1649,6 +1650,37 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
   }
 }
 
+async function toggleWorkItemClaude(workId) {
+  try {
+    const response = await fetch(`/api/work/${workId}/claude`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (response.status === 429) {
+      app.notify(
+        "Too many requests - please slow down a moment and try again",
+        "warning",
+      );
+      return;
+    }
+
+    const result = await response.json();
+    if (result.success) {
+      loadWorkItems();
+    } else {
+      app.notify("Error: " + result.message, "danger");
+    }
+  } catch (error) {
+    console.error("Error toggling claude flag:", error);
+    app.notify("Error toggling claude flag", "danger");
+  }
+}
+
 function updateCalendarDayTotal(dateStr) {
   // Recalculate total for this day from current work items
   const newTotal = currentWorkItems.reduce(
@@ -1834,7 +1866,7 @@ function initWorkItemsListEventListeners() {
 
   container.addEventListener("click", (e) => {
     const actionBtn = e.target.closest(
-      '[data-action="delete"], [data-action="unlink"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"]',
+      '[data-action="delete"], [data-action="unlink"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"], [data-action="toggle-claude"]',
     );
     if (actionBtn) {
       if (actionBtn.dataset.action === "delete") {
@@ -1856,6 +1888,8 @@ function initWorkItemsListEventListeners() {
         cycleWorkItemTimeBox(actionBtn.dataset.id, currentMinutes);
       } else if (actionBtn.dataset.action === "pick-emoji") {
         showEmojiPicker(e.clientX, e.clientY, actionBtn.dataset.id);
+      } else if (actionBtn.dataset.action === "toggle-claude") {
+        toggleWorkItemClaude(actionBtn.dataset.id);
       }
       return;
     }

@@ -141,14 +141,37 @@ const app = {
     return window.APP_CONFIG?.csrfToken || document.querySelector('[name="_csrf"]')?.value;
   },
 
-  // Confirm action
-  confirm(message) {
+  // Confirm action with custom modal
+  confirm(message, title = 'Confirm Action') {
     return new Promise((resolve) => {
-      if (window.confirm(message)) {
+      const modalElement = document.getElementById('confirmModal');
+      const titleElement = document.getElementById('confirmModalTitle');
+      const messageElement = document.getElementById('confirmModalMessage');
+      const confirmBtn = document.getElementById('confirmModalConfirm');
+      const cancelBtn = document.getElementById('confirmModalCancel');
+
+      titleElement.textContent = title;
+      messageElement.textContent = message;
+
+      const modal = new bootstrap.Modal(modalElement);
+      modal.show();
+
+      const handleConfirm = () => {
+        modal.hide();
+        confirmBtn.removeEventListener('click', handleConfirm);
+        cancelBtn.removeEventListener('click', handleCancel);
         resolve(true);
-      } else {
+      };
+
+      const handleCancel = () => {
+        modal.hide();
+        confirmBtn.removeEventListener('click', handleConfirm);
+        cancelBtn.removeEventListener('click', handleCancel);
         resolve(false);
-      }
+      };
+
+      confirmBtn.addEventListener('click', handleConfirm);
+      cancelBtn.addEventListener('click', handleCancel);
     });
   },
 

@@ -251,6 +251,13 @@ export async function updateWorkItemTimeBox(id, timeBoxMinutes) {
   return getWorkItemById(id);
 }
 
+export async function toggleWorkItemClaude(id) {
+  const item = await getWorkItemById(id);
+  const newValue = !item.worked_with_claude;
+  await db.update('UPDATE work_items SET worked_with_claude = ? WHERE id = ?', [newValue, id]);
+  return getWorkItemById(id);
+}
+
 async function nextOrderIndexForDate(date, contextId) {
   const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?', [date, contextId]);
   return (result?.maxOrder ?? -1) + 1;

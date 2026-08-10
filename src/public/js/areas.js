@@ -218,12 +218,13 @@ async function editArea(areaId) {
 }
 
 async function deleteArea(areaId) {
-  const hasChildren = getDescendantIds(areaId).size > 0;
+  const descendants = getDescendantIds(areaId);
+  const hasChildren = descendants.size > 0;
   const message = hasChildren
-    ? 'This category has sub-categories that will also be deleted. Delete anyway?'
-    : 'Delete this category?';
+    ? `This category and its ${descendants.size} sub-categor${descendants.size === 1 ? 'y' : 'ies'} will be permanently deleted. This cannot be undone.`
+    : 'This category will be permanently deleted. This cannot be undone.';
 
-  if (!await app.confirm(message)) return;
+  if (!await app.confirm(message, 'Delete Category')) return;
 
   try {
     const response = await fetch(`/api/areas/${areaId}`, {
