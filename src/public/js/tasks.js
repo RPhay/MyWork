@@ -258,6 +258,40 @@ async function cycleTaskStatus(taskId, currentStatus) {
   }
 }
 
+async function saveTaskEditor() {
+  const taskId = document.getElementById('taskEditorId').value;
+
+  const data = {
+    title: document.getElementById('taskEditorFormTitle').value,
+    notes: document.getElementById('taskEditorNotes').value
+  };
+
+  try {
+    const url = taskId ? `/api/tasks/${taskId}` : '/api/tasks';
+    const method = taskId ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Task saved!', 'success');
+      loadTasks();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error saving task', 'danger');
+  }
+}
+
 function setupDragListeners() {
   const container = document.getElementById('tasksList');
 
@@ -386,6 +420,19 @@ async function updateTaskParent(taskId, parentId) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize split-pane if it exists
+  const splitPaneContainer = document.getElementById('taskSplitPane');
+  const editorPane = document.getElementById('taskEditorPane');
+  if (splitPaneContainer && editorPane) {
+    window.taskSplitPane = new SplitPane(
+      document.getElementById('taskListPane'),
+      editorPane,
+      document.getElementById('taskDivider')
+    );
+    TaskEditor.init(window.taskSplitPane, 'taskEditorForm');
+    editorPane.classList.add('hidden');
+  }
+
   loadTasks();
 
   const addBtn = document.getElementById('addTaskBtn');
@@ -396,5 +443,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveBtn = document.getElementById('saveTaskBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', saveTask);
+  }
+
+  const saveEditorBtn = document.getElementById('saveTaskEditorBtn');
+  if (saveEditorBtn) {
+    saveEditorBtn.addEventListener('click', saveTaskEditor);
+  }
+
+  const closeEditorBtn = document.getElementById('closeTaskEditorBtn');
+  if (closeEditorBtn) {
+    closeEditorBtn.addEventListener('click', closeTaskEditor);
   }
 });
