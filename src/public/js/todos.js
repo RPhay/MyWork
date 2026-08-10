@@ -210,16 +210,18 @@ async function saveToDo() {
       const modalElement = document.getElementById('toDoModal');
       const modalInstance = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
       modalInstance.hide();
-      // Wait for modal to actually hide
+      // Wait for modal to actually hide (Bootstrap uses transition)
       await new Promise(resolve => {
+        let attempts = 0;
         const checkHidden = () => {
-          if (!modalElement.classList.contains('show')) {
+          attempts++;
+          if (!modalElement.classList.contains('show') || attempts > 100) {
             resolve();
           } else {
-            setTimeout(checkHidden, 50);
+            setTimeout(checkHidden, 20);
           }
         };
-        checkHidden();
+        setTimeout(checkHidden, 0);
       });
       loadToDos();
     } else {
