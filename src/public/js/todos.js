@@ -236,7 +236,17 @@ async function saveToDo() {
 }
 
 async function editToDo(toDoId) {
-  await TodoEditor.populate(toDoId);
+  try {
+    if (typeof TodoEditor === 'undefined' || !TodoEditor.populate) {
+      console.error('TodoEditor.populate not available');
+      app.notify('Error: Editor not initialized', 'danger');
+      return;
+    }
+    await TodoEditor.populate(toDoId);
+  } catch (error) {
+    console.error('Error in editToDo:', error);
+    app.notify('Error opening editor', 'danger');
+  }
 }
 
 async function deleteToDo(toDoId) {
@@ -339,7 +349,8 @@ function setupToDoDragListeners() {
 
   // Toggle expand/collapse
   container.addEventListener('click', (e) => {
-    if (e.target.classList.contains('todo-folder-toggle')) {
+    const toggle = e.target.closest('.todo-folder-toggle');
+    if (toggle) {
       const row = e.target.closest('.todo-row');
       const node = row?.closest('.todo-node');
       if (node) {
