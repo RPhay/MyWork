@@ -254,27 +254,17 @@ async function loadPriorities() {
     if (!todoResponse.ok) throw new Error(`HTTP ${todoResponse.status}`);
     const todoResult = await todoResponse.json();
 
-    // Load todo folders
-    const folderResponse = await fetch('/api/to-do-folders');
-    if (!folderResponse.ok) throw new Error(`HTTP ${folderResponse.status}`);
-    const folderResult = await folderResponse.json();
-
     // Load tasks
     const taskResponse = await fetch('/api/tasks');
     if (!taskResponse.ok) throw new Error(`HTTP ${taskResponse.status}`);
     const taskResult = await taskResponse.json();
 
-    // Load task folders
-    const taskFolderResponse = await fetch('/api/task-folders');
-    if (!taskFolderResponse.ok) throw new Error(`HTTP ${taskFolderResponse.status}`);
-    const taskFolderResult = await taskFolderResponse.json();
-
-    if (prioResult.success && todoResult.success && folderResult.success && taskResult.success && taskFolderResult.success) {
+    if (prioResult.success && todoResult.success && taskResult.success) {
       allPriorities = prioResult.data;
       allToDos = todoResult.data || [];
-      allToDoFolders = folderResult.data || [];
+      allToDoFolders = []; // Folders no longer exist - they're just todos with children
       allTasks = taskResult.data || [];
-      allTaskFolders = taskFolderResult.data || [];
+      allTaskFolders = []; // Folders no longer exist - they're just tasks with children
       renderPrioritiesList(allPriorities);
       loadPriorityRightPanel();
     } else {
@@ -565,51 +555,13 @@ async function unlinkToDoFromProject(toDoId) {
 }
 
 async function linkFolderToPriority(folderId, priorityId) {
-  try {
-    const response = await fetch(`/api/to-do-folders/${folderId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ priority_id: priorityId })
-    });
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Folder linked to project', 'success');
-      loadPriorities();
-      loadPriorityRightPanel();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error linking folder to project:', error);
-    app.notify('Error linking folder to project', 'danger');
-  }
+  // Folders no longer exist - they're just todos with children
+  app.notify('Folder linking is no longer available', 'info');
 }
 
 async function unlinkFolderFromProject(folderId) {
-  try {
-    const response = await fetch(`/api/to-do-folders/${folderId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ priority_id: null })
-    });
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Folder removed from project', 'success');
-      loadPriorities();
-      loadPriorityRightPanel();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error unlinking folder from project:', error);
-    app.notify('Error unlinking folder from project', 'danger');
-  }
+  // Folders no longer exist - they're just todos with children
+  app.notify('Folder linking is no longer available', 'info');
 }
 
 async function linkTaskToPriority(taskId, priorityId) {
@@ -661,51 +613,13 @@ async function unlinkTaskFromProject(taskId) {
 }
 
 async function linkTaskFolderToPriority(folderId, priorityId) {
-  try {
-    const response = await fetch(`/api/task-folders/${folderId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ priority_id: priorityId })
-    });
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Folder linked to project', 'success');
-      loadPriorities();
-      loadPriorityRightPanel();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error linking task folder to project:', error);
-    app.notify('Error linking task folder to project', 'danger');
-  }
+  // Folders no longer exist - they're just tasks with children
+  app.notify('Folder linking is no longer available', 'info');
 }
 
 async function unlinkTaskFolderFromProject(folderId) {
-  try {
-    const response = await fetch(`/api/task-folders/${folderId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ priority_id: null })
-    });
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Folder removed from project', 'success');
-      loadPriorities();
-      loadPriorityRightPanel();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error unlinking task folder from project:', error);
-    app.notify('Error unlinking task folder from project', 'danger');
-  }
+  // Folders no longer exist - they're just tasks with children
+  app.notify('Folder linking is no longer available', 'info');
 }
 
 async function cycleProjectTaskStatus(taskId, currentStatus) {
