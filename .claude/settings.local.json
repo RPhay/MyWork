@@ -68,7 +68,8 @@
       "Bash(curl -s http://localhost:3000/)",
       "WebFetch(domain:www.autotrader.com)",
       "Bash(curl -s http://localhost:3000/?tab=dailies)",
-      "Bash(pkill -f playwright)"
+      "Bash(pkill -f playwright)",
+      "Bash(sqlite3 *)"
     ]
   }
 }

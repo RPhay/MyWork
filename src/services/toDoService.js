@@ -74,31 +74,24 @@ export async function createToDo(data, contextId) {
   return getToDoById(toDoId);
 }
 
-async function wouldCreateCircularHierarchy(toDoId, proposedParentId) {
-  if (!proposedParentId) return false;
-
-  let currentParentId = proposedParentId;
+async function findAncestorChain(toDoId) {
+  const chain = [];
+  let currentId = toDoId;
   const visited = new Set();
-  visited.add(Number(proposedParentId));
+  const MAX_CHAIN = 1000;
 
-  while (currentParentId) {
-    if (Number(currentParentId) === Number(toDoId)) {
-      return true;
-    }
+  while (currentId && chain.length < MAX_CHAIN) {
+    if (visited.has(Number(currentId))) break;
+    visited.add(Number(currentId));
 
-    const parent = await db.queryOne('SELECT parent_id FROM to_dos WHERE id = ?', [currentParentId]);
-    if (!parent) break;
+    const todo = await db.queryOne('SELECT id, parent_id FROM to_dos WHERE id = ?', [currentId]);
+    if (!todo) break;
 
-    currentParentId = parent.parent_id;
-    if (currentParentId) {
-      if (visited.has(Number(currentParentId))) {
-        break;
-      }
-      visited.add(Number(currentParentId));
-    }
+    chain.push(todo);
+    currentId = todo.parent_id;
   }
 
-  return false;
+  return chain;
 }
 
 export async function updateToDo(id, data) {
@@ -124,8 +117,23 @@ export async function updateToDo(id, data) {
       throw new ValidationError('A to do cannot be its own parent');
     }
 
-    if (await wouldCreateCircularHierarchy(id, data.parent_id)) {
-      throw new ValidationError('Cannot move a to do to one of its descendants');
+    // Check if this would create a circular hierarchy that needs swapping
+    if (data.parent_id) {
+      const ancestorChain = await findAncestorChain(Number(data.parent_id));
+      const isDescendant = ancestorChain.some(a => Number(a.id) === Number(id));
+
+      if (isDescendant) {
+        // Swap: the parent (id) should take the proposed parent's parent_id
+        const proposedParent = await db.queryOne('SELECT parent_id FROM to_dos WHERE id = ?', [data.parent_id]);
+
+        // First, update the proposed parent's parent to point to the original parent
+        await db.update('UPDATE to_dos SET parent_id = ? WHERE id = ?', [id, data.parent_id]);
+
+        // Then update the original parent to point to the proposed parent's old parent
+        await db.update('UPDATE to_dos SET parent_id = ? WHERE id = ?', [proposedParent?.parent_id || null, id]);
+
+        return getToDoById(id);
+      }
     }
 
     setClauses.push('parent_id = ?');
