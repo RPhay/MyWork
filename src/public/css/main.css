@@ -348,9 +348,10 @@ footer {
 
 /* Todo Checkbox Sizing */
 .todo-item-checkbox {
-  padding: 0.3rem 0.4rem !important;
-  font-size: 0.75rem !important;
+  padding: 0.15rem 0.2rem !important;
+  font-size: 0.6rem !important;
   line-height: 1;
+  min-width: auto !important;
 }
 
 /* Responsive */

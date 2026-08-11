@@ -7,6 +7,42 @@ let allToDoFolders = [];
 let allTasks = [];
 let allTaskFolders = [];
 
+function renderCategoryInTree(category, depth) {
+  return `
+    <div class="priority-node category-node" data-category-id="${category.id}">
+      <div class="priority-node-header category-node-header" style="cursor: default;">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          <span class="priority-toggle"></span>
+          <i class="bi ${APP_ICONS.area} text-muted"></i>
+          <span class="priority-title">${app.escapeHtml(category.name || category.path)}</span>
+        </span>
+        <span class="priority-badges"></span>
+        <span class="priority-actions">
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function renderGoalInTree(goal, depth) {
+  return `
+    <div class="priority-node goal-node" data-goal-id="${goal.id}">
+      <div class="priority-node-header goal-node-header" style="cursor: default;">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          <span class="priority-toggle"></span>
+          <i class="bi ${APP_ICONS.goal} text-muted"></i>
+          <span class="priority-title">${app.escapeHtml(goal.name)}</span>
+        </span>
+        <span class="priority-badges"></span>
+        <span class="priority-actions">
+        </span>
+      </div>
+    </div>
+  `;
+}
+
 function renderToDoInTree(toDo, depth, showRemove = true) {
   const hasLinks = toDo.links && toDo.links.length > 0;
   const linksBadge = hasLinks
@@ -166,8 +202,11 @@ function renderPriorityNode(priority, byParent, depth) {
   const linkedTaskFolders = allTaskFolders.filter(f => f.priority_id === priority.id);
   const linkedTaskFolderIds = new Set(linkedTaskFolders.map(f => f.id));
   const directTasks = allTasks.filter(t => t.priority_id === priority.id && !linkedTaskFolderIds.has(t.folder_id));
+  const categories = priority.areas || [];
+  const goals = priority.goals || [];
+
   const hasChildren = children.length > 0 || linkedFolders.length > 0 || directToDos.length > 0
-    || linkedTaskFolders.length > 0 || directTasks.length > 0;
+    || linkedTaskFolders.length > 0 || directTasks.length > 0 || categories.length > 0 || goals.length > 0;
   const isExpanded = expandedPriorities.has(String(priority.id));
 
   let childrenHtml = '';
@@ -175,6 +214,10 @@ function renderPriorityNode(priority, byParent, depth) {
     let html = '';
     // Render sub-projects
     html += children.map(c => renderPriorityNode(c, byParent, depth + 1)).join('');
+    // Render categories
+    html += categories.map(cat => renderCategoryInTree(cat, depth + 1)).join('');
+    // Render goals
+    html += goals.map(goal => renderGoalInTree(goal, depth + 1)).join('');
     // Render linked to-do folders (live - always shows whatever's currently in the folder)
     html += linkedFolders.map(f => renderFolderInProjectTree(f, allToDos.filter(td => td.folder_id === f.id), depth + 1)).join('');
     // Render directly associated todos
@@ -186,8 +229,6 @@ function renderPriorityNode(priority, byParent, depth) {
     childrenHtml = `<div class="priority-node-children">${html}</div>`;
   }
 
-  const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.path || a.name)}</span>`).join('');
-  const goalBadges = (priority.goals || []).map(g => `<span class="badge bg-info text-dark"><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>`).join('');
   const hasLinks = priority.hasLinks || false;
   const linksBadge = hasLinks
     ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
@@ -205,8 +246,7 @@ function renderPriorityNode(priority, byParent, depth) {
           <span class="priority-title">${app.escapeHtml(priority.title)}</span>
           ${linksBadge}
         </span>
-        <span class="priority-badges">${areaBadges || '<span class="text-muted small">-</span>'}</span>
-        <span class="priority-badges">${goalBadges || '<span class="text-muted small">-</span>'}</span>
+        <span class="priority-badges"></span>
         <span class="priority-actions">
           <button class="btn btn-sm btn-danger" data-action="delete" data-id="${priority.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
         </span>
