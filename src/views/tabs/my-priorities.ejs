@@ -90,7 +90,13 @@
       <!-- Right Pane: Project Editor (Hidden by default) -->
       <div class="split-pane-right hidden" id="priorityEditorPane">
         <div class="split-pane-editor">
-          <div class="split-pane-editor-title" id="priorityEditorTitle">Select a project to edit</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div class="split-pane-editor-title" id="priorityEditorTitle">Select a project to edit</div>
+            <div style="gap: 0.5rem; display: flex;">
+              <button type="button" class="btn btn-primary btn-sm" id="savePriorityEditorBtn" disabled>Save</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="closePriorityEditorBtn">Cancel</button>
+            </div>
+          </div>
           <form id="priorityEditorForm">
             <input type="hidden" id="priorityEditorId" name="priorityId">
             <input type="hidden" id="priorityEditorType" name="type" value="priority">
@@ -153,10 +159,6 @@
               </button>
             </div>
 
-            <div class="d-flex gap-2">
-              <button type="button" class="btn btn-primary" id="savePriorityEditorBtn">Save</button>
-              <button type="button" class="btn btn-secondary" id="closePriorityEditorBtn">Close</button>
-            </div>
           </form>
 
           <!-- Todo Editor Form (shown when editing a todo). IDs are prefixed proj*
@@ -188,10 +190,6 @@
               </div>
             </div>
 
-            <div class="d-flex gap-2">
-              <button type="button" class="btn btn-primary" id="saveProjToDoEditorBtn">Save</button>
-              <button type="button" class="btn btn-secondary" id="closeProjToDoEditorBtn">Close</button>
-            </div>
           </form>
         </div>
       </div>

@@ -1186,7 +1186,10 @@ function initPrioritiesEventListeners() {
         const priorityNode = header.closest('.priority-node');
         if (priorityNode && priorityNode.dataset.priorityId) {
           console.log('[Priorities] Opening priority:', priorityNode.dataset.priorityId);
-          editPriority(priorityNode.dataset.priorityId);
+          // Check if clicking on same row that's already open
+          if (!PriorityEditor.toggleOnSameRow(priorityNode.dataset.priorityId)) {
+            editPriority(priorityNode.dataset.priorityId);
+          }
         }
       }
     } else {

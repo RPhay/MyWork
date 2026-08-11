@@ -1,8 +1,34 @@
 const PriorityEditor = (() => {
   let splitPane = null;
+  let currentPriorityId = null;
+  let hasChanges = false;
+  const originalValues = {};
 
   const init = (splitPaneInstance) => {
     splitPane = splitPaneInstance;
+  };
+
+  const markChanged = () => {
+    hasChanges = true;
+    const saveBtn = document.getElementById('savePriorityEditorBtn');
+    if (saveBtn) saveBtn.disabled = false;
+  };
+
+  const trackFormChanges = () => {
+    const form = document.getElementById('priorityEditorForm');
+    if (!form) return;
+
+    const inputs = form.querySelectorAll('input[type="text"], textarea');
+    inputs.forEach(input => {
+      input.addEventListener('change', markChanged);
+      input.addEventListener('input', markChanged);
+    });
+  };
+
+  const resetChangeTracking = () => {
+    hasChanges = false;
+    const saveBtn = document.getElementById('savePriorityEditorBtn');
+    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (priorityId) => {
@@ -17,7 +43,10 @@ const PriorityEditor = (() => {
       }
 
       const priority = result.data;
+      currentPriorityId = priorityId;
+      resetChangeTracking();
       fillForm(priority, 'priority');
+      trackFormChanges();
 
       // Load and display links
       const linksResponse = await fetch(`/api/priorities/${priorityId}/links`).catch(() => ({ json: () => ({ data: [] }) }));
@@ -295,9 +324,22 @@ const PriorityEditor = (() => {
   };
 
   const close = () => {
+    resetChangeTracking();
+    currentPriorityId = null;
     if (splitPane) {
       splitPane.hideRightPane();
     }
+  };
+
+  const toggleOnSameRow = (priorityId) => {
+    if (currentPriorityId === priorityId) {
+      if (hasChanges) {
+        return false; // Don't close if there are unsaved changes
+      }
+      close();
+      return true;
+    }
+    return false;
   };
 
   return {
@@ -308,6 +350,7 @@ const PriorityEditor = (() => {
     renderAssociatedItems,
     renderAssociatedItemsTree,
     save,
-    close
+    close,
+    toggleOnSameRow
   };
 })();
