@@ -301,6 +301,13 @@ footer {
   opacity: 1;
 }
 
+/* Todo Checkbox Sizing */
+.todo-item-checkbox {
+  padding: 0.3rem 0.4rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .container-fluid {

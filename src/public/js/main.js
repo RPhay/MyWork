@@ -20,7 +20,7 @@ if (window.APP_CONFIG.version) {
 window.APP_ICONS = {
   dailies: 'bi-calendar-day',
   workItem: 'bi-card-checklist',
-  project: 'bi-folder2',
+  project: 'bi-briefcase',
   priorityBoard: 'bi-kanban',
   area: 'bi-diagram-3',
   goal: 'bi-bullseye',
