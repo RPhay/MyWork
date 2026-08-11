@@ -1341,6 +1341,218 @@ function initPriorities() {
     closeToDoEditorBtn.addEventListener('click', closePriorityEditor);
   }
 
+  // Setup project context menu
+  const contextMenu = document.getElementById('projectContextMenu');
+  let contextMenuProjectId = null;
+
+  document.addEventListener('contextmenu', (e) => {
+    const header = e.target.closest('.priority-node-header');
+    if (header) {
+      e.preventDefault();
+      contextMenuProjectId = header.closest('.priority-node').dataset.priorityId;
+      contextMenu.style.left = e.clientX + 'px';
+      contextMenu.style.top = e.clientY + 'px';
+      contextMenu.classList.remove('d-none');
+    } else {
+      contextMenu.classList.add('d-none');
+    }
+  });
+
+  document.addEventListener('click', () => {
+    contextMenu.classList.add('d-none');
+  });
+
+  contextMenu.addEventListener('click', async (e) => {
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    if (!action || !contextMenuProjectId) return;
+
+    contextMenu.classList.add('d-none');
+
+    if (action === 'associate-category') {
+      showCategorySelector(contextMenuProjectId);
+    } else if (action === 'associate-idea') {
+      showIdeaSelector(contextMenuProjectId);
+    } else if (action === 'associate-ticket') {
+      showTicketSelector(contextMenuProjectId);
+    } else if (action === 'associate-todo') {
+      showTodoSelector(contextMenuProjectId);
+    }
+  });
+
+  // Category selector
+  async function showCategorySelector(projectId) {
+    const categories = await fetchCategories();
+    showSelectionModal('Associate Category', categories, (categoryId) => {
+      associateCategory(projectId, categoryId);
+    });
+  }
+
+  // Idea selector
+  async function showIdeaSelector(projectId) {
+    const ideas = await fetchIdeas();
+    showSelectionModal('Associate Idea', ideas, (ideaId) => {
+      associateIdea(projectId, ideaId);
+    });
+  }
+
+  // Ticket selector
+  async function showTicketSelector(projectId) {
+    const tickets = await fetchTickets();
+    showSelectionModal('Associate Ticket', tickets, (ticketId) => {
+      associateTicket(projectId, ticketId);
+    });
+  }
+
+  // Todo selector
+  async function showTodoSelector(projectId) {
+    const todos = await fetchTodos();
+    showSelectionModal('Associate Todo', todos, (todoId) => {
+      associateTodo(projectId, todoId);
+    });
+  }
+
+  // Generic selection modal
+  function showSelectionModal(title, items, callback) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">${title}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="list-group">
+              ${items.map(item => `
+                <button type="button" class="list-group-item list-group-item-action" data-id="${item.id}">
+                  ${app.escapeHtml(item.name || item.title || item.subject)}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+
+    modal.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-id]');
+      if (btn) {
+        callback(btn.dataset.id);
+        bsModal.hide();
+        modal.remove();
+      }
+    });
+  }
+
+  // Fetch functions
+  async function fetchCategories() {
+    const response = await fetch('/api/areas');
+    const result = await response.json();
+    return result.data || [];
+  }
+
+  async function fetchIdeas() {
+    const response = await fetch('/api/ideas');
+    const result = await response.json();
+    return result.data || [];
+  }
+
+  async function fetchTickets() {
+    const response = await fetch('/api/tickets');
+    const result = await response.json();
+    return result.data || [];
+  }
+
+  async function fetchTodos() {
+    const response = await fetch('/api/to-dos');
+    const result = await response.json();
+    return result.data || [];
+  }
+
+  // Association functions
+  async function associateCategory(projectId, categoryId) {
+    try {
+      const response = await fetch(`/api/priorities/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ area_id: categoryId, _action: 'associate' })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Category associated!', 'success');
+        loadPriorities();
+        loadPriorityRightPanel();
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error associating category:', error);
+      app.notify('Error associating category', 'danger');
+    }
+  }
+
+  async function associateIdea(projectId, ideaId) {
+    app.notify('Idea association feature coming soon', 'info');
+  }
+
+  async function associateTicket(projectId, ticketId) {
+    try {
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ priority_id: projectId })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Ticket associated!', 'success');
+        loadPriorities();
+        loadPriorityRightPanel();
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error associating ticket:', error);
+      app.notify('Error associating ticket', 'danger');
+    }
+  }
+
+  async function associateTodo(projectId, todoId) {
+    try {
+      const response = await fetch(`/api/to-dos/${todoId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ priority_id: projectId })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Todo associated!', 'success');
+        loadPriorities();
+        loadPriorityRightPanel();
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error associating todo:', error);
+      app.notify('Error associating todo', 'danger');
+    }
+  }
+
   initPrioritiesEventListeners();
   initProjRightPanelTabs();
   loadPriorities();
