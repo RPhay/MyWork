@@ -1,10 +1,35 @@
 const TodoEditor = (() => {
   let splitPane = null;
   let formId = null;
+  let currentTodoId = null;
+  let hasChanges = false;
 
   const init = (splitPaneInstance, editorFormId) => {
     splitPane = splitPaneInstance;
     formId = editorFormId;
+  };
+
+  const markChanged = () => {
+    hasChanges = true;
+    const saveBtn = document.getElementById('saveToDoEditorBtn');
+    if (saveBtn) saveBtn.disabled = false;
+  };
+
+  const trackFormChanges = () => {
+    const form = document.getElementById(formId);
+    if (!form) return;
+
+    const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="checkbox"], input[type="radio"], input[type="date"]');
+    inputs.forEach(input => {
+      input.addEventListener('change', markChanged);
+      input.addEventListener('input', markChanged);
+    });
+  };
+
+  const resetChangeTracking = () => {
+    hasChanges = false;
+    const saveBtn = document.getElementById('saveToDoEditorBtn');
+    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (todoId) => {
@@ -19,7 +44,10 @@ const TodoEditor = (() => {
       }
 
       const toDo = result.data;
+      currentTodoId = todoId;
+      resetChangeTracking();
       fillForm(toDo);
+      trackFormChanges();
 
       // Call external functions if they exist (from todos.js)
       if (typeof renderToDoItemsEditor === 'function') {
@@ -459,9 +487,22 @@ const TodoEditor = (() => {
   };
 
   const close = () => {
+    resetChangeTracking();
+    currentTodoId = null;
     if (splitPane) {
       splitPane.hideRightPane();
     }
+  };
+
+  const toggleOnSameRow = (todoId) => {
+    if (currentTodoId === todoId) {
+      if (hasChanges) {
+        return false; // Don't close if there are unsaved changes
+      }
+      close();
+      return true;
+    }
+    return false;
   };
 
   return {
@@ -475,6 +516,7 @@ const TodoEditor = (() => {
     renderAssociatedItems,
     renderAssociatedItemsTree,
     save,
-    close
+    close,
+    toggleOnSameRow
   };
 })();

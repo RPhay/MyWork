@@ -29,7 +29,14 @@
   <!-- Right Pane (Editor) -->
   <div class="split-pane-right hidden" id="todoEditorPane">
     <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="todoEditorTitle">Select an item to edit</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="split-pane-editor-title" id="todoEditorTitle">Select an item to edit</div>
+        <div style="gap: 0.5rem; display: flex;">
+          <button type="button" class="btn btn-primary btn-sm" id="saveToDoEditorBtn" disabled>Save</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="closeToDoEditorBtn">Cancel</button>
+          <button type="button" class="btn btn-danger btn-sm" id="deleteToDoEditorBtn">Delete</button>
+        </div>
+      </div>
       <form id="toDoEditorForm">
         <input type="hidden" id="toDoEditorId" name="toDoId">
         <input type="hidden" id="toDoEditorType" name="type" value="todo">
@@ -217,11 +224,6 @@
           </button>
         </div>
 
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-primary" id="saveToDoEditorBtn">Save</button>
-          <button type="button" class="btn btn-secondary" id="closeToDoEditorBtn">Close</button>
-          <button type="button" class="btn btn-danger ms-auto" id="deleteToDoEditorBtn">Delete</button>
-        </div>
       </form>
     </div>
   </div>

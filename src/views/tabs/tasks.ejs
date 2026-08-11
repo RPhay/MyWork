@@ -29,7 +29,14 @@
   <!-- Right Pane (Editor) -->
   <div class="split-pane-right hidden" id="taskEditorPane">
     <div class="split-pane-editor">
-      <div class="split-pane-editor-title" id="taskEditorTitle">Select an item to edit</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="split-pane-editor-title" id="taskEditorTitle">Select an item to edit</div>
+        <div style="gap: 0.5rem; display: flex;">
+          <button type="button" class="btn btn-primary btn-sm" id="saveTaskEditorBtn" disabled>Save</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="closeTaskEditorBtn">Cancel</button>
+          <button type="button" class="btn btn-danger btn-sm" id="deleteTaskEditorBtn">Delete</button>
+        </div>
+      </div>
       <form id="taskEditorForm">
         <input type="hidden" id="taskEditorId" name="taskId">
         <input type="hidden" id="taskEditorType" name="type" value="task">
@@ -184,11 +191,6 @@
           </div>
         </div>
 
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-primary" id="saveTaskEditorBtn">Save</button>
-          <button type="button" class="btn btn-secondary" id="closeTaskEditorBtn">Close</button>
-          <button type="button" class="btn btn-danger ms-auto" id="deleteTaskEditorBtn">Delete</button>
-        </div>
       </form>
     </div>
   </div>

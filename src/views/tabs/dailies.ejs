@@ -216,7 +216,13 @@
       <!-- Right Pane: Work Item Editor (Hidden by default) -->
       <div class="split-pane-right hidden" id="workItemEditorPane">
         <div class="split-pane-editor">
-          <div class="split-pane-editor-title" id="workItemEditorDisplayTitle">Select a work item to edit</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div class="split-pane-editor-title" id="workItemEditorDisplayTitle">Select a work item to edit</div>
+            <div style="gap: 0.5rem; display: flex;">
+              <button type="button" class="btn btn-primary btn-sm" id="saveWorkItemEditorBtn" disabled>Save</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="closeWorkItemEditorBtn">Cancel</button>
+            </div>
+          </div>
           <form id="workItemEditorForm">
             <input type="hidden" id="workItemEditorId" name="workId">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -255,10 +261,6 @@
               <input type="number" class="form-control" id="workItemEditorTimeBox" name="time_box" min="0" step="0.5">
             </div>
 
-            <div class="d-flex gap-2">
-              <button type="button" class="btn btn-primary" id="saveWorkItemEditorBtn">Save</button>
-              <button type="button" class="btn btn-secondary" id="closeWorkItemEditorBtn">Close</button>
-            </div>
           </form>
         </div>
       </div>

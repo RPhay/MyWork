@@ -71,7 +71,13 @@
   <!-- Right Pane (Editor) -->
   <div class="split-pane-right hidden" id="goalEditorPane">
     <div class="split-pane-editor">
-      <div class="split-pane-editor-title">Edit Goal</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="split-pane-editor-title">Edit Goal</div>
+        <div style="gap: 0.5rem; display: flex;">
+          <button type="button" class="btn btn-primary btn-sm" id="saveGoalEditorBtn" disabled>Save</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="closeGoalEditorBtn">Cancel</button>
+        </div>
+      </div>
       <form id="goalEditorForm">
         <input type="hidden" id="goalEditorId" name="goalId">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -115,10 +121,6 @@
           <input type="date" class="form-control" id="goalEditorDueDate" name="due_date">
         </div>
 
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-primary" id="saveGoalEditorBtn">Save</button>
-          <button type="button" class="btn btn-secondary" id="closeGoalEditorBtn">Close</button>
-        </div>
       </form>
     </div>
   </div>

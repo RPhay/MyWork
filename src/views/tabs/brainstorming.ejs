@@ -32,7 +32,13 @@
     <!-- Right Pane (Editor) -->
     <div class="split-pane-right hidden" id="ideaEditorPane">
       <div class="split-pane-editor">
-        <div class="split-pane-editor-title" id="ideaEditorTitle">Select an item to edit</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div class="split-pane-editor-title" id="ideaEditorTitle">Select an item to edit</div>
+          <div style="gap: 0.5rem; display: flex;">
+            <button type="button" class="btn btn-primary btn-sm" id="saveIdeaEditorBtn" disabled>Save</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="closeIdeaEditorBtn">Cancel</button>
+          </div>
+        </div>
         <form id="ideaEditorForm">
           <input type="hidden" id="ideaEditorId" name="ideaId">
           <input type="hidden" id="ideaEditorType" name="type" value="idea">
@@ -61,10 +67,6 @@
             </div>
           </div>
 
-          <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary" id="saveIdeaEditorBtn">Save</button>
-            <button type="button" class="btn btn-secondary" id="closeIdeaEditorBtn">Close</button>
-          </div>
         </form>
       </div>
     </div>

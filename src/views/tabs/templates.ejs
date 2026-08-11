@@ -82,7 +82,13 @@
       <!-- Right Pane: Template Editor (Hidden by default) -->
       <div class="split-pane-right hidden" id="templateEditorPane">
         <div class="split-pane-editor">
-          <div class="split-pane-editor-title" id="templateEditorDisplayTitle">Select a template to edit</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div class="split-pane-editor-title" id="templateEditorDisplayTitle">Select a template to edit</div>
+            <div style="gap: 0.5rem; display: flex;">
+              <button type="button" class="btn btn-primary btn-sm" id="saveTemplateEditorBtn" disabled>Save</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="closeTemplateEditorBtn">Cancel</button>
+            </div>
+          </div>
           <form id="templateEditorForm">
             <input type="hidden" id="templateEditorId" name="templateId">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -129,10 +135,6 @@
               </div>
             </div>
 
-            <div class="d-flex gap-2">
-              <button type="button" class="btn btn-primary" id="saveTemplateEditorBtn">Save</button>
-              <button type="button" class="btn btn-secondary" id="closeTemplateEditorBtn">Close</button>
-            </div>
           </form>
         </div>
       </div>
