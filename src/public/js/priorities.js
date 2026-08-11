@@ -17,9 +17,6 @@ function renderCategoryInTree(category, depth) {
           <i class="bi ${APP_ICONS.area} text-muted"></i>
           <span class="priority-title">${app.escapeHtml(category.name || category.path)}</span>
         </span>
-        <span class="priority-badges"></span>
-        <span class="priority-actions">
-        </span>
       </div>
     </div>
   `;
@@ -34,9 +31,6 @@ function renderGoalInTree(goal, depth) {
           <span class="priority-toggle"></span>
           <i class="bi ${APP_ICONS.goal} text-muted"></i>
           <span class="priority-title">${app.escapeHtml(goal.name)}</span>
-        </span>
-        <span class="priority-badges"></span>
-        <span class="priority-actions">
         </span>
       </div>
     </div>
@@ -246,7 +240,6 @@ function renderPriorityNode(priority, byParent, depth) {
           <span class="priority-title">${app.escapeHtml(priority.title)}</span>
           ${linksBadge}
         </span>
-        <span class="priority-badges"></span>
         <span class="priority-actions">
           <button class="btn btn-sm btn-danger" data-action="delete" data-id="${priority.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
         </span>
