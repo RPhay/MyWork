@@ -447,6 +447,54 @@ async function deleteArea(areaId) {
   }
 }
 
+async function associateTodoWithArea(todoId, areaId) {
+  try {
+    const response = await fetch(`/api/to-dos/${todoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ category_id: areaId })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Todo associated with category', 'success');
+      loadAreas();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error associating todo:', error);
+    app.notify('Error associating todo', 'danger');
+  }
+}
+
+async function associateTicketWithArea(ticketId, areaId) {
+  try {
+    const response = await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ category_id: areaId })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Ticket associated with category', 'success');
+      loadAreas();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error associating ticket:', error);
+    app.notify('Error associating ticket', 'danger');
+  }
+}
+
 function clearDropTargets(container) {
   container.querySelectorAll('.area-drop-target').forEach(el => el.classList.remove('area-drop-target'));
   container.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
@@ -567,6 +615,68 @@ function initAreaContextMenu() {
         unlinkTicketFromArea(ticketId);
       }
     });
+
+    // Drag-and-drop for associated todos and tickets
+    container.addEventListener('dragstart', (e) => {
+      const node = e.target.closest('.todo-item, .ticket-item');
+      if (!node) return;
+
+      const todoId = node.dataset.todoId;
+      const ticketId = node.dataset.ticketId;
+
+      if (todoId || ticketId) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('itemType', todoId ? 'todo' : 'ticket');
+        e.dataTransfer.setData('itemId', todoId || ticketId);
+        node.style.opacity = '0.5';
+      }
+    });
+
+    container.addEventListener('dragend', (e) => {
+      const node = e.target.closest('.todo-item, .ticket-item');
+      if (node) node.style.opacity = '1';
+      document.querySelectorAll('.area-node-header').forEach(n => n.style.borderTop = '');
+    });
+
+    container.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const itemType = e.dataTransfer.getData('itemType');
+      if (!itemType || (itemType !== 'todo' && itemType !== 'ticket')) return;
+
+      const header = e.target.closest('.area-node-header');
+      if (header) {
+        header.style.borderTop = '3px solid #0d6efd';
+        e.dataTransfer.dropEffect = 'move';
+      }
+    });
+
+    container.addEventListener('dragleave', (e) => {
+      const header = e.target.closest('.area-node-header');
+      if (header) header.style.borderTop = '';
+    });
+
+    container.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.area-node-header').forEach(n => n.style.borderTop = '');
+
+      const itemType = e.dataTransfer.getData('itemType');
+      const itemId = e.dataTransfer.getData('itemId');
+      const targetHeader = e.target.closest('.area-node-header');
+
+      if (!itemType || !itemId || !targetHeader) return;
+
+      const targetAreaNode = targetHeader.closest('.area-node');
+      const targetAreaId = parseInt(targetAreaNode?.dataset.areaId);
+
+      if (!targetAreaId) return;
+
+      if (itemType === 'todo') {
+        await associateTodoWithArea(parseInt(itemId), targetAreaId);
+      } else if (itemType === 'ticket') {
+        await associateTicketWithArea(parseInt(itemId), targetAreaId);
+      }
+    });
+  }
 
     // Collapse all submenus on context menu open
     container.addEventListener('contextmenu', () => {

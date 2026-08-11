@@ -612,6 +612,64 @@ function setupToDoDragListeners() {
     }
   });
 
+  // Drag-and-drop for associated categories and tickets
+  container.addEventListener('dragstart', (e) => {
+    const node = e.target.closest('.category-item, .ticket-item');
+    if (!node) return;
+
+    const categoryId = node.dataset.categoryId;
+    const ticketId = node.dataset.ticketId;
+
+    if (categoryId || ticketId) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('itemType', categoryId ? 'category' : 'ticket');
+      e.dataTransfer.setData('itemId', categoryId || ticketId);
+      node.style.opacity = '0.5';
+    }
+  });
+
+  container.addEventListener('dragend', (e) => {
+    const node = e.target.closest('.category-item, .ticket-item');
+    if (node) node.style.opacity = '1';
+    document.querySelectorAll('.todo-row').forEach(n => n.style.borderTop = '');
+  });
+
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const itemType = e.dataTransfer.getData('itemType');
+    if (!itemType || (itemType !== 'category' && itemType !== 'ticket')) return;
+
+    const row = e.target.closest('.todo-row');
+    if (row) {
+      row.style.borderTop = '3px solid #0d6efd';
+      e.dataTransfer.dropEffect = 'move';
+    }
+  });
+
+  container.addEventListener('dragleave', (e) => {
+    const row = e.target.closest('.todo-row');
+    if (row) row.style.borderTop = '';
+  });
+
+  container.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.todo-row').forEach(n => n.style.borderTop = '');
+
+    const itemType = e.dataTransfer.getData('itemType');
+    const itemId = e.dataTransfer.getData('itemId');
+    const targetRow = e.target.closest('.todo-row');
+
+    if (!itemType || !itemId || !targetRow) return;
+
+    const targetTodoId = parseInt(targetRow.dataset.id);
+
+    if (itemType === 'category') {
+      await associateCategoryWithTodo(parseInt(itemId), targetTodoId);
+    } else if (itemType === 'ticket') {
+      await associateTicketWithTodo(parseInt(itemId), targetTodoId);
+    }
+  });
+
   contextMenu.addEventListener('click', (e) => {
     const button = e.target.closest('[data-action]');
     if (!button) return;
@@ -722,6 +780,54 @@ async function unlinkTicketFromTodo(ticketId) {
   } catch (error) {
     console.error('Error unlinking ticket:', error);
     app.notify('Error unlinking ticket', 'danger');
+  }
+}
+
+async function associateCategoryWithTodo(categoryId, todoId) {
+  try {
+    const response = await fetch(`/api/areas/${categoryId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ todo_id: todoId })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Category associated with todo', 'success');
+      loadToDos();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error associating category:', error);
+    app.notify('Error associating category', 'danger');
+  }
+}
+
+async function associateTicketWithTodo(ticketId, todoId) {
+  try {
+    const response = await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ todo_id: todoId })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Ticket associated with todo', 'success');
+      loadToDos();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error associating ticket:', error);
+    app.notify('Error associating ticket', 'danger');
   }
 }
 

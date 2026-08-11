@@ -267,17 +267,127 @@ function attachTicketNodeEventListeners() {
     }
   });
 
+  // Drag-and-drop handlers for associated items
+  ticketsList.addEventListener('dragstart', (e) => {
+    const node = e.target.closest('.todo-node, .goal-node');
+    if (!node) return;
+
+    const todoId = node.dataset.todoId;
+    const goalId = node.dataset.goalId;
+    const ticketNode = node.closest('.ticket-node');
+
+    if (todoId || goalId) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('itemType', todoId ? 'todo' : 'goal');
+      e.dataTransfer.setData('itemId', todoId || goalId);
+      e.dataTransfer.setData('sourceTicketId', ticketNode?.dataset.ticketId || '');
+      node.style.opacity = '0.5';
+    }
+  });
+
+  ticketsList.addEventListener('dragend', (e) => {
+    const node = e.target.closest('.todo-node, .goal-node');
+    if (node) node.style.opacity = '1';
+    document.querySelectorAll('.ticket-node').forEach(n => n.style.borderTop = '');
+  });
+
+  ticketsList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const itemType = e.dataTransfer.getData('itemType');
+    if (!itemType) return;
+
+    const ticketNode = e.target.closest('.ticket-node');
+    if (ticketNode && ticketNode.querySelector('.ticket-node-header')) {
+      ticketNode.style.borderTop = '3px solid #0d6efd';
+      e.dataTransfer.dropEffect = 'move';
+    }
+  });
+
+  ticketsList.addEventListener('dragleave', (e) => {
+    const ticketNode = e.target.closest('.ticket-node');
+    if (ticketNode) ticketNode.style.borderTop = '';
+  });
+
+  ticketsList.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.ticket-node').forEach(n => n.style.borderTop = '');
+
+    const itemType = e.dataTransfer.getData('itemType');
+    const itemId = e.dataTransfer.getData('itemId');
+    const targetTicketNode = e.target.closest('.ticket-node');
+
+    if (!itemType || !itemId || !targetTicketNode) return;
+
+    const targetTicketId = parseInt(targetTicketNode.dataset.ticketId);
+    const sourceTicketId = parseInt(e.dataTransfer.getData('sourceTicketId'));
+
+    if (targetTicketId === sourceTicketId) return;
+
+    if (itemType === 'todo') {
+      await associateTodoWithTicket(parseInt(itemId), targetTicketId);
+    } else if (itemType === 'goal') {
+      await associateGoalWithTicket(parseInt(itemId), targetTicketId);
+    }
+  });
+
   // Single-click to edit ticket
   ticketsList.addEventListener('click', (e) => {
-    const header = e.target.closest('.ticket-node .ticket-node-header') ||
-                   (e.target.closest('.ticket-node') && e.target === e.currentTarget.closest('.ticket-node')?.querySelector('.ticket-node-header'));
-    if (header && !e.target.closest('[data-action]')) {
+    const header = e.target.closest('.ticket-node .ticket-node-header');
+    if (header && !e.target.closest('[data-action]') && !e.target.closest('[data-submenu]')) {
       const ticketNode = header.closest('.ticket-node');
       if (ticketNode?.dataset.ticketId) {
         editTicket(parseInt(ticketNode.dataset.ticketId));
       }
     }
   });
+}
+
+async function associateTodoWithTicket(todoId, ticketId) {
+  try {
+    const response = await fetch(`/api/to-dos/${todoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ ticket_id: ticketId })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Todo associated with ticket', 'success');
+      loadTickets();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error associating todo:', error);
+    app.notify('Error associating todo', 'danger');
+  }
+}
+
+async function associateGoalWithTicket(goalId, ticketId) {
+  try {
+    const response = await fetch(`/api/goals/${goalId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ ticket_id: ticketId })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Goal associated with ticket', 'success');
+      loadTickets();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error associating goal:', error);
+    app.notify('Error associating goal', 'danger');
+  }
 }
 
 function showTicketContextMenu(e, ticketType, ticketId) {
