@@ -1,8 +1,33 @@
 const TemplateEditor = (() => {
   let splitPane = null;
+  let currentTemplateId = null;
+  let hasChanges = false;
 
   const init = (splitPaneInstance) => {
     splitPane = splitPaneInstance;
+  };
+
+  const markChanged = () => {
+    hasChanges = true;
+    const saveBtn = document.getElementById('saveTemplateEditorBtn');
+    if (saveBtn) saveBtn.disabled = false;
+  };
+
+  const trackFormChanges = () => {
+    const form = document.getElementById('templateEditorForm');
+    if (!form) return;
+
+    const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="time"], input[type="hidden"], input[type="radio"]');
+    inputs.forEach(input => {
+      input.addEventListener('change', markChanged);
+      input.addEventListener('input', markChanged);
+    });
+  };
+
+  const resetChangeTracking = () => {
+    hasChanges = false;
+    const saveBtn = document.getElementById('saveTemplateEditorBtn');
+    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (templateId) => {
@@ -17,7 +42,10 @@ const TemplateEditor = (() => {
       }
 
       const template = result.data;
+      currentTemplateId = templateId;
+      resetChangeTracking();
       fillForm(template);
+      trackFormChanges();
       splitPane.showRightPane();
     } catch (error) {
       console.error('Error loading template:', error);
@@ -87,9 +115,22 @@ const TemplateEditor = (() => {
   };
 
   const close = () => {
+    resetChangeTracking();
+    currentTemplateId = null;
     if (splitPane) {
       splitPane.hideRightPane();
     }
+  };
+
+  const toggleOnSameRow = (templateId) => {
+    if (currentTemplateId === templateId) {
+      if (hasChanges) {
+        return false;
+      }
+      close();
+      return true;
+    }
+    return false;
   };
 
   return {
@@ -97,6 +138,7 @@ const TemplateEditor = (() => {
     populate,
     fillForm,
     save,
-    close
+    close,
+    toggleOnSameRow
   };
 })();

@@ -1,8 +1,33 @@
 const TicketEditor = (() => {
   let splitPane = null;
+  let currentTicketId = null;
+  let hasChanges = false;
 
   const init = (splitPaneInstance) => {
     splitPane = splitPaneInstance;
+  };
+
+  const markChanged = () => {
+    hasChanges = true;
+    const saveBtn = document.getElementById('saveTicketEditorBtn');
+    if (saveBtn) saveBtn.disabled = false;
+  };
+
+  const trackFormChanges = () => {
+    const form = document.getElementById('ticketEditorForm');
+    if (!form) return;
+
+    const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="url"], select');
+    inputs.forEach(input => {
+      input.addEventListener('change', markChanged);
+      input.addEventListener('input', markChanged);
+    });
+  };
+
+  const resetChangeTracking = () => {
+    hasChanges = false;
+    const saveBtn = document.getElementById('saveTicketEditorBtn');
+    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (ticketId) => {
@@ -17,7 +42,10 @@ const TicketEditor = (() => {
       }
 
       const ticket = result.data;
+      currentTicketId = ticketId;
+      resetChangeTracking();
       fillForm(ticket);
+      trackFormChanges();
       splitPane.showRightPane();
     } catch (error) {
       console.error('Error loading ticket:', error);
@@ -98,9 +126,22 @@ const TicketEditor = (() => {
   };
 
   const close = () => {
+    resetChangeTracking();
+    currentTicketId = null;
     if (splitPane) {
       splitPane.hideRightPane();
     }
+  };
+
+  const toggleOnSameRow = (ticketId) => {
+    if (currentTicketId === ticketId) {
+      if (hasChanges) {
+        return false;
+      }
+      close();
+      return true;
+    }
+    return false;
   };
 
   return {
@@ -109,6 +150,7 @@ const TicketEditor = (() => {
     fillForm,
     renderLinks,
     save,
-    close
+    close,
+    toggleOnSameRow
   };
 })();

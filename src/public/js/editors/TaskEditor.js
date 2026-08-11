@@ -1,8 +1,33 @@
 const TaskEditor = (() => {
   let splitPane = null;
+  let currentTaskId = null;
+  let hasChanges = false;
 
   const init = (splitPaneInstance) => {
     splitPane = splitPaneInstance;
+  };
+
+  const markChanged = () => {
+    hasChanges = true;
+    const saveBtn = document.getElementById('saveTaskEditorBtn');
+    if (saveBtn) saveBtn.disabled = false;
+  };
+
+  const trackFormChanges = () => {
+    const form = document.getElementById('taskEditorForm');
+    if (!form) return;
+
+    const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="checkbox"], input[type="radio"], input[type="date"]');
+    inputs.forEach(input => {
+      input.addEventListener('change', markChanged);
+      input.addEventListener('input', markChanged);
+    });
+  };
+
+  const resetChangeTracking = () => {
+    hasChanges = false;
+    const saveBtn = document.getElementById('saveTaskEditorBtn');
+    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (taskId) => {
@@ -15,7 +40,10 @@ const TaskEditor = (() => {
         return;
       }
 
+      currentTaskId = taskId;
+      resetChangeTracking();
       fillForm(task);
+      trackFormChanges();
       splitPane.showRightPane();
     } catch (error) {
       console.error('Error loading task:', error);
@@ -298,9 +326,22 @@ const TaskEditor = (() => {
   };
 
   const close = () => {
+    resetChangeTracking();
+    currentTaskId = null;
     if (splitPane) {
       splitPane.hideRightPane();
     }
+  };
+
+  const toggleOnSameRow = (taskId) => {
+    if (currentTaskId === taskId) {
+      if (hasChanges) {
+        return false;
+      }
+      close();
+      return true;
+    }
+    return false;
   };
 
   return {
@@ -312,6 +353,7 @@ const TaskEditor = (() => {
     fillForm,
     renderLinks,
     save,
-    close
+    close,
+    toggleOnSameRow
   };
 })();
