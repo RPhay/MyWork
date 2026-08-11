@@ -70,7 +70,8 @@
       "Bash(curl -s http://localhost:3000/?tab=dailies)",
       "Bash(pkill -f playwright)",
       "Bash(sqlite3 *)",
-      "Bash(curl -s -X GET http://localhost:3000/api/to-dos)"
+      "Bash(curl -s -X GET http://localhost:3000/api/to-dos)",
+      "Bash(git fetch *)"
     ]
   }
 }

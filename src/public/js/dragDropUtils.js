@@ -100,13 +100,53 @@ function parseOutlookTimeRange(timeStr) {
   // Examples:
   // "Monday, August 3, 2026 at 12:15 PM - 12:45 PM"
   // "August 3, 2026 at 9:00 AM - 10:30 AM"
+  // "Monday, August 3, 2026 2:00 PM - 3:00 PM"
+  // "Monday, August 3, 2026 2:00 PM"
 
-  const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/);
-  if (!timeMatch) return null;
+  // Try to match time range pattern: "HH:MM [AM/PM] - HH:MM [AM/PM]"
+  let timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/i);
+  if (!timeMatch) {
+    // Try alternate pattern without first AM/PM (Outlook sometimes omits it): "HH:MM - HH:MM AM/PM"
+    timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/i);
+    if (timeMatch) {
+      // Rearrange to match the expected structure
+      const startHour = parseInt(timeMatch[1]);
+      const startMin = parseInt(timeMatch[2]);
+      const endHour = parseInt(timeMatch[3]);
+      const endMin = parseInt(timeMatch[4]);
+      const endPeriod = timeMatch[5].toUpperCase();
+
+      // Determine the period for start time based on end period
+      let startPeriod = endPeriod;
+      // If start hour > end hour and both in same period, start must be in different period
+      if (startHour > endHour && endPeriod === 'PM') {
+        startPeriod = 'AM';
+      }
+
+      timeMatch = [null, startHour, startMin, startPeriod, endHour, endMin, endPeriod];
+    } else {
+      // Try single time (no end time): "HH:MM [AM/PM]"
+      timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?/i);
+      if (timeMatch) {
+        const startHour = parseInt(timeMatch[1]);
+        const startMin = parseInt(timeMatch[2]);
+        const startPeriod = (timeMatch[3] || 'AM').toUpperCase();
+
+        // Without end time, assume default 1 hour duration
+        let start24Hour = startHour;
+        if (startPeriod === 'PM' && startHour !== 12) start24Hour += 12;
+        if (startPeriod === 'AM' && startHour === 12) start24Hour = 0;
+
+        const startTimeStr = `${String(start24Hour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
+        return { duration: 60, startTime: startTimeStr };
+      }
+      return null;
+    }
+  }
 
   const startHour = parseInt(timeMatch[1]);
   const startMin = parseInt(timeMatch[2]);
-  const startPeriod = timeMatch[3].toUpperCase();
+  const startPeriod = (timeMatch[3] || 'AM').toUpperCase();
 
   const endHour = parseInt(timeMatch[4]);
   const endMin = parseInt(timeMatch[5]);
