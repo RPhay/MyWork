@@ -1,5 +1,6 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
+import * as recurrenceService from './recurrenceService.js';
 
 const VALID_TASK_STATUSES = ['incomplete', 'complete', 'failed', 'skipped'];
 
@@ -17,6 +18,7 @@ async function attachLinks(tasks) {
   return tasks.map(task => ({
     ...task,
     links: links.filter(l => l.task_id === task.id),
+    recurrence: task.recurrence ? JSON.parse(task.recurrence) : null,
   }));
 }
 
@@ -50,15 +52,19 @@ export async function getTaskById(id) {
 }
 
 export async function createTask(data, contextId) {
-  const { title, notes, parent_id, priority_id, links } = data;
+  const { title, notes, parent_id, priority_id, links, recurrence } = data;
 
   if (!title) {
     throw new ValidationError('Task title is required');
   }
 
+  if (recurrence) {
+    recurrenceService.validateRecurrence(recurrence);
+  }
+
   const taskId = await db.insert(
-    'INSERT INTO tasks (title, notes, parent_id, priority_id, context_id) VALUES (?, ?, ?, ?, ?)',
-    [title, notes ?? null, parent_id || null, priority_id || null, contextId]
+    'INSERT INTO tasks (title, notes, parent_id, priority_id, recurrence, context_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [title, notes ?? null, parent_id || null, priority_id || null, recurrence ? JSON.stringify(recurrence) : null, contextId]
   );
 
   if (links !== undefined) {
@@ -107,6 +113,14 @@ export async function updateTask(id, data) {
     }
     setClauses.push('status = ?');
     values.push(data.status);
+  }
+
+  if (data.recurrence !== undefined) {
+    if (data.recurrence) {
+      recurrenceService.validateRecurrence(data.recurrence);
+    }
+    setClauses.push('recurrence = ?');
+    values.push(data.recurrence ? JSON.stringify(data.recurrence) : null);
   }
 
   if (setClauses.length > 0) {

@@ -1,5 +1,6 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
+import * as recurrenceService from './recurrenceService.js';
 
 const VALID_TODO_STATUSES = ['incomplete', 'complete', 'failed', 'skipped'];
 
@@ -17,6 +18,7 @@ async function attachItems(toDos) {
   return toDos.map(toDo => ({
     ...toDo,
     items: items.filter(i => i.to_do_id === toDo.id),
+    recurrence: toDo.recurrence ? JSON.parse(toDo.recurrence) : null,
   }));
 }
 
@@ -36,7 +38,7 @@ async function replaceItems(toDoId, items) {
 }
 
 export async function getAllToDos(contextId) {
-  const toDos = await db.query('SELECT * FROM to_dos WHERE context_id = ? OR context_id IS NULL ORDER BY created_at DESC', [contextId]);
+  const toDos = await db.query('SELECT * FROM to_dos WHERE context_id = ? ORDER BY created_at DESC', [contextId]);
   return attachItems(toDos);
 }
 
@@ -50,15 +52,19 @@ export async function getToDoById(id) {
 }
 
 export async function createToDo(data, contextId) {
-  const { title, notes, parent_id, priority_id, items } = data;
+  const { title, notes, parent_id, priority_id, items, recurrence } = data;
 
   if (!title) {
     throw new ValidationError('To do title is required');
   }
 
+  if (recurrence) {
+    recurrenceService.validateRecurrence(recurrence);
+  }
+
   const toDoId = await db.insert(
-    'INSERT INTO to_dos (title, notes, parent_id, priority_id, context_id) VALUES (?, ?, ?, ?, ?)',
-    [title, notes ?? null, parent_id || null, priority_id || null, contextId]
+    'INSERT INTO to_dos (title, notes, parent_id, priority_id, recurrence, context_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [title, notes ?? null, parent_id || null, priority_id || null, recurrence ? JSON.stringify(recurrence) : null, contextId]
   );
 
   if (items !== undefined) {
@@ -107,6 +113,14 @@ export async function updateToDo(id, data) {
     }
     setClauses.push('status = ?');
     values.push(data.status);
+  }
+
+  if (data.recurrence !== undefined) {
+    if (data.recurrence) {
+      recurrenceService.validateRecurrence(data.recurrence);
+    }
+    setClauses.push('recurrence = ?');
+    values.push(data.recurrence ? JSON.stringify(data.recurrence) : null);
   }
 
   if (setClauses.length > 0) {

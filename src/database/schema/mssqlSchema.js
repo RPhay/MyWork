@@ -334,8 +334,13 @@ export async function createMssqlSchema(pool) {
       time_box_minutes INT NULL,
       start_time VARCHAR(5) NULL,
       order_index INT DEFAULT 0,
+      worked_with_claude BIT DEFAULT 0,
+      recurring_from_todo_id INT NULL,
+      recurring_from_task_id INT NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_work_items_recurring_todo FOREIGN KEY (recurring_from_todo_id) REFERENCES [MyWork].[to_dos](id) ON DELETE SET NULL,
+      CONSTRAINT fk_work_items_recurring_task FOREIGN KEY (recurring_from_task_id) REFERENCES [MyWork].[tasks](id) ON DELETE SET NULL
     )
   `,
   );
@@ -491,6 +496,7 @@ export async function createMssqlSchema(pool) {
       parent_id INT NULL,
       priority_id INT NULL,
       status NVARCHAR(20) NOT NULL DEFAULT 'incomplete',
+      recurrence NVARCHAR(MAX),
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       CONSTRAINT fk_to_dos_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE,
@@ -538,6 +544,13 @@ export async function createMssqlSchema(pool) {
   // Drop old folder_id column if it still exists on to_dos
   if (await columnExists(pool, "to_dos", "folder_id")) {
     await pool.request().query(`ALTER TABLE [MyWork].[to_dos] DROP COLUMN folder_id`);
+  }
+
+  // Backfill recurrence for pre-existing to_dos tables
+  if (!(await columnExists(pool, "to_dos", "recurrence"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_dos] ADD recurrence NVARCHAR(MAX)
+    `);
   }
 
   await createTableIfNotExists(
@@ -668,6 +681,7 @@ export async function createMssqlSchema(pool) {
       parent_id INT NULL,
       priority_id INT NULL,
       status NVARCHAR(20) NOT NULL DEFAULT 'incomplete',
+      recurrence NVARCHAR(MAX),
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       CONSTRAINT fk_tasks_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE,
@@ -703,6 +717,13 @@ export async function createMssqlSchema(pool) {
   // Drop old folder_id column if it still exists on tasks
   if (await columnExists(pool, "tasks", "folder_id")) {
     await pool.request().query(`ALTER TABLE [MyWork].[tasks] DROP COLUMN folder_id`);
+  }
+
+  // Backfill recurrence for pre-existing tasks tables
+  if (!(await columnExists(pool, "tasks", "recurrence"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[tasks] ADD recurrence NVARCHAR(MAX)
+    `);
   }
 
   await createTableIfNotExists(

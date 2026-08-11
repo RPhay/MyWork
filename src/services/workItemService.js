@@ -1,6 +1,7 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
+import * as recurrenceService from './recurrenceService.js';
 
 // No time box is represented as NULL; anything else must be a positive whole number of minutes.
 export function normalizeTimeBox(value) {
@@ -62,6 +63,9 @@ async function attachAssociations(items) {
 }
 
 export async function getWorkItemsByDate(date, contextId) {
+  // Generate any recurring items due on this date
+  await recurrenceService.generateWorkItemsForDate(date, contextId);
+
   const items = await db.query(
     'SELECT * FROM work_items WHERE date = ? AND context_id = ? ORDER BY order_index ASC, created_at ASC',
     [date, contextId]
@@ -232,7 +236,15 @@ export async function updateWorkItemStatus(id, status) {
     throw new ValidationError('Invalid status value');
   }
 
+  const workItem = await getWorkItemById(id);
+
   await db.update('UPDATE work_items SET status = ? WHERE id = ?', [status, id]);
+
+  // If marking a recurring item as complete, generate the next occurrence
+  if (status === 'Complete' && (workItem.recurring_from_todo_id || workItem.recurring_from_task_id)) {
+    await recurrenceService.generateNextRecurrenceForCompletedItem(workItem);
+  }
+
   return getWorkItemById(id);
 }
 

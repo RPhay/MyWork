@@ -333,6 +333,17 @@ export async function createMysqlSchema(connection) {
     );
   }
 
+  // Backfill tracking columns for recurring items (link to source todo/task)
+  if (!(await columnExists(connection, "work_items", "recurring_from_todo_id"))) {
+    await connection.query(`
+      ALTER TABLE work_items
+        ADD COLUMN recurring_from_todo_id INT,
+        ADD COLUMN recurring_from_task_id INT,
+        ADD FOREIGN KEY (recurring_from_todo_id) REFERENCES to_dos(id) ON DELETE SET NULL,
+        ADD FOREIGN KEY (recurring_from_task_id) REFERENCES tasks(id) ON DELETE SET NULL
+    `);
+  }
+
   // Create work_goal_associations junction table
   await connection.query(`
     CREATE TABLE IF NOT EXISTS work_goal_associations (
@@ -464,7 +475,7 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create to_dos table (supports nesting via parent_id)
+  // Create to_dos table (supports nesting via parent_id, recurring via recurrence JSON)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS to_dos (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -473,12 +484,20 @@ export async function createMysqlSchema(connection) {
       parent_id INT,
       priority_id INT,
       status VARCHAR(20) NOT NULL DEFAULT 'incomplete',
+      recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (parent_id) REFERENCES to_dos(id) ON DELETE CASCADE,
       FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
+
+  // Backfill recurrence for pre-existing to_dos tables
+  if (!(await columnExists(connection, "to_dos", "recurrence"))) {
+    await connection.query(
+      "ALTER TABLE to_dos ADD COLUMN recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}'"
+    );
+  }
 
   // Backfill parent_id for pre-existing to_dos tables (migrate from folder_id if it exists)
   if (!(await columnExists(connection, "to_dos", "parent_id"))) {
@@ -619,7 +638,7 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create tasks table (supports nesting via parent_id)
+  // Create tasks table (supports nesting via parent_id, recurring via recurrence JSON)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS tasks (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -628,12 +647,20 @@ export async function createMysqlSchema(connection) {
       parent_id INT,
       priority_id INT,
       status VARCHAR(20) NOT NULL DEFAULT 'incomplete',
+      recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE CASCADE,
       FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
+
+  // Backfill recurrence for pre-existing tasks tables
+  if (!(await columnExists(connection, "tasks", "recurrence"))) {
+    await connection.query(
+      "ALTER TABLE tasks ADD COLUMN recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}'"
+    );
+  }
 
   // Backfill parent_id/priority_id/status for pre-existing tasks tables
   if (!(await columnExists(connection, "tasks", "parent_id"))) {
