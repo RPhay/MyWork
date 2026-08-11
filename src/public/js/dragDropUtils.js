@@ -68,13 +68,18 @@ function parseOutlookPlainTextFormat(text) {
   // First line is the title
   event.title = lines[0];
 
+  console.log('[parseOutlookPlainTextFormat] Parsed text lines:', lines);
+
   // Look for "When:" line and parse time
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
+    console.log('[parseOutlookPlainTextFormat] Processing line:', line);
 
     if (line.startsWith('When:')) {
       const whenText = line.substring(5).trim();
+      console.log('[parseOutlookPlainTextFormat] When text:', whenText);
       const timeData = parseOutlookTimeRange(whenText);
+      console.log('[parseOutlookPlainTextFormat] Parsed time data:', timeData);
       if (timeData !== null) {
         event.duration = timeData.duration;
         event.startTime = timeData.startTime;
@@ -92,6 +97,8 @@ function parseOutlookPlainTextFormat(text) {
       event.description = line;
     }
   }
+
+  console.log('[parseOutlookPlainTextFormat] Final event:', event);
 
   return event;
 }

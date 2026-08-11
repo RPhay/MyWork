@@ -20,6 +20,9 @@ async function createWorkItemFromCalendarEvent(event, date) {
     start_time: event.startTime || null,
   };
 
+  console.log('[createWorkItemFromCalendarEvent] Event data:', event);
+  console.log('[createWorkItemFromCalendarEvent] Sending to API:', { ...data, date });
+
   try {
     const response = await fetch("/api/work", {
       method: "POST",
