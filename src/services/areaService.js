@@ -32,7 +32,7 @@ async function getDescendantIds(id) {
 }
 
 export async function createArea(data, contextId) {
-  const { name, description, parent_id } = data;
+  const { name, description, parent_id, todo_id } = data;
 
   if (!name) {
     throw new ValidationError('Area name is required');
@@ -43,8 +43,8 @@ export async function createArea(data, contextId) {
 
   try {
     const areaId = await db.insert(
-      'INSERT INTO areas (name, description, parent_id, order_index, context_id) VALUES (?, ?, ?, ?, ?)',
-      [name, description || null, parent_id || null, nextOrder, contextId]
+      'INSERT INTO areas (name, description, parent_id, todo_id, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, description || null, parent_id || null, todo_id || null, nextOrder, contextId]
     );
 
     return getAreaById(areaId);
@@ -89,6 +89,12 @@ export async function updateArea(id, data) {
 
     setClauses.push('parent_id = ?');
     values.push(parentId);
+  }
+
+  // Only touch todo_id when the caller explicitly provided it (e.g. associating to a todo)
+  if (data.todo_id !== undefined) {
+    setClauses.push('todo_id = ?');
+    values.push(data.todo_id || null);
   }
 
   if (setClauses.length === 0) {

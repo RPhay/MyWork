@@ -60,9 +60,35 @@
 </div>
 
 <!-- Category Context Menu -->
-<div id="areaContextMenu" class="context-menu d-none">
-  <button type="button" class="context-menu-item" data-menu-action="add-subcategory"><i class="bi bi-diagram-3"></i> Add Subcategory</button>
-  <button type="button" class="context-menu-item" data-menu-action="create-template"><i class="bi bi-clipboard-plus"></i> Create Template from Category</button>
+<div id="areaContextMenu" class="context-menu d-none" style="position: fixed; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; min-width: 200px;">
+  <div class="context-menu-submenu-group">
+    <button type="button" class="context-menu-item has-submenu" data-submenu="area-associate-items">
+      <i class="bi bi-link-45deg"></i> Associate Item
+      <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
+    </button>
+    <div id="area-associate-items-submenu" class="context-menu-submenu d-none">
+      <button type="button" class="context-menu-item" data-action="associate-ticket"><i class="bi bi-ticket"></i> Ticket</button>
+      <button type="button" class="context-menu-item" data-action="associate-todo"><i class="bi bi-check2-square"></i> Todo</button>
+    </div>
+  </div>
+
+  <div class="context-menu-submenu-group">
+    <button type="button" class="context-menu-item has-submenu" data-submenu="area-create-items">
+      <i class="bi bi-plus-circle"></i> Create Item
+      <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
+    </button>
+    <div id="area-create-items-submenu" class="context-menu-submenu d-none">
+      <button type="button" class="context-menu-item" data-action="create-subcategory"><i class="bi bi-folder"></i> Subcategory</button>
+      <button type="button" class="context-menu-item" data-action="create-ticket"><i class="bi bi-ticket"></i> Ticket</button>
+      <button type="button" class="context-menu-item" data-action="create-todo"><i class="bi bi-check2-square"></i> Todo</button>
+    </div>
+  </div>
+
+  <div class="context-menu-submenu-group" style="border-top: 1px solid #ddd; margin-top: 0.5rem; padding-top: 0.5rem;">
+    <button type="button" class="context-menu-item text-danger" data-action="delete-area">
+      <i class="bi bi-trash"></i> Delete Category
+    </button>
+  </div>
 </div>
 
 <!-- Category Modal -->

@@ -44,7 +44,7 @@ export async function getGoalById(id) {
 }
 
 export async function createGoal(data, contextId) {
-  const { year, name, description, measurements, goal_updates, status, due_date, categories } = data;
+  const { year, name, description, measurements, goal_updates, status, due_date, ticket_id, categories } = data;
 
   if (!name) {
     throw new ValidationError('Goal name is required');
@@ -56,8 +56,8 @@ export async function createGoal(data, contextId) {
   let goalId;
   try {
     goalId = await db.insert(
-      'INSERT INTO goals (year, name, description, measurements, goal_updates, status, due_date, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [year, name, description ?? null, measurements ?? null, goal_updates ?? null, status || 'Not Started', due_date || null, nextOrder, contextId]
+      'INSERT INTO goals (year, name, description, measurements, goal_updates, status, due_date, ticket_id, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [year, name, description ?? null, measurements ?? null, goal_updates ?? null, status || 'Not Started', due_date || null, ticket_id || null, nextOrder, contextId]
     );
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
@@ -108,6 +108,10 @@ export async function updateGoal(id, data) {
   if (data.due_date !== undefined) {
     setClauses.push('due_date = ?');
     values.push(data.due_date || null);
+  }
+  if (data.ticket_id !== undefined) {
+    setClauses.push('ticket_id = ?');
+    values.push(data.ticket_id || null);
   }
 
   if (setClauses.length > 0) {

@@ -1,21 +1,75 @@
 let allTickets = [];
-let expandedTicketFolders = new Set(['ServiceNow', 'Azure DevOps', 'Other']);
+let allToDos = [];
+let allGoals = [];
+let expandedTicketTypes = new Set(['ServiceNow', 'Azure DevOps', 'Other']);
+let expandedTicketNodes = new Set();
 const TICKET_TYPE_ORDER = ['ServiceNow', 'Azure DevOps', 'Other'];
 
+// Association rules - what can be children of what
+const ASSOCIATION_RULES = {
+  ticket: ['todo', 'goal'],
+  todo: ['category', 'ticket'],
+  category: ['ticket', 'todo'],
+};
+
 function saveTicketFolderState() {
-  localStorage.setItem('expandedTicketFolders', JSON.stringify(Array.from(expandedTicketFolders)));
-  localStorage.setItem('ticketTypeOrder', JSON.stringify(TICKET_TYPE_ORDER));
+  localStorage.setItem('expandedTicketTypes', JSON.stringify(Array.from(expandedTicketTypes)));
+  localStorage.setItem('expandedTicketNodes', JSON.stringify(Array.from(expandedTicketNodes)));
 }
 
 function loadTicketFolderState() {
-  const saved = localStorage.getItem('expandedTicketFolders');
-  if (saved) {
+  const saved1 = localStorage.getItem('expandedTicketTypes');
+  const saved2 = localStorage.getItem('expandedTicketNodes');
+  if (saved1) {
     try {
-      expandedTicketFolders = new Set(JSON.parse(saved));
+      expandedTicketTypes = new Set(JSON.parse(saved1));
     } catch (e) {
-      expandedTicketFolders = new Set(['ServiceNow', 'Azure DevOps', 'Other']);
+      expandedTicketTypes = new Set(['ServiceNow', 'Azure DevOps', 'Other']);
     }
   }
+  if (saved2) {
+    try {
+      expandedTicketNodes = new Set(JSON.parse(saved2));
+    } catch (e) {
+      expandedTicketNodes = new Set();
+    }
+  }
+}
+
+function renderToDoInTree(todo, depth = 0, showRemove = true) {
+  const removeBtn = showRemove
+    ? `<button class="btn btn-sm btn-link text-danger child-remove p-0 ms-2" data-action="unlink" data-type="todo" data-id="${todo.id}" title="Unlink" aria-label="Unlink"><i class="bi bi-x-circle"></i></button>`
+    : '';
+
+  return `
+    <div class="ticket-node todo-node" data-todo-id="${todo.id}" style="margin-left: ${depth * 20}px; padding: 8px 0; border-bottom: 1px solid #eee;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="flex: 1; display: flex; align-items: center; gap: 6px; font-size: 0.9rem;">
+          <i class="bi bi-check2-square text-muted"></i>
+          <span>${app.escapeHtml(todo.title)}</span>
+        </span>
+        ${removeBtn}
+      </div>
+    </div>
+  `;
+}
+
+function renderGoalInTree(goal, depth = 0, showRemove = true) {
+  const removeBtn = showRemove
+    ? `<button class="btn btn-sm btn-link text-danger child-remove p-0 ms-2" data-action="unlink" data-type="goal" data-id="${goal.id}" title="Unlink" aria-label="Unlink"><i class="bi bi-x-circle"></i></button>`
+    : '';
+
+  return `
+    <div class="ticket-node goal-node" data-goal-id="${goal.id}" style="margin-left: ${depth * 20}px; padding: 8px 0; border-bottom: 1px solid #eee;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="flex: 1; display: flex; align-items: center; gap: 6px; font-size: 0.9rem;">
+          <i class="bi bi-target text-muted"></i>
+          <span>${app.escapeHtml(goal.name)}</span>
+        </span>
+        ${removeBtn}
+      </div>
+    </div>
+  `;
 }
 
 async function loadTickets() {
@@ -23,12 +77,24 @@ async function loadTickets() {
   ticketsList.innerHTML = '<p class="text-center text-muted">Loading...</p>';
 
   try {
-    const response = await fetch('/api/tickets');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
+    const [ticketsRes, todosRes, goalsRes] = await Promise.all([
+      fetch('/api/tickets'),
+      fetch('/api/to-dos'),
+      fetch('/api/goals/all')
+    ]);
 
-    if (result.success) {
-      allTickets = result.data || [];
+    if (!ticketsRes.ok || !todosRes.ok || !goalsRes.ok) {
+      throw new Error('HTTP error');
+    }
+
+    const ticketsResult = await ticketsRes.json();
+    const todosResult = await todosRes.json();
+    const goalsResult = await goalsRes.json();
+
+    if (ticketsResult.success) {
+      allTickets = ticketsResult.data || [];
+      allToDos = todosResult.success ? (todosResult.data || []) : [];
+      allGoals = goalsResult.success ? (goalsResult.data || []) : [];
       renderTickets();
     } else {
       ticketsList.innerHTML = '<p class="text-center text-danger">Error loading tickets</p>';
@@ -43,7 +109,6 @@ function renderTickets() {
   const ticketsList = document.getElementById('ticketsList');
   ticketsList.innerHTML = '';
 
-  // Group tickets by type
   const grouped = { 'ServiceNow': [], 'Azure DevOps': [], 'Other': [] };
   allTickets.forEach(ticket => {
     if (grouped[ticket.ticket_type]) {
@@ -51,311 +116,297 @@ function renderTickets() {
     }
   });
 
-  // Render each group in order
   TICKET_TYPE_ORDER.forEach(type => {
     const tickets = grouped[type];
-    const isExpanded = expandedTicketFolders.has(type);
+    const isExpanded = expandedTicketTypes.has(type);
 
     const groupDiv = document.createElement('div');
     groupDiv.className = 'ticket-group';
     groupDiv.dataset.ticketType = type;
-    groupDiv.draggable = true;
 
     const headerDiv = document.createElement('div');
-    headerDiv.className = `ticket-group-header ${type.toLowerCase().replace(' ', '-')}`;
-    headerDiv.innerHTML = `
-      <i class="bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'} ticket-folder-toggle"></i>
-      <i class="bi bi-folder2"></i>
-      <strong>${app.escapeHtml(type)}</strong>
-      <span class="badge bg-light text-dark ms-2">${tickets.length}</span>
-    `;
-    headerDiv.dataset.ticketType = type;
+    headerDiv.className = 'ticket-group-header';
     headerDiv.style.cursor = 'pointer';
+    headerDiv.style.padding = '10px';
+    headerDiv.style.background = '#f8f9fa';
+    headerDiv.style.borderRadius = '4px';
+    headerDiv.style.marginBottom = '8px';
+    headerDiv.style.display = 'flex';
+    headerDiv.style.alignItems = 'center';
+    headerDiv.style.gap = '8px';
+    headerDiv.style.fontWeight = '500';
+    headerDiv.innerHTML = `
+      <i class="bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}"></i>
+      <i class="bi bi-folder2"></i>
+      <span>${app.escapeHtml(type)}</span>
+      <span class="badge bg-light text-dark ms-auto">${tickets.length}</span>
+    `;
 
-    // Toggle expand/collapse
-    headerDiv.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (expandedTicketFolders.has(type)) {
-        expandedTicketFolders.delete(type);
+    headerDiv.addEventListener('click', () => {
+      if (expandedTicketTypes.has(type)) {
+        expandedTicketTypes.delete(type);
       } else {
-        expandedTicketFolders.add(type);
+        expandedTicketTypes.add(type);
       }
       saveTicketFolderState();
       renderTickets();
     });
 
-    headerDiv.addEventListener('contextmenu', (e) => showTicketContextMenu(e, type));
-
-    // Drag to reorder folders
-    groupDiv.addEventListener('dragstart', (e) => {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('ticketType', type);
-      groupDiv.style.opacity = '0.5';
-    });
-
-    groupDiv.addEventListener('dragend', () => {
-      groupDiv.style.opacity = '1';
-    });
-
-    groupDiv.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      const draggedType = e.dataTransfer.getData('ticketType');
-      if (draggedType && draggedType !== type) {
-        groupDiv.style.borderTop = '3px solid #0d6efd';
-      } else {
-        // Allow URL drop
-        e.dataTransfer.dropEffect = 'copy';
-        headerDiv.style.background = '#d9e8f5';
-      }
-    });
-
-    groupDiv.addEventListener('dragleave', () => {
-      groupDiv.style.borderTop = '';
-      headerDiv.style.background = '';
-    });
-
-    groupDiv.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      groupDiv.style.borderTop = '';
-      headerDiv.style.background = '';
-
-      const draggedType = e.dataTransfer.getData('ticketType');
-      if (draggedType && draggedType !== type) {
-        // Reorder folders
-        const draggedIdx = TICKET_TYPE_ORDER.indexOf(draggedType);
-        const targetIdx = TICKET_TYPE_ORDER.indexOf(type);
-        if (draggedIdx !== -1 && targetIdx !== -1) {
-          [TICKET_TYPE_ORDER[draggedIdx], TICKET_TYPE_ORDER[targetIdx]] = [TICKET_TYPE_ORDER[targetIdx], TICKET_TYPE_ORDER[draggedIdx]];
-          saveTicketFolderState();
-          renderTickets();
-        }
-      } else {
-        // URL drop
-        const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-        if (url) {
-          const parsed = parseTicketUrl(url);
-          const title = parsed?.title || url.split('/').pop() || 'Ticket';
-          createTicketFromUrl(title, type, url);
-        }
-      }
-    });
+    headerDiv.addEventListener('contextmenu', (e) => showTicketContextMenu(e, type, null));
 
     groupDiv.appendChild(headerDiv);
 
-    // Render tickets only if expanded
     if (isExpanded) {
       if (tickets.length === 0) {
         const emptyDiv = document.createElement('div');
-        emptyDiv.className = 'text-muted small ms-3';
+        emptyDiv.className = 'text-muted small';
+        emptyDiv.style.padding = '8px';
         emptyDiv.textContent = 'No tickets';
         groupDiv.appendChild(emptyDiv);
       } else {
         tickets.forEach(ticket => {
-          const ticketRow = document.createElement('div');
-          ticketRow.className = `ticket-row ${type.toLowerCase().replace(' ', '-')}`;
-          ticketRow.dataset.ticketId = ticket.id;
-          ticketRow.innerHTML = `
-            <div class="ticket-title">${app.escapeHtml(ticket.title)}</div>
-            <div class="ticket-notes">${app.escapeHtml(ticket.notes || '')}</div>
-            <div class="d-flex gap-1">
-              <button class="btn btn-sm btn-danger" data-action="delete" data-id="${ticket.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
-            </div>
+          const isTicketExpanded = expandedTicketNodes.has(`ticket-${ticket.id}`);
+
+          const ticketNodeDiv = document.createElement('div');
+          ticketNodeDiv.className = 'ticket-node';
+          ticketNodeDiv.dataset.ticketId = ticket.id;
+
+          const ticketHeaderDiv = document.createElement('div');
+          ticketHeaderDiv.style.padding = '8px';
+          ticketHeaderDiv.style.borderBottom = '1px solid #eee';
+          ticketHeaderDiv.style.display = 'flex';
+          ticketHeaderDiv.style.alignItems = 'center';
+          ticketHeaderDiv.style.gap = '8px';
+          ticketHeaderDiv.style.cursor = 'pointer';
+          ticketHeaderDiv.style.fontSize = '0.9rem';
+
+          const associatedTodos = allToDos.filter(t => t.ticket_id === ticket.id);
+          const associatedGoals = allGoals.filter(g => g.ticket_id === ticket.id);
+          const hasChildren = associatedTodos.length > 0 || associatedGoals.length > 0;
+
+          ticketHeaderDiv.innerHTML = `
+            <span style="flex: 1; display: flex; align-items: center; gap: 6px;">
+              ${hasChildren
+                ? `<i class="bi ${isTicketExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}" data-action="toggle-expand" style="cursor: pointer;"></i>`
+                : '<span style="width: 16px;"></span>'}
+              <i class="bi bi-ticket text-muted"></i>
+              <strong>${app.escapeHtml(ticket.title)}</strong>
+            </span>
           `;
-          ticketRow.addEventListener('click', () => editTicket(ticket.id));
-          groupDiv.appendChild(ticketRow);
+
+          ticketHeaderDiv.addEventListener('click', (e) => {
+            if (e.target.closest('[data-action="toggle-expand"]')) {
+              e.stopPropagation();
+              if (expandedTicketNodes.has(`ticket-${ticket.id}`)) {
+                expandedTicketNodes.delete(`ticket-${ticket.id}`);
+              } else {
+                expandedTicketNodes.add(`ticket-${ticket.id}`);
+              }
+              saveTicketFolderState();
+              renderTickets();
+            } else {
+              editTicket(ticket.id);
+            }
+          });
+
+          ticketHeaderDiv.addEventListener('contextmenu', (e) => {
+            e.stopPropagation();
+            showTicketContextMenu(e, type, ticket.id);
+          });
+
+          ticketNodeDiv.appendChild(ticketHeaderDiv);
+
+          if (isTicketExpanded && hasChildren) {
+            const childrenDiv = document.createElement('div');
+            childrenDiv.style.marginLeft = '8px';
+            childrenDiv.style.borderLeft = '2px solid #ddd';
+            childrenDiv.style.paddingLeft = '8px';
+
+            associatedTodos.forEach(todo => {
+              const todoEl = document.createElement('div');
+              todoEl.innerHTML = renderToDoInTree(todo, 0, true);
+              childrenDiv.appendChild(todoEl.firstChild);
+            });
+
+            associatedGoals.forEach(goal => {
+              const goalEl = document.createElement('div');
+              goalEl.innerHTML = renderGoalInTree(goal, 0, true);
+              childrenDiv.appendChild(goalEl.firstChild);
+            });
+
+            ticketNodeDiv.appendChild(childrenDiv);
+          }
+
+          groupDiv.appendChild(ticketNodeDiv);
         });
       }
     }
 
     ticketsList.appendChild(groupDiv);
   });
+
+  attachTicketNodeEventListeners();
 }
 
-function showTicketContextMenu(e, ticketType) {
+function attachTicketNodeEventListeners() {
+  const ticketsList = document.getElementById('ticketsList');
+
+  // Unlink handlers
+  ticketsList.addEventListener('click', (e) => {
+    const unlinkBtn = e.target.closest('[data-action="unlink"]');
+    if (unlinkBtn) {
+      e.stopPropagation();
+      const type = unlinkBtn.dataset.type;
+      const id = parseInt(unlinkBtn.dataset.id);
+      const ticketNode = unlinkBtn.closest('.ticket-node');
+      if (type === 'todo') {
+        unlinkTodoFromTicket(id, parseInt(ticketNode.dataset.ticketId));
+      } else if (type === 'goal') {
+        unlinkGoalFromTicket(id, parseInt(ticketNode.dataset.ticketId));
+      }
+    }
+  });
+
+  // Single-click to edit ticket
+  ticketsList.addEventListener('click', (e) => {
+    const header = e.target.closest('.ticket-node .ticket-node-header') ||
+                   (e.target.closest('.ticket-node') && e.target === e.currentTarget.closest('.ticket-node')?.querySelector('.ticket-node-header'));
+    if (header && !e.target.closest('[data-action]')) {
+      const ticketNode = header.closest('.ticket-node');
+      if (ticketNode?.dataset.ticketId) {
+        editTicket(parseInt(ticketNode.dataset.ticketId));
+      }
+    }
+  });
+}
+
+function showTicketContextMenu(e, ticketType, ticketId) {
   e.preventDefault();
   const menu = document.getElementById('ticketContextMenu');
   menu.classList.remove('d-none');
   menu.style.left = e.clientX + 'px';
   menu.style.top = e.clientY + 'px';
-  menu.dataset.presetType = ticketType;
+  menu.dataset.ticketType = ticketType;
+  menu.dataset.ticketId = ticketId || '';
 
-  // Remove old listener and add new one
-  const items = menu.querySelectorAll('.context-menu-item');
-  items.forEach(item => {
+  // Collapse all submenus
+  menu.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
+
+  // Set up handlers
+  const associateMenu = menu.querySelector('#ticket-associate-items-submenu');
+  const createMenu = menu.querySelector('#ticket-create-items-submenu');
+
+  menu.querySelectorAll('.context-menu-item').forEach(item => {
     item.onclick = () => {
-      if (item.dataset.menuAction === 'add-ticket') {
-        openNewTicketFormWithType(ticketType);
+      const action = item.dataset.action;
+      if (action === 'associate-todo') {
+        showAssociateModal('todo', ticketId);
+      } else if (action === 'associate-goal') {
+        showAssociateModal('goal', ticketId);
+      } else if (action === 'create-todo') {
+        openCreateTodoForTicket(ticketId);
+      } else if (action === 'create-goal') {
+        openCreateGoalForTicket(ticketId);
+      } else if (action === 'delete-ticket') {
+        deleteTicket(ticketId);
       }
-      hideContextMenu();
+      hideTicketContextMenu();
+    };
+  });
+
+  // Submenu toggle
+  menu.querySelectorAll('.has-submenu').forEach(item => {
+    item.onclick = (e) => {
+      e.stopPropagation();
+      const submenuId = item.dataset.submenu;
+      const submenu = menu.querySelector(`#${submenuId}`);
+      submenu.classList.toggle('d-none');
     };
   });
 }
 
-function hideContextMenu() {
+function hideTicketContextMenu() {
   document.getElementById('ticketContextMenu').classList.add('d-none');
 }
 
-function openNewTicketForm() {
-  document.getElementById('ticketForm').reset();
-  document.getElementById('ticketId').value = '';
-  document.getElementById('ticketPresetType').value = '';
-  renderTicketLinks([]);
+function showAssociateModal(type, ticketId) {
+  // TODO: Implement modal for associating items
+  app.notify(`Associate ${type} feature coming soon`, 'info');
 }
 
-function openNewTicketFormWithType(ticketType) {
-  document.getElementById('ticketForm').reset();
-  document.getElementById('ticketId').value = '';
-  document.getElementById('ticketType').value = ticketType;
-  document.getElementById('ticketPresetType').value = ticketType;
-  renderTicketLinks([]);
-
-  const modal = new bootstrap.Modal(document.getElementById('ticketModal'));
-  modal.show();
-}
-
-function closeTicketEditor() {
-  TicketEditor.close();
-}
-
-function renderTicketLinks(links) {
-  const linksList = document.getElementById('ticketLinksList');
-  linksList.innerHTML = '';
-
-  links.forEach((link, index) => {
-    const linkEl = document.createElement('div');
-    linkEl.className = 'mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center';
-
-    const titleSpan = document.createElement('span');
-    titleSpan.className = 'flex-grow-1 cursor-pointer';
-    titleSpan.innerHTML = `<a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>`;
-    titleSpan.title = 'Click to rename';
-    titleSpan.style.cursor = 'pointer';
-
-    titleSpan.addEventListener('click', () => {
-      const newTitle = prompt('Enter link title:', link.title || '');
-      if (newTitle !== null) {
-        link.title = newTitle;
-        renderTicketLinks(links);
-      }
-    });
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-sm btn-outline-danger';
-    removeBtn.innerHTML = '<i class="bi bi-x"></i>';
-    removeBtn.addEventListener('click', () => {
-      links.splice(index, 1);
-      renderTicketLinks(links);
-    });
-
-    linkEl.appendChild(titleSpan);
-    linkEl.appendChild(removeBtn);
-    linksList.appendChild(linkEl);
-  });
-}
-
-function renderTicketLinksEditor(links) {
-  TicketEditor.renderLinks(links);
-}
-
-function addTicketLink(isEditor = false) {
-  const prefix = isEditor ? 'ticketEditor' : 'ticket';
-  const url = document.getElementById(`${prefix}LinkUrl`).value.trim();
-  const title = document.getElementById(`${prefix}LinkTitle`).value.trim();
-
-  if (!url) {
-    app.notify('URL is required', 'warning');
-    return;
-  }
-
-  const linkListId = isEditor ? 'ticketEditorLinksList' : 'ticketLinksList';
-  const currentLinks = Array.from(document.querySelectorAll(`#${linkListId} a`)).map(a => ({
-    url: a.href,
-    title: a.textContent
-  }));
-
-  currentLinks.push({ url, title: title || url });
-
-  if (isEditor) {
-    TicketEditor.renderLinks(currentLinks);
+function openCreateTodoForTicket(ticketId) {
+  window.pendingAssociateTodoToTicket = ticketId;
+  // Open todo editor
+  const todoForm = document.getElementById('todoForm');
+  if (todoForm) {
+    todoForm.reset();
+    document.getElementById('todoId').value = '';
+    const modal = new bootstrap.Modal(document.getElementById('todoModal'));
+    modal.show();
   } else {
-    renderTicketLinks(currentLinks);
+    app.notify('Todo editor not available', 'warning');
   }
-
-  document.getElementById(`${prefix}LinkUrl`).value = '';
-  document.getElementById(`${prefix}LinkTitle`).value = '';
 }
 
-async function saveTicket() {
-  const editorPane = document.getElementById('ticketEditorPane');
-  const useSplitPane = editorPane && !editorPane.classList.contains('hidden');
+function openCreateGoalForTicket(ticketId) {
+  window.pendingAssociateGoalToTicket = ticketId;
+  // Open goal editor
+  app.notify('Create goal feature coming soon', 'info');
+}
 
-  if (useSplitPane) {
-    const success = await TicketEditor.save();
-    if (success) {
+async function unlinkTodoFromTicket(todoId, ticketId) {
+  try {
+    const response = await fetch(`/api/to-dos/${todoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ ticket_id: null })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Todo unlinked', 'success');
       loadTickets();
+    } else {
+      app.notify('Error unlinking todo', 'danger');
     }
-  } else {
-    const ticketId = document.getElementById('ticketId').value;
-    const title = document.getElementById('ticketTitle').value;
-    const notes = document.getElementById('ticketNotes').value;
-    const ticket_type = document.getElementById('ticketType').value;
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error unlinking todo', 'danger');
+  }
+}
 
-    if (!title.trim()) {
-      app.notify('Title is required', 'warning');
-      return;
+async function unlinkGoalFromTicket(goalId, ticketId) {
+  try {
+    const response = await fetch(`/api/goals/${goalId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ ticket_id: null })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Goal unlinked', 'success');
+      loadTickets();
+    } else {
+      app.notify('Error unlinking goal', 'danger');
     }
-
-    try {
-      const method = ticketId ? 'PUT' : 'POST';
-      const url = ticketId ? `/api/tickets/${ticketId}` : '/api/tickets';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-        },
-        body: JSON.stringify({ title, notes, ticket_type })
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        const newTicketId = ticketId || result.data.id;
-
-        // Save links if any exist in the form
-        const linkElements = document.querySelectorAll('#ticketLinksList a');
-        for (const linkEl of linkElements) {
-          const linkUrl = linkEl.href;
-          const linkTitle = linkEl.textContent;
-
-          await fetch(`/api/tickets/${newTicketId}/links`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-            },
-            body: JSON.stringify({ url: linkUrl, title: linkTitle })
-          }).catch(() => {});
-        }
-
-        app.notify(ticketId ? 'Ticket updated!' : 'Ticket created!', 'success');
-        const modal = bootstrap.Modal.getInstance(document.getElementById('ticketModal'));
-        if (modal) modal.hide();
-        loadTickets();
-      } else {
-        app.notify('Error: ' + result.message, 'danger');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      app.notify('Error saving ticket', 'danger');
-    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error unlinking goal', 'danger');
   }
 }
 
 async function deleteTicket(ticketId) {
-  if (!await app.confirm('Delete this ticket?')) return;
+  const ticket = allTickets.find(t => t.id === ticketId);
+  const name = ticket ? ticket.title : 'this ticket';
+
+  if (!await app.confirm(`Delete "${name}"?`)) return;
 
   try {
     const response = await fetch(`/api/tickets/${ticketId}`, {
@@ -403,160 +454,89 @@ async function editTicket(ticketId) {
   }
 }
 
-function initTicketsEventListeners() {
-  document.getElementById('addTicketBtn')?.addEventListener('click', openNewTicketForm);
-  document.getElementById('saveTicketBtn')?.addEventListener('click', saveTicket);
-  document.getElementById('addTicketLinkBtn')?.addEventListener('click', () => addTicketLink(false));
+function renderTicketLinks(links) {
+  const linksList = document.getElementById('ticketLinksList');
+  linksList.innerHTML = '';
 
-  // Modal form link removal
-  document.getElementById('ticketsList').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (btn) {
-      if (btn.dataset.action === 'edit') editTicket(parseInt(btn.dataset.id));
-      else if (btn.dataset.action === 'delete') deleteTicket(parseInt(btn.dataset.id));
-      else if (btn.dataset.action === 'remove-link' && btn.closest('#ticketLinksList')) {
-        const links = Array.from(document.querySelectorAll('#ticketLinksList a')).map(a => ({
-          url: a.href,
-          title: a.textContent
-        }));
-        links.splice(parseInt(btn.dataset.index), 1);
+  links.forEach((link, index) => {
+    const linkEl = document.createElement('div');
+    linkEl.className = 'mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'flex-grow-1 cursor-pointer';
+    titleSpan.innerHTML = `<a href="${app.escapeHtml(link.url)}" target="_blank" class="text-decoration-none">${app.escapeHtml(link.title || link.url)}</a>`;
+    titleSpan.title = 'Click to rename';
+    titleSpan.style.cursor = 'pointer';
+
+    titleSpan.addEventListener('click', () => {
+      const newTitle = prompt('Enter link title:', link.title || '');
+      if (newTitle !== null) {
+        link.title = newTitle;
         renderTicketLinks(links);
       }
-      return;
-    }
+    });
 
-    // Single-click on row to open editor
-    const row = e.target.closest('.ticket-row');
-    if (row && row.dataset.ticketId) {
-      editTicket(parseInt(row.dataset.ticketId));
-    }
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-sm btn-outline-danger';
+    removeBtn.innerHTML = '<i class="bi bi-x"></i>';
+    removeBtn.addEventListener('click', () => {
+      links.splice(index, 1);
+      renderTicketLinks(links);
+    });
+
+    linkEl.appendChild(titleSpan);
+    linkEl.appendChild(removeBtn);
+    linksList.appendChild(linkEl);
   });
-
-  // Side-panel editor buttons
-  const saveEditorBtn = document.getElementById('saveTicketEditorBtn');
-  const closeEditorBtn = document.getElementById('closeTicketEditorBtn');
-  const editorLinkBtn = document.getElementById('ticketEditorAddLinkBtn');
-
-  if (saveEditorBtn) {
-    saveEditorBtn.addEventListener('click', async () => {
-      await saveTicket();
-      closeTicketEditor();
-    });
-  }
-  if (closeEditorBtn) {
-    closeEditorBtn.addEventListener('click', closeTicketEditor);
-  }
-  if (editorLinkBtn) {
-    editorLinkBtn.addEventListener('click', () => addTicketLink(true));
-  }
-
-  // Side-panel editor link removal
-  const editorPane = document.getElementById('ticketEditorPane');
-  if (editorPane) {
-    editorPane.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-action]');
-      if (btn?.dataset.action === 'remove-link' && btn.closest('#ticketEditorLinksList')) {
-        const links = Array.from(document.querySelectorAll('#ticketEditorLinksList a')).map(a => ({
-          url: a.href,
-          title: a.textContent
-        }));
-        links.splice(parseInt(btn.dataset.index), 1);
-        renderTicketLinksEditor(links);
-      }
-    });
-  }
-
-  // Close context menu on click elsewhere
-  document.addEventListener('click', () => hideContextMenu());
 }
 
-function parseTicketUrl(url) {
-  // ServiceNow - match patterns like https://instance.service-now.com/nav_to.do?uri=incident.do?sys_id=xxx
-  // or https://instance.service-now.com/...
-  if (url.includes('service-now.com') || url.includes('servicenow.com')) {
-    const match = url.match(/(?:incident|change_request|problem|change|cmdb_ci_service|sys_user)\.do\?sys_id=([a-f0-9]+)|[?&]sys_id=([a-f0-9]+)/i);
-    const sysId = match ? (match[1] || match[2]) : '';
-    return {
-      type: 'ServiceNow',
-      title: `SNOW-${sysId || 'ticket'}`.substring(0, 100)
-    };
+function addTicketLink(isEditor = false) {
+  const prefix = isEditor ? 'ticketEditor' : 'ticket';
+  const url = document.getElementById(`${prefix}LinkUrl`).value.trim();
+  const title = document.getElementById(`${prefix}LinkTitle`).value.trim();
+
+  if (!url) {
+    app.notify('URL is required', 'warning');
+    return;
   }
 
-  // Azure DevOps - match patterns like https://dev.azure.com/org/project/_workitems/edit/123456
-  if (url.includes('dev.azure.com') || url.includes('visualstudio.com')) {
-    const match = url.match(/[?/](\d+)(?:[/?#]|$)/);
-    const workItemId = match ? match[1] : '';
-    return {
-      type: 'Azure DevOps',
-      title: `ADO-${workItemId || 'work-item'}`.substring(0, 100)
-    };
+  const linkListId = isEditor ? 'ticketEditorLinksList' : 'ticketLinksList';
+  const currentLinks = Array.from(document.querySelectorAll(`#${linkListId} a`)).map(a => ({
+    url: a.href,
+    title: a.textContent
+  }));
+
+  currentLinks.push({ url, title: title || url });
+
+  if (isEditor) {
+    TicketEditor.renderLinks(currentLinks);
+  } else {
+    renderTicketLinks(currentLinks);
   }
 
-  return null;
-}
-
-function extractTicketNumber(url, ticketType) {
-  if (ticketType === 'ServiceNow') {
-    const match = url.match(/(?:incident|change_request|problem|change|cmdb_ci_service|sys_user)\.do\?sys_id=([a-f0-9]+)|[?&]sys_id=([a-f0-9]+)/i);
-    const sysId = match ? (match[1] || match[2]) : '';
-    return `SNOW-${sysId}`.substring(0, 20);
-  } else if (ticketType === 'Azure DevOps') {
-    const match = url.match(/[?/](\d+)(?:[/?#]|$)/);
-    const workItemId = match ? match[1] : '';
-    return `ADO-${workItemId}`.substring(0, 20);
-  }
-  return url.split('/').pop() || 'Link';
-}
-
-async function createTicketFromUrl(title, ticketType, url) {
-  try {
-    const response = await fetch('/api/tickets', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({
-        title,
-        notes: '',
-        ticket_type: ticketType
-      })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      const ticketId = result.data.id;
-      // Add the URL as a link with extracted ticket number as title
-      const linkTitle = extractTicketNumber(url, ticketType);
-      await fetch(`/api/tickets/${ticketId}/links`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-        },
-        body: JSON.stringify({ url, title: linkTitle })
-      });
-
-      app.notify(`Ticket created: ${title}`, 'success');
-      loadTickets();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error creating ticket from URL:', error);
-    app.notify('Error creating ticket from URL', 'danger');
-  }
+  document.getElementById(`${prefix}LinkUrl`).value = '';
+  document.getElementById(`${prefix}LinkTitle`).value = '';
 }
 
 function initTickets() {
-  // Load saved state
   loadTicketFolderState();
 
-  // Initialize split pane for side-panel editing
-  window.ticketSplitPane = new SplitPane('ticketSplitPane', 'ticketListPane', 'ticketDivider', 'ticketEditorPane', 66.66);
-  TicketEditor.init(window.ticketSplitPane);
+  const editorPane = document.getElementById('ticketEditorPane');
+  if (editorPane) {
+    window.ticketSplitPane = new SplitPane('ticketSplitPane', 'ticketListPane', 'ticketDivider', 'ticketEditorPane', 66.66);
+    TicketEditor.init(window.ticketSplitPane);
+  }
 
-  initTicketsEventListeners();
+  document.getElementById('addTicketBtn')?.addEventListener('click', () => {
+    const modal = new bootstrap.Modal(document.getElementById('ticketModal'));
+    modal.show();
+  });
+
+  document.getElementById('ticketEditorAddLinkBtn')?.addEventListener('click', () => addTicketLink(true));
+
+  document.addEventListener('click', () => hideTicketContextMenu());
+
   loadTickets();
 }
 

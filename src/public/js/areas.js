@@ -1,5 +1,7 @@
 let expandedAreas = new Set();
 let allAreas = [];
+let allToDos = [];
+let allTickets = [];
 let currentAreaId = null;
 let areaEditorHasChanges = false;
 
@@ -26,13 +28,39 @@ const resetAreaEditorTracking = () => {
   if (saveBtn) saveBtn.disabled = true;
 };
 
+function renderAssociatedTodo(todo) {
+  return `
+    <div class="associated-item todo-item" data-todo-id="${todo.id}" style="margin-left: 40px; padding: 6px 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eee;">
+      <i class="bi bi-check2-square text-muted"></i>
+      <span>${app.escapeHtml(todo.title)}</span>
+      <button class="btn btn-sm btn-link text-danger p-0 ms-auto" data-action="unlink-todo" data-id="${todo.id}" title="Unlink" aria-label="Unlink"><i class="bi bi-x-circle"></i></button>
+    </div>
+  `;
+}
+
+function renderAssociatedTicket(ticket) {
+  return `
+    <div class="associated-item ticket-item" data-ticket-id="${ticket.id}" style="margin-left: 40px; padding: 6px 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eee;">
+      <i class="bi bi-ticket text-muted"></i>
+      <span>${app.escapeHtml(ticket.title)}</span>
+      <button class="btn btn-sm btn-link text-danger p-0 ms-auto" data-action="unlink-ticket" data-id="${ticket.id}" title="Unlink" aria-label="Unlink"><i class="bi bi-x-circle"></i></button>
+    </div>
+  `;
+}
+
 function renderAreaNode(area, byParent, depth) {
   const children = byParent.get(area.id) || [];
-  const hasChildren = children.length > 0;
+  const associatedTodos = allToDos.filter(t => t.category_id === area.id);
+  const associatedTickets = allTickets.filter(tick => tick.category_id === area.id);
+  const hasChildren = children.length > 0 || associatedTodos.length > 0 || associatedTickets.length > 0;
   const isExpanded = expandedAreas.has(String(area.id));
 
   const childrenHtml = hasChildren
-    ? `<div class="area-node-children">${children.map(c => renderAreaNode(c, byParent, depth + 1)).join('')}</div>`
+    ? `<div class="area-node-children">
+        ${children.map(c => renderAreaNode(c, byParent, depth + 1)).join('')}
+        ${associatedTodos.map(todo => renderAssociatedTodo(todo)).join('')}
+        ${associatedTickets.map(ticket => renderAssociatedTicket(ticket)).join('')}
+      </div>`
     : '';
 
   return `
@@ -80,12 +108,24 @@ async function loadAreas() {
   container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
 
   try {
-    const response = await fetch('/api/areas');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
+    const [areasRes, todosRes, ticketsRes] = await Promise.all([
+      fetch('/api/areas'),
+      fetch('/api/to-dos'),
+      fetch('/api/tickets')
+    ]);
 
-    if (result.success) {
-      allAreas = result.data;
+    if (!areasRes.ok || !todosRes.ok || !ticketsRes.ok) {
+      throw new Error(`HTTP error`);
+    }
+
+    const areasResult = await areasRes.json();
+    const todosResult = await todosRes.json();
+    const ticketsResult = await ticketsRes.json();
+
+    if (areasResult.success) {
+      allAreas = areasResult.data;
+      allToDos = todosResult.success ? (todosResult.data || []) : [];
+      allTickets = ticketsResult.success ? (ticketsResult.data || []) : [];
       renderAreasList(allAreas);
 
       // Handle pending area edit (from clicking category node in priorities)
@@ -334,6 +374,79 @@ async function reparentArea(areaId, newParentId) {
   }
 }
 
+async function unlinkTodoFromArea(todoId) {
+  try {
+    const response = await fetch(`/api/to-dos/${todoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ category_id: null })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Todo unlinked', 'success');
+      loadAreas();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking todo:', error);
+    app.notify('Error unlinking todo', 'danger');
+  }
+}
+
+async function unlinkTicketFromArea(ticketId) {
+  try {
+    const response = await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ category_id: null })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Ticket unlinked', 'success');
+      loadAreas();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking ticket:', error);
+    app.notify('Error unlinking ticket', 'danger');
+  }
+}
+
+async function deleteArea(areaId) {
+  const area = allAreas.find(a => String(a.id) === String(areaId));
+  const name = area ? area.name : 'this category';
+
+  if (!await app.confirm(`Delete "${name}"?`)) return;
+
+  try {
+    const response = await fetch(`/api/areas/${areaId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Category deleted', 'success');
+      loadAreas();
+    } else {
+      app.notify('Error deleting category', 'danger');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    app.notify('Error deleting category', 'danger');
+  }
+}
+
 function clearDropTargets(container) {
   container.querySelectorAll('.area-drop-target').forEach(el => el.classList.remove('area-drop-target'));
   container.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
@@ -439,23 +552,69 @@ async function createTemplateFromArea(areaId) {
 
 function initAreaContextMenu() {
   const menu = document.getElementById('areaContextMenu');
+  const container = document.getElementById('areasList');
+
+  // Handle unlink actions
+  if (container) {
+    container.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action="unlink-todo"]')) {
+        const btn = e.target.closest('[data-action="unlink-todo"]');
+        const todoId = btn.dataset.id;
+        unlinkTodoFromArea(todoId);
+      } else if (e.target.closest('[data-action="unlink-ticket"]')) {
+        const btn = e.target.closest('[data-action="unlink-ticket"]');
+        const ticketId = btn.dataset.id;
+        unlinkTicketFromArea(ticketId);
+      }
+    });
+
+    // Collapse all submenus on context menu open
+    container.addEventListener('contextmenu', () => {
+      menu.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
+    });
+  }
 
   menu.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-menu-action]');
+    const btn = e.target.closest('[data-action]') || e.target.closest('[data-menu-action]');
     if (!btn || !contextMenuAreaId) {
       hideAreaContextMenu();
       return;
     }
 
     const areaId = contextMenuAreaId;
-    hideAreaContextMenu();
 
-    if (btn.dataset.menuAction === 'add-subcategory') {
+    const action = btn.dataset.action || btn.dataset.menuAction;
+    if (action === 'create-subcategory') {
+      hideAreaContextMenu();
       openNewAreaForm(areaId);
       const modal = new bootstrap.Modal(document.getElementById('areaModal'));
       modal.show();
-    } else if (btn.dataset.menuAction === 'create-template') {
-      createTemplateFromArea(areaId);
+    } else if (action === 'associate-ticket') {
+      app.notify('Associate ticket feature coming soon', 'info');
+    } else if (action === 'associate-todo') {
+      app.notify('Associate todo feature coming soon', 'info');
+    } else if (action === 'create-ticket') {
+      app.notify('Create ticket feature coming soon', 'info');
+    } else if (action === 'create-todo') {
+      app.notify('Create todo feature coming soon', 'info');
+    } else if (action === 'delete-area') {
+      hideAreaContextMenu();
+      deleteArea(areaId);
+      return;
+    }
+    hideAreaContextMenu();
+  });
+
+  // Toggle submenus
+  menu.addEventListener('click', (e) => {
+    const submenuBtn = e.target.closest('.has-submenu');
+    if (submenuBtn) {
+      e.stopPropagation();
+      const submenuId = submenuBtn.dataset.submenu;
+      const submenu = menu.querySelector(`#${submenuId}`);
+      if (submenu) {
+        submenu.classList.toggle('d-none');
+      }
     }
   });
 

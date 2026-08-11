@@ -41,7 +41,7 @@ export async function getTicket(ticketId, contextId) {
 }
 
 export async function createTicket(data, contextId) {
-  const { title, notes, ticket_type } = data;
+  const { title, notes, ticket_type, todo_id, category_id } = data;
 
   if (!title?.trim()) {
     throw new ValidationError('Title is required');
@@ -52,15 +52,15 @@ export async function createTicket(data, contextId) {
   }
 
   const ticketId = await db.insert(
-    'INSERT INTO tickets (title, notes, ticket_type, context_id) VALUES (?, ?, ?, ?)',
-    [title.trim(), notes || '', ticket_type, contextId]
+    'INSERT INTO tickets (title, notes, ticket_type, todo_id, category_id, context_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [title.trim(), notes || '', ticket_type, todo_id || null, category_id || null, contextId]
   );
 
   return getTicket(ticketId, contextId);
 }
 
 export async function updateTicket(ticketId, data, contextId) {
-  const { title, notes, ticket_type, priority_id } = data;
+  const { title, notes, ticket_type, priority_id, todo_id, category_id } = data;
 
   // Verify ticket exists in this context
   const ticket = await getTicket(ticketId, contextId);
@@ -90,7 +90,7 @@ export async function updateTicket(ticketId, data, contextId) {
     }
     setClauses.push('ticket_type = ?');
     values.push(ticket_type);
-  } else if (!title && !notes && priority_id === undefined) {
+  } else if (!title && !notes && priority_id === undefined && todo_id === undefined && category_id === undefined) {
     // If only updating via drag-to-associate, ensure ticket_type is set
     throw new ValidationError('At least one field must be provided');
   }
@@ -99,6 +99,18 @@ export async function updateTicket(ticketId, data, contextId) {
   if (priority_id !== undefined) {
     setClauses.push('priority_id = ?');
     values.push(priority_id || null);
+  }
+
+  // Only update todo_id if provided (for Todos-tab association)
+  if (todo_id !== undefined) {
+    setClauses.push('todo_id = ?');
+    values.push(todo_id || null);
+  }
+
+  // Only update category_id if provided (for Categories-tab association)
+  if (category_id !== undefined) {
+    setClauses.push('category_id = ?');
+    values.push(category_id || null);
   }
 
   // If no fields to update, throw error

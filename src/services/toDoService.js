@@ -52,7 +52,7 @@ export async function getToDoById(id) {
 }
 
 export async function createToDo(data, contextId) {
-  const { title, notes, parent_id, priority_id, items, recurrence } = data;
+  const { title, notes, parent_id, priority_id, ticket_id, category_id, items, recurrence } = data;
 
   if (!title) {
     throw new ValidationError('To do title is required');
@@ -63,8 +63,8 @@ export async function createToDo(data, contextId) {
   }
 
   const toDoId = await db.insert(
-    'INSERT INTO to_dos (title, notes, parent_id, priority_id, recurrence, context_id) VALUES (?, ?, ?, ?, ?, ?)',
-    [title, notes ?? null, parent_id || null, priority_id || null, recurrence ? JSON.stringify(recurrence) : null, contextId]
+    'INSERT INTO to_dos (title, notes, parent_id, priority_id, ticket_id, category_id, recurrence, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [title, notes ?? null, parent_id || null, priority_id || null, ticket_id || null, category_id || null, recurrence ? JSON.stringify(recurrence) : null, contextId]
   );
 
   if (items !== undefined) {
@@ -146,6 +146,18 @@ export async function updateToDo(id, data) {
   if (data.priority_id !== undefined) {
     setClauses.push('priority_id = ?');
     values.push(data.priority_id || null);
+  }
+
+  // ticket_id (Tickets-tab association) - when a todo is associated with a ticket
+  if (data.ticket_id !== undefined) {
+    setClauses.push('ticket_id = ?');
+    values.push(data.ticket_id || null);
+  }
+
+  // category_id (Categories-tab association) - when a todo is associated with a category
+  if (data.category_id !== undefined) {
+    setClauses.push('category_id = ?');
+    values.push(data.category_id || null);
   }
 
   if (data.status !== undefined) {

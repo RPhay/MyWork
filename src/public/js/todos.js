@@ -3,6 +3,8 @@ if (!window.todoState) {
   window.todoState = {
     expandedTodos: new Set(),
     allToDos: [],
+    allCategories: [],
+    allTickets: [],
     draggedTodoId: null
   };
 }
@@ -50,6 +52,26 @@ function getRootTodos(toDos) {
   return toDos.filter(t => !t.parent_id);
 }
 
+function renderAssociatedCategory(category) {
+  return `
+    <div class="associated-item category-item" data-category-id="${category.id}" style="margin-left: 40px; padding: 6px 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eee;">
+      <i class="bi bi-folder text-muted"></i>
+      <span>${app.escapeHtml(category.name)}</span>
+      <button class="btn btn-sm btn-link text-danger p-0 ms-auto" data-action="unlink-category" data-id="${category.id}" title="Unlink" aria-label="Unlink"><i class="bi bi-x-circle"></i></button>
+    </div>
+  `;
+}
+
+function renderAssociatedTicket(ticket) {
+  return `
+    <div class="associated-item ticket-item" data-ticket-id="${ticket.id}" style="margin-left: 40px; padding: 6px 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eee;">
+      <i class="bi bi-ticket text-muted"></i>
+      <span>${app.escapeHtml(ticket.title)}</span>
+      <button class="btn btn-sm btn-link text-danger p-0 ms-auto" data-action="unlink-ticket" data-id="${ticket.id}" title="Unlink" aria-label="Unlink"><i class="bi bi-x-circle"></i></button>
+    </div>
+  `;
+}
+
 function renderToDoRow(toDo, depth, childrenMap, statusMap, visited = new Set()) {
   const MAX_DEPTH = 100;
   if (depth > MAX_DEPTH) return '';
@@ -59,7 +81,9 @@ function renderToDoRow(toDo, depth, childrenMap, statusMap, visited = new Set())
   visited.add(todoId);
 
   const children = childrenMap[toDo.id] || [];
-  const hasChildren = children.length > 0;
+  const associatedCategories = getState().allCategories.filter(c => c.todo_id === toDo.id);
+  const associatedTickets = getState().allTickets.filter(t => t.todo_id === toDo.id);
+  const hasChildren = children.length > 0 || associatedCategories.length > 0 || associatedTickets.length > 0;
   const isExpanded = getState().expandedTodos.has(String(toDo.id));
   const displayStatus = statusMap[toDo.id] || toDo.status;
   const statusIcon = app.statusIcon(displayStatus);
@@ -68,6 +92,8 @@ function renderToDoRow(toDo, depth, childrenMap, statusMap, visited = new Set())
   const childrenHtml = hasChildren && isExpanded
     ? `<div class="todo-node-children">
         ${children.map(c => renderToDoRow(c, depth + 1, childrenMap, statusMap, visited)).join('')}
+        ${associatedCategories.map(cat => renderAssociatedCategory(cat)).join('')}
+        ${associatedTickets.map(ticket => renderAssociatedTicket(ticket)).join('')}
       </div>`
     : '';
 
@@ -124,16 +150,27 @@ async function loadToDos() {
   container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
 
   try {
-    const response = await fetch('/api/to-dos');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const [todosRes, categoriesRes, ticketsRes] = await Promise.all([
+      fetch('/api/to-dos'),
+      fetch('/api/areas'),
+      fetch('/api/tickets')
+    ]);
 
-    const result = await response.json();
+    if (!todosRes.ok || !categoriesRes.ok || !ticketsRes.ok) {
+      throw new Error(`HTTP error`);
+    }
 
-    if (result.success) {
-      getState().allToDos = result.data || [];
+    const todosResult = await todosRes.json();
+    const categoriesResult = await categoriesRes.json();
+    const ticketsResult = await ticketsRes.json();
+
+    if (todosResult.success) {
+      getState().allToDos = todosResult.data || [];
+      getState().allCategories = categoriesResult.success ? (categoriesResult.data || []) : [];
+      getState().allTickets = ticketsResult.success ? (ticketsResult.data || []) : [];
       renderToDosList();
     } else {
-      console.error('API response failed', result);
+      console.error('API response failed', todosResult);
       container.innerHTML = '<p class="text-center text-danger">Error loading to dos</p>';
     }
   } catch (error) {
@@ -562,11 +599,55 @@ function setupToDoDragListeners() {
     }
   });
 
+  // Handle unlink actions
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="unlink-category"]')) {
+      const btn = e.target.closest('[data-action="unlink-category"]');
+      const categoryId = btn.dataset.id;
+      unlinkCategoryFromTodo(categoryId);
+    } else if (e.target.closest('[data-action="unlink-ticket"]')) {
+      const btn = e.target.closest('[data-action="unlink-ticket"]');
+      const ticketId = btn.dataset.id;
+      unlinkTicketFromTodo(ticketId);
+    }
+  });
+
   contextMenu.addEventListener('click', (e) => {
-    const action = e.target.closest('[data-action]')?.dataset.action;
+    const button = e.target.closest('[data-action]');
+    if (!button) return;
+
+    const action = button.dataset.action;
     if (action === 'create-child-todo' && contextMenuTodoId) {
       createChildToDo(contextMenuTodoId);
-      contextMenu.classList.add('d-none');
+    } else if (action === 'associate-category' && contextMenuTodoId) {
+      app.notify('Associate category feature coming soon', 'info');
+    } else if (action === 'associate-ticket' && contextMenuTodoId) {
+      app.notify('Associate ticket feature coming soon', 'info');
+    } else if (action === 'create-category' && contextMenuTodoId) {
+      app.notify('Create category feature coming soon', 'info');
+    } else if (action === 'create-ticket' && contextMenuTodoId) {
+      app.notify('Create ticket feature coming soon', 'info');
+    } else if (action === 'delete-todo' && contextMenuTodoId) {
+      deleteToDo(contextMenuTodoId);
+    }
+    contextMenu.classList.add('d-none');
+  });
+
+  // Collapse all submenus on context menu open
+  container.addEventListener('contextmenu', () => {
+    contextMenu.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
+  });
+
+  // Toggle submenus
+  contextMenu.addEventListener('click', (e) => {
+    const submenuBtn = e.target.closest('.has-submenu');
+    if (submenuBtn) {
+      e.stopPropagation();
+      const submenuId = submenuBtn.dataset.submenu;
+      const submenu = contextMenu.querySelector(`#${submenuId}`);
+      if (submenu) {
+        submenu.classList.toggle('d-none');
+      }
     }
   });
 }
@@ -593,6 +674,54 @@ async function updateToDoParent(toDoId, parentId) {
   } catch (error) {
     console.error('Error updating to do:', error);
     app.notify('Error updating to do', 'danger');
+  }
+}
+
+async function unlinkCategoryFromTodo(categoryId) {
+  try {
+    const response = await fetch(`/api/areas/${categoryId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ todo_id: null })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Category unlinked', 'success');
+      loadToDos();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking category:', error);
+    app.notify('Error unlinking category', 'danger');
+  }
+}
+
+async function unlinkTicketFromTodo(ticketId) {
+  try {
+    const response = await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ todo_id: null })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Ticket unlinked', 'success');
+      loadToDos();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking ticket:', error);
+    app.notify('Error unlinking ticket', 'danger');
   }
 }
 

@@ -5,6 +5,19 @@ import logger from '../../utils/logger.js';
 
 const router = express.Router();
 
+// Get all goals across all years
+router.get('/all', async (req, res) => {
+  try {
+    const contextId = await activeContextService.getActiveContextId();
+    const currentYear = new Date().getFullYear();
+    const goals = await goalService.getGoalsByYear(currentYear, contextId);
+    res.json({ success: true, data: goals });
+  } catch (error) {
+    logger.error('Error fetching all goals:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Get goals by year
 router.get('/year/:year', async (req, res) => {
   try {

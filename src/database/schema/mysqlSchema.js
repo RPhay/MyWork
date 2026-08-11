@@ -1051,4 +1051,44 @@ export async function createMysqlSchema(connection) {
       "ALTER TABLE goals ADD UNIQUE KEY unique_context_year_name (context_id, year, name)",
     );
   }
+
+  // Add hierarchical associations for cross-entity relationships
+  // Tickets can have todos and goals as children
+  if (!(await columnExists(connection, "to_dos", "ticket_id"))) {
+    await connection.query(
+      "ALTER TABLE to_dos ADD COLUMN ticket_id INT, ADD FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE SET NULL"
+    );
+  }
+
+  if (!(await columnExists(connection, "goals", "ticket_id"))) {
+    await connection.query(
+      "ALTER TABLE goals ADD COLUMN ticket_id INT, ADD FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE SET NULL"
+    );
+  }
+
+  // Todos can have categories (areas) and tickets as children
+  if (!(await columnExists(connection, "areas", "todo_id"))) {
+    await connection.query(
+      "ALTER TABLE areas ADD COLUMN todo_id INT, ADD FOREIGN KEY (todo_id) REFERENCES to_dos(id) ON DELETE SET NULL"
+    );
+  }
+
+  if (!(await columnExists(connection, "tickets", "todo_id"))) {
+    await connection.query(
+      "ALTER TABLE tickets ADD COLUMN todo_id INT, ADD FOREIGN KEY (todo_id) REFERENCES to_dos(id) ON DELETE SET NULL"
+    );
+  }
+
+  // Categories (areas) can have tickets and todos as children
+  if (!(await columnExists(connection, "tickets", "category_id"))) {
+    await connection.query(
+      "ALTER TABLE tickets ADD COLUMN category_id INT, ADD FOREIGN KEY (category_id) REFERENCES areas(id) ON DELETE SET NULL"
+    );
+  }
+
+  if (!(await columnExists(connection, "to_dos", "category_id"))) {
+    await connection.query(
+      "ALTER TABLE to_dos ADD COLUMN category_id INT, ADD FOREIGN KEY (category_id) REFERENCES areas(id) ON DELETE SET NULL"
+    );
+  }
 }
