@@ -318,38 +318,91 @@ const TodoEditor = (() => {
   const renderAssociatedItems = async (todo) => {
     const todoId = todo.id;
 
-    // Render categories
+    // Fetch all associated items
     const categoriesResponse = await fetch('/api/areas').catch(() => ({ json: () => ({ data: [] }) }));
     const categoriesResult = await categoriesResponse.json();
     const allCategories = categoriesResult.data || [];
-    renderItemsList('toDoEditorCategoriesList', allCategories, 'category', todoId);
+    const associatedCategories = allCategories.filter(c => {
+      // Check if this todo is in the category's to_dos
+      return (c.to_dos || []).some(t => t.id === todoId);
+    });
 
-    // Render projects
     const projectsResponse = await fetch('/api/priorities').catch(() => ({ json: () => ({ data: [] }) }));
     const projectsResult = await projectsResponse.json();
-    const allProjects = projectsResult.data || [];
-    renderItemsList('toDoEditorProjectsList', allProjects, 'project', todoId);
+    const associatedProjects = (projectsResult.data || []).filter(p => p.todos && p.todos.some(t => t.id === todoId));
+
+    // Store for tree rendering
+    window.todoAssociatedData = {
+      associatedCategories, associatedProjects, todoId
+    };
+    renderAssociatedItemsTree(todoId);
   };
 
-  const renderItemsList = (containerId, items, itemType, todoId) => {
-    const container = document.getElementById(containerId);
-    if (!container) return;
+  const renderAssociatedItemsTree = (todoId) => {
+    const data = window.todoAssociatedData;
+    if (!data) return;
 
-    container.innerHTML = '';
-    items.forEach(item => {
-      const itemEl = document.createElement('div');
-      itemEl.className = 'list-group-item d-flex justify-content-between align-items-center';
-      itemEl.innerHTML = `
-        <span>${app.escapeHtml(item.name || item.title)}</span>
-        <button type="button" class="btn btn-sm btn-outline-danger remove-item" data-item-type="${itemType}" data-item-id="${item.id}">
-          <i class="bi bi-x-lg"></i>
-        </button>
-      `;
-      container.appendChild(itemEl);
+    // Hide old sections
+    document.getElementById('toDoEditorCategoriesList')?.style.display = 'none';
+    document.getElementById('toDoEditorCategoriesLabel')?.style.display = 'none';
+    document.getElementById('toDoEditorProjectsList')?.style.display = 'none';
+    document.getElementById('toDoEditorProjectsLabel')?.style.display = 'none';
 
-      itemEl.querySelector('.remove-item').addEventListener('click', (e) => {
+    // Render tree in a new container
+    let treeContainer = document.getElementById('toDoEditorAssociatedItemsTree');
+    if (!treeContainer) {
+      treeContainer = document.createElement('div');
+      treeContainer.id = 'toDoEditorAssociatedItemsTree';
+      treeContainer.className = 'mb-3';
+      const linksSection = document.querySelector('[id="toDoEditorLinksList"]')?.closest('.mb-3');
+      if (linksSection) {
+        linksSection.parentElement.insertBefore(treeContainer, linksSection.nextElementSibling);
+      }
+    }
+
+    let html = '<hr class="my-3"><div class="associate-tree">';
+
+    if (data.associatedCategories.length === 0 && data.associatedProjects.length === 0) {
+      html += '<p class="text-muted small">No associated items</p>';
+    } else {
+      // Categories
+      if (data.associatedCategories.length > 0) {
+        html += '<div class="associate-tree-section mb-2"><strong>Categories</strong>';
+        data.associatedCategories.forEach(cat => {
+          html += `<div class="associate-tree-item ms-3" data-item-type="category" data-item-id="${cat.id}">
+            <span>${app.escapeHtml(cat.name || cat.path)}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-assoc ms-2" style="padding: 0.125rem 0.375rem;">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>`;
+        });
+        html += '</div>';
+      }
+
+      // Projects
+      if (data.associatedProjects.length > 0) {
+        html += '<div class="associate-tree-section mb-2"><strong>Projects</strong>';
+        data.associatedProjects.forEach(proj => {
+          html += `<div class="associate-tree-item ms-3" data-item-type="project" data-item-id="${proj.id}">
+            <span>${app.escapeHtml(proj.title)}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-assoc ms-2" style="padding: 0.125rem 0.375rem;">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>`;
+        });
+        html += '</div>';
+      }
+    }
+
+    html += '</div>';
+    treeContainer.innerHTML = html;
+
+    // Add event listeners
+    treeContainer.querySelectorAll('.remove-assoc').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         e.preventDefault();
-        removeAssociation(todoId, itemType, item.id);
+        const item = btn.closest('[data-item-type]');
+        removeAssociation(todoId, item.dataset.itemType, item.dataset.itemId);
       });
     });
   };
@@ -388,7 +441,10 @@ const TodoEditor = (() => {
       const result = await response.json();
       if (result.success) {
         app.notify('Association removed!', 'success');
-        TodoEditor.populate(todoId);
+        // Reload todo and re-render associated items tree
+        const todoResponse = await fetch(`/api/to-dos/${todoId}`);
+        const todoResult = await todoResponse.json();
+        await renderAssociatedItems(todoResult.data);
       } else {
         app.notify('Error: ' + result.message, 'danger');
       }
@@ -413,6 +469,7 @@ const TodoEditor = (() => {
     fillForm,
     renderLinks,
     renderAssociatedItems,
+    renderAssociatedItemsTree,
     save,
     close
   };

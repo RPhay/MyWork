@@ -1536,8 +1536,13 @@ function initPriorities() {
       const result = await response.json();
       if (result.success) {
         app.notify('Category associated!', 'success');
+        // Refresh the associated items tree in the editor
+        if (typeof PriorityEditor !== 'undefined' && PriorityEditor.renderAssociatedItems) {
+          const freshResponse = await fetch(`/api/priorities/${projectId}`);
+          const freshResult = await freshResponse.json();
+          await PriorityEditor.renderAssociatedItems(freshResult.data);
+        }
         loadPriorities();
-        loadPriorityRightPanel();
       } else {
         app.notify('Error: ' + result.message, 'danger');
       }
@@ -1548,7 +1553,33 @@ function initPriorities() {
   }
 
   async function associateIdea(projectId, ideaId) {
-    app.notify('Idea association feature coming soon', 'info');
+    try {
+      const response = await fetch(`/api/ideas/${ideaId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ priority_id: projectId })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Idea associated!', 'success');
+        // Refresh the associated items tree in the editor
+        if (typeof PriorityEditor !== 'undefined' && PriorityEditor.renderAssociatedItems) {
+          const freshResponse = await fetch(`/api/priorities/${projectId}`);
+          const freshResult = await freshResponse.json();
+          await PriorityEditor.renderAssociatedItems(freshResult.data);
+        }
+        loadPriorities();
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error associating idea:', error);
+      app.notify('Error associating idea', 'danger');
+    }
   }
 
   async function associateTicket(projectId, ticketId) {
@@ -1565,8 +1596,13 @@ function initPriorities() {
       const result = await response.json();
       if (result.success) {
         app.notify('Ticket associated!', 'success');
+        // Refresh the associated items tree in the editor
+        if (typeof PriorityEditor !== 'undefined' && PriorityEditor.renderAssociatedItems) {
+          const freshResponse = await fetch(`/api/priorities/${projectId}`);
+          const freshResult = await freshResponse.json();
+          await PriorityEditor.renderAssociatedItems(freshResult.data);
+        }
         loadPriorities();
-        loadPriorityRightPanel();
       } else {
         app.notify('Error: ' + result.message, 'danger');
       }
@@ -1590,8 +1626,13 @@ function initPriorities() {
       const result = await response.json();
       if (result.success) {
         app.notify('Todo associated!', 'success');
+        // Refresh the associated items tree in the editor
+        if (typeof PriorityEditor !== 'undefined' && PriorityEditor.renderAssociatedItems) {
+          const freshResponse = await fetch(`/api/priorities/${projectId}`);
+          const freshResult = await freshResponse.json();
+          await PriorityEditor.renderAssociatedItems(freshResult.data);
+        }
         loadPriorities();
-        loadPriorityRightPanel();
       } else {
         app.notify('Error: ' + result.message, 'danger');
       }

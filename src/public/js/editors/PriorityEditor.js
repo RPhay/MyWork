@@ -122,51 +122,123 @@ const PriorityEditor = (() => {
   const renderAssociatedItems = async (priority) => {
     const priorityId = priority.id;
 
-    // Render categories
+    // Fetch all associated items
     const categories = priority.areas || [];
-    renderItemsList('priorityEditorCategoriesList', categories, 'category', priorityId);
 
-    // Fetch and render todos
     const todosResponse = await fetch('/api/to-dos').catch(() => ({ json: () => ({ data: [] }) }));
     const todosResult = await todosResponse.json();
-    const allTodos = todosResult.data || [];
-    const associatedTodos = allTodos.filter(t => t.priority_id === priorityId);
-    renderItemsList('priorityEditorTodosList', associatedTodos, 'todo', priorityId);
+    const associatedTodos = (todosResult.data || []).filter(t => t.priority_id === priorityId);
 
-    // Fetch and render ideas
     const ideasResponse = await fetch('/api/ideas').catch(() => ({ json: () => ({ data: [] }) }));
     const ideasResult = await ideasResponse.json();
-    const allIdeas = ideasResult.data || [];
-    const associatedIdeas = allIdeas.filter(i => i.priority_id === priorityId);
-    renderItemsList('priorityEditorIdeasList', associatedIdeas, 'idea', priorityId);
+    const associatedIdeas = (ideasResult.data || []).filter(i => i.priority_id === priorityId);
 
-    // Fetch and render tickets
     const ticketsResponse = await fetch('/api/tickets').catch(() => ({ json: () => ({ data: [] }) }));
     const ticketsResult = await ticketsResponse.json();
-    const allTickets = ticketsResult.data || [];
-    const associatedTickets = allTickets.filter(t => t.priority_id === priorityId);
-    renderItemsList('priorityEditorTicketsList', associatedTickets, 'ticket', priorityId);
+    const associatedTickets = (ticketsResult.data || []).filter(t => t.priority_id === priorityId);
+
+    // Render tree structure
+    window.priorityAssociatedData = {
+      categories, associatedTodos, associatedIdeas, associatedTickets, priorityId
+    };
+    renderAssociatedItemsTree(priorityId);
   };
 
-  const renderItemsList = (containerId, items, itemType, priorityId) => {
-    const container = document.getElementById(containerId);
-    if (!container) return;
+  const renderAssociatedItemsTree = (priorityId) => {
+    const data = window.priorityAssociatedData;
+    if (!data) return;
 
-    container.innerHTML = '';
-    items.forEach(item => {
-      const itemEl = document.createElement('div');
-      itemEl.className = 'list-group-item d-flex justify-content-between align-items-center';
-      itemEl.innerHTML = `
-        <span>${app.escapeHtml(item.name || item.title || item.subject)}</span>
-        <button type="button" class="btn btn-sm btn-outline-danger remove-item" data-item-type="${itemType}" data-item-id="${item.id}">
-          <i class="bi bi-x-lg"></i>
-        </button>
-      `;
-      container.appendChild(itemEl);
+    const container = document.querySelector('[id^="priorityEditor"][id$="List"]')?.parentElement || document.body;
+    const sections = container.querySelectorAll('[id^="priorityEditor"][id$="List"]');
 
-      itemEl.querySelector('.remove-item').addEventListener('click', (e) => {
+    // Hide old sections
+    sections.forEach(s => s.style.display = 'none');
+    sections.forEach(s => s.previousElementSibling?.style.display = 'none');
+
+    // Render tree in a new container
+    let treeContainer = document.getElementById('priorityEditorAssociatedItemsTree');
+    if (!treeContainer) {
+      treeContainer = document.createElement('div');
+      treeContainer.id = 'priorityEditorAssociatedItemsTree';
+      treeContainer.className = 'mb-3';
+      const linksSection = document.querySelector('[id="priorityEditorLinksList"]')?.closest('.mb-3');
+      if (linksSection) {
+        linksSection.parentElement.insertBefore(treeContainer, linksSection.nextElementSibling);
+      }
+    }
+
+    let html = '<hr class="my-3"><div class="associate-tree">';
+
+    if (data.categories.length === 0 && data.associatedTodos.length === 0 &&
+        data.associatedIdeas.length === 0 && data.associatedTickets.length === 0) {
+      html += '<p class="text-muted small">No associated items</p>';
+    } else {
+      // Categories
+      if (data.categories.length > 0) {
+        html += '<div class="associate-tree-section mb-2"><strong>Categories</strong>';
+        data.categories.forEach(cat => {
+          html += `<div class="associate-tree-item ms-3" data-item-type="category" data-item-id="${cat.id}">
+            <span>${app.escapeHtml(cat.name || cat.path)}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-assoc ms-2" style="padding: 0.125rem 0.375rem;">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>`;
+        });
+        html += '</div>';
+      }
+
+      // Todos
+      if (data.associatedTodos.length > 0) {
+        html += '<div class="associate-tree-section mb-2"><strong>Todos</strong>';
+        data.associatedTodos.forEach(todo => {
+          html += `<div class="associate-tree-item ms-3" data-item-type="todo" data-item-id="${todo.id}">
+            <span>${app.escapeHtml(todo.title)}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-assoc ms-2" style="padding: 0.125rem 0.375rem;">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>`;
+        });
+        html += '</div>';
+      }
+
+      // Ideas
+      if (data.associatedIdeas.length > 0) {
+        html += '<div class="associate-tree-section mb-2"><strong>Ideas</strong>';
+        data.associatedIdeas.forEach(idea => {
+          html += `<div class="associate-tree-item ms-3" data-item-type="idea" data-item-id="${idea.id}">
+            <span>${app.escapeHtml(idea.title)}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-assoc ms-2" style="padding: 0.125rem 0.375rem;">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>`;
+        });
+        html += '</div>';
+      }
+
+      // Tickets
+      if (data.associatedTickets.length > 0) {
+        html += '<div class="associate-tree-section mb-2"><strong>Tickets</strong>';
+        data.associatedTickets.forEach(ticket => {
+          html += `<div class="associate-tree-item ms-3" data-item-type="ticket" data-item-id="${ticket.id}">
+            <span>${app.escapeHtml(ticket.subject)}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-assoc ms-2" style="padding: 0.125rem 0.375rem;">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>`;
+        });
+        html += '</div>';
+      }
+    }
+
+    html += '</div>';
+    treeContainer.innerHTML = html;
+
+    // Add event listeners
+    treeContainer.querySelectorAll('.remove-assoc').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         e.preventDefault();
-        removeAssociation(priorityId, itemType, item.id);
+        const item = btn.closest('[data-item-type]');
+        removeAssociation(priorityId, item.dataset.itemType, item.dataset.itemId);
       });
     });
   };
@@ -207,7 +279,10 @@ const PriorityEditor = (() => {
       const result = await response.json();
       if (result.success) {
         app.notify('Association removed!', 'success');
-        PriorityEditor.populate(priorityId);
+        // Reload associated data and re-render tree
+        const priorityResponse = await fetch(`/api/priorities/${priorityId}`);
+        const priorityResult = await priorityResponse.json();
+        await renderAssociatedItems(priorityResult.data);
       } else {
         app.notify('Error: ' + result.message, 'danger');
       }
@@ -229,6 +304,7 @@ const PriorityEditor = (() => {
     fillForm,
     renderLinks,
     renderAssociatedItems,
+    renderAssociatedItemsTree,
     save,
     close
   };
