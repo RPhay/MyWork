@@ -1354,7 +1354,7 @@ function initPriorities() {
 
   document.getElementById('priorityEditorAddIdeaBtn')?.addEventListener('click', () => {
     const priorityId = document.getElementById('priorityEditorId').value;
-    if (priorityId) app.notify('Idea association coming soon', 'info');
+    if (priorityId) showIdeaSelector(priorityId);
   });
 
   document.getElementById('priorityEditorAddTicketBtn')?.addEventListener('click', () => {
@@ -1459,13 +1459,28 @@ function initPriorities() {
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
 
+    // ESC key closes modal
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        bsModal.hide();
+      }
+    };
+
     modal.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-id]');
       if (btn) {
         callback(btn.dataset.id);
         bsModal.hide();
-        modal.remove();
       }
+    });
+
+    modal.addEventListener('shown.bs.modal', () => {
+      document.addEventListener('keydown', escHandler);
+    });
+
+    modal.addEventListener('hidden.bs.modal', () => {
+      document.removeEventListener('keydown', escHandler);
+      modal.remove();
     });
   }
 

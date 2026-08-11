@@ -137,7 +137,8 @@ const PriorityEditor = (() => {
     const ideasResponse = await fetch('/api/ideas').catch(() => ({ json: () => ({ data: [] }) }));
     const ideasResult = await ideasResponse.json();
     const allIdeas = ideasResult.data || [];
-    renderItemsList('priorityEditorIdeasList', allIdeas, 'idea', priorityId);
+    const associatedIdeas = allIdeas.filter(i => i.priority_id === priorityId);
+    renderItemsList('priorityEditorIdeasList', associatedIdeas, 'idea', priorityId);
 
     // Fetch and render tickets
     const ticketsResponse = await fetch('/api/tickets').catch(() => ({ json: () => ({ data: [] }) }));
@@ -178,14 +179,17 @@ const PriorityEditor = (() => {
         const response = await fetch(`/api/priorities/${priorityId}`);
         const result = await response.json();
         const priority = result.data;
-        const existingAreaIds = (priority.areas || []).map(a => a.id).filter(id => id !== itemId);
+        const existingAreaIds = (priority.areas || []).map(a => a.id).filter(id => id !== parseInt(itemId));
         url = `/api/priorities/${priorityId}`;
         body = JSON.stringify({ area_ids: existingAreaIds });
-      } else if (itemType === 'todo') {
-        url = `/api/to-dos/${itemId}`;
+      } else if (itemType === 'todo' || itemType === 'task') {
+        url = `/api/${itemType === 'task' ? 'tasks' : 'to-dos'}/${itemId}`;
         body = JSON.stringify({ priority_id: null });
       } else if (itemType === 'ticket') {
         url = `/api/tickets/${itemId}`;
+        body = JSON.stringify({ priority_id: null });
+      } else if (itemType === 'idea') {
+        url = `/api/ideas/${itemId}`;
         body = JSON.stringify({ priority_id: null });
       }
 
