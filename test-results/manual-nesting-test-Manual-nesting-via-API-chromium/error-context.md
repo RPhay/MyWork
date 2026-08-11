@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: debug-clicks.spec.js >> Debug: Test clicks on todos
-- Location: tests/e2e/debug-clicks.spec.js:3:1
+- Name: manual-nesting-test.spec.js >> Manual nesting via API
+- Location: tests/e2e/manual-nesting-test.spec.js:3:1
 
 # Error details
 
@@ -16,9 +16,10 @@ Test timeout of 30000ms exceeded.
 ```
 
 ```
-Error: locator.innerHTML: Test timeout of 30000ms exceeded.
+Error: page.waitForSelector: Test timeout of 30000ms exceeded.
 Call log:
-  - waiting for locator('.todo-node.expanded').first()
+  - waiting for locator('[name="_csrf"]') to be visible
+    62 × locator resolved to 21 elements. Proceeding with the first one: <input name="_csrf" type="hidden" value="x4Knka99-j8zvIBk6UjvgY3afauiz8WYnXLs"/>
 
 ```
 
@@ -76,7 +77,7 @@ Call log:
         - generic [ref=e35]: 
         - text: Reporting
     - generic [ref=e36]:
-      - text:                                                                                                                                                                                                                                                                                                                
+      - text:                                                                                                                                                                                                                                                                                                
       - generic [ref=e37]:
         - generic [ref=e39]:
           - generic [ref=e40]:
@@ -91,14 +92,14 @@ Call log:
                 - generic [ref=e52]:
                   - generic [ref=e53] [cursor=pointer]: 
                   - button "Incomplete — click to change" [ref=e54] [cursor=pointer]
-                  - generic [ref=e55]: Child Todo
+                  - generic [ref=e55]: Child
                 - generic [ref=e56]: "-"
                 - button "Delete" [ref=e58] [cursor=pointer]:
                   - generic [ref=e59]: 
               - generic [ref=e61]:
                 - generic [ref=e62]:
                   - button "Incomplete — click to change" [ref=e63] [cursor=pointer]
-                  - generic [ref=e64]: Parent Todo
+                  - generic [ref=e64]: Parent
                 - generic [ref=e65]: "-"
                 - button "Delete" [ref=e67] [cursor=pointer]:
                   - generic [ref=e68]: 
@@ -184,57 +185,57 @@ Call log:
               - generic [ref=e171]:
                 - generic [ref=e172]:
                   - button "Incomplete — click to change" [ref=e173] [cursor=pointer]
-                  - generic [ref=e174]: Parent
+                  - generic [ref=e174]: Parent Todo
                 - generic [ref=e175]: "-"
                 - button "Delete" [ref=e177] [cursor=pointer]:
                   - generic [ref=e178]: 
               - generic [ref=e180]:
                 - generic [ref=e181]:
                   - button "Incomplete — click to change" [ref=e182] [cursor=pointer]
-                  - generic [ref=e183]: Modified Todo
+                  - generic [ref=e183]: Parent
                 - generic [ref=e184]: "-"
                 - button "Delete" [ref=e186] [cursor=pointer]:
                   - generic [ref=e187]: 
               - generic [ref=e189]:
                 - generic [ref=e190]:
-                  - generic [ref=e191] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e192] [cursor=pointer]
-                  - generic [ref=e193]: Child Todo
-                - generic [ref=e194]: "-"
-                - button "Delete" [ref=e196] [cursor=pointer]:
-                  - generic [ref=e197]: 
-              - generic [ref=e199]:
-                - generic [ref=e200]:
+                  - button "Incomplete — click to change" [ref=e191] [cursor=pointer]
+                  - generic [ref=e192]: Modified Todo
+                - generic [ref=e193]: "-"
+                - button "Delete" [ref=e195] [cursor=pointer]:
+                  - generic [ref=e196]: 
+              - generic [ref=e198]:
+                - generic [ref=e199]:
+                  - generic [ref=e200] [cursor=pointer]: 
                   - button "Incomplete — click to change" [ref=e201] [cursor=pointer]
-                  - generic [ref=e202]: Parent Todo
+                  - generic [ref=e202]: Child Todo
                 - generic [ref=e203]: "-"
                 - button "Delete" [ref=e205] [cursor=pointer]:
                   - generic [ref=e206]: 
               - generic [ref=e208]:
                 - generic [ref=e209]:
                   - button "Incomplete — click to change" [ref=e210] [cursor=pointer]
-                  - generic [ref=e211]: TestTodo3
+                  - generic [ref=e211]: Parent Todo
                 - generic [ref=e212]: "-"
                 - button "Delete" [ref=e214] [cursor=pointer]:
                   - generic [ref=e215]: 
               - generic [ref=e217]:
                 - generic [ref=e218]:
                   - button "Incomplete — click to change" [ref=e219] [cursor=pointer]
-                  - generic [ref=e220]: Child Todo
+                  - generic [ref=e220]: TestTodo3
                 - generic [ref=e221]: "-"
                 - button "Delete" [ref=e223] [cursor=pointer]:
                   - generic [ref=e224]: 
               - generic [ref=e226]:
                 - generic [ref=e227]:
                   - button "Incomplete — click to change" [ref=e228] [cursor=pointer]
-                  - generic [ref=e229]: Parent Todo
+                  - generic [ref=e229]: Child Todo
                 - generic [ref=e230]: "-"
                 - button "Delete" [ref=e232] [cursor=pointer]:
                   - generic [ref=e233]: 
               - generic [ref=e235]:
                 - generic [ref=e236]:
                   - button "Incomplete — click to change" [ref=e237] [cursor=pointer]
-                  - generic [ref=e238]: Parent
+                  - generic [ref=e238]: Parent Todo
                 - generic [ref=e239]: "-"
                 - button "Delete" [ref=e241] [cursor=pointer]:
                   - generic [ref=e242]: 
@@ -247,45 +248,45 @@ Call log:
                   - generic [ref=e251]: 
               - generic [ref=e253]:
                 - generic [ref=e254]:
-                  - generic [ref=e255] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e256] [cursor=pointer]
-                  - generic [ref=e257]: Test Todo
-                - generic [ref=e258]: "-"
-                - button "Delete" [ref=e260] [cursor=pointer]:
-                  - generic [ref=e261]: 
-              - generic [ref=e263]:
-                - generic [ref=e264]:
+                  - button "Incomplete — click to change" [ref=e255] [cursor=pointer]
+                  - generic [ref=e256]: Parent
+                - generic [ref=e257]: "-"
+                - button "Delete" [ref=e259] [cursor=pointer]:
+                  - generic [ref=e260]: 
+              - generic [ref=e262]:
+                - generic [ref=e263]:
+                  - generic [ref=e264] [cursor=pointer]: 
                   - button "Incomplete — click to change" [ref=e265] [cursor=pointer]
-                  - generic [ref=e266]: Parent
+                  - generic [ref=e266]: Test Todo
                 - generic [ref=e267]: "-"
                 - button "Delete" [ref=e269] [cursor=pointer]:
                   - generic [ref=e270]: 
               - generic [ref=e272]:
                 - generic [ref=e273]:
-                  - generic [ref=e274] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e275] [cursor=pointer]
-                  - generic [ref=e276]: Child Todo
-                - generic [ref=e277]: "-"
-                - button "Delete" [ref=e279] [cursor=pointer]:
-                  - generic [ref=e280]: 
-              - generic [ref=e282]:
-                - generic [ref=e283]:
+                  - button "Incomplete — click to change" [ref=e274] [cursor=pointer]
+                  - generic [ref=e275]: Parent
+                - generic [ref=e276]: "-"
+                - button "Delete" [ref=e278] [cursor=pointer]:
+                  - generic [ref=e279]: 
+              - generic [ref=e281]:
+                - generic [ref=e282]:
+                  - generic [ref=e283] [cursor=pointer]: 
                   - button "Incomplete — click to change" [ref=e284] [cursor=pointer]
-                  - generic [ref=e285]: Parent Todo
+                  - generic [ref=e285]: Child Todo
                 - generic [ref=e286]: "-"
                 - button "Delete" [ref=e288] [cursor=pointer]:
                   - generic [ref=e289]: 
               - generic [ref=e291]:
                 - generic [ref=e292]:
                   - button "Incomplete — click to change" [ref=e293] [cursor=pointer]
-                  - generic [ref=e294]: Child Todo
+                  - generic [ref=e294]: Parent Todo
                 - generic [ref=e295]: "-"
                 - button "Delete" [ref=e297] [cursor=pointer]:
                   - generic [ref=e298]: 
               - generic [ref=e300]:
                 - generic [ref=e301]:
                   - button "Incomplete — click to change" [ref=e302] [cursor=pointer]
-                  - generic [ref=e303]: Parent Todo
+                  - generic [ref=e303]: Child Todo
                 - generic [ref=e304]: "-"
                 - button "Delete" [ref=e306] [cursor=pointer]:
                   - generic [ref=e307]: 
@@ -299,85 +300,85 @@ Call log:
               - generic [ref=e318]:
                 - generic [ref=e319]:
                   - button "Incomplete — click to change" [ref=e320] [cursor=pointer]
-                  - generic [ref=e321]: TestTodo3
+                  - generic [ref=e321]: Parent Todo
                 - generic [ref=e322]: "-"
                 - button "Delete" [ref=e324] [cursor=pointer]:
                   - generic [ref=e325]: 
               - generic [ref=e327]:
                 - generic [ref=e328]:
                   - button "Incomplete — click to change" [ref=e329] [cursor=pointer]
-                  - generic [ref=e330]: Parent
+                  - generic [ref=e330]: TestTodo3
                 - generic [ref=e331]: "-"
                 - button "Delete" [ref=e333] [cursor=pointer]:
                   - generic [ref=e334]: 
               - generic [ref=e336]:
                 - generic [ref=e337]:
                   - button "Incomplete — click to change" [ref=e338] [cursor=pointer]
-                  - generic [ref=e339]: Test Todo
+                  - generic [ref=e339]: Parent
                 - generic [ref=e340]: "-"
                 - button "Delete" [ref=e342] [cursor=pointer]:
                   - generic [ref=e343]: 
               - generic [ref=e345]:
                 - generic [ref=e346]:
-                  - generic [ref=e347] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e348] [cursor=pointer]
-                  - generic [ref=e349]: Modified Todo
-                - generic [ref=e350]: "-"
-                - button "Delete" [ref=e352] [cursor=pointer]:
-                  - generic [ref=e353]: 
-              - generic [ref=e355]:
-                - generic [ref=e356]:
+                  - button "Incomplete — click to change" [ref=e347] [cursor=pointer]
+                  - generic [ref=e348]: Test Todo
+                - generic [ref=e349]: "-"
+                - button "Delete" [ref=e351] [cursor=pointer]:
+                  - generic [ref=e352]: 
+              - generic [ref=e354]:
+                - generic [ref=e355]:
+                  - generic [ref=e356] [cursor=pointer]: 
                   - button "Incomplete — click to change" [ref=e357] [cursor=pointer]
-                  - generic [ref=e358]: Parent
+                  - generic [ref=e358]: Modified Todo
                 - generic [ref=e359]: "-"
                 - button "Delete" [ref=e361] [cursor=pointer]:
                   - generic [ref=e362]: 
               - generic [ref=e364]:
                 - generic [ref=e365]:
                   - button "Incomplete — click to change" [ref=e366] [cursor=pointer]
-                  - generic [ref=e367]: Parent Todo
+                  - generic [ref=e367]: Parent
                 - generic [ref=e368]: "-"
                 - button "Delete" [ref=e370] [cursor=pointer]:
                   - generic [ref=e371]: 
               - generic [ref=e373]:
                 - generic [ref=e374]:
                   - button "Incomplete — click to change" [ref=e375] [cursor=pointer]
-                  - generic [ref=e376]: Child Todo
+                  - generic [ref=e376]: Parent Todo
                 - generic [ref=e377]: "-"
                 - button "Delete" [ref=e379] [cursor=pointer]:
                   - generic [ref=e380]: 
               - generic [ref=e382]:
                 - generic [ref=e383]:
                   - button "Incomplete — click to change" [ref=e384] [cursor=pointer]
-                  - generic [ref=e385]: Parent Todo
+                  - generic [ref=e385]: Child Todo
                 - generic [ref=e386]: "-"
                 - button "Delete" [ref=e388] [cursor=pointer]:
                   - generic [ref=e389]: 
               - generic [ref=e391]:
                 - generic [ref=e392]:
                   - button "Incomplete — click to change" [ref=e393] [cursor=pointer]
-                  - generic [ref=e394]: TestTodo3
+                  - generic [ref=e394]: Parent Todo
                 - generic [ref=e395]: "-"
                 - button "Delete" [ref=e397] [cursor=pointer]:
                   - generic [ref=e398]: 
               - generic [ref=e400]:
                 - generic [ref=e401]:
                   - button "Incomplete — click to change" [ref=e402] [cursor=pointer]
-                  - generic [ref=e403]: Child Todo
+                  - generic [ref=e403]: TestTodo3
                 - generic [ref=e404]: "-"
                 - button "Delete" [ref=e406] [cursor=pointer]:
                   - generic [ref=e407]: 
               - generic [ref=e409]:
                 - generic [ref=e410]:
                   - button "Incomplete — click to change" [ref=e411] [cursor=pointer]
-                  - generic [ref=e412]: Parent Todo
+                  - generic [ref=e412]: Child Todo
                 - generic [ref=e413]: "-"
                 - button "Delete" [ref=e415] [cursor=pointer]:
                   - generic [ref=e416]: 
               - generic [ref=e418]:
                 - generic [ref=e419]:
                   - button "Incomplete — click to change" [ref=e420] [cursor=pointer]
-                  - generic [ref=e421]: Parent
+                  - generic [ref=e421]: Parent Todo
                 - generic [ref=e422]: "-"
                 - button "Delete" [ref=e424] [cursor=pointer]:
                   - generic [ref=e425]: 
@@ -391,57 +392,57 @@ Call log:
               - generic [ref=e436]:
                 - generic [ref=e437]:
                   - button "Incomplete — click to change" [ref=e438] [cursor=pointer]
-                  - generic [ref=e439]: Child
+                  - generic [ref=e439]: Parent
                 - generic [ref=e440]: "-"
                 - button "Delete" [ref=e442] [cursor=pointer]:
                   - generic [ref=e443]: 
               - generic [ref=e445]:
                 - generic [ref=e446]:
                   - button "Incomplete — click to change" [ref=e447] [cursor=pointer]
-                  - generic [ref=e448]: Parent
+                  - generic [ref=e448]: Child
                 - generic [ref=e449]: "-"
                 - button "Delete" [ref=e451] [cursor=pointer]:
                   - generic [ref=e452]: 
               - generic [ref=e454]:
                 - generic [ref=e455]:
-                  - generic [ref=e456] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e457] [cursor=pointer]
-                  - generic [ref=e458]: Modified Todo
-                - generic [ref=e459]: "-"
-                - button "Delete" [ref=e461] [cursor=pointer]:
-                  - generic [ref=e462]: 
-              - generic [ref=e464]:
-                - generic [ref=e465]:
+                  - button "Incomplete — click to change" [ref=e456] [cursor=pointer]
+                  - generic [ref=e457]: Parent
+                - generic [ref=e458]: "-"
+                - button "Delete" [ref=e460] [cursor=pointer]:
+                  - generic [ref=e461]: 
+              - generic [ref=e463]:
+                - generic [ref=e464]:
+                  - generic [ref=e465] [cursor=pointer]: 
                   - button "Incomplete — click to change" [ref=e466] [cursor=pointer]
-                  - generic [ref=e467]: Test Todo
+                  - generic [ref=e467]: Modified Todo
                 - generic [ref=e468]: "-"
                 - button "Delete" [ref=e470] [cursor=pointer]:
                   - generic [ref=e471]: 
               - generic [ref=e473]:
                 - generic [ref=e474]:
                   - button "Incomplete — click to change" [ref=e475] [cursor=pointer]
-                  - generic [ref=e476]: Parent Todo
+                  - generic [ref=e476]: Test Todo
                 - generic [ref=e477]: "-"
                 - button "Delete" [ref=e479] [cursor=pointer]:
                   - generic [ref=e480]: 
               - generic [ref=e482]:
                 - generic [ref=e483]:
                   - button "Incomplete — click to change" [ref=e484] [cursor=pointer]
-                  - generic [ref=e485]: Test Todo
+                  - generic [ref=e485]: Parent Todo
                 - generic [ref=e486]: "-"
                 - button "Delete" [ref=e488] [cursor=pointer]:
                   - generic [ref=e489]: 
               - generic [ref=e491]:
                 - generic [ref=e492]:
                   - button "Incomplete — click to change" [ref=e493] [cursor=pointer]
-                  - generic [ref=e494]: Child Todo
+                  - generic [ref=e494]: Test Todo
                 - generic [ref=e495]: "-"
                 - button "Delete" [ref=e497] [cursor=pointer]:
                   - generic [ref=e498]: 
               - generic [ref=e500]:
                 - generic [ref=e501]:
                   - button "Incomplete — click to change" [ref=e502] [cursor=pointer]
-                  - generic [ref=e503]: Parent Todo
+                  - generic [ref=e503]: Child Todo
                 - generic [ref=e504]: "-"
                 - button "Delete" [ref=e506] [cursor=pointer]:
                   - generic [ref=e507]: 
@@ -455,147 +456,147 @@ Call log:
               - generic [ref=e518]:
                 - generic [ref=e519]:
                   - button "Incomplete — click to change" [ref=e520] [cursor=pointer]
-                  - generic [ref=e521]: Child
+                  - generic [ref=e521]: Parent Todo
                 - generic [ref=e522]: "-"
                 - button "Delete" [ref=e524] [cursor=pointer]:
                   - generic [ref=e525]: 
               - generic [ref=e527]:
                 - generic [ref=e528]:
-                  - generic [ref=e529] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e530] [cursor=pointer]
-                  - generic [ref=e531]: Parent
-                - generic [ref=e532]: "-"
-                - button "Delete" [ref=e534] [cursor=pointer]:
-                  - generic [ref=e535]: 
-              - generic [ref=e537]:
-                - generic [ref=e538]:
+                  - button "Incomplete — click to change" [ref=e529] [cursor=pointer]
+                  - generic [ref=e530]: Child
+                - generic [ref=e531]: "-"
+                - button "Delete" [ref=e533] [cursor=pointer]:
+                  - generic [ref=e534]: 
+              - generic [ref=e536]:
+                - generic [ref=e537]:
+                  - generic [ref=e538] [cursor=pointer]: 
                   - button "Incomplete — click to change" [ref=e539] [cursor=pointer]
-                  - generic [ref=e540]: Modified Todo
+                  - generic [ref=e540]: Parent
                 - generic [ref=e541]: "-"
                 - button "Delete" [ref=e543] [cursor=pointer]:
                   - generic [ref=e544]: 
               - generic [ref=e546]:
                 - generic [ref=e547]:
                   - button "Incomplete — click to change" [ref=e548] [cursor=pointer]
-                  - generic [ref=e549]: Parent
+                  - generic [ref=e549]: Modified Todo
                 - generic [ref=e550]: "-"
                 - button "Delete" [ref=e552] [cursor=pointer]:
                   - generic [ref=e553]: 
               - generic [ref=e555]:
                 - generic [ref=e556]:
                   - button "Incomplete — click to change" [ref=e557] [cursor=pointer]
-                  - generic [ref=e558]: Child Todo
+                  - generic [ref=e558]: Parent
                 - generic [ref=e559]: "-"
                 - button "Delete" [ref=e561] [cursor=pointer]:
                   - generic [ref=e562]: 
               - generic [ref=e564]:
                 - generic [ref=e565]:
                   - button "Incomplete — click to change" [ref=e566] [cursor=pointer]
-                  - generic [ref=e567]: Test Todo
+                  - generic [ref=e567]: Child Todo
                 - generic [ref=e568]: "-"
                 - button "Delete" [ref=e570] [cursor=pointer]:
                   - generic [ref=e571]: 
               - generic [ref=e573]:
                 - generic [ref=e574]:
                   - button "Incomplete — click to change" [ref=e575] [cursor=pointer]
-                  - generic [ref=e576]: Parent Todo
+                  - generic [ref=e576]: Test Todo
                 - generic [ref=e577]: "-"
                 - button "Delete" [ref=e579] [cursor=pointer]:
                   - generic [ref=e580]: 
               - generic [ref=e582]:
                 - generic [ref=e583]:
                   - button "Incomplete — click to change" [ref=e584] [cursor=pointer]
-                  - generic [ref=e585]: Child Todo
+                  - generic [ref=e585]: Parent Todo
                 - generic [ref=e586]: "-"
                 - button "Delete" [ref=e588] [cursor=pointer]:
                   - generic [ref=e589]: 
               - generic [ref=e591]:
                 - generic [ref=e592]:
                   - button "Incomplete — click to change" [ref=e593] [cursor=pointer]
-                  - generic [ref=e594]: Parent Todo
+                  - generic [ref=e594]: Child Todo
                 - generic [ref=e595]: "-"
                 - button "Delete" [ref=e597] [cursor=pointer]:
                   - generic [ref=e598]: 
               - generic [ref=e600]:
                 - generic [ref=e601]:
                   - button "Incomplete — click to change" [ref=e602] [cursor=pointer]
-                  - generic [ref=e603]: Test Todo
+                  - generic [ref=e603]: Parent Todo
                 - generic [ref=e604]: "-"
                 - button "Delete" [ref=e606] [cursor=pointer]:
                   - generic [ref=e607]: 
               - generic [ref=e609]:
                 - generic [ref=e610]:
                   - button "Incomplete — click to change" [ref=e611] [cursor=pointer]
-                  - generic [ref=e612]: Parent Todo
+                  - generic [ref=e612]: Test Todo
                 - generic [ref=e613]: "-"
                 - button "Delete" [ref=e615] [cursor=pointer]:
                   - generic [ref=e616]: 
               - generic [ref=e618]:
                 - generic [ref=e619]:
-                  - generic [ref=e620] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e621] [cursor=pointer]
-                  - generic [ref=e622]: Todo B
-                - generic [ref=e623]: "-"
-                - button "Delete" [ref=e625] [cursor=pointer]:
-                  - generic [ref=e626]: 
-              - generic [ref=e628]:
-                - generic [ref=e629]:
-                  - generic [ref=e630] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e631] [cursor=pointer]
-                  - generic [ref=e632]: Todo B
-                - generic [ref=e633]: "-"
-                - button "Delete" [ref=e635] [cursor=pointer]:
-                  - generic [ref=e636]: 
-              - generic [ref=e638]:
-                - generic [ref=e639]:
-                  - generic [ref=e640] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e641] [cursor=pointer]
-                  - generic [ref=e642]: Todo B
-                - generic [ref=e643]: "-"
-                - button "Delete" [ref=e645] [cursor=pointer]:
-                  - generic [ref=e646]: 
-              - generic [ref=e648]:
-                - generic [ref=e649]:
-                  - generic [ref=e650] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e651] [cursor=pointer]
-                  - generic [ref=e652]: Todo B
-                - generic [ref=e653]: "-"
-                - button "Delete" [ref=e655] [cursor=pointer]:
-                  - generic [ref=e656]: 
-              - generic [ref=e658]:
-                - generic [ref=e659]:
-                  - generic [ref=e660] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e661] [cursor=pointer]
-                  - generic [ref=e662]: Todo B
-                - generic [ref=e663]: "-"
-                - button "Delete" [ref=e665] [cursor=pointer]:
-                  - generic [ref=e666]: 
-              - generic [ref=e668]:
-                - generic [ref=e669]:
-                  - generic [ref=e670] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e671] [cursor=pointer]
-                  - generic [ref=e672]: Todo B
-                - generic [ref=e673]: "-"
-                - button "Delete" [ref=e675] [cursor=pointer]:
-                  - generic [ref=e676]: 
-              - generic [ref=e678]:
-                - generic [ref=e679]:
-                  - generic [ref=e680] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e681] [cursor=pointer]
-                  - generic [ref=e682]: Todo B
-                - generic [ref=e683]: "-"
-                - button "Delete" [ref=e685] [cursor=pointer]:
-                  - generic [ref=e686]: 
-              - generic [ref=e688]:
-                - generic [ref=e689]:
-                  - generic [ref=e690] [cursor=pointer]: 
-                  - button "Incomplete — click to change" [ref=e691] [cursor=pointer]
-                  - generic [ref=e692]: Todo B
-                - generic [ref=e693]: "-"
-                - button "Delete" [ref=e695] [cursor=pointer]:
-                  - generic [ref=e696]: 
-              - generic [ref=e698]:
-                - generic [ref=e699]:
+                  - button "Incomplete — click to change" [ref=e620] [cursor=pointer]
+                  - generic [ref=e621]: Parent Todo
+                - generic [ref=e622]: "-"
+                - button "Delete" [ref=e624] [cursor=pointer]:
+                  - generic [ref=e625]: 
+              - generic [ref=e627]:
+                - generic [ref=e628]:
+                  - generic [ref=e629] [cursor=pointer]: 
+                  - button "Incomplete — click to change" [ref=e630] [cursor=pointer]
+                  - generic [ref=e631]: Todo B
+                - generic [ref=e632]: "-"
+                - button "Delete" [ref=e634] [cursor=pointer]:
+                  - generic [ref=e635]: 
+              - generic [ref=e637]:
+                - generic [ref=e638]:
+                  - generic [ref=e639] [cursor=pointer]: 
+                  - button "Incomplete — click to change" [ref=e640] [cursor=pointer]
+                  - generic [ref=e641]: Todo B
+                - generic [ref=e642]: "-"
+                - button "Delete" [ref=e644] [cursor=pointer]:
+                  - generic [ref=e645]: 
+              - generic [ref=e647]:
+                - generic [ref=e648]:
+                  - generic [ref=e649] [cursor=pointer]: 
+                  - button "Incomplete — click to change" [ref=e650] [cursor=pointer]
+                  - generic [ref=e651]: Todo B
+                - generic [ref=e652]: "-"
+                - button "Delete" [ref=e654] [cursor=pointer]:
+                  - generic [ref=e655]: 
+              - generic [ref=e657]:
+                - generic [ref=e658]:
+                  - generic [ref=e659] [cursor=pointer]: 
+                  - button "Incomplete — click to change" [ref=e660] [cursor=pointer]
+                  - generic [ref=e661]: Todo B
+                - generic [ref=e662]: "-"
+                - button "Delete" [ref=e664] [cursor=pointer]:
+                  - generic [ref=e665]: 
+              - generic [ref=e667]:
+                - generic [ref=e668]:
+                  - generic [ref=e669] [cursor=pointer]: 
+                  - button "Incomplete — click to change" [ref=e670] [cursor=pointer]
+                  - generic [ref=e671]: Todo B
+                - generic [ref=e672]: "-"
+                - button "Delete" [ref=e674] [cursor=pointer]:
+                  - generic [ref=e675]: 
+              - generic [ref=e677]:
+                - generic [ref=e678]:
+                  - generic [ref=e679] [cursor=pointer]: 
+                  - button "Incomplete — click to change" [ref=e680] [cursor=pointer]
+                  - generic [ref=e681]: Todo B
+                - generic [ref=e682]: "-"
+                - button "Delete" [ref=e684] [cursor=pointer]:
+                  - generic [ref=e685]: 
+              - generic [ref=e687]:
+                - generic [ref=e688]:
+                  - generic [ref=e689] [cursor=pointer]: 
+                  - button "Incomplete — click to change" [ref=e690] [cursor=pointer]
+                  - generic [ref=e691]: Todo B
+                - generic [ref=e692]: "-"
+                - button "Delete" [ref=e694] [cursor=pointer]:
+                  - generic [ref=e695]: 
+              - generic [ref=e697]:
+                - generic [ref=e698]:
+                  - generic [ref=e699] [cursor=pointer]: 
                   - button "Incomplete — click to change" [ref=e700] [cursor=pointer]
                   - generic [ref=e701]: Todo B
                 - generic [ref=e702]: "-"
@@ -604,259 +605,259 @@ Call log:
               - generic [ref=e707]:
                 - generic [ref=e708]:
                   - button "Incomplete — click to change" [ref=e709] [cursor=pointer]
-                  - generic [ref=e710]: Todo A
+                  - generic [ref=e710]: Todo B
                 - generic [ref=e711]: "-"
                 - button "Delete" [ref=e713] [cursor=pointer]:
                   - generic [ref=e714]: 
               - generic [ref=e716]:
                 - generic [ref=e717]:
                   - button "Incomplete — click to change" [ref=e718] [cursor=pointer]
-                  - generic [ref=e719]: Todo B
+                  - generic [ref=e719]: Todo A
                 - generic [ref=e720]: "-"
                 - button "Delete" [ref=e722] [cursor=pointer]:
                   - generic [ref=e723]: 
               - generic [ref=e725]:
                 - generic [ref=e726]:
                   - button "Incomplete — click to change" [ref=e727] [cursor=pointer]
-                  - generic [ref=e728]: Todo A
+                  - generic [ref=e728]: Todo B
                 - generic [ref=e729]: "-"
                 - button "Delete" [ref=e731] [cursor=pointer]:
                   - generic [ref=e732]: 
               - generic [ref=e734]:
                 - generic [ref=e735]:
                   - button "Incomplete — click to change" [ref=e736] [cursor=pointer]
-                  - generic [ref=e737]: Todo B
+                  - generic [ref=e737]: Todo A
                 - generic [ref=e738]: "-"
                 - button "Delete" [ref=e740] [cursor=pointer]:
                   - generic [ref=e741]: 
               - generic [ref=e743]:
                 - generic [ref=e744]:
                   - button "Incomplete — click to change" [ref=e745] [cursor=pointer]
-                  - generic [ref=e746]: Todo A
+                  - generic [ref=e746]: Todo B
                 - generic [ref=e747]: "-"
                 - button "Delete" [ref=e749] [cursor=pointer]:
                   - generic [ref=e750]: 
               - generic [ref=e752]:
                 - generic [ref=e753]:
                   - button "Incomplete — click to change" [ref=e754] [cursor=pointer]
-                  - generic [ref=e755]: Todo B
+                  - generic [ref=e755]: Todo A
                 - generic [ref=e756]: "-"
                 - button "Delete" [ref=e758] [cursor=pointer]:
                   - generic [ref=e759]: 
               - generic [ref=e761]:
                 - generic [ref=e762]:
                   - button "Incomplete — click to change" [ref=e763] [cursor=pointer]
-                  - generic [ref=e764]: Todo A
+                  - generic [ref=e764]: Todo B
                 - generic [ref=e765]: "-"
                 - button "Delete" [ref=e767] [cursor=pointer]:
                   - generic [ref=e768]: 
               - generic [ref=e770]:
                 - generic [ref=e771]:
                   - button "Incomplete — click to change" [ref=e772] [cursor=pointer]
-                  - generic [ref=e773]: Todo B
+                  - generic [ref=e773]: Todo A
                 - generic [ref=e774]: "-"
                 - button "Delete" [ref=e776] [cursor=pointer]:
                   - generic [ref=e777]: 
               - generic [ref=e779]:
                 - generic [ref=e780]:
                   - button "Incomplete — click to change" [ref=e781] [cursor=pointer]
-                  - generic [ref=e782]: Todo A
+                  - generic [ref=e782]: Todo B
                 - generic [ref=e783]: "-"
                 - button "Delete" [ref=e785] [cursor=pointer]:
                   - generic [ref=e786]: 
               - generic [ref=e788]:
                 - generic [ref=e789]:
                   - button "Incomplete — click to change" [ref=e790] [cursor=pointer]
-                  - generic [ref=e791]: Todo B
+                  - generic [ref=e791]: Todo A
                 - generic [ref=e792]: "-"
                 - button "Delete" [ref=e794] [cursor=pointer]:
                   - generic [ref=e795]: 
               - generic [ref=e797]:
                 - generic [ref=e798]:
                   - button "Incomplete — click to change" [ref=e799] [cursor=pointer]
-                  - generic [ref=e800]: Todo A
+                  - generic [ref=e800]: Todo B
                 - generic [ref=e801]: "-"
                 - button "Delete" [ref=e803] [cursor=pointer]:
                   - generic [ref=e804]: 
               - generic [ref=e806]:
                 - generic [ref=e807]:
                   - button "Incomplete — click to change" [ref=e808] [cursor=pointer]
-                  - generic [ref=e809]: Todo B
+                  - generic [ref=e809]: Todo A
                 - generic [ref=e810]: "-"
                 - button "Delete" [ref=e812] [cursor=pointer]:
                   - generic [ref=e813]: 
               - generic [ref=e815]:
                 - generic [ref=e816]:
                   - button "Incomplete — click to change" [ref=e817] [cursor=pointer]
-                  - generic [ref=e818]: Todo A
+                  - generic [ref=e818]: Todo B
                 - generic [ref=e819]: "-"
                 - button "Delete" [ref=e821] [cursor=pointer]:
                   - generic [ref=e822]: 
               - generic [ref=e824]:
                 - generic [ref=e825]:
                   - button "Incomplete — click to change" [ref=e826] [cursor=pointer]
-                  - generic [ref=e827]: Todo B
+                  - generic [ref=e827]: Todo A
                 - generic [ref=e828]: "-"
                 - button "Delete" [ref=e830] [cursor=pointer]:
                   - generic [ref=e831]: 
               - generic [ref=e833]:
                 - generic [ref=e834]:
                   - button "Incomplete — click to change" [ref=e835] [cursor=pointer]
-                  - generic [ref=e836]: Todo A
+                  - generic [ref=e836]: Todo B
                 - generic [ref=e837]: "-"
                 - button "Delete" [ref=e839] [cursor=pointer]:
                   - generic [ref=e840]: 
               - generic [ref=e842]:
                 - generic [ref=e843]:
                   - button "Incomplete — click to change" [ref=e844] [cursor=pointer]
-                  - generic [ref=e845]: Todo B
+                  - generic [ref=e845]: Todo A
                 - generic [ref=e846]: "-"
                 - button "Delete" [ref=e848] [cursor=pointer]:
                   - generic [ref=e849]: 
               - generic [ref=e851]:
                 - generic [ref=e852]:
                   - button "Incomplete — click to change" [ref=e853] [cursor=pointer]
-                  - generic [ref=e854]: Todo A
+                  - generic [ref=e854]: Todo B
                 - generic [ref=e855]: "-"
                 - button "Delete" [ref=e857] [cursor=pointer]:
                   - generic [ref=e858]: 
               - generic [ref=e860]:
                 - generic [ref=e861]:
                   - button "Incomplete — click to change" [ref=e862] [cursor=pointer]
-                  - generic [ref=e863]: Todo B
+                  - generic [ref=e863]: Todo A
                 - generic [ref=e864]: "-"
                 - button "Delete" [ref=e866] [cursor=pointer]:
                   - generic [ref=e867]: 
               - generic [ref=e869]:
                 - generic [ref=e870]:
                   - button "Incomplete — click to change" [ref=e871] [cursor=pointer]
-                  - generic [ref=e872]: Todo A
+                  - generic [ref=e872]: Todo B
                 - generic [ref=e873]: "-"
                 - button "Delete" [ref=e875] [cursor=pointer]:
                   - generic [ref=e876]: 
               - generic [ref=e878]:
                 - generic [ref=e879]:
                   - button "Incomplete — click to change" [ref=e880] [cursor=pointer]
-                  - generic [ref=e881]: Todo B
+                  - generic [ref=e881]: Todo A
                 - generic [ref=e882]: "-"
                 - button "Delete" [ref=e884] [cursor=pointer]:
                   - generic [ref=e885]: 
               - generic [ref=e887]:
                 - generic [ref=e888]:
                   - button "Incomplete — click to change" [ref=e889] [cursor=pointer]
-                  - generic [ref=e890]: Todo A
+                  - generic [ref=e890]: Todo B
                 - generic [ref=e891]: "-"
                 - button "Delete" [ref=e893] [cursor=pointer]:
                   - generic [ref=e894]: 
               - generic [ref=e896]:
                 - generic [ref=e897]:
                   - button "Incomplete — click to change" [ref=e898] [cursor=pointer]
-                  - generic [ref=e899]: Todo B
+                  - generic [ref=e899]: Todo A
                 - generic [ref=e900]: "-"
                 - button "Delete" [ref=e902] [cursor=pointer]:
                   - generic [ref=e903]: 
               - generic [ref=e905]:
                 - generic [ref=e906]:
                   - button "Incomplete — click to change" [ref=e907] [cursor=pointer]
-                  - generic [ref=e908]: Todo A
+                  - generic [ref=e908]: Todo B
                 - generic [ref=e909]: "-"
                 - button "Delete" [ref=e911] [cursor=pointer]:
                   - generic [ref=e912]: 
               - generic [ref=e914]:
                 - generic [ref=e915]:
                   - button "Incomplete — click to change" [ref=e916] [cursor=pointer]
-                  - generic [ref=e917]: Todo B
+                  - generic [ref=e917]: Todo A
                 - generic [ref=e918]: "-"
                 - button "Delete" [ref=e920] [cursor=pointer]:
                   - generic [ref=e921]: 
               - generic [ref=e923]:
                 - generic [ref=e924]:
                   - button "Incomplete — click to change" [ref=e925] [cursor=pointer]
-                  - generic [ref=e926]: Todo A
+                  - generic [ref=e926]: Todo B
                 - generic [ref=e927]: "-"
                 - button "Delete" [ref=e929] [cursor=pointer]:
                   - generic [ref=e930]: 
               - generic [ref=e932]:
                 - generic [ref=e933]:
                   - button "Incomplete — click to change" [ref=e934] [cursor=pointer]
-                  - generic [ref=e935]: Todo B
+                  - generic [ref=e935]: Todo A
                 - generic [ref=e936]: "-"
                 - button "Delete" [ref=e938] [cursor=pointer]:
                   - generic [ref=e939]: 
               - generic [ref=e941]:
                 - generic [ref=e942]:
                   - button "Incomplete — click to change" [ref=e943] [cursor=pointer]
-                  - generic [ref=e944]: Todo A
+                  - generic [ref=e944]: Todo B
                 - generic [ref=e945]: "-"
                 - button "Delete" [ref=e947] [cursor=pointer]:
                   - generic [ref=e948]: 
               - generic [ref=e950]:
                 - generic [ref=e951]:
                   - button "Incomplete — click to change" [ref=e952] [cursor=pointer]
-                  - generic [ref=e953]: Todo B
+                  - generic [ref=e953]: Todo A
                 - generic [ref=e954]: "-"
                 - button "Delete" [ref=e956] [cursor=pointer]:
                   - generic [ref=e957]: 
               - generic [ref=e959]:
                 - generic [ref=e960]:
                   - button "Incomplete — click to change" [ref=e961] [cursor=pointer]
-                  - generic [ref=e962]: Todo A
+                  - generic [ref=e962]: Todo B
                 - generic [ref=e963]: "-"
                 - button "Delete" [ref=e965] [cursor=pointer]:
                   - generic [ref=e966]: 
               - generic [ref=e968]:
                 - generic [ref=e969]:
                   - button "Incomplete — click to change" [ref=e970] [cursor=pointer]
-                  - generic [ref=e971]: Todo B
+                  - generic [ref=e971]: Todo A
                 - generic [ref=e972]: "-"
                 - button "Delete" [ref=e974] [cursor=pointer]:
                   - generic [ref=e975]: 
               - generic [ref=e977]:
                 - generic [ref=e978]:
                   - button "Incomplete — click to change" [ref=e979] [cursor=pointer]
-                  - generic [ref=e980]: Todo A
+                  - generic [ref=e980]: Todo B
                 - generic [ref=e981]: "-"
                 - button "Delete" [ref=e983] [cursor=pointer]:
                   - generic [ref=e984]: 
               - generic [ref=e986]:
                 - generic [ref=e987]:
                   - button "Incomplete — click to change" [ref=e988] [cursor=pointer]
-                  - generic [ref=e989]: Todo B
+                  - generic [ref=e989]: Todo A
                 - generic [ref=e990]: "-"
                 - button "Delete" [ref=e992] [cursor=pointer]:
                   - generic [ref=e993]: 
               - generic [ref=e995]:
                 - generic [ref=e996]:
                   - button "Incomplete — click to change" [ref=e997] [cursor=pointer]
-                  - generic [ref=e998]: Todo A
+                  - generic [ref=e998]: Todo B
                 - generic [ref=e999]: "-"
                 - button "Delete" [ref=e1001] [cursor=pointer]:
                   - generic [ref=e1002]: 
               - generic [ref=e1004]:
                 - generic [ref=e1005]:
                   - button "Incomplete — click to change" [ref=e1006] [cursor=pointer]
-                  - generic [ref=e1007]: Todo B
+                  - generic [ref=e1007]: Todo A
                 - generic [ref=e1008]: "-"
                 - button "Delete" [ref=e1010] [cursor=pointer]:
                   - generic [ref=e1011]: 
               - generic [ref=e1013]:
                 - generic [ref=e1014]:
                   - button "Incomplete — click to change" [ref=e1015] [cursor=pointer]
-                  - generic [ref=e1016]: Todo A
+                  - generic [ref=e1016]: Todo B
                 - generic [ref=e1017]: "-"
                 - button "Delete" [ref=e1019] [cursor=pointer]:
                   - generic [ref=e1020]: 
               - generic [ref=e1022]:
                 - generic [ref=e1023]:
                   - button "Incomplete — click to change" [ref=e1024] [cursor=pointer]
-                  - generic [ref=e1025]: Todo B
+                  - generic [ref=e1025]: Todo A
                 - generic [ref=e1026]: "-"
                 - button "Delete" [ref=e1028] [cursor=pointer]:
                   - generic [ref=e1029]: 
               - generic [ref=e1031]:
                 - generic [ref=e1032]:
                   - button "Incomplete — click to change" [ref=e1033] [cursor=pointer]
-                  - generic [ref=e1034]: Todo A
+                  - generic [ref=e1034]: Todo B
                 - generic [ref=e1035]: "-"
                 - button "Delete" [ref=e1037] [cursor=pointer]:
                   - generic [ref=e1038]: 
@@ -870,35 +871,35 @@ Call log:
               - generic [ref=e1049]:
                 - generic [ref=e1050]:
                   - button "Incomplete — click to change" [ref=e1051] [cursor=pointer]
-                  - generic [ref=e1052]: Test tdodddldl
+                  - generic [ref=e1052]: Todo A
                 - generic [ref=e1053]: "-"
                 - button "Delete" [ref=e1055] [cursor=pointer]:
                   - generic [ref=e1056]: 
               - generic [ref=e1058]:
                 - generic [ref=e1059]:
                   - button "Incomplete — click to change" [ref=e1060] [cursor=pointer]
-                  - generic [ref=e1061]: Test Todo 1
-                - generic [ref=e1062]: Test notes
+                  - generic [ref=e1061]: Test tdodddldl
+                - generic [ref=e1062]: "-"
                 - button "Delete" [ref=e1064] [cursor=pointer]:
                   - generic [ref=e1065]: 
               - generic [ref=e1067]:
                 - generic [ref=e1068]:
                   - button "Incomplete — click to change" [ref=e1069] [cursor=pointer]
-                  - generic [ref=e1070]: Todo to Edit
-                - generic [ref=e1071]: "-"
+                  - generic [ref=e1070]: Test Todo 1
+                - generic [ref=e1071]: Test notes
                 - button "Delete" [ref=e1073] [cursor=pointer]:
                   - generic [ref=e1074]: 
               - generic [ref=e1076]:
                 - generic [ref=e1077]:
                   - button "Incomplete — click to change" [ref=e1078] [cursor=pointer]
-                  - generic [ref=e1079]: Parent Todo
+                  - generic [ref=e1079]: Todo to Edit
                 - generic [ref=e1080]: "-"
                 - button "Delete" [ref=e1082] [cursor=pointer]:
                   - generic [ref=e1083]: 
               - generic [ref=e1085]:
                 - generic [ref=e1086]:
                   - button "Incomplete — click to change" [ref=e1087] [cursor=pointer]
-                  - generic [ref=e1088]: Test Todo
+                  - generic [ref=e1088]: Parent Todo
                 - generic [ref=e1089]: "-"
                 - button "Delete" [ref=e1091] [cursor=pointer]:
                   - generic [ref=e1092]: 
@@ -912,133 +913,133 @@ Call log:
               - generic [ref=e1103]:
                 - generic [ref=e1104]:
                   - button "Incomplete — click to change" [ref=e1105] [cursor=pointer]
-                  - generic [ref=e1106]: Todo to Edit
+                  - generic [ref=e1106]: Test Todo
                 - generic [ref=e1107]: "-"
                 - button "Delete" [ref=e1109] [cursor=pointer]:
                   - generic [ref=e1110]: 
               - generic [ref=e1112]:
                 - generic [ref=e1113]:
                   - button "Incomplete — click to change" [ref=e1114] [cursor=pointer]
-                  - generic [ref=e1115]: Test Todo 1
-                - generic [ref=e1116]: Test notes
+                  - generic [ref=e1115]: Todo to Edit
+                - generic [ref=e1116]: "-"
                 - button "Delete" [ref=e1118] [cursor=pointer]:
                   - generic [ref=e1119]: 
               - generic [ref=e1121]:
                 - generic [ref=e1122]:
                   - button "Incomplete — click to change" [ref=e1123] [cursor=pointer]
-                  - generic [ref=e1124]: Parent Todo
-                - generic [ref=e1125]: "-"
+                  - generic [ref=e1124]: Test Todo 1
+                - generic [ref=e1125]: Test notes
                 - button "Delete" [ref=e1127] [cursor=pointer]:
                   - generic [ref=e1128]: 
               - generic [ref=e1130]:
                 - generic [ref=e1131]:
                   - button "Incomplete — click to change" [ref=e1132] [cursor=pointer]
-                  - generic [ref=e1133]: Todo to Edit
+                  - generic [ref=e1133]: Parent Todo
                 - generic [ref=e1134]: "-"
                 - button "Delete" [ref=e1136] [cursor=pointer]:
                   - generic [ref=e1137]: 
               - generic [ref=e1139]:
                 - generic [ref=e1140]:
                   - button "Incomplete — click to change" [ref=e1141] [cursor=pointer]
-                  - generic [ref=e1142]: Test Todo 1
-                - generic [ref=e1143]: Test notes
+                  - generic [ref=e1142]: Todo to Edit
+                - generic [ref=e1143]: "-"
                 - button "Delete" [ref=e1145] [cursor=pointer]:
                   - generic [ref=e1146]: 
               - generic [ref=e1148]:
                 - generic [ref=e1149]:
                   - button "Incomplete — click to change" [ref=e1150] [cursor=pointer]
-                  - generic [ref=e1151]: Parent Todo
-                - generic [ref=e1152]: "-"
+                  - generic [ref=e1151]: Test Todo 1
+                - generic [ref=e1152]: Test notes
                 - button "Delete" [ref=e1154] [cursor=pointer]:
                   - generic [ref=e1155]: 
               - generic [ref=e1157]:
                 - generic [ref=e1158]:
                   - button "Incomplete — click to change" [ref=e1159] [cursor=pointer]
-                  - generic [ref=e1160]: Child Todo
+                  - generic [ref=e1160]: Parent Todo
                 - generic [ref=e1161]: "-"
                 - button "Delete" [ref=e1163] [cursor=pointer]:
                   - generic [ref=e1164]: 
               - generic [ref=e1166]:
                 - generic [ref=e1167]:
                   - button "Incomplete — click to change" [ref=e1168] [cursor=pointer]
-                  - generic [ref=e1169]: Todo to Edit
+                  - generic [ref=e1169]: Child Todo
                 - generic [ref=e1170]: "-"
                 - button "Delete" [ref=e1172] [cursor=pointer]:
                   - generic [ref=e1173]: 
               - generic [ref=e1175]:
                 - generic [ref=e1176]:
                   - button "Incomplete — click to change" [ref=e1177] [cursor=pointer]
-                  - generic [ref=e1178]: Test Todo 1
-                - generic [ref=e1179]: Test notes
+                  - generic [ref=e1178]: Todo to Edit
+                - generic [ref=e1179]: "-"
                 - button "Delete" [ref=e1181] [cursor=pointer]:
                   - generic [ref=e1182]: 
               - generic [ref=e1184]:
                 - generic [ref=e1185]:
                   - button "Incomplete — click to change" [ref=e1186] [cursor=pointer]
-                  - generic [ref=e1187]: Parent Todo
-                - generic [ref=e1188]: "-"
+                  - generic [ref=e1187]: Test Todo 1
+                - generic [ref=e1188]: Test notes
                 - button "Delete" [ref=e1190] [cursor=pointer]:
                   - generic [ref=e1191]: 
               - generic [ref=e1193]:
                 - generic [ref=e1194]:
                   - button "Incomplete — click to change" [ref=e1195] [cursor=pointer]
-                  - generic [ref=e1196]: Child Todo
+                  - generic [ref=e1196]: Parent Todo
                 - generic [ref=e1197]: "-"
                 - button "Delete" [ref=e1199] [cursor=pointer]:
                   - generic [ref=e1200]: 
               - generic [ref=e1202]:
                 - generic [ref=e1203]:
                   - button "Incomplete — click to change" [ref=e1204] [cursor=pointer]
-                  - generic [ref=e1205]: Todo to Edit
+                  - generic [ref=e1205]: Child Todo
                 - generic [ref=e1206]: "-"
                 - button "Delete" [ref=e1208] [cursor=pointer]:
                   - generic [ref=e1209]: 
               - generic [ref=e1211]:
                 - generic [ref=e1212]:
                   - button "Incomplete — click to change" [ref=e1213] [cursor=pointer]
-                  - generic [ref=e1214]: Test Todo 1
-                - generic [ref=e1215]: Test notes
+                  - generic [ref=e1214]: Todo to Edit
+                - generic [ref=e1215]: "-"
                 - button "Delete" [ref=e1217] [cursor=pointer]:
                   - generic [ref=e1218]: 
               - generic [ref=e1220]:
                 - generic [ref=e1221]:
                   - button "Incomplete — click to change" [ref=e1222] [cursor=pointer]
-                  - generic [ref=e1223]: Parent Todo
-                - generic [ref=e1224]: "-"
+                  - generic [ref=e1223]: Test Todo 1
+                - generic [ref=e1224]: Test notes
                 - button "Delete" [ref=e1226] [cursor=pointer]:
                   - generic [ref=e1227]: 
               - generic [ref=e1229]:
                 - generic [ref=e1230]:
                   - button "Incomplete — click to change" [ref=e1231] [cursor=pointer]
-                  - generic [ref=e1232]: Test Todo 1
-                - generic [ref=e1233]: Test notes
+                  - generic [ref=e1232]: Parent Todo
+                - generic [ref=e1233]: "-"
                 - button "Delete" [ref=e1235] [cursor=pointer]:
                   - generic [ref=e1236]: 
               - generic [ref=e1238]:
                 - generic [ref=e1239]:
                   - button "Incomplete — click to change" [ref=e1240] [cursor=pointer]
-                  - generic [ref=e1241]: Todo to Edit
-                - generic [ref=e1242]: "-"
+                  - generic [ref=e1241]: Test Todo 1
+                - generic [ref=e1242]: Test notes
                 - button "Delete" [ref=e1244] [cursor=pointer]:
                   - generic [ref=e1245]: 
               - generic [ref=e1247]:
                 - generic [ref=e1248]:
                   - button "Incomplete — click to change" [ref=e1249] [cursor=pointer]
-                  - generic [ref=e1250]: Child Todo
+                  - generic [ref=e1250]: Todo to Edit
                 - generic [ref=e1251]: "-"
                 - button "Delete" [ref=e1253] [cursor=pointer]:
                   - generic [ref=e1254]: 
               - generic [ref=e1256]:
                 - generic [ref=e1257]:
                   - button "Incomplete — click to change" [ref=e1258] [cursor=pointer]
-                  - generic [ref=e1259]: Parent Todo
+                  - generic [ref=e1259]: Child Todo
                 - generic [ref=e1260]: "-"
                 - button "Delete" [ref=e1262] [cursor=pointer]:
                   - generic [ref=e1263]: 
               - generic [ref=e1265]:
                 - generic [ref=e1266]:
                   - button "Incomplete — click to change" [ref=e1267] [cursor=pointer]
-                  - generic [ref=e1268]: Todo to Edit
+                  - generic [ref=e1268]: Parent Todo
                 - generic [ref=e1269]: "-"
                 - button "Delete" [ref=e1271] [cursor=pointer]:
                   - generic [ref=e1272]: 
@@ -1052,43 +1053,43 @@ Call log:
               - generic [ref=e1283]:
                 - generic [ref=e1284]:
                   - button "Incomplete — click to change" [ref=e1285] [cursor=pointer]
-                  - generic [ref=e1286]: Parent Todo
+                  - generic [ref=e1286]: Todo to Edit
                 - generic [ref=e1287]: "-"
                 - button "Delete" [ref=e1289] [cursor=pointer]:
                   - generic [ref=e1290]: 
               - generic [ref=e1292]:
                 - generic [ref=e1293]:
                   - button "Incomplete — click to change" [ref=e1294] [cursor=pointer]
-                  - generic [ref=e1295]: Test Todo 1
-                - generic [ref=e1296]: Test notes
+                  - generic [ref=e1295]: Parent Todo
+                - generic [ref=e1296]: "-"
                 - button "Delete" [ref=e1298] [cursor=pointer]:
                   - generic [ref=e1299]: 
               - generic [ref=e1301]:
                 - generic [ref=e1302]:
                   - button "Incomplete — click to change" [ref=e1303] [cursor=pointer]
-                  - generic [ref=e1304]: Todo to Edit
-                - generic [ref=e1305]: "-"
+                  - generic [ref=e1304]: Test Todo 1
+                - generic [ref=e1305]: Test notes
                 - button "Delete" [ref=e1307] [cursor=pointer]:
                   - generic [ref=e1308]: 
               - generic [ref=e1310]:
                 - generic [ref=e1311]:
                   - button "Incomplete — click to change" [ref=e1312] [cursor=pointer]
-                  - generic [ref=e1313]: Test Todo 1
-                - generic [ref=e1314]: Test notes
+                  - generic [ref=e1313]: Todo to Edit
+                - generic [ref=e1314]: "-"
                 - button "Delete" [ref=e1316] [cursor=pointer]:
                   - generic [ref=e1317]: 
               - generic [ref=e1319]:
                 - generic [ref=e1320]:
                   - button "Incomplete — click to change" [ref=e1321] [cursor=pointer]
-                  - generic [ref=e1322]: Parent Todo
-                - generic [ref=e1323]: "-"
+                  - generic [ref=e1322]: Test Todo 1
+                - generic [ref=e1323]: Test notes
                 - button "Delete" [ref=e1325] [cursor=pointer]:
                   - generic [ref=e1326]: 
               - generic [ref=e1328]:
                 - generic [ref=e1329]:
                   - button "Incomplete — click to change" [ref=e1330] [cursor=pointer]
-                  - generic [ref=e1331]: Test Todo 1
-                - generic [ref=e1332]: Test notes
+                  - generic [ref=e1331]: Parent Todo
+                - generic [ref=e1332]: "-"
                 - button "Delete" [ref=e1334] [cursor=pointer]:
                   - generic [ref=e1335]: 
               - generic [ref=e1337]:
@@ -1115,14 +1116,14 @@ Call log:
               - generic [ref=e1364]:
                 - generic [ref=e1365]:
                   - button "Incomplete — click to change" [ref=e1366] [cursor=pointer]
-                  - generic [ref=e1367]: Todo to Edit
-                - generic [ref=e1368]: "-"
+                  - generic [ref=e1367]: Test Todo 1
+                - generic [ref=e1368]: Test notes
                 - button "Delete" [ref=e1370] [cursor=pointer]:
                   - generic [ref=e1371]: 
               - generic [ref=e1373]:
                 - generic [ref=e1374]:
                   - button "Incomplete — click to change" [ref=e1375] [cursor=pointer]
-                  - generic [ref=e1376]: Parent Todo
+                  - generic [ref=e1376]: Todo to Edit
                 - generic [ref=e1377]: "-"
                 - button "Delete" [ref=e1379] [cursor=pointer]:
                   - generic [ref=e1380]: 
@@ -1136,95 +1137,78 @@ Call log:
               - generic [ref=e1391]:
                 - generic [ref=e1392]:
                   - button "Incomplete — click to change" [ref=e1393] [cursor=pointer]
-                  - generic [ref=e1394]: Todo to Edit
+                  - generic [ref=e1394]: Parent Todo
                 - generic [ref=e1395]: "-"
                 - button "Delete" [ref=e1397] [cursor=pointer]:
                   - generic [ref=e1398]: 
               - generic [ref=e1400]:
                 - generic [ref=e1401]:
                   - button "Incomplete — click to change" [ref=e1402] [cursor=pointer]
-                  - generic [ref=e1403]: Test Todo 1
-                - generic [ref=e1404]: Test notes
+                  - generic [ref=e1403]: Todo to Edit
+                - generic [ref=e1404]: "-"
                 - button "Delete" [ref=e1406] [cursor=pointer]:
                   - generic [ref=e1407]: 
               - generic [ref=e1409]:
                 - generic [ref=e1410]:
                   - button "Incomplete — click to change" [ref=e1411] [cursor=pointer]
-                  - generic [ref=e1412]: Parent Todo
-                - generic [ref=e1413]: "-"
+                  - generic [ref=e1412]: Test Todo 1
+                - generic [ref=e1413]: Test notes
                 - button "Delete" [ref=e1415] [cursor=pointer]:
                   - generic [ref=e1416]: 
               - generic [ref=e1418]:
                 - generic [ref=e1419]:
                   - button "Incomplete — click to change" [ref=e1420] [cursor=pointer]
-                  - generic [ref=e1421]: Todo to Edit
+                  - generic [ref=e1421]: Parent Todo
                 - generic [ref=e1422]: "-"
                 - button "Delete" [ref=e1424] [cursor=pointer]:
                   - generic [ref=e1425]: 
               - generic [ref=e1427]:
                 - generic [ref=e1428]:
                   - button "Incomplete — click to change" [ref=e1429] [cursor=pointer]
-                  - generic [ref=e1430]: Test Item
+                  - generic [ref=e1430]: Todo to Edit
                 - generic [ref=e1431]: "-"
                 - button "Delete" [ref=e1433] [cursor=pointer]:
                   - generic [ref=e1434]: 
               - generic [ref=e1436]:
                 - generic [ref=e1437]:
                   - button "Incomplete — click to change" [ref=e1438] [cursor=pointer]
-                  - generic [ref=e1439]: Add SSO toggle for contexts
-                - generic [ref=e1440]: "Add ability to enable/configure SSO for a context so if SSO is enabled, users must log in via SSO with a given user. Requirements: Support OAuth2 initially, context-level enforcement, auto user mapping, redirect to SSO login if not authenticated."
+                  - generic [ref=e1439]: Test Item
+                - generic [ref=e1440]: "-"
                 - button "Delete" [ref=e1442] [cursor=pointer]:
                   - generic [ref=e1443]: 
               - generic [ref=e1445]:
                 - generic [ref=e1446]:
                   - button "Incomplete — click to change" [ref=e1447] [cursor=pointer]
-                  - generic [ref=e1448]: To do folder context menu
-                - generic [ref=e1449]: Right clicking on a folder in the to dos should open up a context menu that allows me to create a todo under that folder.
+                  - generic [ref=e1448]: Add SSO toggle for contexts
+                - generic [ref=e1449]: "Add ability to enable/configure SSO for a context so if SSO is enabled, users must log in via SSO with a given user. Requirements: Support OAuth2 initially, context-level enforcement, auto user mapping, redirect to SSO login if not authenticated."
                 - button "Delete" [ref=e1451] [cursor=pointer]:
                   - generic [ref=e1452]: 
               - generic [ref=e1454]:
                 - generic [ref=e1455]:
                   - button "Incomplete — click to change" [ref=e1456] [cursor=pointer]
-                  - generic [ref=e1457]: Context menu on dailys calendar
-                - generic [ref=e1458]: If I right click on a day in the calander I should get a context menu. The first item allows me to highlight that day, that should have sub-menus that allow me to pick a color to highlight it with.
+                  - generic [ref=e1457]: To do folder context menu
+                - generic [ref=e1458]: Right clicking on a folder in the to dos should open up a context menu that allows me to create a todo under that folder.
                 - button "Delete" [ref=e1460] [cursor=pointer]:
                   - generic [ref=e1461]: 
               - generic [ref=e1463]:
                 - generic [ref=e1464]:
                   - button "Incomplete — click to change" [ref=e1465] [cursor=pointer]
-                  - generic [ref=e1466]: Todo Context Menu
-                - generic [ref=e1467]: Right clicking on Todo's should bring up a context menu allowing me to convert the todo to a category or project. Remove the button on the todo that effectively does the same thing
+                  - generic [ref=e1466]: Context menu on dailys calendar
+                - generic [ref=e1467]: If I right click on a day in the calander I should get a context menu. The first item allows me to highlight that day, that should have sub-menus that allow me to pick a color to highlight it with.
                 - button "Delete" [ref=e1469] [cursor=pointer]:
                   - generic [ref=e1470]: 
-          - generic [ref=e1473]:
-            - generic [ref=e1474]: Child Todo
-            - generic [ref=e1475]:
-              - generic [ref=e1476]:
-                - generic [ref=e1477]: Title *
-                - textbox "Title *" [ref=e1478]: Child Todo
-              - generic [ref=e1479]:
-                - generic [ref=e1480]: Notes
-                - textbox "Notes" [ref=e1481]
-              - generic [ref=e1482]:
-                - generic [ref=e1483]: Items
-                - button " Add Item" [ref=e1484] [cursor=pointer]:
-                  - generic [ref=e1485]: 
-                  - text: Add Item
-              - generic [ref=e1486]:
-                - generic [ref=e1487]: Links
-                - paragraph [ref=e1489]: No links yet
-                - generic [ref=e1490]:
-                  - textbox "https://example.com" [ref=e1491]
-                  - textbox "Link title (optional)" [ref=e1492]
-                  - button "" [ref=e1493] [cursor=pointer]
-              - generic [ref=e1495]:
-                - button "Save" [ref=e1496] [cursor=pointer]
-                - button "Close" [ref=e1497] [cursor=pointer]
-                - button "Delete" [ref=e1498] [cursor=pointer]
+              - generic [ref=e1472]:
+                - generic [ref=e1473]:
+                  - button "Incomplete — click to change" [ref=e1474] [cursor=pointer]
+                  - generic [ref=e1475]: Todo Context Menu
+                - generic [ref=e1476]: Right clicking on Todo's should bring up a context menu allowing me to convert the todo to a category or project. Remove the button on the todo that effectively does the same thing
+                - button "Delete" [ref=e1478] [cursor=pointer]:
+                  - generic [ref=e1479]: 
+          - text:  
         - text:       
       - text:                             
-  - contentinfo [ref=e1499]:
-    - paragraph [ref=e1501]: © 2026 MyWork. Licensed under the MIT License.
+  - contentinfo [ref=e1480]:
+    - paragraph [ref=e1482]: © 2026 MyWork. Licensed under the MIT License.
   - text:   
 ```
 
@@ -1233,95 +1217,71 @@ Call log:
 ```ts
   1  | import { test, expect } from '@playwright/test';
   2  | 
-  3  | test('Debug: Test clicks on todos', async ({ page }) => {
-  4  |   page.on('console', msg => console.log('[BROWSER]', msg.text()));
-  5  | 
-  6  |   await page.goto('http://localhost:3000?tab=todos');
-  7  |   await page.waitForSelector('#toDosList');
-  8  |   await page.waitForTimeout(1000);
-  9  | 
-  10 |   // Create a todo
-  11 |   console.log('\n=== Creating first todo ===');
-  12 |   await page.click('#addToDoBtn');
-  13 |   await page.fill('#toDoTitle', 'Parent Todo');
-  14 |   await page.click('#saveToDoBtn');
-  15 |   await page.waitForTimeout(1500);
-  16 | 
-  17 |   // Create second todo
-  18 |   console.log('\n=== Creating second todo ===');
-  19 |   await page.click('#addToDoBtn');
-  20 |   await page.fill('#toDoTitle', 'Child Todo');
-  21 |   await page.click('#saveToDoBtn');
-  22 |   await page.waitForTimeout(1500);
-  23 | 
-  24 |   // Drag second onto first
-  25 |   console.log('\n=== Dragging second todo onto first ===');
-  26 |   const rows = await page.locator('.todo-row').all();
-  27 |   if (rows.length >= 2) {
-  28 |     await rows[rows.length - 1].dragTo(rows[0]);
-  29 |     await page.waitForTimeout(2000);
-  30 |   }
-  31 | 
-  32 |   // Take screenshot to see structure
-  33 |   await page.screenshot({ path: '/tmp/debug-before-clicks.png' });
-  34 | 
-  35 |   // Try clicking on title
-  36 |   console.log('\n=== Trying to click on todo title ===');
-  37 |   const todoTitle = await page.locator('.todo-title').first();
-  38 |   console.log('Todo title text:', await todoTitle.textContent());
-  39 |   console.log('Clicking on title...');
-  40 |   await todoTitle.click();
-  41 |   await page.waitForTimeout(800);
-  42 | 
-  43 |   let editorVisible = await page.locator('#todoEditorPane').isVisible();
-  44 |   console.log('Editor visible after click:', editorVisible);
-  45 | 
-  46 |   if (!editorVisible) {
-  47 |     console.log('ERROR: Editor did not open!');
-  48 |     await page.screenshot({ path: '/tmp/debug-after-title-click-failed.png' });
-  49 |   } else {
-  50 |     console.log('SUCCESS: Editor opened!');
-  51 |     await page.screenshot({ path: '/tmp/debug-after-title-click-success.png' });
-  52 |   }
-  53 | 
-  54 |   // Check the HTML to see if nesting actually happened
-  55 |   console.log('\n=== Checking if drag created parent-child relationship ===');
-  56 |   const html = await page.locator('#toDosList').innerHTML();
-  57 |   const hasNesting = html.includes('data-todo-id') && html.includes('todo-node-children');
-  58 |   console.log('HTML has nested structure:', hasNesting);
-  59 |   console.log('HTML snippet:', html.substring(0, 500));
-  60 | 
-  61 |   // Try clicking expand toggle
-  62 |   console.log('\n=== Trying to click expand toggle ===');
-  63 |   const togglesBeforeExpand = await page.locator('i.todo-folder-toggle').all();
-  64 |   console.log('Found icon toggle elements:', togglesBeforeExpand.length);
-  65 | 
-  66 |   const toggles = await page.locator('.todo-folder-toggle').all();
-  67 |   console.log('Found toggle elements (any):', toggles.length);
+  3  | test('Manual nesting via API', async ({ page }) => {
+  4  |   // First, go to the page to get CSRF token
+  5  |   await page.goto('http://localhost:3000?tab=todos');
+> 6  |   await page.waitForSelector('[name="_csrf"]');
+     |              ^ Error: page.waitForSelector: Test timeout of 30000ms exceeded.
+  7  | 
+  8  |   // Get CSRF token
+  9  |   const csrfToken = await page.getAttribute('[name="_csrf"]', 'value');
+  10 |   console.log('CSRF token:', csrfToken);
+  11 | 
+  12 |   // Create parent todo via API
+  13 |   const parentRes = await page.request.post('http://localhost:3000/api/to-dos', {
+  14 |     headers: {
+  15 |       'X-CSRF-Token': csrfToken
+  16 |     },
+  17 |     data: { title: 'Parent Todo', notes: '' }
+  18 |   });
+  19 |   const parentData = await parentRes.json();
+  20 |   const parentId = parentData.data.id;
+  21 |   console.log('Created parent:', parentId);
+  22 | 
+  23 |   // Create child todo via API
+  24 |   const childRes = await page.request.post('http://localhost:3000/api/to-dos', {
+  25 |     headers: {
+  26 |       'X-CSRF-Token': csrfToken
+  27 |     },
+  28 |     data: { title: 'Child Todo', notes: '', parent_id: parentId }
+  29 |   });
+  30 |   const childData = await childRes.json();
+  31 |   const childId = childData.data.id;
+  32 |   console.log('Created child:', childId, 'with parent_id:', parentId);
+  33 | 
+  34 |   // Reload todos to see the new items
+  35 |   await page.reload();
+  36 |   await page.waitForSelector('#toDosList');
+  37 |   await page.waitForTimeout(1000);
+  38 | 
+  39 |   // Screenshot BEFORE expand
+  40 |   await page.screenshot({ path: '/tmp/manual-nesting-before.png' });
+  41 | 
+  42 |   // Check HTML structure
+  43 |   const htmlBefore = await page.locator('#toDosList').innerHTML();
+  44 |   console.log('Before expand - has expanded class:', htmlBefore.includes('class="todo-node expanded'));
+  45 |   console.log('Before expand - has toggle for parent:', htmlBefore.includes(`data-todo-id="${parentId}"`) && htmlBefore.includes('todo-folder-toggle'));
+  46 | 
+  47 |   // Click expand toggle for parent
+  48 |   const toggles = await page.locator(`[data-todo-id="${parentId}"] .todo-folder-toggle`).all();
+  49 |   console.log('Found toggles for parent:', toggles.length);
+  50 | 
+  51 |   if (toggles.length > 0) {
+  52 |     await toggles[0].click();
+  53 |     await page.waitForTimeout(1000);
+  54 |   }
+  55 | 
+  56 |   // Screenshot AFTER expand
+  57 |   await page.screenshot({ path: '/tmp/manual-nesting-after.png' });
+  58 | 
+  59 |   // Check HTML structure after expand
+  60 |   const htmlAfter = await page.locator('#toDosList').innerHTML();
+  61 |   console.log('After expand - has expanded class:', htmlAfter.includes('class="todo-node expanded'));
+  62 |   console.log('After expand - has children div:', htmlAfter.includes('todo-node-children'));
+  63 | 
+  64 |   // Check if child is visible
+  65 |   const childVisible = await page.locator(`text=Child Todo`).isVisible();
+  66 |   console.log('Child todo visible:', childVisible);
+  67 | });
   68 | 
-  69 |   if (togglesBeforeExpand.length > 0) {
-  70 |     const firstToggle = togglesBeforeExpand[0];
-  71 |     console.log('Clicking first icon toggle...');
-  72 |     await firstToggle.click();
-  73 |     await page.waitForTimeout(1500);
-  74 | 
-  75 |     const html = await page.locator('#toDosList').innerHTML();
-  76 |     const hasExpanded = html.includes('class="todo-node expanded');
-  77 |     console.log('HTML contains "class="todo-node expanded":', hasExpanded);
-  78 | 
-  79 |     const children = await page.locator('.todo-node-children').count();
-  80 |     console.log('Children elements visible:', children);
-  81 | 
-  82 |     const expandedNodes = await page.locator('.todo-node.expanded').count();
-  83 |     console.log('Expanded nodes:', expandedNodes);
-  84 | 
-  85 |     // Get the structure of an expanded node
-> 86 |     const expandedHtml = await page.locator('.todo-node.expanded').first().innerHTML();
-     |                                                                            ^ Error: locator.innerHTML: Test timeout of 30000ms exceeded.
-  87 |     console.log('Expanded node HTML:', expandedHtml.substring(0, 300));
-  88 | 
-  89 |     await page.screenshot({ path: '/tmp/debug-after-toggle-click.png' });
-  90 |   }
-  91 | });
-  92 | 
 ```
