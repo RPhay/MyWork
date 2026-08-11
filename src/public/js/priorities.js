@@ -82,6 +82,54 @@ function renderToDoInTree(toDo, depth, showRemove = true) {
   `;
 }
 
+function renderIdeaInTree(idea, depth, showRemove = true) {
+  const removeBtn = showRemove
+    ? `<button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="idea" data-child-id="${idea.id}" title="Remove" aria-label="Remove"><i class="bi bi-x-circle"></i></button>`
+    : '';
+
+  return `
+    <div class="priority-node idea-node" data-idea-id="${idea.id}">
+      <div class="priority-node-header idea-node-header" draggable="true" style="cursor: grab;">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          <span class="priority-toggle"></span>
+          <i class="bi bi-lightbulb text-muted"></i>
+          <span class="priority-title">${app.escapeHtml(idea.title)}</span>
+        </span>
+        <span class="priority-badges"><small class="text-muted">${app.escapeHtml(idea.notes || '')}</small></span>
+        <span class="priority-badges"></span>
+        <span class="priority-actions">
+          ${removeBtn}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function renderTicketInTree(ticket, depth, showRemove = true) {
+  const removeBtn = showRemove
+    ? `<button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="ticket" data-child-id="${ticket.id}" title="Remove" aria-label="Remove"><i class="bi bi-x-circle"></i></button>`
+    : '';
+
+  return `
+    <div class="priority-node ticket-node" data-ticket-id="${ticket.id}">
+      <div class="priority-node-header ticket-node-header" draggable="true" style="cursor: grab;">
+        <span class="priority-title-cell">
+          <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+          <span class="priority-toggle"></span>
+          <i class="bi bi-ticket text-muted"></i>
+          <span class="priority-title">${app.escapeHtml(ticket.title)}</span>
+        </span>
+        <span class="priority-badges"><small class="text-muted">${app.escapeHtml(ticket.notes || '')}</small></span>
+        <span class="priority-badges"></span>
+        <span class="priority-actions">
+          ${removeBtn}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
 // Aggregate status for a folder shown under a project: failed beats incomplete
 // beats skipped, and only "all complete" reads as complete. An empty folder
 // (nothing in it yet) reads as incomplete rather than trivially "complete".
@@ -218,11 +266,12 @@ function renderPriorityNode(priority, byParent, depth) {
   const linkedTaskFolders = allTaskFolders.filter(f => f.priority_id === priority.id);
   const linkedTaskFolderIds = new Set(linkedTaskFolders.map(f => f.id));
   const directTasks = allTasks.filter(t => t.priority_id === priority.id && !linkedTaskFolderIds.has(t.folder_id));
+  const directIdeas = (window.allIdeas || []).filter(i => i.priority_id === priority.id);
   const categories = priority.areas || [];
   const goals = priority.goals || [];
 
   const hasChildren = children.length > 0 || linkedFolders.length > 0 || directToDos.length > 0
-    || linkedTaskFolders.length > 0 || directTasks.length > 0 || categories.length > 0 || goals.length > 0;
+    || linkedTaskFolders.length > 0 || directTasks.length > 0 || directIdeas.length > 0 || categories.length > 0 || goals.length > 0;
 
   // Auto-expand if priority has associated categories or goals
   const hasAssociations = categories.length > 0 || goals.length > 0;
@@ -249,6 +298,11 @@ function renderPriorityNode(priority, byParent, depth) {
     html += linkedTaskFolders.map(f => renderTaskFolderInProjectTree(f, allTasks.filter(t => t.folder_id === f.id), depth + 1)).join('');
     // Render directly associated tasks
     html += directTasks.map(t => renderTaskInTree(t, depth + 1)).join('');
+    // Render directly associated ideas
+    html += directIdeas.map(i => renderIdeaInTree(i, depth + 1)).join('');
+    // Render directly associated tickets
+    const directTickets = (window.allTickets || []).filter(t => t.priority_id === priority.id);
+    html += directTickets.map(t => renderTicketInTree(t, depth + 1)).join('');
     childrenHtml = `<div class="priority-node-children">${html}</div>`;
   }
 
@@ -321,15 +375,28 @@ async function loadPriorities() {
     if (!taskResponse.ok) throw new Error(`HTTP ${taskResponse.status}`);
     const taskResult = await taskResponse.json();
 
-    if (prioResult.success && todoResult.success && taskResult.success) {
+    // Load ideas
+    const ideaResponse = await fetch('/api/ideas');
+    if (!ideaResponse.ok) throw new Error(`HTTP ${ideaResponse.status}`);
+    const ideaResult = await ideaResponse.json();
+
+    // Load tickets
+    const ticketResponse = await fetch('/api/tickets');
+    if (!ticketResponse.ok) throw new Error(`HTTP ${ticketResponse.status}`);
+    const ticketResult = await ticketResponse.json();
+
+    if (prioResult.success && todoResult.success && taskResult.success && ideaResult.success && ticketResult.success) {
       allPriorities = prioResult.data;
       allToDos = todoResult.data || [];
       allToDoFolders = []; // Folders no longer exist - they're just todos with children
       allTasks = taskResult.data || [];
       allTaskFolders = []; // Folders no longer exist - they're just tasks with children
+      window.allIdeas = ideaResult.data || [];
+      window.allTickets = ticketResult.data || [];
       renderPrioritiesList(allPriorities);
       loadPriorityRightPanel();
     } else {
+      console.error('Failed results:', { prioResult, todoResult, taskResult, ideaResult, ticketResult });
       container.innerHTML = '<p class="text-center text-danger">Error loading projects</p>';
     }
   } catch (error) {
