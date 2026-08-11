@@ -1509,6 +1509,7 @@ function initPriorities() {
       treeItems.forEach(toggle => {
         toggle.addEventListener('click', (e) => {
           e.preventDefault();
+          e.stopPropagation();
           const item = toggle.closest('[data-tree-item]');
           const children = item.querySelector('[data-tree-children]');
           if (children) {
@@ -1528,6 +1529,10 @@ function initPriorities() {
     }
 
     modal.addEventListener('click', (e) => {
+      // Don't trigger selection if clicking on a toggle button
+      if (e.target.closest('[data-tree-toggle]')) {
+        return;
+      }
       const btn = e.target.closest('[data-id]');
       if (btn && !btn.hasAttribute('data-tree-toggle')) {
         callback(btn.dataset.id);
