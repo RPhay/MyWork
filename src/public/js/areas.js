@@ -422,31 +422,6 @@ async function unlinkTicketFromArea(ticketId) {
   }
 }
 
-async function deleteArea(areaId) {
-  const area = allAreas.find(a => String(a.id) === String(areaId));
-  const name = area ? area.name : 'this category';
-
-  if (!await app.confirm(`Delete "${name}"?`)) return;
-
-  try {
-    const response = await fetch(`/api/areas/${areaId}`, {
-      method: 'DELETE',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Category deleted', 'success');
-      loadAreas();
-    } else {
-      app.notify('Error deleting category', 'danger');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error deleting category', 'danger');
-  }
-}
-
 async function associateTodoWithArea(todoId, areaId) {
   try {
     const response = await fetch(`/api/to-dos/${todoId}`, {
@@ -675,12 +650,6 @@ function initAreaContextMenu() {
       } else if (itemType === 'ticket') {
         await associateTicketWithArea(parseInt(itemId), targetAreaId);
       }
-    });
-  }
-
-    // Collapse all submenus on context menu open
-    container.addEventListener('contextmenu', () => {
-      menu.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
     });
   }
 
