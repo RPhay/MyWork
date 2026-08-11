@@ -127,6 +127,32 @@
             <div id="taskEditorIntervalConfig" style="display:none;" class="mb-2">
               <label for="taskEditorIntervalDays" class="form-label small">Every N Days</label>
               <input type="number" class="form-control form-control-sm" id="taskEditorIntervalDays" min="1" max="365" value="1">
+
+              <label class="form-label small mt-2">Filter by Days (optional)</label>
+              <div class="btn-group btn-group-sm w-100" role="group">
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalFilterWeekdays">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalFilterWeekdays">Weekdays</label>
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalFilterWeekends">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalFilterWeekends">Weekends</label>
+              </div>
+
+              <label class="form-label small mt-2">Specific Days</label>
+              <div class="btn-group btn-group-sm w-100" role="group">
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalDay0" value="0">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalDay0">Sun</label>
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalDay1" value="1">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalDay1">Mon</label>
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalDay2" value="2">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalDay2">Tue</label>
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalDay3" value="3">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalDay3">Wed</label>
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalDay4" value="4">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalDay4">Thu</label>
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalDay5" value="5">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalDay5">Fri</label>
+                <input type="checkbox" class="btn-check" id="taskEditorIntervalDay6" value="6">
+                <label class="btn btn-outline-secondary" for="taskEditorIntervalDay6">Sat</label>
+              </div>
             </div>
 
             <!-- Common Options -->
@@ -271,6 +297,32 @@
               <div id="taskIntervalConfig" style="display:none;" class="mb-2">
                 <label for="taskIntervalDays" class="form-label small">Every N Days</label>
                 <input type="number" class="form-control form-control-sm" id="taskIntervalDays" min="1" max="365" value="1">
+
+                <label class="form-label small mt-2">Filter by Days (optional)</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                  <input type="checkbox" class="btn-check" id="taskIntervalFilterWeekdays">
+                  <label class="btn btn-outline-secondary" for="taskIntervalFilterWeekdays">Weekdays</label>
+                  <input type="checkbox" class="btn-check" id="taskIntervalFilterWeekends">
+                  <label class="btn btn-outline-secondary" for="taskIntervalFilterWeekends">Weekends</label>
+                </div>
+
+                <label class="form-label small mt-2">Specific Days</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                  <input type="checkbox" class="btn-check" id="taskIntervalWeekDay0" value="0">
+                  <label class="btn btn-outline-secondary" for="taskIntervalWeekDay0">Sun</label>
+                  <input type="checkbox" class="btn-check" id="taskIntervalWeekDay1" value="1">
+                  <label class="btn btn-outline-secondary" for="taskIntervalWeekDay1">Mon</label>
+                  <input type="checkbox" class="btn-check" id="taskIntervalWeekDay2" value="2">
+                  <label class="btn btn-outline-secondary" for="taskIntervalWeekDay2">Tue</label>
+                  <input type="checkbox" class="btn-check" id="taskIntervalWeekDay3" value="3">
+                  <label class="btn btn-outline-secondary" for="taskIntervalWeekDay3">Wed</label>
+                  <input type="checkbox" class="btn-check" id="taskIntervalWeekDay4" value="4">
+                  <label class="btn btn-outline-secondary" for="taskIntervalWeekDay4">Thu</label>
+                  <input type="checkbox" class="btn-check" id="taskIntervalWeekDay5" value="5">
+                  <label class="btn btn-outline-secondary" for="taskIntervalWeekDay5">Fri</label>
+                  <input type="checkbox" class="btn-check" id="taskIntervalWeekDay6" value="6">
+                  <label class="btn btn-outline-secondary" for="taskIntervalWeekDay6">Sat</label>
+                </div>
               </div>
 
               <!-- Common Options -->

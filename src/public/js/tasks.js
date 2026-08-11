@@ -232,6 +232,28 @@ function collectTaskRecurrenceFromModal() {
       return null;
     }
     recurrence.intervalDays = days;
+
+    // Handle day filters
+    const weekdays = document.getElementById('taskIntervalFilterWeekdays').checked;
+    const weekends = document.getElementById('taskIntervalFilterWeekends').checked;
+
+    if (weekdays && weekends) {
+      // Both selected = all days, don't restrict
+    } else if (weekdays) {
+      recurrence.allowedDaysOfWeek = [1, 2, 3, 4, 5]; // Mon-Fri
+    } else if (weekends) {
+      recurrence.allowedDaysOfWeek = [0, 6]; // Sun, Sat
+    } else {
+      // Check specific days
+      const daysOfWeek = [];
+      for (let i = 0; i < 7; i++) {
+        const checkbox = document.getElementById(`taskIntervalWeekDay${i}`);
+        if (checkbox && checkbox.checked) daysOfWeek.push(i);
+      }
+      if (daysOfWeek.length > 0 && daysOfWeek.length < 7) {
+        recurrence.allowedDaysOfWeek = daysOfWeek;
+      }
+    }
   }
 
   const startDate = document.getElementById('taskRecurrenceStartDate').value;
@@ -529,6 +551,44 @@ function initializeTasksTab() {
       document.getElementById('taskMonthlyConfig').style.display = type === 'monthly' ? 'block' : 'none';
       document.getElementById('taskIntervalConfig').style.display = type === 'interval' ? 'block' : 'none';
     });
+  }
+
+  // Handle interval day filter shortcuts for modal
+  const taskWeekdaysCheckbox = document.getElementById('taskIntervalFilterWeekdays');
+  const taskWeekendsCheckbox = document.getElementById('taskIntervalFilterWeekends');
+
+  if (taskWeekdaysCheckbox) {
+    taskWeekdaysCheckbox.addEventListener('change', () => {
+      if (taskWeekdaysCheckbox.checked) {
+        taskWeekendsCheckbox.checked = false;
+        for (let i = 0; i < 7; i++) {
+          const checkbox = document.getElementById(`taskIntervalWeekDay${i}`);
+          if (checkbox) checkbox.checked = false;
+        }
+      }
+    });
+  }
+
+  if (taskWeekendsCheckbox) {
+    taskWeekendsCheckbox.addEventListener('change', () => {
+      if (taskWeekendsCheckbox.checked) {
+        taskWeekdaysCheckbox.checked = false;
+        for (let i = 0; i < 7; i++) {
+          const checkbox = document.getElementById(`taskIntervalWeekDay${i}`);
+          if (checkbox) checkbox.checked = false;
+        }
+      }
+    });
+  }
+
+  for (let i = 0; i < 7; i++) {
+    const checkbox = document.getElementById(`taskIntervalWeekDay${i}`);
+    if (checkbox) {
+      checkbox.addEventListener('change', () => {
+        taskWeekdaysCheckbox.checked = false;
+        taskWeekendsCheckbox.checked = false;
+      });
+    }
   }
 
   // Wire up editor pane buttons

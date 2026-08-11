@@ -35,6 +35,15 @@ export function validateRecurrence(recurrence) {
       if (!recurrence.intervalDays || recurrence.intervalDays < 1) {
         throw new ValidationError('Interval recurrence requires intervalDays >= 1');
       }
+      // allowedDaysOfWeek is optional for interval type
+      if (recurrence.allowedDaysOfWeek !== undefined) {
+        if (!Array.isArray(recurrence.allowedDaysOfWeek) || recurrence.allowedDaysOfWeek.length === 0) {
+          throw new ValidationError('If specifying days for interval, select at least one day');
+        }
+        if (recurrence.allowedDaysOfWeek.some(d => d < 0 || d > 6)) {
+          throw new ValidationError('Days of week must be 0-6 (Sunday-Saturday)');
+        }
+      }
     }
 
     if (type === 'monthly') {
@@ -361,7 +370,18 @@ export function shouldOccurOnDate(dateStr, recurrence) {
       // Calculate days since start date (including the start date itself)
       const timeDiff = targetDate.getTime() - startDate.getTime();
       const daysDiff = Math.round(timeDiff / (1000 * 60 * 60 * 24));
-      return daysDiff >= 0 && daysDiff % recurrence.intervalDays === 0;
+
+      // Check interval match
+      if (daysDiff < 0 || daysDiff % recurrence.intervalDays !== 0) {
+        return false;
+      }
+
+      // If allowedDaysOfWeek is specified, also check the day of week
+      if (recurrence.allowedDaysOfWeek && recurrence.allowedDaysOfWeek.length > 0) {
+        return recurrence.allowedDaysOfWeek.includes(targetDay);
+      }
+
+      return true;
 
     default:
       return false;

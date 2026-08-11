@@ -82,6 +82,12 @@ const TodoEditor = (() => {
 
     if (recurrence.type === 'interval') {
       document.getElementById('toDoEditorIntervalDays').value = recurrence.intervalDays || 1;
+      if (recurrence.allowedDaysOfWeek) {
+        recurrence.allowedDaysOfWeek.forEach(day => {
+          const checkbox = document.getElementById(`toDoEditorIntervalDay${day}`);
+          if (checkbox) checkbox.checked = true;
+        });
+      }
     }
 
     if (recurrence.startDate) {
@@ -155,6 +161,28 @@ const TodoEditor = (() => {
         return null;
       }
       recurrence.intervalDays = days;
+
+      // Handle day filters
+      const weekdays = document.getElementById('toDoEditorIntervalFilterWeekdays').checked;
+      const weekends = document.getElementById('toDoEditorIntervalFilterWeekends').checked;
+
+      if (weekdays && weekends) {
+        // Both selected = all days, don't restrict
+      } else if (weekdays) {
+        recurrence.allowedDaysOfWeek = [1, 2, 3, 4, 5]; // Mon-Fri
+      } else if (weekends) {
+        recurrence.allowedDaysOfWeek = [0, 6]; // Sun, Sat
+      } else {
+        // Check specific days
+        const daysOfWeek = [];
+        for (let i = 0; i < 7; i++) {
+          const checkbox = document.getElementById(`toDoEditorIntervalDay${i}`);
+          if (checkbox && checkbox.checked) daysOfWeek.push(i);
+        }
+        if (daysOfWeek.length > 0 && daysOfWeek.length < 7) {
+          recurrence.allowedDaysOfWeek = daysOfWeek;
+        }
+      }
     }
 
     const startDate = document.getElementById('toDoEditorRecurrenceStartDate').value;
@@ -239,6 +267,47 @@ const TodoEditor = (() => {
 
     if (typeSelect) {
       typeSelect.addEventListener('change', updateRecurrenceTypePanel);
+    }
+
+    // Handle interval day filter shortcuts
+    const weekdaysCheckbox = document.getElementById('toDoEditorIntervalFilterWeekdays');
+    const weekendsCheckbox = document.getElementById('toDoEditorIntervalFilterWeekends');
+
+    if (weekdaysCheckbox) {
+      weekdaysCheckbox.addEventListener('change', () => {
+        if (weekdaysCheckbox.checked) {
+          weekendsCheckbox.checked = false;
+          // Clear specific day selections
+          for (let i = 0; i < 7; i++) {
+            const checkbox = document.getElementById(`toDoEditorIntervalDay${i}`);
+            if (checkbox) checkbox.checked = false;
+          }
+        }
+      });
+    }
+
+    if (weekendsCheckbox) {
+      weekendsCheckbox.addEventListener('change', () => {
+        if (weekendsCheckbox.checked) {
+          weekdaysCheckbox.checked = false;
+          // Clear specific day selections
+          for (let i = 0; i < 7; i++) {
+            const checkbox = document.getElementById(`toDoEditorIntervalDay${i}`);
+            if (checkbox) checkbox.checked = false;
+          }
+        }
+      });
+    }
+
+    // If specific days are clicked, clear weekdays/weekends
+    for (let i = 0; i < 7; i++) {
+      const checkbox = document.getElementById(`toDoEditorIntervalDay${i}`);
+      if (checkbox) {
+        checkbox.addEventListener('change', () => {
+          weekdaysCheckbox.checked = false;
+          weekendsCheckbox.checked = false;
+        });
+      }
     }
   };
 

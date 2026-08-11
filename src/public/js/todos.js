@@ -227,6 +227,28 @@ function collectToDoRecurrenceFromModal() {
       return null;
     }
     recurrence.intervalDays = days;
+
+    // Handle day filters
+    const weekdays = document.getElementById('toDoIntervalFilterWeekdays').checked;
+    const weekends = document.getElementById('toDoIntervalFilterWeekends').checked;
+
+    if (weekdays && weekends) {
+      // Both selected = all days, don't restrict
+    } else if (weekdays) {
+      recurrence.allowedDaysOfWeek = [1, 2, 3, 4, 5]; // Mon-Fri
+    } else if (weekends) {
+      recurrence.allowedDaysOfWeek = [0, 6]; // Sun, Sat
+    } else {
+      // Check specific days
+      const daysOfWeek = [];
+      for (let i = 0; i < 7; i++) {
+        const checkbox = document.getElementById(`toDoIntervalWeekDay${i}`);
+        if (checkbox && checkbox.checked) daysOfWeek.push(i);
+      }
+      if (daysOfWeek.length > 0 && daysOfWeek.length < 7) {
+        recurrence.allowedDaysOfWeek = daysOfWeek;
+      }
+    }
   }
 
   const startDate = document.getElementById('toDoRecurrenceStartDate').value;
@@ -531,6 +553,44 @@ function initializeToDosTab() {
       document.getElementById('toDoMonthlyConfig').style.display = type === 'monthly' ? 'block' : 'none';
       document.getElementById('toDoIntervalConfig').style.display = type === 'interval' ? 'block' : 'none';
     });
+  }
+
+  // Handle interval day filter shortcuts for modal
+  const toDoWeekdaysCheckbox = document.getElementById('toDoIntervalFilterWeekdays');
+  const toDoWeekendsCheckbox = document.getElementById('toDoIntervalFilterWeekends');
+
+  if (toDoWeekdaysCheckbox) {
+    toDoWeekdaysCheckbox.addEventListener('change', () => {
+      if (toDoWeekdaysCheckbox.checked) {
+        toDoWeekendsCheckbox.checked = false;
+        for (let i = 0; i < 7; i++) {
+          const checkbox = document.getElementById(`toDoIntervalWeekDay${i}`);
+          if (checkbox) checkbox.checked = false;
+        }
+      }
+    });
+  }
+
+  if (toDoWeekendsCheckbox) {
+    toDoWeekendsCheckbox.addEventListener('change', () => {
+      if (toDoWeekendsCheckbox.checked) {
+        toDoWeekdaysCheckbox.checked = false;
+        for (let i = 0; i < 7; i++) {
+          const checkbox = document.getElementById(`toDoIntervalWeekDay${i}`);
+          if (checkbox) checkbox.checked = false;
+        }
+      }
+    });
+  }
+
+  for (let i = 0; i < 7; i++) {
+    const checkbox = document.getElementById(`toDoIntervalWeekDay${i}`);
+    if (checkbox) {
+      checkbox.addEventListener('change', () => {
+        toDoWeekdaysCheckbox.checked = false;
+        toDoWeekendsCheckbox.checked = false;
+      });
+    }
   }
 
   // Wire up editor pane buttons
