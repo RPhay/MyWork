@@ -74,6 +74,33 @@ export async function createTask(data, contextId) {
   return getTaskById(taskId);
 }
 
+async function wouldCreateCircularHierarchy(taskId, proposedParentId) {
+  if (!proposedParentId) return false;
+
+  let currentParentId = proposedParentId;
+  const visited = new Set();
+  visited.add(Number(proposedParentId));
+
+  while (currentParentId) {
+    if (Number(currentParentId) === Number(taskId)) {
+      return true;
+    }
+
+    const parent = await db.queryOne('SELECT parent_id FROM tasks WHERE id = ?', [currentParentId]);
+    if (!parent) break;
+
+    currentParentId = parent.parent_id;
+    if (currentParentId) {
+      if (visited.has(Number(currentParentId))) {
+        break;
+      }
+      visited.add(Number(currentParentId));
+    }
+  }
+
+  return false;
+}
+
 export async function updateTask(id, data) {
   const setClauses = [];
   const values = [];
@@ -96,6 +123,11 @@ export async function updateTask(id, data) {
     if (data.parent_id && Number(data.parent_id) === Number(id)) {
       throw new ValidationError('A task cannot be its own parent');
     }
+
+    if (await wouldCreateCircularHierarchy(id, data.parent_id)) {
+      throw new ValidationError('Cannot move a task to one of its descendants');
+    }
+
     setClauses.push('parent_id = ?');
     values.push(data.parent_id || null);
   }

@@ -12,11 +12,18 @@ function getTaskState() {
 }
 
 // Compute aggregated status for a task based on its children
-function computeTaskStatus(task, taskMap) {
+function computeTaskStatus(task, taskMap, visited = new Set(), depth = 0) {
+  const MAX_DEPTH = 100;
+  if (depth > MAX_DEPTH) return task.status;
+
+  const taskId = String(task.id);
+  if (visited.has(taskId)) return task.status;
+  visited.add(taskId);
+
   const children = (taskMap[task.id] || []);
   if (children.length === 0) return task.status;
 
-  const statuses = [task.status, ...children.map(child => computeTaskStatus(child, taskMap))];
+  const statuses = [task.status, ...children.map(child => computeTaskStatus(child, taskMap, visited, depth + 1))];
   if (statuses.includes('failed')) return 'failed';
   if (statuses.includes('incomplete')) return 'incomplete';
   if (statuses.includes('skipped')) return 'skipped';
@@ -43,7 +50,14 @@ function getRootTasks(tasks) {
   return tasks.filter(t => !t.parent_id);
 }
 
-function renderTaskRow(task, depth, childrenMap, statusMap) {
+function renderTaskRow(task, depth, childrenMap, statusMap, visited = new Set()) {
+  const MAX_DEPTH = 100;
+  if (depth > MAX_DEPTH) return '';
+
+  const taskId = String(task.id);
+  if (visited.has(taskId)) return '';
+  visited.add(taskId);
+
   const children = childrenMap[task.id] || [];
   const hasChildren = children.length > 0;
   const isExpanded = getTaskState().expandedTasks.has(String(task.id));
@@ -57,7 +71,7 @@ function renderTaskRow(task, depth, childrenMap, statusMap) {
 
   const childrenHtml = hasChildren && isExpanded
     ? `<div class="task-node-children">
-        ${children.map(c => renderTaskRow(c, depth + 1, childrenMap, statusMap)).join('')}
+        ${children.map(c => renderTaskRow(c, depth + 1, childrenMap, statusMap, visited)).join('')}
       </div>`
     : '';
 

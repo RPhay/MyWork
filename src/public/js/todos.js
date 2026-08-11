@@ -12,11 +12,18 @@ function getState() {
 }
 
 // Compute aggregated status for a todo based on its children
-function computeToDoStatus(todo, todoMap) {
+function computeToDoStatus(todo, todoMap, visited = new Set(), depth = 0) {
+  const MAX_DEPTH = 100;
+  if (depth > MAX_DEPTH) return todo.status;
+
+  const todoId = String(todo.id);
+  if (visited.has(todoId)) return todo.status;
+  visited.add(todoId);
+
   const children = (todoMap[todo.id] || []);
   if (children.length === 0) return todo.status;
 
-  const statuses = [todo.status, ...children.map(child => computeToDoStatus(child, todoMap))];
+  const statuses = [todo.status, ...children.map(child => computeToDoStatus(child, todoMap, visited, depth + 1))];
   if (statuses.includes('failed')) return 'failed';
   if (statuses.includes('incomplete')) return 'incomplete';
   if (statuses.includes('skipped')) return 'skipped';
@@ -43,7 +50,14 @@ function getRootTodos(toDos) {
   return toDos.filter(t => !t.parent_id);
 }
 
-function renderToDoRow(toDo, depth, childrenMap, statusMap) {
+function renderToDoRow(toDo, depth, childrenMap, statusMap, visited = new Set()) {
+  const MAX_DEPTH = 100;
+  if (depth > MAX_DEPTH) return '';
+
+  const todoId = String(toDo.id);
+  if (visited.has(todoId)) return '';
+  visited.add(todoId);
+
   const children = childrenMap[toDo.id] || [];
   const hasChildren = children.length > 0;
   const isExpanded = getState().expandedTodos.has(String(toDo.id));
@@ -53,7 +67,7 @@ function renderToDoRow(toDo, depth, childrenMap, statusMap) {
 
   const childrenHtml = hasChildren && isExpanded
     ? `<div class="todo-node-children">
-        ${children.map(c => renderToDoRow(c, depth + 1, childrenMap, statusMap)).join('')}
+        ${children.map(c => renderToDoRow(c, depth + 1, childrenMap, statusMap, visited)).join('')}
       </div>`
     : '';
 

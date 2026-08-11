@@ -74,6 +74,33 @@ export async function createToDo(data, contextId) {
   return getToDoById(toDoId);
 }
 
+async function wouldCreateCircularHierarchy(toDoId, proposedParentId) {
+  if (!proposedParentId) return false;
+
+  let currentParentId = proposedParentId;
+  const visited = new Set();
+  visited.add(Number(proposedParentId));
+
+  while (currentParentId) {
+    if (Number(currentParentId) === Number(toDoId)) {
+      return true;
+    }
+
+    const parent = await db.queryOne('SELECT parent_id FROM to_dos WHERE id = ?', [currentParentId]);
+    if (!parent) break;
+
+    currentParentId = parent.parent_id;
+    if (currentParentId) {
+      if (visited.has(Number(currentParentId))) {
+        break;
+      }
+      visited.add(Number(currentParentId));
+    }
+  }
+
+  return false;
+}
+
 export async function updateToDo(id, data) {
   const setClauses = [];
   const values = [];
@@ -96,6 +123,11 @@ export async function updateToDo(id, data) {
     if (data.parent_id && Number(data.parent_id) === Number(id)) {
       throw new ValidationError('A to do cannot be its own parent');
     }
+
+    if (await wouldCreateCircularHierarchy(id, data.parent_id)) {
+      throw new ValidationError('Cannot move a to do to one of its descendants');
+    }
+
     setClauses.push('parent_id = ?');
     values.push(data.parent_id || null);
   }
