@@ -153,7 +153,9 @@ const PriorityEditor = (() => {
 
     // Hide old sections
     sections.forEach(s => s.style.display = 'none');
-    sections.forEach(s => s.previousElementSibling?.style.display = 'none');
+    sections.forEach(s => {
+      if (s.previousElementSibling) s.previousElementSibling.style.display = 'none';
+    });
 
     // Render tree in a new container
     let treeContainer = document.getElementById('priorityEditorAssociatedItemsTree');

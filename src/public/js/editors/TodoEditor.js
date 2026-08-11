@@ -343,10 +343,14 @@ const TodoEditor = (() => {
     if (!data) return;
 
     // Hide old sections
-    document.getElementById('toDoEditorCategoriesList')?.style.display = 'none';
-    document.getElementById('toDoEditorCategoriesLabel')?.style.display = 'none';
-    document.getElementById('toDoEditorProjectsList')?.style.display = 'none';
-    document.getElementById('toDoEditorProjectsLabel')?.style.display = 'none';
+    const catList = document.getElementById('toDoEditorCategoriesList');
+    if (catList) catList.style.display = 'none';
+    const catLabel = document.getElementById('toDoEditorCategoriesLabel');
+    if (catLabel) catLabel.style.display = 'none';
+    const projList = document.getElementById('toDoEditorProjectsList');
+    if (projList) projList.style.display = 'none';
+    const projLabel = document.getElementById('toDoEditorProjectsLabel');
+    if (projLabel) projLabel.style.display = 'none';
 
     // Render tree in a new container
     let treeContainer = document.getElementById('toDoEditorAssociatedItemsTree');
