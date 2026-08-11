@@ -725,9 +725,11 @@ export async function createMysqlSchema(connection) {
       notes LONGTEXT,
       ticket_type VARCHAR(50) NOT NULL DEFAULT 'Other' COMMENT 'ServiceNow, Azure DevOps, or Other',
       context_id INT,
+      priority_id INT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (context_id) REFERENCES contexts(id)
+      FOREIGN KEY (context_id) REFERENCES contexts(id),
+      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
 
@@ -744,6 +746,13 @@ export async function createMysqlSchema(connection) {
       FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
     )
   `);
+
+  // Add priority_id column to tickets table (for project association)
+  if (!(await columnExists(connection, "tickets", "priority_id"))) {
+    await connection.query(
+      "ALTER TABLE tickets ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL"
+    );
+  }
 
   // Create users table - identity is deliberately minimal (name only, no
   // password): logging in with a name that doesn't exist yet creates it.

@@ -74,7 +74,8 @@
       "Bash(git fetch *)",
       "Bash(git merge *)",
       "Bash(curl -s \"http://localhost:3000/api/work?date=2026-08-11\" -H \"Accept: application/json\")",
-      "Bash(curl -s http://localhost:3000/api/priorities/1)"
+      "Bash(curl -s http://localhost:3000/api/priorities/1)",
+      "Bash(curl -s -b /tmp/cookies.txt -H \"Content-Type: application/json\" -d '{}' http://localhost:3000/api/tickets)"
     ]
   }
 }

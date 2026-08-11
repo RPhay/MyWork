@@ -60,22 +60,56 @@ export async function createTicket(data, contextId) {
 }
 
 export async function updateTicket(ticketId, data, contextId) {
-  const { title, notes, ticket_type } = data;
-
-  if (!title?.trim()) {
-    throw new ValidationError('Title is required');
-  }
-
-  if (!TICKET_TYPES.includes(ticket_type)) {
-    throw new ValidationError(`Invalid ticket type: ${ticket_type}`);
-  }
+  const { title, notes, ticket_type, priority_id } = data;
 
   // Verify ticket exists in this context
-  await getTicket(ticketId, contextId);
+  const ticket = await getTicket(ticketId, contextId);
 
+  const setClauses = [];
+  const values = [];
+
+  // Only update title if provided and non-empty
+  if (title !== undefined) {
+    if (!title?.trim()) {
+      throw new ValidationError('Title is required');
+    }
+    setClauses.push('title = ?');
+    values.push(title.trim());
+  }
+
+  // Only update notes if provided
+  if (notes !== undefined) {
+    setClauses.push('notes = ?');
+    values.push(notes || '');
+  }
+
+  // Only update ticket_type if provided
+  if (ticket_type !== undefined) {
+    if (!TICKET_TYPES.includes(ticket_type)) {
+      throw new ValidationError(`Invalid ticket type: ${ticket_type}`);
+    }
+    setClauses.push('ticket_type = ?');
+    values.push(ticket_type);
+  } else if (!title && !notes && priority_id === undefined) {
+    // If only updating via drag-to-associate, ensure ticket_type is set
+    throw new ValidationError('At least one field must be provided');
+  }
+
+  // Only update priority_id if provided
+  if (priority_id !== undefined) {
+    setClauses.push('priority_id = ?');
+    values.push(priority_id || null);
+  }
+
+  // If no fields to update, throw error
+  if (setClauses.length === 0) {
+    throw new ValidationError('At least one field must be provided');
+  }
+
+  values.push(ticketId, contextId);
   await db.update(
-    'UPDATE tickets SET title = ?, notes = ?, ticket_type = ? WHERE id = ? AND context_id = ?',
-    [title.trim(), notes || '', ticket_type, ticketId, contextId]
+    `UPDATE tickets SET ${setClauses.join(', ')} WHERE id = ? AND context_id = ?`,
+    values
   );
 
   return getTicket(ticketId, contextId);

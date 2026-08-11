@@ -494,6 +494,33 @@ async function loadPriorityRightPanel() {
   }
 }
 
+async function deleteProject(projectId) {
+  const projectName = document.querySelector(`[data-priority-id="${projectId}"] .priority-title`)?.textContent || 'this project';
+
+  if (!await app.confirm(`Delete "${projectName}"? This will remove it from all contexts.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/priorities/${projectId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Project deleted', 'success');
+      PriorityEditor.close();
+      loadPriorities();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    app.notify('Error deleting project', 'danger');
+  }
+}
+
 function initProjRightPanelTabs() {
   // Handle folder toggling for associate items
   document.querySelectorAll('.associate-folder-header').forEach(header => {
@@ -1481,6 +1508,8 @@ function initPriorities() {
       createAndAssociateTicket(contextMenuProjectId);
     } else if (action === 'create-todo') {
       createAndAssociateTodo(contextMenuProjectId);
+    } else if (action === 'delete-project') {
+      deleteProject(contextMenuProjectId);
     }
   });
 
