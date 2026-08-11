@@ -49,12 +49,22 @@ function renderToDoInTree(toDo, depth, showRemove = true) {
     ? `<button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="todo" data-child-id="${toDo.id}" title="Remove" aria-label="Remove"><i class="bi bi-x-circle"></i></button>`
     : '';
 
+  // Find children of this todo (todos with parent_id === this.id)
+  const children = allToDos.filter(t => t.parent_id === toDo.id);
+  const childrenHtml = children.length > 0
+    ? `<div class="priority-node-children">
+        ${children.map(child => renderToDoInTree(child, depth + 1, false)).join('')}
+      </div>`
+    : '';
+
   return `
-    <div class="priority-node todo-node" data-todo-id="${toDo.id}">
+    <div class="priority-node todo-node ${children.length > 0 ? 'expanded' : ''}" data-todo-id="${toDo.id}">
       <div class="priority-node-header todo-node-header" draggable="true" style="cursor: grab;">
         <span class="priority-title-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
-          <span class="priority-toggle"></span>
+          ${children.length > 0
+            ? '<i class="bi bi-chevron-right priority-toggle" data-action="toggle-expand"></i>'
+            : '<span class="priority-toggle"></span>'}
           <button type="button" class="todo-item-checkbox ${status !== 'incomplete' ? 'status-' + status : ''}" data-action="toggle-complete" data-id="${toDo.id}" data-status="${status}" title="${statusLabel} — click to change" aria-label="${statusLabel} — click to change">
             ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
           </button>
@@ -67,6 +77,7 @@ function renderToDoInTree(toDo, depth, showRemove = true) {
           ${removeBtn}
         </span>
       </div>
+      ${childrenHtml}
     </div>
   `;
 }
@@ -129,12 +140,22 @@ function renderTaskInTree(task, depth, showRemove = true) {
     ? `<button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="task" data-child-id="${task.id}" title="Remove" aria-label="Remove"><i class="bi bi-x-circle"></i></button>`
     : '';
 
+  // Find children of this task (tasks with parent_id === this.id)
+  const children = allTasks.filter(t => t.parent_id === task.id);
+  const childrenHtml = children.length > 0
+    ? `<div class="priority-node-children">
+        ${children.map(child => renderTaskInTree(child, depth + 1, false)).join('')}
+      </div>`
+    : '';
+
   return `
-    <div class="priority-node task-node" data-task-id="${task.id}">
+    <div class="priority-node task-node ${children.length > 0 ? 'expanded' : ''}" data-task-id="${task.id}">
       <div class="priority-node-header task-node-header" draggable="true" style="cursor: grab;">
         <span class="priority-title-cell">
           <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
-          <span class="priority-toggle"></span>
+          ${children.length > 0
+            ? '<i class="bi bi-chevron-right priority-toggle" data-action="toggle-expand"></i>'
+            : '<span class="priority-toggle"></span>'}
           <button type="button" class="todo-item-checkbox ${status !== 'incomplete' ? 'status-' + status : ''}" data-action="toggle-complete" data-id="${task.id}" data-status="${status}" title="${statusLabel} — click to change" aria-label="${statusLabel} — click to change">
             ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
           </button>
@@ -147,6 +168,7 @@ function renderTaskInTree(task, depth, showRemove = true) {
           ${removeBtn}
         </span>
       </div>
+      ${childrenHtml}
     </div>
   `;
 }
