@@ -106,7 +106,7 @@ function renderTasksList() {
     .map(t => renderTaskRow(t, 0, childrenMap, statusMap))
     .join('');
 
-  setupDragListeners();
+  // Event listeners stay attached to the container even after innerHTML changes
   window.allTasks = getTaskState().allTasks;
 }
 

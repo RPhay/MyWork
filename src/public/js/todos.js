@@ -101,8 +101,8 @@ function renderToDosList() {
     .map(t => renderToDoRow(t, 0, childrenMap, statusMap))
     .join('');
 
-  // Re-attach drag listeners without cloning (listeners were lost on innerHTML change)
-  setupToDoDragListeners();
+  // Event listeners stay attached to the container even after innerHTML changes
+  // They use event delegation on the container element itself
 }
 
 async function loadToDos() {
