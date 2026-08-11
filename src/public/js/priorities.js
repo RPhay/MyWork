@@ -1602,6 +1602,8 @@ function initPriorities() {
       contextMenuProjectId = header.closest('.priority-node').dataset.priorityId;
       contextMenu.style.left = e.clientX + 'px';
       contextMenu.style.top = e.clientY + 'px';
+      // Collapse all submenus before showing
+      contextMenu.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
       contextMenu.classList.remove('d-none');
     } else {
       contextMenu.classList.add('d-none');
