@@ -24,6 +24,17 @@ export function rewriteNowForMssql(sqlText) {
   return sqlText.replace(/\bNOW\(\)/gi, "SYSUTCDATETIME()");
 }
 
+// The rest of the app reads JSON columns with MySQL's JSON_EXTRACT(), which
+// returns a JSON boolean literal (comparable with `= true`); MSSQL's
+// equivalent JSON_VALUE() returns text, so a `= true` comparison needs to
+// become `= 'true'` too.
+export function rewriteJsonExtractForMssql(sqlText) {
+  return sqlText.replace(
+    /JSON_EXTRACT\(([^,]+),\s*('[^']+')\)\s*=\s*true\b/gi,
+    "JSON_VALUE($1, $2) = 'true'",
+  );
+}
+
 export function toNamedParams(sqlText, values) {
   let i = 0;
   const params = {};

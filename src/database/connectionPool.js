@@ -4,6 +4,7 @@ import config from "../config/environment.js";
 import logger from "../utils/logger.js";
 import {
   rewriteInsertIgnoreForMssql,
+  rewriteJsonExtractForMssql,
   rewriteNowForMssql,
   toNamedParams,
 } from "./mssqlTranslation.js";
@@ -75,6 +76,7 @@ function describeDbError(error) {
 async function executeMssql(sqlText, values) {
   const rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
   rewritten.sql = rewriteNowForMssql(rewritten.sql);
+  rewritten.sql = rewriteJsonExtractForMssql(rewritten.sql);
   const { translatedSql, params } = toNamedParams(
     rewritten.sql,
     rewritten.values,
