@@ -1476,13 +1476,25 @@ function initPriorities() {
   // Association functions
   async function associateCategory(projectId, categoryId) {
     try {
+      // Get current priority to preserve existing associations
+      const getResponse = await fetch(`/api/priorities/${projectId}`);
+      const getResult = await getResponse.json();
+      const priority = getResult.data;
+
+      // Get existing area_ids and add the new one
+      const existingAreaIds = (priority.areas || []).map(a => a.id);
+      const newAreaIds = [...existingAreaIds, parseInt(categoryId)];
+
+      // Remove duplicates
+      const uniqueAreaIds = [...new Set(newAreaIds)];
+
       const response = await fetch(`/api/priorities/${projectId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': window.APP_CONFIG?.csrfToken
         },
-        body: JSON.stringify({ area_id: categoryId, _action: 'associate' })
+        body: JSON.stringify({ area_ids: uniqueAreaIds })
       });
 
       const result = await response.json();
