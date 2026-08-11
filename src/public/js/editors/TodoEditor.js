@@ -32,6 +32,9 @@ const TodoEditor = (() => {
         setupURLDragDrop('to-do', 'toDoEditorLinksList', () => toDo.id);
       }
 
+      // Load and display associated items
+      await renderAssociatedItems(toDo);
+
       splitPane.showRightPane();
     } catch (error) {
       console.error('Error loading to do:', error);
@@ -312,6 +315,89 @@ const TodoEditor = (() => {
     }
   };
 
+  const renderAssociatedItems = async (todo) => {
+    const todoId = todo.id;
+
+    // Render categories
+    const categoriesResponse = await fetch('/api/areas').catch(() => ({ json: () => ({ data: [] }) }));
+    const categoriesResult = await categoriesResponse.json();
+    const allCategories = categoriesResult.data || [];
+    renderItemsList('toDoEditorCategoriesList', allCategories, 'category', todoId);
+
+    // Render projects
+    const projectsResponse = await fetch('/api/priorities').catch(() => ({ json: () => ({ data: [] }) }));
+    const projectsResult = await projectsResponse.json();
+    const allProjects = projectsResult.data || [];
+    renderItemsList('toDoEditorProjectsList', allProjects, 'project', todoId);
+  };
+
+  const renderItemsList = (containerId, items, itemType, todoId) => {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    container.innerHTML = '';
+    items.forEach(item => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'list-group-item d-flex justify-content-between align-items-center';
+      itemEl.innerHTML = `
+        <span>${app.escapeHtml(item.name || item.title)}</span>
+        <button type="button" class="btn btn-sm btn-outline-danger remove-item" data-item-type="${itemType}" data-item-id="${item.id}">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      `;
+      container.appendChild(itemEl);
+
+      itemEl.querySelector('.remove-item').addEventListener('click', (e) => {
+        e.preventDefault();
+        removeAssociation(todoId, itemType, item.id);
+      });
+    });
+  };
+
+  const removeAssociation = async (todoId, itemType, itemId) => {
+    try {
+      let url, body;
+
+      if (itemType === 'category') {
+        url = `/api/areas/${itemId}`;
+        const response = await fetch(url);
+        const result = await response.json();
+        const area = result.data;
+        const existingTodoIds = (area.to_dos || []).map(t => t.id).filter(id => id !== parseInt(todoId));
+        body = JSON.stringify({ todo_ids: existingTodoIds });
+      } else if (itemType === 'project') {
+        url = `/api/priorities/${itemId}`;
+        const response = await fetch(url);
+        const result = await response.json();
+        const priority = result.data;
+        const existingTodoIds = (priority.todos || []).map(t => t.id).filter(id => id !== parseInt(todoId));
+        body = JSON.stringify({ todo_ids: existingTodoIds });
+      }
+
+      if (!url) return;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: body
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Association removed!', 'success');
+        TodoEditor.populate(todoId);
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error removing association:', error);
+      app.notify('Error removing association', 'danger');
+    }
+  };
+
   const close = () => {
     if (splitPane) {
       splitPane.hideRightPane();
@@ -326,6 +412,7 @@ const TodoEditor = (() => {
     populate,
     fillForm,
     renderLinks,
+    renderAssociatedItems,
     save,
     close
   };
