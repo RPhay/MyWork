@@ -1,5 +1,30 @@
 let expandedAreas = new Set();
 let allAreas = [];
+let currentAreaId = null;
+let areaEditorHasChanges = false;
+
+const markAreaEditorChanged = () => {
+  areaEditorHasChanges = true;
+  const saveBtn = document.getElementById('saveAreaEditorBtn');
+  if (saveBtn) saveBtn.disabled = false;
+};
+
+const trackAreaFormChanges = () => {
+  const form = document.getElementById('areaEditorForm');
+  if (!form) return;
+
+  const inputs = form.querySelectorAll('input[type="text"], textarea');
+  inputs.forEach(input => {
+    input.addEventListener('change', markAreaEditorChanged);
+    input.addEventListener('input', markAreaEditorChanged);
+  });
+};
+
+const resetAreaEditorTracking = () => {
+  areaEditorHasChanges = false;
+  const saveBtn = document.getElementById('saveAreaEditorBtn');
+  if (saveBtn) saveBtn.disabled = true;
+};
 
 function renderAreaNode(area, byParent, depth) {
   const children = byParent.get(area.id) || [];
@@ -185,6 +210,8 @@ async function saveAreaEditor() {
 }
 
 function closeAreaEditor() {
+  resetAreaEditorTracking();
+  currentAreaId = null;
   if (window.areaSplitPane) {
     window.areaSplitPane.hideRightPane();
   }
@@ -196,16 +223,28 @@ function closeAreaEditor() {
 
 async function editArea(areaId) {
   try {
+    // Check if clicking on same row that's already open
+    if (currentAreaId === areaId) {
+      if (areaEditorHasChanges) {
+        return; // Don't close if there are unsaved changes
+      }
+      closeAreaEditor();
+      return;
+    }
+
     const response = await fetch(`/api/areas/${areaId}`);
     const result = await response.json();
     const area = result.data;
 
+    currentAreaId = areaId;
+    resetAreaEditorTracking();
     document.getElementById('areaEditorId').value = area.id;
     document.getElementById('areaEditorName').value = area.name;
     document.getElementById('areaEditorDescription').value = area.description || '';
     document.getElementById('areaEditorParentId').value = '';
     document.getElementById('areaEditorParentHint').classList.add('d-none');
     document.getElementById('areaEditorTitle').textContent = area.name;
+    trackAreaFormChanges();
 
     // Show split-pane editor
     if (window.areaSplitPane) {

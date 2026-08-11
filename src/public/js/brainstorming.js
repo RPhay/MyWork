@@ -1,6 +1,31 @@
 let expandedIdeaFolders = new Set();
 let allIdeaFolders = [];
 let allIdeas = [];
+let currentIdeaId = null;
+let ideaEditorHasChanges = false;
+
+const markIdeaEditorChanged = () => {
+  ideaEditorHasChanges = true;
+  const saveBtn = document.getElementById('saveIdeaEditorBtn');
+  if (saveBtn) saveBtn.disabled = false;
+};
+
+const trackIdeaFormChanges = () => {
+  const form = document.getElementById('ideaEditorForm');
+  if (!form) return;
+
+  const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="url"], input[type="hidden"]');
+  inputs.forEach(input => {
+    input.addEventListener('change', markIdeaEditorChanged);
+    input.addEventListener('input', markIdeaEditorChanged);
+  });
+};
+
+const resetIdeaEditorTracking = () => {
+  ideaEditorHasChanges = false;
+  const saveBtn = document.getElementById('saveIdeaEditorBtn');
+  if (saveBtn) saveBtn.disabled = true;
+};
 
 // Parse email data from drag event
 function parseEmailData(text) {
@@ -287,6 +312,8 @@ async function saveIdea() {
 }
 
 function closeIdeaEditor() {
+  resetIdeaEditorTracking();
+  currentIdeaId = null;
   if (window.ideaSplitPane) {
     window.ideaSplitPane.hideRightPane();
   }
@@ -294,6 +321,15 @@ function closeIdeaEditor() {
 
 async function editIdea(ideaId) {
   try {
+    // Check if clicking on same row that's already open
+    if (currentIdeaId === ideaId) {
+      if (ideaEditorHasChanges) {
+        return; // Don't close if there are unsaved changes
+      }
+      closeIdeaEditor();
+      return;
+    }
+
     const response = await fetch(`/api/ideas/${ideaId}`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
@@ -304,10 +340,13 @@ async function editIdea(ideaId) {
     }
     const idea = result.data;
 
+    currentIdeaId = ideaId;
+    resetIdeaEditorTracking();
     document.getElementById('ideaEditorId').value = idea.id;
     document.getElementById('ideaEditorFormTitle').value = idea.title;
     document.getElementById('ideaEditorNotes').value = idea.notes || '';
     document.getElementById('ideaEditorTitle').textContent = idea.title;
+    trackIdeaFormChanges();
 
     // Load and display links
     loadLinksForEntity('idea', idea.id, 'ideaEditorLinksList');

@@ -3,6 +3,31 @@ let calendarViewMonth; // 0-indexed
 let expandedWorkItems = new Set();
 let currentWorkItems = [];
 let dailiesSplitPane; // Reference to the inner split pane for work items editor
+let currentWorkItemId = null;
+let workItemEditorHasChanges = false;
+
+const markWorkItemEditorChanged = () => {
+  workItemEditorHasChanges = true;
+  const saveBtn = document.getElementById('saveWorkItemEditorBtn');
+  if (saveBtn) saveBtn.disabled = false;
+};
+
+const trackWorkItemFormChanges = () => {
+  const form = document.getElementById('workItemEditorForm');
+  if (!form) return;
+
+  const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="number"], select, input[type="hidden"], input[type="radio"]');
+  inputs.forEach(input => {
+    input.addEventListener('change', markWorkItemEditorChanged);
+    input.addEventListener('input', markWorkItemEditorChanged);
+  });
+};
+
+const resetWorkItemEditorTracking = () => {
+  workItemEditorHasChanges = false;
+  const saveBtn = document.getElementById('saveWorkItemEditorBtn');
+  if (saveBtn) saveBtn.disabled = true;
+};
 
 const ASSOCIATION_PATHS = {
   priority: "priorities",
@@ -955,6 +980,15 @@ async function saveWorkItem() {
 
 async function editWorkItem(workId) {
   try {
+    // Check if clicking on same row that's already open
+    if (currentWorkItemId === workId) {
+      if (workItemEditorHasChanges) {
+        return; // Don't close if there are unsaved changes
+      }
+      closeWorkItemEditor();
+      return;
+    }
+
     const response = await fetch(`/api/work/${workId}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
@@ -970,6 +1004,8 @@ async function editWorkItem(workId) {
       if (el) el.textContent = value;
     };
 
+    currentWorkItemId = workId;
+    resetWorkItemEditorTracking();
     setFieldValue("workItemEditorId", item.id);
     setFieldValue("workItemEditorTitle", item.title);
     setFieldText("workItemEditorDisplayTitle", item.title);
@@ -978,6 +1014,7 @@ async function editWorkItem(workId) {
     setFieldValue("workItemEditorStatus", item.status || "");
     setFieldValue("workItemEditorTimeBox", item.time_box_minutes ? (item.time_box_minutes / 60).toFixed(1) : "");
     updateEmojiFieldButton("workItemEditorEmojiBtn", item.emoji || "");
+    trackWorkItemFormChanges();
 
     // Show split-pane editor
     if (dailiesSplitPane) {
@@ -990,6 +1027,8 @@ async function editWorkItem(workId) {
 }
 
 function closeWorkItemEditor() {
+  resetWorkItemEditorTracking();
+  currentWorkItemId = null;
   if (dailiesSplitPane) {
     dailiesSplitPane.hideRightPane();
   }
