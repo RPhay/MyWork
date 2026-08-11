@@ -201,7 +201,8 @@ function collectToDoRecurrenceFromModal() {
   const enabled = document.getElementById('toDoRecurrenceEnabled').checked;
   if (!enabled) return null;
 
-  const type = document.getElementById('toDoRecurrenceType').value;
+  const typeRadio = document.querySelector('input[name="toDoRecurrenceType"]:checked');
+  const type = typeRadio?.value || 'daily';
   const recurrence = { enabled: true, type };
 
   if (type === 'weekly') {
@@ -567,15 +568,14 @@ function initializeToDosTab() {
     });
   }
 
-  const toDoRecurrenceType = document.getElementById('toDoRecurrenceType');
-  if (toDoRecurrenceType) {
-    toDoRecurrenceType.addEventListener('change', () => {
-      const type = toDoRecurrenceType.value;
+  document.querySelectorAll('input[name="toDoRecurrenceType"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const type = radio.value;
       document.getElementById('toDoWeeklyConfig').style.display = type === 'weekly' ? 'block' : 'none';
       document.getElementById('toDoMonthlyConfig').style.display = type === 'monthly' ? 'block' : 'none';
       document.getElementById('toDoIntervalConfig').style.display = type === 'interval' ? 'block' : 'none';
     });
-  }
+  });
 
   // Handle interval day filter shortcuts for modal
   const toDoWeekdaysCheckbox = document.getElementById('toDoIntervalFilterWeekdays');

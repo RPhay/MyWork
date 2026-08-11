@@ -54,13 +54,17 @@
 
           <div id="toDoEditorRecurrencePanel" style="display:none;" class="mt-2 p-2 bg-light rounded">
             <div class="mb-2">
-              <label for="toDoEditorRecurrenceType" class="form-label small">Type</label>
-              <select class="form-select form-select-sm" id="toDoEditorRecurrenceType">
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="interval">Custom Interval</option>
-              </select>
+              <label class="form-label small d-block">Type</label>
+              <div class="btn-group btn-group-sm w-100" role="group">
+                <input type="radio" class="btn-check" id="toDoEditorRecurrenceTypeDaily" name="toDoEditorRecurrenceType" value="daily" checked>
+                <label class="btn btn-outline-secondary" for="toDoEditorRecurrenceTypeDaily">Daily</label>
+                <input type="radio" class="btn-check" id="toDoEditorRecurrenceTypeWeekly" name="toDoEditorRecurrenceType" value="weekly">
+                <label class="btn btn-outline-secondary" for="toDoEditorRecurrenceTypeWeekly">Weekly</label>
+                <input type="radio" class="btn-check" id="toDoEditorRecurrenceTypeMonthly" name="toDoEditorRecurrenceType" value="monthly">
+                <label class="btn btn-outline-secondary" for="toDoEditorRecurrenceTypeMonthly">Monthly</label>
+                <input type="radio" class="btn-check" id="toDoEditorRecurrenceTypeInterval" name="toDoEditorRecurrenceType" value="interval">
+                <label class="btn btn-outline-secondary" for="toDoEditorRecurrenceTypeInterval">Custom Interval</label>
+              </div>
             </div>
 
             <!-- Weekly Config -->
@@ -246,13 +250,17 @@
 
             <div id="toDoRecurrencePanel" style="display:none;" class="mt-2 p-2 bg-light rounded">
               <div class="mb-2">
-                <label for="toDoRecurrenceType" class="form-label small">Type</label>
-                <select class="form-select form-select-sm" id="toDoRecurrenceType">
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="interval">Custom Interval</option>
-                </select>
+                <label class="form-label small d-block">Type</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                  <input type="radio" class="btn-check" id="toDoRecurrenceTypeDaily" name="toDoRecurrenceType" value="daily" checked>
+                  <label class="btn btn-outline-secondary" for="toDoRecurrenceTypeDaily">Daily</label>
+                  <input type="radio" class="btn-check" id="toDoRecurrenceTypeWeekly" name="toDoRecurrenceType" value="weekly">
+                  <label class="btn btn-outline-secondary" for="toDoRecurrenceTypeWeekly">Weekly</label>
+                  <input type="radio" class="btn-check" id="toDoRecurrenceTypeMonthly" name="toDoRecurrenceType" value="monthly">
+                  <label class="btn btn-outline-secondary" for="toDoRecurrenceTypeMonthly">Monthly</label>
+                  <input type="radio" class="btn-check" id="toDoRecurrenceTypeInterval" name="toDoRecurrenceType" value="interval">
+                  <label class="btn btn-outline-secondary" for="toDoRecurrenceTypeInterval">Custom Interval</label>
+                </div>
               </div>
 
               <!-- Weekly Config -->

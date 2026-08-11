@@ -54,13 +54,17 @@
 
           <div id="taskEditorRecurrencePanel" style="display:none;" class="mt-2 p-2 bg-light rounded">
             <div class="mb-2">
-              <label for="taskEditorRecurrenceType" class="form-label small">Type</label>
-              <select class="form-select form-select-sm" id="taskEditorRecurrenceType">
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="interval">Custom Interval</option>
-              </select>
+              <label class="form-label small d-block">Type</label>
+              <div class="btn-group btn-group-sm w-100" role="group">
+                <input type="radio" class="btn-check" id="taskEditorRecurrenceTypeDaily" name="taskEditorRecurrenceType" value="daily" checked>
+                <label class="btn btn-outline-secondary" for="taskEditorRecurrenceTypeDaily">Daily</label>
+                <input type="radio" class="btn-check" id="taskEditorRecurrenceTypeWeekly" name="taskEditorRecurrenceType" value="weekly">
+                <label class="btn btn-outline-secondary" for="taskEditorRecurrenceTypeWeekly">Weekly</label>
+                <input type="radio" class="btn-check" id="taskEditorRecurrenceTypeMonthly" name="taskEditorRecurrenceType" value="monthly">
+                <label class="btn btn-outline-secondary" for="taskEditorRecurrenceTypeMonthly">Monthly</label>
+                <input type="radio" class="btn-check" id="taskEditorRecurrenceTypeInterval" name="taskEditorRecurrenceType" value="interval">
+                <label class="btn btn-outline-secondary" for="taskEditorRecurrenceTypeInterval">Custom Interval</label>
+              </div>
             </div>
 
             <!-- Weekly Config -->
@@ -224,13 +228,17 @@
 
             <div id="taskRecurrencePanel" style="display:none;" class="mt-2 p-2 bg-light rounded">
               <div class="mb-2">
-                <label for="taskRecurrenceType" class="form-label small">Type</label>
-                <select class="form-select form-select-sm" id="taskRecurrenceType">
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="interval">Custom Interval</option>
-                </select>
+                <label class="form-label small d-block">Type</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                  <input type="radio" class="btn-check" id="taskRecurrenceTypeDaily" name="taskRecurrenceType" value="daily" checked>
+                  <label class="btn btn-outline-secondary" for="taskRecurrenceTypeDaily">Daily</label>
+                  <input type="radio" class="btn-check" id="taskRecurrenceTypeWeekly" name="taskRecurrenceType" value="weekly">
+                  <label class="btn btn-outline-secondary" for="taskRecurrenceTypeWeekly">Weekly</label>
+                  <input type="radio" class="btn-check" id="taskRecurrenceTypeMonthly" name="taskRecurrenceType" value="monthly">
+                  <label class="btn btn-outline-secondary" for="taskRecurrenceTypeMonthly">Monthly</label>
+                  <input type="radio" class="btn-check" id="taskRecurrenceTypeInterval" name="taskRecurrenceType" value="interval">
+                  <label class="btn btn-outline-secondary" for="taskRecurrenceTypeInterval">Custom Interval</label>
+                </div>
               </div>
 
               <!-- Weekly Config -->

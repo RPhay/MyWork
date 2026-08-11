@@ -41,8 +41,8 @@ const TaskEditor = (() => {
     enabledCheckbox.checked = recurrence.enabled;
     toggleRecurrencePanel();
 
-    const typeSelect = document.getElementById('taskEditorRecurrenceType');
-    typeSelect.value = recurrence.type || 'daily';
+    const typeRadio = document.querySelector(`input[name="taskEditorRecurrenceType"][value="${recurrence.type || 'daily'}"]`);
+    if (typeRadio) typeRadio.checked = true;
     updateRecurrenceTypePanel();
 
     if (recurrence.type === 'weekly' && recurrence.daysOfWeek) {
@@ -106,7 +106,8 @@ const TaskEditor = (() => {
     const enabled = document.getElementById('taskEditorRecurrenceEnabled').checked;
     if (!enabled) return null;
 
-    const type = document.getElementById('taskEditorRecurrenceType').value;
+    const typeRadio = document.querySelector('input[name="taskEditorRecurrenceType"]:checked');
+    const type = typeRadio?.value || 'daily';
     const recurrence = { enabled: true, type };
 
     if (type === 'weekly') {
@@ -236,7 +237,8 @@ const TaskEditor = (() => {
   };
 
   const updateRecurrenceTypePanel = () => {
-    const type = document.getElementById('taskEditorRecurrenceType').value;
+    const typeRadio = document.querySelector('input[name="taskEditorRecurrenceType"]:checked');
+    const type = typeRadio?.value || 'daily';
     document.getElementById('taskEditorWeeklyConfig').style.display = type === 'weekly' ? 'block' : 'none';
     document.getElementById('taskEditorMonthlyConfig').style.display = type === 'monthly' ? 'block' : 'none';
     document.getElementById('taskEditorIntervalConfig').style.display = type === 'interval' ? 'block' : 'none';
@@ -244,15 +246,14 @@ const TaskEditor = (() => {
 
   const setupRecurrenceEventListeners = () => {
     const enabledCheckbox = document.getElementById('taskEditorRecurrenceEnabled');
-    const typeSelect = document.getElementById('taskEditorRecurrenceType');
 
     if (enabledCheckbox) {
       enabledCheckbox.addEventListener('change', toggleRecurrencePanel);
     }
 
-    if (typeSelect) {
-      typeSelect.addEventListener('change', updateRecurrenceTypePanel);
-    }
+    document.querySelectorAll('input[name="taskEditorRecurrenceType"]').forEach(radio => {
+      radio.addEventListener('change', updateRecurrenceTypePanel);
+    });
 
     // Handle interval day filter shortcuts
     const weekdaysCheckbox = document.getElementById('taskEditorIntervalFilterWeekdays');
