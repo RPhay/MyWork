@@ -469,10 +469,18 @@ function setupToDoDragListeners() {
     }
   });
 
-  // Edit
+  // Edit - open editor on row click (except for interactive elements)
   container.addEventListener('click', (e) => {
-    if (e.target.closest('.todo-title')) {
-      const row = e.target.closest('.todo-row');
+    const row = e.target.closest('.todo-row');
+    if (!row) return;
+
+    // Don't open editor if clicking on interactive elements
+    const isInteractive = e.target.closest('[data-action]') ||
+                         e.target.closest('button') ||
+                         e.target.closest('.todo-folder-toggle') ||
+                         e.target.closest('.todo-item-checkbox');
+
+    if (!isInteractive) {
       const toDoId = row.getAttribute('data-id');
       editToDo(toDoId);
     }

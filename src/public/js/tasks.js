@@ -472,10 +472,17 @@ function setupDragListeners() {
     }
   });
 
-  // Edit
+  // Edit - open editor on row click (except for interactive elements)
   newContainer.addEventListener('click', (e) => {
-    if (e.target.closest('.task-title')) {
-      const row = e.target.closest('.task-row');
+    const row = e.target.closest('.task-row');
+    if (!row) return;
+
+    // Don't open editor if clicking on interactive elements
+    const isInteractive = e.target.closest('[data-action]') ||
+                         e.target.closest('button') ||
+                         e.target.closest('.task-checkbox');
+
+    if (!isInteractive) {
       const taskId = row.getAttribute('data-task-id');
       openTaskForm(taskId);
       e.stopPropagation();
