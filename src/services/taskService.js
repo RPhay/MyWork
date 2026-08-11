@@ -123,14 +123,15 @@ export async function updateTask(id, data) {
       const isDescendant = ancestorChain.some(a => Number(a.id) === Number(id));
 
       if (isDescendant) {
-        // Swap: the parent (id) should take the proposed parent's parent_id
-        const proposedParent = await db.queryOne('SELECT parent_id FROM tasks WHERE id = ?', [data.parent_id]);
+        // Swap: promote the proposed parent to where the current item is
+        const currentTask = await db.queryOne('SELECT parent_id FROM tasks WHERE id = ?', [id]);
+        const currentParentId = currentTask?.parent_id || null;
 
-        // First, update the proposed parent's parent to point to the original parent
-        await db.update('UPDATE tasks SET parent_id = ? WHERE id = ?', [id, data.parent_id]);
+        // Set proposed parent's parent to current item's old parent (promotes the child)
+        await db.update('UPDATE tasks SET parent_id = ? WHERE id = ?', [currentParentId, data.parent_id]);
 
-        // Then update the original parent to point to the proposed parent's old parent
-        await db.update('UPDATE tasks SET parent_id = ? WHERE id = ?', [proposedParent?.parent_id || null, id]);
+        // Set current item's parent to the proposed parent (moves parent under child)
+        await db.update('UPDATE tasks SET parent_id = ? WHERE id = ?', [data.parent_id, id]);
 
         return getTaskById(id);
       }
