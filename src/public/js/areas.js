@@ -470,6 +470,59 @@ async function associateTicketWithArea(ticketId, areaId) {
   }
 }
 
+function showManageAreaAssociationsModal(areaId) {
+  const area = allAreas.find(a => a.id === areaId);
+  if (!area) return;
+
+  const associatedTodos = window.todoState?.allToDos?.filter(t => t.category_id === areaId) || [];
+  const associatedTickets = window.ticketState?.allTickets?.filter(t => t.category_id === areaId) || [];
+
+  const listHtml = associatedTodos.map(t => `
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <i class="bi bi-check2-square text-muted"></i>
+        <span>${app.escapeHtml(t.title)}</span>
+      </div>
+      <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink-todo" data-id="${t.id}" title="Unlink">
+        <i class="bi bi-x-circle"></i>
+      </button>
+    </div>
+  `).concat(associatedTickets.map(t => `
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <i class="bi bi-ticket text-muted"></i>
+        <span>${app.escapeHtml(t.title)}</span>
+      </div>
+      <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink-ticket" data-id="${t.id}" title="Unlink">
+        <i class="bi bi-x-circle"></i>
+      </button>
+    </div>
+  `)).join('');
+
+  const itemsList = document.getElementById('areaAssociatedItemsList');
+  itemsList.innerHTML = listHtml || '<p class="text-center text-muted">No associated items</p>';
+
+  // Attach event handlers
+  itemsList.querySelectorAll('[data-action="unlink-todo"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await unlinkTodoFromArea(btn.dataset.id);
+      showManageAreaAssociationsModal(areaId);
+    });
+  });
+
+  itemsList.querySelectorAll('[data-action="unlink-ticket"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await unlinkTicketFromArea(btn.dataset.id);
+      showManageAreaAssociationsModal(areaId);
+    });
+  });
+
+  const modal = new bootstrap.Modal(document.getElementById('manageAreaAssociationsModal'));
+  modal.show();
+}
+
 function clearDropTargets(container) {
   container.querySelectorAll('.area-drop-target').forEach(el => el.classList.remove('area-drop-target'));
   container.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
@@ -654,47 +707,29 @@ function initAreaContextMenu() {
   }
 
   menu.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]') || e.target.closest('[data-menu-action]');
+    const btn = e.target.closest('[data-action]');
     if (!btn || !contextMenuAreaId) {
       hideAreaContextMenu();
       return;
     }
 
     const areaId = contextMenuAreaId;
+    const action = btn.dataset.action;
 
-    const action = btn.dataset.action || btn.dataset.menuAction;
     if (action === 'create-subcategory') {
       hideAreaContextMenu();
       openNewAreaForm(areaId);
       const modal = new bootstrap.Modal(document.getElementById('areaModal'));
       modal.show();
-    } else if (action === 'associate-ticket') {
-      app.notify('Associate ticket feature coming soon', 'info');
-    } else if (action === 'associate-todo') {
-      app.notify('Associate todo feature coming soon', 'info');
-    } else if (action === 'create-ticket') {
-      app.notify('Create ticket feature coming soon', 'info');
-    } else if (action === 'create-todo') {
-      app.notify('Create todo feature coming soon', 'info');
+    } else if (action === 'manage-associations') {
+      hideAreaContextMenu();
+      showManageAreaAssociationsModal(areaId);
     } else if (action === 'delete-area') {
       hideAreaContextMenu();
       deleteArea(areaId);
       return;
     }
     hideAreaContextMenu();
-  });
-
-  // Toggle submenus
-  menu.addEventListener('click', (e) => {
-    const submenuBtn = e.target.closest('.has-submenu');
-    if (submenuBtn) {
-      e.stopPropagation();
-      const submenuId = submenuBtn.dataset.submenu;
-      const submenu = menu.querySelector(`#${submenuId}`);
-      if (submenu) {
-        submenu.classList.toggle('d-none');
-      }
-    }
   });
 
   document.addEventListener('click', (e) => {

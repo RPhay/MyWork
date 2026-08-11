@@ -23,38 +23,6 @@
     </div>
   </div>
 
-  <!-- Todo Context Menu -->
-  <div id="toDoContextMenu" class="context-menu d-none" style="position: fixed; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; min-width: 200px;">
-    <div class="context-menu-submenu-group">
-      <button type="button" class="context-menu-item has-submenu" data-submenu="todo-associate-items">
-        <i class="bi bi-link-45deg"></i> Associate Item
-        <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
-      </button>
-      <div id="todo-associate-items-submenu" class="context-menu-submenu d-none">
-        <button type="button" class="context-menu-item" data-action="associate-category"><i class="bi bi-folder"></i> Category</button>
-        <button type="button" class="context-menu-item" data-action="associate-ticket"><i class="bi bi-ticket"></i> Ticket</button>
-      </div>
-    </div>
-
-    <div class="context-menu-submenu-group">
-      <button type="button" class="context-menu-item has-submenu" data-submenu="todo-create-items">
-        <i class="bi bi-plus-circle"></i> Create Item
-        <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
-      </button>
-      <div id="todo-create-items-submenu" class="context-menu-submenu d-none">
-        <button type="button" class="context-menu-item" data-action="create-child-todo"><i class="bi bi-check2-square"></i> Child Todo</button>
-        <button type="button" class="context-menu-item" data-action="create-category"><i class="bi bi-folder"></i> Category</button>
-        <button type="button" class="context-menu-item" data-action="create-ticket"><i class="bi bi-ticket"></i> Ticket</button>
-      </div>
-    </div>
-
-    <div class="context-menu-submenu-group" style="border-top: 1px solid #ddd; margin-top: 0.5rem; padding-top: 0.5rem;">
-      <button type="button" class="context-menu-item text-danger" data-action="delete-todo">
-        <i class="bi bi-trash"></i> Delete Todo
-      </button>
-    </div>
-  </div>
-
   <!-- Divider -->
   <div class="split-pane-divider" id="todoDivider"></div>
 
@@ -260,6 +228,40 @@
     </div>
   </div>
   </div>
+</div>
+
+<!-- Manage Associations Modal -->
+<div class="modal fade" id="manageTodoAssociationsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Manage Associated Items</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Associated items for this todo:</p>
+        <div id="todoAssociatedItemsList" style="max-height: 400px; overflow-y: auto;">
+          <p class="text-center text-muted">No associated items</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Todo Context Menu -->
+<div id="toDoContextMenu" class="context-menu d-none" style="position: fixed; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; min-width: 150px;">
+  <button type="button" class="context-menu-item" data-action="create-child-todo" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-plus-circle"></i> Create Child Todo
+  </button>
+  <button type="button" class="context-menu-item" data-action="manage-associations" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-sliders"></i> Manage Associations
+  </button>
+  <button type="button" class="context-menu-item text-danger" data-action="delete-todo" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-trash"></i> Delete Todo
+  </button>
 </div>
 
 <!-- To Do Convert Context Menu (right-click a to do) -->

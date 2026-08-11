@@ -399,44 +399,81 @@ function showTicketContextMenu(e, ticketType, ticketId) {
   menu.dataset.ticketType = ticketType;
   menu.dataset.ticketId = ticketId || '';
 
-  // Collapse all submenus
-  menu.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
-
-  // Set up handlers
-  const associateMenu = menu.querySelector('#ticket-associate-items-submenu');
-  const createMenu = menu.querySelector('#ticket-create-items-submenu');
-
   menu.querySelectorAll('.context-menu-item').forEach(item => {
     item.onclick = () => {
       const action = item.dataset.action;
-      if (action === 'associate-todo') {
-        showAssociateModal('todo', ticketId);
-      } else if (action === 'associate-goal') {
-        showAssociateModal('goal', ticketId);
-      } else if (action === 'create-todo') {
-        openCreateTodoForTicket(ticketId);
-      } else if (action === 'create-goal') {
-        openCreateGoalForTicket(ticketId);
+      if (action === 'manage-associations') {
+        showManageTicketAssociationsModal(ticketId);
       } else if (action === 'delete-ticket') {
         deleteTicket(ticketId);
       }
       hideTicketContextMenu();
     };
   });
-
-  // Submenu toggle
-  menu.querySelectorAll('.has-submenu').forEach(item => {
-    item.onclick = (e) => {
-      e.stopPropagation();
-      const submenuId = item.dataset.submenu;
-      const submenu = menu.querySelector(`#${submenuId}`);
-      submenu.classList.toggle('d-none');
-    };
-  });
 }
 
 function hideTicketContextMenu() {
   document.getElementById('ticketContextMenu').classList.add('d-none');
+}
+
+function showManageTicketAssociationsModal(ticketId) {
+  const ticket = allTickets.find(t => t.id === ticketId);
+  if (!ticket) return;
+
+  const associatedTodos = allToDos.filter(t => t.ticket_id === ticketId);
+  const associatedGoals = allGoals.filter(g => g.ticket_id === ticketId);
+
+  const itemsList = document.getElementById('ticketAssociatedItemsList');
+  if (associatedTodos.length === 0 && associatedGoals.length === 0) {
+    itemsList.innerHTML = '<p class="text-center text-muted">No associated items</p>';
+  } else {
+    let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+
+    associatedTodos.forEach((todo) => {
+      html += `
+        <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+          <i class="bi bi-check2-square"></i>
+          <span style="flex: 1; font-size: 0.9rem;">${app.escapeHtml(todo.title)}</span>
+          <button class="btn btn-sm btn-link p-0" data-action="unlink-item" data-type="todo" data-id="${todo.id}" title="Unlink">
+            <i class="bi bi-x-circle text-danger"></i>
+          </button>
+        </div>
+      `;
+    });
+
+    associatedGoals.forEach((goal) => {
+      html += `
+        <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+          <i class="bi bi-target"></i>
+          <span style="flex: 1; font-size: 0.9rem;">${app.escapeHtml(goal.name)}</span>
+          <button class="btn btn-sm btn-link p-0" data-action="unlink-item" data-type="goal" data-id="${goal.id}" title="Unlink">
+            <i class="bi bi-x-circle text-danger"></i>
+          </button>
+        </div>
+      `;
+    });
+
+    html += '</div>';
+    itemsList.innerHTML = html;
+
+    itemsList.querySelectorAll('[data-action="unlink-item"]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const type = btn.dataset.type;
+        const id = parseInt(btn.dataset.id);
+        if (type === 'todo') {
+          await unlinkTodoFromTicket(id, ticketId);
+          showManageTicketAssociationsModal(ticketId);
+        } else if (type === 'goal') {
+          await unlinkGoalFromTicket(id, ticketId);
+          showManageTicketAssociationsModal(ticketId);
+        }
+      });
+    });
+  }
+
+  const modal = new bootstrap.Modal(document.getElementById('manageTicketAssociationsModal'));
+  modal.show();
 }
 
 function showAssociateModal(type, ticketId) {

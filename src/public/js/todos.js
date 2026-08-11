@@ -677,36 +677,12 @@ function setupToDoDragListeners() {
     const action = button.dataset.action;
     if (action === 'create-child-todo' && contextMenuTodoId) {
       createChildToDo(contextMenuTodoId);
-    } else if (action === 'associate-category' && contextMenuTodoId) {
-      app.notify('Associate category feature coming soon', 'info');
-    } else if (action === 'associate-ticket' && contextMenuTodoId) {
-      app.notify('Associate ticket feature coming soon', 'info');
-    } else if (action === 'create-category' && contextMenuTodoId) {
-      app.notify('Create category feature coming soon', 'info');
-    } else if (action === 'create-ticket' && contextMenuTodoId) {
-      app.notify('Create ticket feature coming soon', 'info');
+    } else if (action === 'manage-associations' && contextMenuTodoId) {
+      showManageTodoAssociationsModal(contextMenuTodoId);
     } else if (action === 'delete-todo' && contextMenuTodoId) {
       deleteToDo(contextMenuTodoId);
     }
     contextMenu.classList.add('d-none');
-  });
-
-  // Collapse all submenus on context menu open
-  container.addEventListener('contextmenu', () => {
-    contextMenu.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
-  });
-
-  // Toggle submenus
-  contextMenu.addEventListener('click', (e) => {
-    const submenuBtn = e.target.closest('.has-submenu');
-    if (submenuBtn) {
-      e.stopPropagation();
-      const submenuId = submenuBtn.dataset.submenu;
-      const submenu = contextMenu.querySelector(`#${submenuId}`);
-      if (submenu) {
-        submenu.classList.toggle('d-none');
-      }
-    }
   });
 }
 
@@ -829,6 +805,59 @@ async function associateTicketWithTodo(ticketId, todoId) {
     console.error('Error associating ticket:', error);
     app.notify('Error associating ticket', 'danger');
   }
+}
+
+function showManageTodoAssociationsModal(todoId) {
+  const todo = getState().allToDos.find(t => t.id === todoId);
+  if (!todo) return;
+
+  const associatedCategories = getState().allCategories.filter(c => c.todo_id === todoId);
+  const associatedTickets = getState().allTickets.filter(t => t.todo_id === todoId);
+
+  const listHtml = associatedCategories.map(c => `
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <i class="bi bi-folder text-muted"></i>
+        <span>${app.escapeHtml(c.name)}</span>
+      </div>
+      <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink-category" data-id="${c.id}" title="Unlink">
+        <i class="bi bi-x-circle"></i>
+      </button>
+    </div>
+  `).concat(associatedTickets.map(t => `
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <i class="bi bi-ticket text-muted"></i>
+        <span>${app.escapeHtml(t.title)}</span>
+      </div>
+      <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink-ticket" data-id="${t.id}" title="Unlink">
+        <i class="bi bi-x-circle"></i>
+      </button>
+    </div>
+  `)).join('');
+
+  const itemsList = document.getElementById('todoAssociatedItemsList');
+  itemsList.innerHTML = listHtml || '<p class="text-center text-muted">No associated items</p>';
+
+  // Attach event handlers
+  itemsList.querySelectorAll('[data-action="unlink-category"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await unlinkCategoryFromTodo(btn.dataset.id);
+      showManageTodoAssociationsModal(todoId);
+    });
+  });
+
+  itemsList.querySelectorAll('[data-action="unlink-ticket"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await unlinkTicketFromTodo(btn.dataset.id);
+      showManageTodoAssociationsModal(todoId);
+    });
+  });
+
+  const modal = new bootstrap.Modal(document.getElementById('manageTodoAssociationsModal'));
+  modal.show();
 }
 
 // Initialize on page load

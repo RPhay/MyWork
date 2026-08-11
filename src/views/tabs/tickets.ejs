@@ -71,35 +71,35 @@
   </div>
 </div>
 
+<!-- Manage Associations Modal -->
+<div class="modal fade" id="manageTicketAssociationsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Manage Associated Items</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Associated items for this ticket:</p>
+        <div id="ticketAssociatedItemsList" style="max-height: 400px; overflow-y: auto;">
+          <p class="text-center text-muted">No associated items</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Ticket Context Menu -->
 <div id="ticketContextMenu" class="context-menu d-none" style="position: fixed; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; min-width: 200px;">
-  <div class="context-menu-submenu-group">
-    <button type="button" class="context-menu-item has-submenu" data-submenu="ticket-associate-items">
-      <i class="bi bi-link-45deg"></i> Associate Item
-      <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
-    </button>
-    <div id="ticket-associate-items-submenu" class="context-menu-submenu d-none">
-      <button type="button" class="context-menu-item" data-action="associate-todo"><i class="bi bi-check2-square"></i> Todo</button>
-      <button type="button" class="context-menu-item" data-action="associate-goal"><i class="bi bi-target"></i> Goal</button>
-    </div>
-  </div>
-
-  <div class="context-menu-submenu-group">
-    <button type="button" class="context-menu-item has-submenu" data-submenu="ticket-create-items">
-      <i class="bi bi-plus-circle"></i> Create Item
-      <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
-    </button>
-    <div id="ticket-create-items-submenu" class="context-menu-submenu d-none">
-      <button type="button" class="context-menu-item" data-action="create-todo"><i class="bi bi-check2-square"></i> Todo</button>
-      <button type="button" class="context-menu-item" data-action="create-goal"><i class="bi bi-target"></i> Goal</button>
-    </div>
-  </div>
-
-  <div class="context-menu-submenu-group" style="border-top: 1px solid #ddd; margin-top: 0.5rem; padding-top: 0.5rem;">
-    <button type="button" class="context-menu-item text-danger" data-action="delete-ticket">
-      <i class="bi bi-trash"></i> Delete Ticket
-    </button>
-  </div>
+  <button type="button" class="context-menu-item" data-action="manage-associations" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-sliders"></i> Manage Associations
+  </button>
+  <button type="button" class="context-menu-item text-danger" data-action="delete-ticket" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-trash"></i> Delete Ticket
+  </button>
 </div>
 
 <!-- Ticket Modal -->
