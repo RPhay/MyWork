@@ -45,6 +45,103 @@
           <textarea class="form-control" id="taskEditorNotes" name="notes" rows="4"></textarea>
         </div>
 
+        <!-- Recurrence Settings -->
+        <div class="mb-3 p-2 border-top">
+          <label class="form-check">
+            <input type="checkbox" class="form-check-input" id="taskEditorRecurrenceEnabled" name="recurrenceEnabled">
+            <span class="form-check-label">Recurring</span>
+          </label>
+
+          <div id="taskEditorRecurrencePanel" style="display:none;" class="mt-2 p-2 bg-light rounded">
+            <div class="mb-2">
+              <label for="taskEditorRecurrenceType" class="form-label small">Type</label>
+              <select class="form-select form-select-sm" id="taskEditorRecurrenceType">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="interval">Custom Interval</option>
+              </select>
+            </div>
+
+            <!-- Weekly Config -->
+            <div id="taskEditorWeeklyConfig" style="display:none;" class="mb-2">
+              <label class="form-label small">Days of Week</label>
+              <div class="btn-group btn-group-sm w-100" role="group">
+                <input type="checkbox" class="btn-check" id="taskEditorDay0" value="0">
+                <label class="btn btn-outline-secondary" for="taskEditorDay0">Sun</label>
+                <input type="checkbox" class="btn-check" id="taskEditorDay1" value="1">
+                <label class="btn btn-outline-secondary" for="taskEditorDay1">Mon</label>
+                <input type="checkbox" class="btn-check" id="taskEditorDay2" value="2">
+                <label class="btn btn-outline-secondary" for="taskEditorDay2">Tue</label>
+                <input type="checkbox" class="btn-check" id="taskEditorDay3" value="3">
+                <label class="btn btn-outline-secondary" for="taskEditorDay3">Wed</label>
+                <input type="checkbox" class="btn-check" id="taskEditorDay4" value="4">
+                <label class="btn btn-outline-secondary" for="taskEditorDay4">Thu</label>
+                <input type="checkbox" class="btn-check" id="taskEditorDay5" value="5">
+                <label class="btn btn-outline-secondary" for="taskEditorDay5">Fri</label>
+                <input type="checkbox" class="btn-check" id="taskEditorDay6" value="6">
+                <label class="btn btn-outline-secondary" for="taskEditorDay6">Sat</label>
+              </div>
+            </div>
+
+            <!-- Monthly Config -->
+            <div id="taskEditorMonthlyConfig" style="display:none;" class="mb-2">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="taskEditorMonthlyType" id="taskEditorMonthlyDate" value="date" checked>
+                <label class="form-check-label" for="taskEditorMonthlyDate">Specific Date</label>
+                <input type="number" class="form-control form-control-sm mt-1" id="taskEditorMonthlyDateInput" min="1" max="31" placeholder="Day (1-31)" style="width:80px;">
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="taskEditorMonthlyType" id="taskEditorMonthlyWeekday" value="weekday">
+                <label class="form-check-label" for="taskEditorMonthlyWeekday">Weekday Pattern</label>
+                <div class="row mt-1 g-1">
+                  <div class="col-6">
+                    <select class="form-select form-select-sm" id="taskEditorMonthlyWeekdaySelect">
+                      <option value="0">Sunday</option>
+                      <option value="1">Monday</option>
+                      <option value="2">Tuesday</option>
+                      <option value="3">Wednesday</option>
+                      <option value="4">Thursday</option>
+                      <option value="5">Friday</option>
+                      <option value="6">Saturday</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <select class="form-select form-select-sm" id="taskEditorMonthlyWeekofmonthSelect">
+                      <option value="1">1st</option>
+                      <option value="2">2nd</option>
+                      <option value="3">3rd</option>
+                      <option value="4">4th</option>
+                      <option value="5">5th</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="taskEditorMonthlyType" id="taskEditorMonthlyLastday" value="lastday">
+                <label class="form-check-label" for="taskEditorMonthlyLastday">Last Day of Month</label>
+              </div>
+            </div>
+
+            <!-- Interval Config -->
+            <div id="taskEditorIntervalConfig" style="display:none;" class="mb-2">
+              <label for="taskEditorIntervalDays" class="form-label small">Every N Days</label>
+              <input type="number" class="form-control form-control-sm" id="taskEditorIntervalDays" min="1" max="365" value="1">
+            </div>
+
+            <!-- Common Options -->
+            <div class="mb-2">
+              <label for="taskEditorRecurrenceStartDate" class="form-label small">Start Date (optional)</label>
+              <input type="date" class="form-control form-control-sm" id="taskEditorRecurrenceStartDate">
+            </div>
+
+            <div class="mb-2">
+              <label for="taskEditorRecurrenceEndDate" class="form-label small">End Date (optional)</label>
+              <input type="date" class="form-control form-control-sm" id="taskEditorRecurrenceEndDate">
+            </div>
+          </div>
+        </div>
+
         <div class="mb-3">
           <label class="form-label">Links</label>
           <div id="taskEditorLinksList" class="mb-2"></div>

@@ -44,6 +44,53 @@ const TodoEditor = (() => {
     document.getElementById('toDoEditorFormTitle').value = toDo.title;
     document.getElementById('toDoEditorNotes').value = toDo.notes || '';
     document.getElementById('todoEditorTitle').textContent = toDo.title;
+
+    // Fill recurrence if present
+    if (toDo.recurrence && toDo.recurrence.enabled) {
+      fillRecurrenceForm(toDo.recurrence);
+    }
+  };
+
+  const fillRecurrenceForm = (recurrence) => {
+    const enabledCheckbox = document.getElementById('toDoEditorRecurrenceEnabled');
+    enabledCheckbox.checked = recurrence.enabled;
+    toggleRecurrencePanel();
+
+    const typeSelect = document.getElementById('toDoEditorRecurrenceType');
+    typeSelect.value = recurrence.type || 'daily';
+    updateRecurrenceTypePanel();
+
+    if (recurrence.type === 'weekly' && recurrence.daysOfWeek) {
+      recurrence.daysOfWeek.forEach(day => {
+        const checkbox = document.getElementById(`toDoEditorDay${day}`);
+        if (checkbox) checkbox.checked = true;
+      });
+    }
+
+    if (recurrence.type === 'monthly') {
+      if (recurrence.dateOfMonth) {
+        document.getElementById('toDoEditorMonthlyDate').checked = true;
+        document.getElementById('toDoEditorMonthlyDateInput').value = recurrence.dateOfMonth;
+      } else if (recurrence.weekday !== undefined) {
+        document.getElementById('toDoEditorMonthlyWeekday').checked = true;
+        document.getElementById('toDoEditorMonthlyWeekdaySelect').value = recurrence.weekday;
+        document.getElementById('toDoEditorMonthlyWeekofmonthSelect').value = recurrence.weekOfMonth || 1;
+      } else if (recurrence.lastDay) {
+        document.getElementById('toDoEditorMonthlyLastday').checked = true;
+      }
+    }
+
+    if (recurrence.type === 'interval') {
+      document.getElementById('toDoEditorIntervalDays').value = recurrence.intervalDays || 1;
+    }
+
+    if (recurrence.startDate) {
+      document.getElementById('toDoEditorRecurrenceStartDate').value = recurrence.startDate;
+    }
+
+    if (recurrence.endDate) {
+      document.getElementById('toDoEditorRecurrenceEndDate').value = recurrence.endDate;
+    }
   };
 
   const renderLinks = (links) => {
@@ -64,6 +111,61 @@ const TodoEditor = (() => {
     });
   };
 
+  const getRecurrenceData = () => {
+    const enabled = document.getElementById('toDoEditorRecurrenceEnabled').checked;
+    if (!enabled) return null;
+
+    const type = document.getElementById('toDoEditorRecurrenceType').value;
+    const recurrence = { enabled: true, type };
+
+    if (type === 'weekly') {
+      const daysOfWeek = [];
+      for (let i = 0; i < 7; i++) {
+        const checkbox = document.getElementById(`toDoEditorDay${i}`);
+        if (checkbox && checkbox.checked) daysOfWeek.push(i);
+      }
+      if (daysOfWeek.length === 0) {
+        app.notify('Select at least one day for weekly recurrence', 'warning');
+        return null;
+      }
+      recurrence.daysOfWeek = daysOfWeek;
+    }
+
+    if (type === 'monthly') {
+      const monthlyType = document.querySelector('input[name="toDoEditorMonthlyType"]:checked').value;
+      if (monthlyType === 'date') {
+        const date = parseInt(document.getElementById('toDoEditorMonthlyDateInput').value);
+        if (!date || date < 1 || date > 31) {
+          app.notify('Enter a valid date (1-31)', 'warning');
+          return null;
+        }
+        recurrence.dateOfMonth = date;
+      } else if (monthlyType === 'weekday') {
+        recurrence.weekday = parseInt(document.getElementById('toDoEditorMonthlyWeekdaySelect').value);
+        recurrence.weekOfMonth = parseInt(document.getElementById('toDoEditorMonthlyWeekofmonthSelect').value);
+      } else if (monthlyType === 'lastday') {
+        recurrence.lastDay = true;
+      }
+    }
+
+    if (type === 'interval') {
+      const days = parseInt(document.getElementById('toDoEditorIntervalDays').value);
+      if (!days || days < 1) {
+        app.notify('Enter a valid interval (at least 1 day)', 'warning');
+        return null;
+      }
+      recurrence.intervalDays = days;
+    }
+
+    const startDate = document.getElementById('toDoEditorRecurrenceStartDate').value;
+    if (startDate) recurrence.startDate = startDate;
+
+    const endDate = document.getElementById('toDoEditorRecurrenceEndDate').value;
+    if (endDate) recurrence.endDate = endDate;
+
+    return recurrence;
+  };
+
   const save = async () => {
     const todoId = document.getElementById('toDoEditorId').value;
     const title = document.getElementById('toDoEditorFormTitle').value;
@@ -75,6 +177,14 @@ const TodoEditor = (() => {
     }
 
     const data = { title, notes };
+
+    const recurrence = getRecurrenceData();
+    if (document.getElementById('toDoEditorRecurrenceEnabled').checked && recurrence === null) {
+      return false;
+    }
+    if (recurrence) {
+      data.recurrence = recurrence;
+    }
 
     try {
       const method = todoId ? 'PUT' : 'POST';
@@ -104,6 +214,34 @@ const TodoEditor = (() => {
     }
   };
 
+  const toggleRecurrencePanel = () => {
+    const enabled = document.getElementById('toDoEditorRecurrenceEnabled').checked;
+    const panel = document.getElementById('toDoEditorRecurrencePanel');
+    if (panel) {
+      panel.style.display = enabled ? 'block' : 'none';
+    }
+  };
+
+  const updateRecurrenceTypePanel = () => {
+    const type = document.getElementById('toDoEditorRecurrenceType').value;
+    document.getElementById('toDoEditorWeeklyConfig').style.display = type === 'weekly' ? 'block' : 'none';
+    document.getElementById('toDoEditorMonthlyConfig').style.display = type === 'monthly' ? 'block' : 'none';
+    document.getElementById('toDoEditorIntervalConfig').style.display = type === 'interval' ? 'block' : 'none';
+  };
+
+  const setupRecurrenceEventListeners = () => {
+    const enabledCheckbox = document.getElementById('toDoEditorRecurrenceEnabled');
+    const typeSelect = document.getElementById('toDoEditorRecurrenceType');
+
+    if (enabledCheckbox) {
+      enabledCheckbox.addEventListener('change', toggleRecurrencePanel);
+    }
+
+    if (typeSelect) {
+      typeSelect.addEventListener('change', updateRecurrenceTypePanel);
+    }
+  };
+
   const close = () => {
     if (splitPane) {
       splitPane.hideRightPane();
@@ -111,7 +249,10 @@ const TodoEditor = (() => {
   };
 
   return {
-    init,
+    init: (splitPaneInstance, editorFormId) => {
+      init(splitPaneInstance, editorFormId);
+      setupRecurrenceEventListeners();
+    },
     populate,
     fillForm,
     renderLinks,

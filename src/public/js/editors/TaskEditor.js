@@ -29,6 +29,53 @@ const TaskEditor = (() => {
     document.getElementById('taskEditorNotes').value = task.notes || '';
     document.getElementById('taskEditorTitle').textContent = task.title;
     renderLinks(task.links || []);
+
+    // Fill recurrence if present
+    if (task.recurrence && task.recurrence.enabled) {
+      fillRecurrenceForm(task.recurrence);
+    }
+  };
+
+  const fillRecurrenceForm = (recurrence) => {
+    const enabledCheckbox = document.getElementById('taskEditorRecurrenceEnabled');
+    enabledCheckbox.checked = recurrence.enabled;
+    toggleRecurrencePanel();
+
+    const typeSelect = document.getElementById('taskEditorRecurrenceType');
+    typeSelect.value = recurrence.type || 'daily';
+    updateRecurrenceTypePanel();
+
+    if (recurrence.type === 'weekly' && recurrence.daysOfWeek) {
+      recurrence.daysOfWeek.forEach(day => {
+        const checkbox = document.getElementById(`taskEditorDay${day}`);
+        if (checkbox) checkbox.checked = true;
+      });
+    }
+
+    if (recurrence.type === 'monthly') {
+      if (recurrence.dateOfMonth) {
+        document.getElementById('taskEditorMonthlyDate').checked = true;
+        document.getElementById('taskEditorMonthlyDateInput').value = recurrence.dateOfMonth;
+      } else if (recurrence.weekday !== undefined) {
+        document.getElementById('taskEditorMonthlyWeekday').checked = true;
+        document.getElementById('taskEditorMonthlyWeekdaySelect').value = recurrence.weekday;
+        document.getElementById('taskEditorMonthlyWeekofmonthSelect').value = recurrence.weekOfMonth || 1;
+      } else if (recurrence.lastDay) {
+        document.getElementById('taskEditorMonthlyLastday').checked = true;
+      }
+    }
+
+    if (recurrence.type === 'interval') {
+      document.getElementById('taskEditorIntervalDays').value = recurrence.intervalDays || 1;
+    }
+
+    if (recurrence.startDate) {
+      document.getElementById('taskEditorRecurrenceStartDate').value = recurrence.startDate;
+    }
+
+    if (recurrence.endDate) {
+      document.getElementById('taskEditorRecurrenceEndDate').value = recurrence.endDate;
+    }
   };
 
   const renderLinks = (links) => {
@@ -49,6 +96,61 @@ const TaskEditor = (() => {
     });
   };
 
+  const getRecurrenceData = () => {
+    const enabled = document.getElementById('taskEditorRecurrenceEnabled').checked;
+    if (!enabled) return null;
+
+    const type = document.getElementById('taskEditorRecurrenceType').value;
+    const recurrence = { enabled: true, type };
+
+    if (type === 'weekly') {
+      const daysOfWeek = [];
+      for (let i = 0; i < 7; i++) {
+        const checkbox = document.getElementById(`taskEditorDay${i}`);
+        if (checkbox && checkbox.checked) daysOfWeek.push(i);
+      }
+      if (daysOfWeek.length === 0) {
+        app.notify('Select at least one day for weekly recurrence', 'warning');
+        return null;
+      }
+      recurrence.daysOfWeek = daysOfWeek;
+    }
+
+    if (type === 'monthly') {
+      const monthlyType = document.querySelector('input[name="taskEditorMonthlyType"]:checked').value;
+      if (monthlyType === 'date') {
+        const date = parseInt(document.getElementById('taskEditorMonthlyDateInput').value);
+        if (!date || date < 1 || date > 31) {
+          app.notify('Enter a valid date (1-31)', 'warning');
+          return null;
+        }
+        recurrence.dateOfMonth = date;
+      } else if (monthlyType === 'weekday') {
+        recurrence.weekday = parseInt(document.getElementById('taskEditorMonthlyWeekdaySelect').value);
+        recurrence.weekOfMonth = parseInt(document.getElementById('taskEditorMonthlyWeekofmonthSelect').value);
+      } else if (monthlyType === 'lastday') {
+        recurrence.lastDay = true;
+      }
+    }
+
+    if (type === 'interval') {
+      const days = parseInt(document.getElementById('taskEditorIntervalDays').value);
+      if (!days || days < 1) {
+        app.notify('Enter a valid interval (at least 1 day)', 'warning');
+        return null;
+      }
+      recurrence.intervalDays = days;
+    }
+
+    const startDate = document.getElementById('taskEditorRecurrenceStartDate').value;
+    if (startDate) recurrence.startDate = startDate;
+
+    const endDate = document.getElementById('taskEditorRecurrenceEndDate').value;
+    if (endDate) recurrence.endDate = endDate;
+
+    return recurrence;
+  };
+
   const save = async () => {
     const taskId = document.getElementById('taskEditorId').value;
     const title = document.getElementById('taskEditorFormTitle').value;
@@ -60,6 +162,14 @@ const TaskEditor = (() => {
     }
 
     const data = { title, notes };
+
+    const recurrence = getRecurrenceData();
+    if (document.getElementById('taskEditorRecurrenceEnabled').checked && recurrence === null) {
+      return false;
+    }
+    if (recurrence) {
+      data.recurrence = recurrence;
+    }
 
     try {
       const method = taskId ? 'PUT' : 'POST';
@@ -89,6 +199,34 @@ const TaskEditor = (() => {
     }
   };
 
+  const toggleRecurrencePanel = () => {
+    const enabled = document.getElementById('taskEditorRecurrenceEnabled').checked;
+    const panel = document.getElementById('taskEditorRecurrencePanel');
+    if (panel) {
+      panel.style.display = enabled ? 'block' : 'none';
+    }
+  };
+
+  const updateRecurrenceTypePanel = () => {
+    const type = document.getElementById('taskEditorRecurrenceType').value;
+    document.getElementById('taskEditorWeeklyConfig').style.display = type === 'weekly' ? 'block' : 'none';
+    document.getElementById('taskEditorMonthlyConfig').style.display = type === 'monthly' ? 'block' : 'none';
+    document.getElementById('taskEditorIntervalConfig').style.display = type === 'interval' ? 'block' : 'none';
+  };
+
+  const setupRecurrenceEventListeners = () => {
+    const enabledCheckbox = document.getElementById('taskEditorRecurrenceEnabled');
+    const typeSelect = document.getElementById('taskEditorRecurrenceType');
+
+    if (enabledCheckbox) {
+      enabledCheckbox.addEventListener('change', toggleRecurrencePanel);
+    }
+
+    if (typeSelect) {
+      typeSelect.addEventListener('change', updateRecurrenceTypePanel);
+    }
+  };
+
   const close = () => {
     if (splitPane) {
       splitPane.hideRightPane();
@@ -96,7 +234,10 @@ const TaskEditor = (() => {
   };
 
   return {
-    init,
+    init: (splitPaneInstance) => {
+      init(splitPaneInstance);
+      setupRecurrenceEventListeners();
+    },
     populate,
     fillForm,
     renderLinks,
