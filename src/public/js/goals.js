@@ -98,7 +98,7 @@ async function loadYearlyGoals() {
       if (window.pendingGoalEdit) {
         const goalId = window.pendingGoalEdit;
         delete window.pendingGoalEdit;
-        setTimeout(() => editGoal(goalId), 100);
+        setTimeout(() => editGoal(goalId), 300);
       }
     } else {
       currentGoals = [];

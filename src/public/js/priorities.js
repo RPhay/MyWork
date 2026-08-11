@@ -201,6 +201,13 @@ function renderPriorityNode(priority, byParent, depth) {
 
   const hasChildren = children.length > 0 || linkedFolders.length > 0 || directToDos.length > 0
     || linkedTaskFolders.length > 0 || directTasks.length > 0 || categories.length > 0 || goals.length > 0;
+
+  // Auto-expand if priority has associated categories or goals
+  const hasAssociations = categories.length > 0 || goals.length > 0;
+  if (hasAssociations && !expandedPriorities.has(String(priority.id))) {
+    expandedPriorities.add(String(priority.id));
+  }
+
   const isExpanded = expandedPriorities.has(String(priority.id));
 
   let childrenHtml = '';
@@ -1188,15 +1195,15 @@ function initPrioritiesEventListeners() {
       } else if (categoryNode && categoryNode.dataset.categoryId) {
         console.log('[Priorities] Opening category:', categoryNode.dataset.categoryId);
         // Navigate to Areas tab and open category editor
-        const areasTab = document.querySelector('[data-tab="areas"]');
-        if (areasTab) areasTab.click();
+        const areasBtn = document.querySelector('button[data-tab="areas"]');
+        if (areasBtn) areasBtn.click();
         // Store the category ID to open after tab switches
         window.pendingAreaEdit = categoryNode.dataset.categoryId;
       } else if (goalNode && goalNode.dataset.goalId) {
         console.log('[Priorities] Opening goal:', goalNode.dataset.goalId);
         // Navigate to Goals tab and open goal editor
-        const goalsTab = document.querySelector('[data-tab="yearly-goals"]');
-        if (goalsTab) goalsTab.click();
+        const goalsBtn = document.querySelector('button[data-tab="yearly-goals"]');
+        if (goalsBtn) goalsBtn.click();
         window.pendingGoalEdit = goalNode.dataset.goalId;
       } else {
         const priorityNode = header.closest('.priority-node');

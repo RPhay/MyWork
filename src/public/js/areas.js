@@ -92,7 +92,7 @@ async function loadAreas() {
       if (window.pendingAreaEdit) {
         const areaId = window.pendingAreaEdit;
         delete window.pendingAreaEdit;
-        setTimeout(() => editArea(areaId), 100);
+        setTimeout(() => editArea(areaId), 300);
       }
     } else {
       container.innerHTML = '<p class="text-center text-danger">Error loading categories</p>';
