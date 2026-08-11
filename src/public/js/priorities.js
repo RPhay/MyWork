@@ -1341,6 +1341,27 @@ function initPriorities() {
     closeToDoEditorBtn.addEventListener('click', closePriorityEditor);
   }
 
+  // Setup associated items add buttons
+  document.getElementById('priorityEditorAddCategoryBtn')?.addEventListener('click', () => {
+    const priorityId = document.getElementById('priorityEditorId').value;
+    if (priorityId) showCategorySelector(priorityId);
+  });
+
+  document.getElementById('priorityEditorAddTodoBtn')?.addEventListener('click', () => {
+    const priorityId = document.getElementById('priorityEditorId').value;
+    if (priorityId) showTodoSelector(priorityId);
+  });
+
+  document.getElementById('priorityEditorAddIdeaBtn')?.addEventListener('click', () => {
+    const priorityId = document.getElementById('priorityEditorId').value;
+    if (priorityId) app.notify('Idea association coming soon', 'info');
+  });
+
+  document.getElementById('priorityEditorAddTicketBtn')?.addEventListener('click', () => {
+    const priorityId = document.getElementById('priorityEditorId').value;
+    if (priorityId) showTicketSelector(priorityId);
+  });
+
   // Setup project context menu
   const contextMenu = document.getElementById('projectContextMenu');
   let contextMenuProjectId = null;
