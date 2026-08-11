@@ -57,7 +57,7 @@ function parseOutlookPlainTextFormat(text) {
   const event = {
     title: '',
     description: '',
-    duration: null,
+    duration: 60, // Default to 1 hour if no time can be parsed
     startTime: null
   };
 
@@ -70,29 +70,51 @@ function parseOutlookPlainTextFormat(text) {
 
   console.log('[parseOutlookPlainTextFormat] Parsed text lines:', lines);
 
-  // Look for "When:" line and parse time
+  // Look for "When:" line and parse time (case-insensitive)
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     console.log('[parseOutlookPlainTextFormat] Processing line:', line);
 
-    if (line.startsWith('When:')) {
-      const whenText = line.substring(5).trim();
+    const lowerLine = line.toLowerCase();
+
+    if (lowerLine.startsWith('when:')) {
+      const whenText = line.substring(line.indexOf(':') + 1).trim();
       console.log('[parseOutlookPlainTextFormat] When text:', whenText);
-      const timeData = parseOutlookTimeRange(whenText);
-      console.log('[parseOutlookPlainTextFormat] Parsed time data:', timeData);
+
+      // Check for all-day event indicators
+      if (lowerLine.includes('all day') || whenText.toLowerCase().includes('all day')) {
+        event.duration = null;
+        event.startTime = null;
+        console.log('[parseOutlookPlainTextFormat] All-day event detected');
+      } else {
+        const timeData = parseOutlookTimeRange(whenText);
+        console.log('[parseOutlookPlainTextFormat] Parsed time data:', timeData);
+        if (timeData !== null) {
+          event.duration = timeData.duration;
+          event.startTime = timeData.startTime;
+        } else {
+          // If we have a "When:" line but can't parse specific times, still keep default 1 hour
+          console.log('[parseOutlookPlainTextFormat] Could not parse time from When line, using 60 minute default');
+        }
+      }
+    } else if (lowerLine.startsWith('location:')) {
+      const location = line.substring(line.indexOf(':') + 1).trim();
+      if (location) {
+        event.description = location + (event.description ? '\n' + event.description : '');
+      }
+    } else if (lowerLine.startsWith('organizer:') || lowerLine.startsWith('attendees:')) {
+      // Skip these lines
+      continue;
+    } else if (lowerLine.startsWith('time:')) {
+      // Some Outlook versions use "Time:" instead of "When:"
+      const timeText = line.substring(line.indexOf(':') + 1).trim();
+      console.log('[parseOutlookPlainTextFormat] Time text (from Time: field):', timeText);
+      const timeData = parseOutlookTimeRange(timeText);
       if (timeData !== null) {
         event.duration = timeData.duration;
         event.startTime = timeData.startTime;
       }
-    } else if (line.startsWith('Location:')) {
-      const location = line.substring(9).trim();
-      if (location) {
-        event.description = location + (event.description ? '\n' + event.description : '');
-      }
-    } else if (line.startsWith('Organizer:') || line.startsWith('Attendees:')) {
-      // Skip these lines
-      continue;
-    } else if (event.description === '' && !line.includes(':')) {
+    } else if (event.description === '' && !lowerLine.includes(':')) {
       // Treat non-field lines as description
       event.description = line;
     }
@@ -109,6 +131,22 @@ function parseOutlookTimeRange(timeStr) {
   // "August 3, 2026 at 9:00 AM - 10:30 AM"
   // "Monday, August 3, 2026 2:00 PM - 3:00 PM"
   // "Monday, August 3, 2026 2:00 PM"
+  // "12:15 PM - 12:45 PM"
+  // "2026-08-03T14:00:00 - 2026-08-03T15:00:00" (ISO format)
+
+  console.log('[parseOutlookTimeRange] Parsing:', timeStr);
+
+  // Try ISO 8601 format (2026-08-03T14:00:00 - 2026-08-03T15:00:00)
+  const isoMatch = timeStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\s*-\s*(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+  if (isoMatch) {
+    const startHour = parseInt(isoMatch[4]);
+    const startMin = parseInt(isoMatch[5]);
+    const endHour = parseInt(isoMatch[10]);
+    const endMin = parseInt(isoMatch[11]);
+    const duration = (endHour - startHour) * 60 + (endMin - startMin);
+    const startTimeStr = `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
+    return { duration: Math.max(duration, 0) || 60, startTime: startTimeStr };
+  }
 
   // Try to match time range pattern: "HH:MM [AM/PM] - HH:MM [AM/PM]"
   let timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/i);
@@ -145,8 +183,10 @@ function parseOutlookTimeRange(timeStr) {
         if (startPeriod === 'AM' && startHour === 12) start24Hour = 0;
 
         const startTimeStr = `${String(start24Hour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
+        console.log('[parseOutlookTimeRange] Single time found, returning 60 min default');
         return { duration: 60, startTime: startTimeStr };
       }
+      console.log('[parseOutlookTimeRange] No time pattern matched');
       return null;
     }
   }
@@ -181,7 +221,9 @@ function parseOutlookTimeRange(timeStr) {
   // Format start time as HH:MM (24-hour format)
   const startTimeStr = `${String(start24Hour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
 
-  return { duration, startTime: startTimeStr };
+  console.log('[parseOutlookTimeRange] Calculated duration:', duration, 'startTime:', startTimeStr);
+
+  return { duration: Math.max(duration, 0) || 60, startTime: startTimeStr };
 }
 
 function parseICalDate(dateStr) {
