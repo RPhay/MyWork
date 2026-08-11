@@ -188,6 +188,61 @@ function renderTaskLinks(links) {
   });
 }
 
+function collectTaskRecurrenceFromModal() {
+  const enabled = document.getElementById('taskRecurrenceEnabled').checked;
+  if (!enabled) return null;
+
+  const type = document.getElementById('taskRecurrenceType').value;
+  const recurrence = { enabled: true, type };
+
+  if (type === 'weekly') {
+    const daysOfWeek = [];
+    for (let i = 0; i < 7; i++) {
+      const checkbox = document.getElementById(`taskWeekDay${i}`);
+      if (checkbox && checkbox.checked) daysOfWeek.push(i);
+    }
+    if (daysOfWeek.length === 0) {
+      app.notify('Select at least one day for weekly recurrence', 'warning');
+      return null;
+    }
+    recurrence.daysOfWeek = daysOfWeek;
+  }
+
+  if (type === 'monthly') {
+    const monthlyType = document.querySelector('input[name="taskMonthlyType"]:checked').value;
+    if (monthlyType === 'date') {
+      const date = parseInt(document.getElementById('taskMonthlyDateInput').value);
+      if (!date || date < 1 || date > 31) {
+        app.notify('Enter a valid date (1-31)', 'warning');
+        return null;
+      }
+      recurrence.dateOfMonth = date;
+    } else if (monthlyType === 'weekday') {
+      recurrence.weekday = parseInt(document.getElementById('taskMonthlyWeekdaySelect').value);
+      recurrence.weekOfMonth = parseInt(document.getElementById('taskMonthlyWeekofmonthSelect').value);
+    } else if (monthlyType === 'lastday') {
+      recurrence.lastDay = true;
+    }
+  }
+
+  if (type === 'interval') {
+    const days = parseInt(document.getElementById('taskIntervalDays').value);
+    if (!days || days < 1) {
+      app.notify('Enter a valid interval (at least 1 day)', 'warning');
+      return null;
+    }
+    recurrence.intervalDays = days;
+  }
+
+  const startDate = document.getElementById('taskRecurrenceStartDate').value;
+  if (startDate) recurrence.startDate = startDate;
+
+  const endDate = document.getElementById('taskRecurrenceEndDate').value;
+  if (endDate) recurrence.endDate = endDate;
+
+  return recurrence;
+}
+
 async function saveTask() {
   const taskId = document.getElementById('taskId').value;
 
@@ -199,6 +254,14 @@ async function saveTask() {
   if (!data.title.trim()) {
     app.notify('Task title is required', 'danger');
     return;
+  }
+
+  const recurrence = collectTaskRecurrenceFromModal();
+  if (document.getElementById('taskRecurrenceEnabled').checked && recurrence === null) {
+    return;
+  }
+  if (recurrence) {
+    data.recurrence = recurrence;
   }
 
   try {
@@ -445,6 +508,27 @@ function initializeTasksTab() {
   const saveBtn = document.getElementById('saveTaskBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', saveTask);
+  }
+
+  // Set up recurrence UI listeners for modal
+  const taskRecurrenceEnabled = document.getElementById('taskRecurrenceEnabled');
+  if (taskRecurrenceEnabled) {
+    taskRecurrenceEnabled.addEventListener('change', () => {
+      const panel = document.getElementById('taskRecurrencePanel');
+      if (panel) {
+        panel.style.display = taskRecurrenceEnabled.checked ? 'block' : 'none';
+      }
+    });
+  }
+
+  const taskRecurrenceType = document.getElementById('taskRecurrenceType');
+  if (taskRecurrenceType) {
+    taskRecurrenceType.addEventListener('change', () => {
+      const type = taskRecurrenceType.value;
+      document.getElementById('taskWeeklyConfig').style.display = type === 'weekly' ? 'block' : 'none';
+      document.getElementById('taskMonthlyConfig').style.display = type === 'monthly' ? 'block' : 'none';
+      document.getElementById('taskIntervalConfig').style.display = type === 'interval' ? 'block' : 'none';
+    });
   }
 
   // Wire up editor pane buttons

@@ -183,6 +183,61 @@ function openToDoModalPrefilled(title, notes) {
 }
 window.openToDoModalPrefilled = openToDoModalPrefilled;
 
+function collectToDoRecurrenceFromModal() {
+  const enabled = document.getElementById('toDoRecurrenceEnabled').checked;
+  if (!enabled) return null;
+
+  const type = document.getElementById('toDoRecurrenceType').value;
+  const recurrence = { enabled: true, type };
+
+  if (type === 'weekly') {
+    const daysOfWeek = [];
+    for (let i = 0; i < 7; i++) {
+      const checkbox = document.getElementById(`toDoWeekDay${i}`);
+      if (checkbox && checkbox.checked) daysOfWeek.push(i);
+    }
+    if (daysOfWeek.length === 0) {
+      app.notify('Select at least one day for weekly recurrence', 'warning');
+      return null;
+    }
+    recurrence.daysOfWeek = daysOfWeek;
+  }
+
+  if (type === 'monthly') {
+    const monthlyType = document.querySelector('input[name="toDoMonthlyType"]:checked').value;
+    if (monthlyType === 'date') {
+      const date = parseInt(document.getElementById('toDoMonthlyDateInput').value);
+      if (!date || date < 1 || date > 31) {
+        app.notify('Enter a valid date (1-31)', 'warning');
+        return null;
+      }
+      recurrence.dateOfMonth = date;
+    } else if (monthlyType === 'weekday') {
+      recurrence.weekday = parseInt(document.getElementById('toDoMonthlyWeekdaySelect').value);
+      recurrence.weekOfMonth = parseInt(document.getElementById('toDoMonthlyWeekofmonthSelect').value);
+    } else if (monthlyType === 'lastday') {
+      recurrence.lastDay = true;
+    }
+  }
+
+  if (type === 'interval') {
+    const days = parseInt(document.getElementById('toDoIntervalDays').value);
+    if (!days || days < 1) {
+      app.notify('Enter a valid interval (at least 1 day)', 'warning');
+      return null;
+    }
+    recurrence.intervalDays = days;
+  }
+
+  const startDate = document.getElementById('toDoRecurrenceStartDate').value;
+  if (startDate) recurrence.startDate = startDate;
+
+  const endDate = document.getElementById('toDoRecurrenceEndDate').value;
+  if (endDate) recurrence.endDate = endDate;
+
+  return recurrence;
+}
+
 async function saveToDo() {
   const toDoId = document.getElementById('toDoId').value;
 
@@ -191,6 +246,14 @@ async function saveToDo() {
     notes: document.getElementById('toDoNotes').value,
     items: collectToDoItemsFromEditor()
   };
+
+  const recurrence = collectToDoRecurrenceFromModal();
+  if (document.getElementById('toDoRecurrenceEnabled').checked && recurrence === null) {
+    return;
+  }
+  if (recurrence) {
+    data.recurrence = recurrence;
+  }
 
   try {
     const url = toDoId ? `/api/to-dos/${toDoId}` : '/api/to-dos';
@@ -447,6 +510,27 @@ function initializeToDosTab() {
   const addItemBtn = document.getElementById('addToDoItemBtn');
   if (addItemBtn) {
     addItemBtn.addEventListener('click', addToDoItemRow);
+  }
+
+  // Set up recurrence UI listeners for modal
+  const toDoRecurrenceEnabled = document.getElementById('toDoRecurrenceEnabled');
+  if (toDoRecurrenceEnabled) {
+    toDoRecurrenceEnabled.addEventListener('change', () => {
+      const panel = document.getElementById('toDoRecurrencePanel');
+      if (panel) {
+        panel.style.display = toDoRecurrenceEnabled.checked ? 'block' : 'none';
+      }
+    });
+  }
+
+  const toDoRecurrenceType = document.getElementById('toDoRecurrenceType');
+  if (toDoRecurrenceType) {
+    toDoRecurrenceType.addEventListener('change', () => {
+      const type = toDoRecurrenceType.value;
+      document.getElementById('toDoWeeklyConfig').style.display = type === 'weekly' ? 'block' : 'none';
+      document.getElementById('toDoMonthlyConfig').style.display = type === 'monthly' ? 'block' : 'none';
+      document.getElementById('toDoIntervalConfig').style.display = type === 'interval' ? 'block' : 'none';
+    });
   }
 
   // Wire up editor pane buttons

@@ -211,6 +211,103 @@
             <textarea class="form-control" id="toDoNotes" name="notes" rows="4"></textarea>
           </div>
 
+          <!-- Recurrence Settings -->
+          <div class="mb-3 p-2 border-top">
+            <label class="form-check">
+              <input type="checkbox" class="form-check-input" id="toDoRecurrenceEnabled" name="recurrenceEnabled">
+              <span class="form-check-label">Recurring</span>
+            </label>
+
+            <div id="toDoRecurrencePanel" style="display:none;" class="mt-2 p-2 bg-light rounded">
+              <div class="mb-2">
+                <label for="toDoRecurrenceType" class="form-label small">Type</label>
+                <select class="form-select form-select-sm" id="toDoRecurrenceType">
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="interval">Custom Interval</option>
+                </select>
+              </div>
+
+              <!-- Weekly Config -->
+              <div id="toDoWeeklyConfig" style="display:none;" class="mb-2">
+                <label class="form-label small">Days of Week</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                  <input type="checkbox" class="btn-check" id="toDoWeekDay0" value="0">
+                  <label class="btn btn-outline-secondary" for="toDoWeekDay0">Sun</label>
+                  <input type="checkbox" class="btn-check" id="toDoWeekDay1" value="1">
+                  <label class="btn btn-outline-secondary" for="toDoWeekDay1">Mon</label>
+                  <input type="checkbox" class="btn-check" id="toDoWeekDay2" value="2">
+                  <label class="btn btn-outline-secondary" for="toDoWeekDay2">Tue</label>
+                  <input type="checkbox" class="btn-check" id="toDoWeekDay3" value="3">
+                  <label class="btn btn-outline-secondary" for="toDoWeekDay3">Wed</label>
+                  <input type="checkbox" class="btn-check" id="toDoWeekDay4" value="4">
+                  <label class="btn btn-outline-secondary" for="toDoWeekDay4">Thu</label>
+                  <input type="checkbox" class="btn-check" id="toDoWeekDay5" value="5">
+                  <label class="btn btn-outline-secondary" for="toDoWeekDay5">Fri</label>
+                  <input type="checkbox" class="btn-check" id="toDoWeekDay6" value="6">
+                  <label class="btn btn-outline-secondary" for="toDoWeekDay6">Sat</label>
+                </div>
+              </div>
+
+              <!-- Monthly Config -->
+              <div id="toDoMonthlyConfig" style="display:none;" class="mb-2">
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="radio" name="toDoMonthlyType" id="toDoMonthlyDate" value="date" checked>
+                  <label class="form-check-label" for="toDoMonthlyDate">Specific Date</label>
+                  <input type="number" class="form-control form-control-sm mt-1" id="toDoMonthlyDateInput" min="1" max="31" placeholder="Day (1-31)" style="width:80px;">
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="radio" name="toDoMonthlyType" id="toDoMonthlyWeekday" value="weekday">
+                  <label class="form-check-label" for="toDoMonthlyWeekday">Weekday Pattern</label>
+                  <div class="row mt-1 g-1">
+                    <div class="col-6">
+                      <select class="form-select form-select-sm" id="toDoMonthlyWeekdaySelect">
+                        <option value="0">Sunday</option>
+                        <option value="1">Monday</option>
+                        <option value="2">Tuesday</option>
+                        <option value="3">Wednesday</option>
+                        <option value="4">Thursday</option>
+                        <option value="5">Friday</option>
+                        <option value="6">Saturday</option>
+                      </select>
+                    </div>
+                    <div class="col-6">
+                      <select class="form-select form-select-sm" id="toDoMonthlyWeekofmonthSelect">
+                        <option value="1">1st</option>
+                        <option value="2">2nd</option>
+                        <option value="3">3rd</option>
+                        <option value="4">4th</option>
+                        <option value="5">5th</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="toDoMonthlyType" id="toDoMonthlyLastday" value="lastday">
+                  <label class="form-check-label" for="toDoMonthlyLastday">Last Day of Month</label>
+                </div>
+              </div>
+
+              <!-- Interval Config -->
+              <div id="toDoIntervalConfig" style="display:none;" class="mb-2">
+                <label for="toDoIntervalDays" class="form-label small">Every N Days</label>
+                <input type="number" class="form-control form-control-sm" id="toDoIntervalDays" min="1" max="365" value="1">
+              </div>
+
+              <!-- Common Options -->
+              <div class="mb-2">
+                <label for="toDoRecurrenceStartDate" class="form-label small">Start Date (optional)</label>
+                <input type="date" class="form-control form-control-sm" id="toDoRecurrenceStartDate">
+              </div>
+
+              <div class="mb-2">
+                <label for="toDoRecurrenceEndDate" class="form-label small">End Date (optional)</label>
+                <input type="date" class="form-control form-control-sm" id="toDoRecurrenceEndDate">
+              </div>
+            </div>
+          </div>
+
           <div class="mb-3">
             <label class="form-label">Items</label>
             <div id="toDoItemsList"></div>
