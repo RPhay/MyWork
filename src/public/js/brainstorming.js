@@ -342,6 +342,11 @@ async function editIdea(ideaId) {
 
     currentIdeaId = ideaId;
     resetIdeaEditorTracking();
+
+    // Make sure form is visible
+    const editorForm = document.getElementById('ideaEditorForm');
+    if (editorForm) editorForm.style.display = 'block';
+
     document.getElementById('ideaEditorId').value = idea.id;
     document.getElementById('ideaEditorFormTitle').value = idea.title;
     document.getElementById('ideaEditorNotes').value = idea.notes || '';

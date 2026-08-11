@@ -238,6 +238,11 @@ async function editArea(areaId) {
 
     currentAreaId = areaId;
     resetAreaEditorTracking();
+
+    // Make sure form is visible
+    const editorForm = document.getElementById('areaEditorForm');
+    if (editorForm) editorForm.style.display = 'block';
+
     document.getElementById('areaEditorId').value = area.id;
     document.getElementById('areaEditorName').value = area.name;
     document.getElementById('areaEditorDescription').value = area.description || '';

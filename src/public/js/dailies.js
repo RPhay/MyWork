@@ -1006,6 +1006,11 @@ async function editWorkItem(workId) {
 
     currentWorkItemId = workId;
     resetWorkItemEditorTracking();
+
+    // Make sure form is visible
+    const workItemEditorForm = document.getElementById('workItemEditorForm');
+    if (workItemEditorForm) workItemEditorForm.style.display = 'block';
+
     setFieldValue("workItemEditorId", item.id);
     setFieldValue("workItemEditorTitle", item.title);
     setFieldText("workItemEditorDisplayTitle", item.title);
