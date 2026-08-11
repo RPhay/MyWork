@@ -1,7 +1,10 @@
 // T-SQL translation of the MyWork schema (see mysqlSchema.js for the canonical
-// MySQL version - this is a from-scratch translation for a fresh MSSQL/Azure SQL
-// target, not an incremental-migration script, since there is no prior MSSQL
-// install to upgrade from. If the MySQL schema changes, mirror the change here too.
+// MySQL version). CREATE TABLE bodies here reflect the current schema, but
+// once a table exists createTableIfNotExists() is a no-op - so any column
+// added to a table's CREATE TABLE body needs a matching columnExists()
+// backfill block (mirroring mysqlSchema.js's pattern) or it will silently
+// never reach MSSQL installs whose tables predate that column. If the MySQL
+// schema changes, mirror the change here too, including the backfill.
 //
 // Notes on the translation:
 //   - AUTO_INCREMENT            -> IDENTITY(1,1)
@@ -47,6 +50,25 @@ async function columnExists(pool, tableName, columnName) {
       `SELECT COUNT(*) as cnt FROM sys.columns WHERE object_id = OBJECT_ID('[MyWork].[${tableName}]') AND name = '${columnName}'`,
     );
   return result.recordset[0].cnt > 0;
+}
+
+// A column can't be dropped while a FOREIGN KEY still references it, so drop
+// any such constraint(s) first - mirrors mysqlSchema.js's dropForeignKeysOnColumn.
+async function dropForeignKeysOnColumn(pool, tableName, columnName) {
+  const result = await pool.request().query(`
+    SELECT fk.name AS fkName
+    FROM sys.foreign_key_columns fkc
+    JOIN sys.foreign_keys fk ON fk.object_id = fkc.constraint_object_id
+    JOIN sys.columns c ON c.object_id = fkc.parent_object_id AND c.column_id = fkc.parent_column_id
+    WHERE fkc.parent_object_id = OBJECT_ID('[MyWork].[${tableName}]') AND c.name = '${columnName}'
+  `);
+  for (const row of result.recordset) {
+    await pool
+      .request()
+      .query(
+        `ALTER TABLE [MyWork].[${tableName}] DROP CONSTRAINT [${row.fkName}]`,
+      );
+  }
 }
 
 async function createTriggerIfNotExists(pool, triggerName, ddl) {
@@ -191,6 +213,19 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "areas");
 
+  // Backfill for areas created before nesting/ordering existed - see mysqlSchema.js
+  if (!(await columnExists(pool, "areas", "parent_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[areas] ADD
+        parent_id INT NULL CONSTRAINT fk_areas_parent FOREIGN KEY REFERENCES [MyWork].[areas](id) ON DELETE NO ACTION
+    `);
+  }
+  if (!(await columnExists(pool, "areas", "order_index"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[areas] ADD order_index INT DEFAULT 0
+    `);
+  }
+
   await createTableIfNotExists(
     pool,
     "years",
@@ -245,6 +280,13 @@ export async function createMssqlSchema(pool) {
     "CREATE INDEX idx_goals_status ON [MyWork].[goals](status)",
   );
 
+  // Backfill for goals created before order_index existed - see mysqlSchema.js
+  if (!(await columnExists(pool, "goals", "order_index"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[goals] ADD order_index INT DEFAULT 0
+    `);
+  }
+
   await createTableIfNotExists(
     pool,
     "goal_categories",
@@ -288,6 +330,24 @@ export async function createMssqlSchema(pool) {
     "priorities",
     "CREATE INDEX idx_priorities_order ON [MyWork].[priorities](order_index)",
   );
+
+  // Backfill for priorities created before these existed - see mysqlSchema.js
+  if (!(await columnExists(pool, "priorities", "is_weekly"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[priorities] ADD is_weekly BIT DEFAULT 0
+    `);
+  }
+  if (!(await columnExists(pool, "priorities", "status"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[priorities] ADD status NVARCHAR(50) NOT NULL DEFAULT 'Not Started'
+    `);
+  }
+  if (!(await columnExists(pool, "priorities", "parent_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[priorities] ADD
+        parent_id INT NULL CONSTRAINT fk_priorities_parent FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE NO ACTION
+    `);
+  }
 
   await createTableIfNotExists(
     pool,
@@ -357,6 +417,45 @@ export async function createMssqlSchema(pool) {
     "work_items",
     "CREATE INDEX idx_work_items_status ON [MyWork].[work_items](status)",
   );
+
+  // Backfill for work_items created before these existed - see mysqlSchema.js
+  if (!(await columnExists(pool, "work_items", "notes"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items] ADD notes NVARCHAR(MAX)
+    `);
+  }
+  if (!(await columnExists(pool, "work_items", "emoji"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items] ADD emoji NVARCHAR(16)
+    `);
+  }
+  if (!(await columnExists(pool, "work_items", "time_box_minutes"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items] ADD time_box_minutes INT NULL
+    `);
+  }
+  if (!(await columnExists(pool, "work_items", "order_index"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items] ADD order_index INT DEFAULT 0
+    `);
+  }
+  if (!(await columnExists(pool, "work_items", "start_time"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items] ADD start_time VARCHAR(5) NULL
+    `);
+  }
+  if (!(await columnExists(pool, "work_items", "worked_with_claude"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items] ADD worked_with_claude BIT DEFAULT 0
+    `);
+  }
+  if (!(await columnExists(pool, "work_items", "recurring_from_todo_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items] ADD
+        recurring_from_todo_id INT NULL CONSTRAINT fk_work_items_recurring_todo FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE SET NULL,
+        recurring_from_task_id INT NULL CONSTRAINT fk_work_items_recurring_task FOREIGN KEY REFERENCES [MyWork].[tasks](id) ON DELETE SET NULL
+    `);
+  }
 
   await createTableIfNotExists(
     pool,
@@ -440,6 +539,28 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "work_item_templates");
 
+  // Backfill for work_item_templates created before these existed - see mysqlSchema.js
+  if (!(await columnExists(pool, "work_item_templates", "time_box_minutes"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_item_templates] ADD time_box_minutes INT NULL
+    `);
+  }
+  if (!(await columnExists(pool, "work_item_templates", "emoji"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_item_templates] ADD emoji NVARCHAR(16)
+    `);
+  }
+  if (!(await columnExists(pool, "work_item_templates", "start_time"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_item_templates] ADD start_time VARCHAR(5) NULL
+    `);
+  }
+  if (!(await columnExists(pool, "work_item_templates", "order_index"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_item_templates] ADD order_index INT DEFAULT 0
+    `);
+  }
+
   await createTableIfNotExists(
     pool,
     "template_areas",
@@ -499,7 +620,8 @@ export async function createMssqlSchema(pool) {
       recurrence NVARCHAR(MAX),
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_to_dos_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE,
+      -- NO ACTION, not CASCADE - see the matching note on fk_areas_parent above.
+      CONSTRAINT fk_to_dos_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION,
       CONSTRAINT fk_to_dos_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
     )
   `,
@@ -510,7 +632,7 @@ export async function createMssqlSchema(pool) {
   if (!(await columnExists(pool, "to_dos", "parent_id"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[to_dos] ADD parent_id INT NULL
-        CONSTRAINT fk_to_dos_parent FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE
+        CONSTRAINT fk_to_dos_parent FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION
     `);
     // Set all folder_id references to NULL during migration for safety
     if (await columnExists(pool, "to_dos", "folder_id")) {
@@ -543,6 +665,7 @@ export async function createMssqlSchema(pool) {
 
   // Drop old folder_id column if it still exists on to_dos
   if (await columnExists(pool, "to_dos", "folder_id")) {
+    await dropForeignKeysOnColumn(pool, "to_dos", "folder_id");
     await pool.request().query(`ALTER TABLE [MyWork].[to_dos] DROP COLUMN folder_id`);
   }
 
@@ -684,7 +807,8 @@ export async function createMssqlSchema(pool) {
       recurrence NVARCHAR(MAX),
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_tasks_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE,
+      -- NO ACTION, not CASCADE - see the matching note on fk_areas_parent above.
+      CONSTRAINT fk_tasks_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[tasks](id) ON DELETE NO ACTION,
       CONSTRAINT fk_tasks_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
     )
   `,
@@ -695,7 +819,7 @@ export async function createMssqlSchema(pool) {
   if (!(await columnExists(pool, "tasks", "parent_id"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[tasks] ADD parent_id INT NULL
-        CONSTRAINT fk_tasks_parent FOREIGN KEY REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE
+        CONSTRAINT fk_tasks_parent FOREIGN KEY REFERENCES [MyWork].[tasks](id) ON DELETE NO ACTION
     `);
     // Set all folder_id references to NULL during migration for safety
     if (await columnExists(pool, "tasks", "folder_id")) {
@@ -716,6 +840,7 @@ export async function createMssqlSchema(pool) {
 
   // Drop old folder_id column if it still exists on tasks
   if (await columnExists(pool, "tasks", "folder_id")) {
+    await dropForeignKeysOnColumn(pool, "tasks", "folder_id");
     await pool.request().query(`ALTER TABLE [MyWork].[tasks] DROP COLUMN folder_id`);
   }
 
@@ -929,6 +1054,20 @@ export async function createMssqlSchema(pool) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[contexts] ADD
         folder_id INT NULL CONSTRAINT fk_contexts_folder FOREIGN KEY REFERENCES [MyWork].[context_folders](id) ON DELETE SET NULL
+    `);
+  }
+
+  // SSO configuration per context (Microsoft Entra ID, etc.) - see mysqlSchema.js
+  if (!(await columnExists(pool, "contexts", "sso_enabled"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[contexts] ADD
+        sso_enabled BIT DEFAULT 0,
+        sso_provider NVARCHAR(50) NULL,
+        sso_tenant_id_enc NVARCHAR(MAX) NULL,
+        sso_client_id_enc NVARCHAR(MAX) NULL,
+        sso_client_secret_enc NVARCHAR(MAX) NULL,
+        sso_redirect_uri NVARCHAR(500) NULL,
+        sso_configured_at DATETIME2 NULL
     `);
   }
 
