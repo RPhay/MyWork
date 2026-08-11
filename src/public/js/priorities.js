@@ -768,6 +768,54 @@ async function unlinkTaskFromProject(taskId) {
   }
 }
 
+async function unlinkIdeaFromProject(ideaId) {
+  try {
+    const response = await fetch(`/api/ideas/${ideaId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: null })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Idea removed from project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking idea from project:', error);
+    app.notify('Error unlinking idea from project', 'danger');
+  }
+}
+
+async function unlinkTicketFromProject(ticketId) {
+  try {
+    const response = await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ priority_id: null })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Ticket removed from project', 'success');
+      loadPriorities();
+      loadPriorityRightPanel();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error unlinking ticket from project:', error);
+    app.notify('Error unlinking ticket from project', 'danger');
+  }
+}
+
 async function linkTaskFolderToPriority(folderId, priorityId) {
   // Folders no longer exist - they're just tasks with children
   app.notify('Folder linking is no longer available', 'info');
@@ -1258,9 +1306,15 @@ function initPrioritiesEventListeners() {
           deletePriority(actionBtn.dataset.id);
         }
       } else if (actionBtn.dataset.action === 'unlink') {
-        if (actionBtn.closest('.task-node')) {
+        const type = actionBtn.dataset.type;
+        if (type === 'task') {
           unlinkTaskFromProject(actionBtn.dataset.childId);
+        } else if (type === 'idea') {
+          unlinkIdeaFromProject(actionBtn.dataset.childId);
+        } else if (type === 'ticket') {
+          unlinkTicketFromProject(actionBtn.dataset.childId);
         } else {
+          // Default to todo for backwards compatibility
           unlinkToDoFromProject(actionBtn.dataset.childId);
         }
       } else if (actionBtn.dataset.action === 'unlink-folder') {
