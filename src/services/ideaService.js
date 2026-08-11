@@ -89,6 +89,11 @@ export async function updateIdea(id, data) {
     values.push(data.folder_id || null);
   }
 
+  if (data.priority_id !== undefined) {
+    setClauses.push('priority_id = ?');
+    values.push(data.priority_id || null);
+  }
+
   if (setClauses.length > 0) {
     values.push(id);
     await db.update(`UPDATE ideas SET ${setClauses.join(', ')} WHERE id = ?`, values);

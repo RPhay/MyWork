@@ -577,9 +577,11 @@ export async function createMysqlSchema(connection) {
       title VARCHAR(255) NOT NULL,
       notes LONGTEXT,
       folder_id INT,
+      priority_id INT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (folder_id) REFERENCES idea_folders(id) ON DELETE SET NULL
+      FOREIGN KEY (folder_id) REFERENCES idea_folders(id) ON DELETE SET NULL,
+      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
     )
   `);
 
@@ -623,6 +625,13 @@ export async function createMysqlSchema(connection) {
       FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE
     )
   `);
+
+  // Add priority_id column to ideas table (for project association)
+  if (!(await columnExists(connection, "ideas", "priority_id"))) {
+    await connection.query(
+      "ALTER TABLE ideas ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL"
+    );
+  }
 
   // Create priority_links table (1-n links associated with priorities/projects)
   await connection.query(`

@@ -87,6 +87,13 @@ async function loadAreas() {
     if (result.success) {
       allAreas = result.data;
       renderAreasList(allAreas);
+
+      // Handle pending area edit (from clicking category node in priorities)
+      if (window.pendingAreaEdit) {
+        const areaId = window.pendingAreaEdit;
+        delete window.pendingAreaEdit;
+        setTimeout(() => editArea(areaId), 100);
+      }
     } else {
       container.innerHTML = '<p class="text-center text-danger">Error loading categories</p>';
     }

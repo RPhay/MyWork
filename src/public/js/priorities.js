@@ -1176,12 +1176,28 @@ function initPrioritiesEventListeners() {
     if (header) {
       const todoNode = header.closest('.todo-node');
       const taskNode = header.closest('.task-node');
+      const categoryNode = header.closest('.category-node');
+      const goalNode = header.closest('.goal-node');
+
       if (todoNode && todoNode.dataset.todoId) {
         console.log('[Priorities] Opening todo:', todoNode.dataset.todoId);
         editProjectToDo(todoNode.dataset.todoId);
       } else if (taskNode && taskNode.dataset.taskId) {
         // Tasks don't have a quick-edit form embedded in the Projects page;
         // editing happens on the Tasks tab itself.
+      } else if (categoryNode && categoryNode.dataset.categoryId) {
+        console.log('[Priorities] Opening category:', categoryNode.dataset.categoryId);
+        // Navigate to Areas tab and open category editor
+        const areasTab = document.querySelector('[data-tab="areas"]');
+        if (areasTab) areasTab.click();
+        // Store the category ID to open after tab switches
+        window.pendingAreaEdit = categoryNode.dataset.categoryId;
+      } else if (goalNode && goalNode.dataset.goalId) {
+        console.log('[Priorities] Opening goal:', goalNode.dataset.goalId);
+        // Navigate to Goals tab and open goal editor
+        const goalsTab = document.querySelector('[data-tab="yearly-goals"]');
+        if (goalsTab) goalsTab.click();
+        window.pendingGoalEdit = goalNode.dataset.goalId;
       } else {
         const priorityNode = header.closest('.priority-node');
         if (priorityNode && priorityNode.dataset.priorityId) {

@@ -93,6 +93,13 @@ async function loadYearlyGoals() {
           </td>
         </tr>
       `).join('');
+
+      // Handle pending goal edit (from clicking goal node in priorities)
+      if (window.pendingGoalEdit) {
+        const goalId = window.pendingGoalEdit;
+        delete window.pendingGoalEdit;
+        setTimeout(() => editGoal(goalId), 100);
+      }
     } else {
       currentGoals = [];
       tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No goals for ' + year + '</td></tr>';
