@@ -284,6 +284,12 @@ async function saveToDo() {
     items: collectToDoItemsFromEditor()
   };
 
+  // If creating a child todo, set parent_id
+  if (window.pendingChildToDoParentId && !toDoId) {
+    data.parent_id = window.pendingChildToDoParentId;
+    delete window.pendingChildToDoParentId;
+  }
+
   const recurrence = collectToDoRecurrenceFromModal();
   if (document.getElementById('toDoRecurrenceEnabled').checked && recurrence === null) {
     return;
@@ -388,6 +394,37 @@ async function cycleToDoStatus(toDoId, currentStatus) {
   } else {
     app.notify('Error: ' + result.message, 'danger');
   }
+}
+
+function createChildToDo(parentTodoId) {
+  // Get parent todo to reference in modal
+  const parentTodo = getState().allToDos.find(t => String(t.id) === String(parentTodoId));
+  const parentTitle = parentTodo ? parentTodo.title : 'Unknown';
+
+  // Store the parent_id temporarily for the save function to use
+  window.pendingChildToDoParentId = parentTodoId;
+
+  // Open modal with hint about parent
+  const modal = document.getElementById('toDoModal');
+  const form = document.getElementById('toDoForm');
+  form.reset();
+  document.getElementById('toDoId').value = '';
+  document.getElementById('toDoTitle').value = '';
+  document.getElementById('toDoNotes').value = '';
+
+  // Show hint about parent
+  let hint = document.getElementById('toDoParentHint');
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.id = 'toDoParentHint';
+    hint.style.cssText = 'background: #e7f3ff; border: 1px solid #b3d9ff; padding: 8px 12px; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9em; color: #004085;';
+    form.parentNode.insertBefore(hint, form);
+  }
+  hint.textContent = `Adding a child to: "${parentTitle}"`;
+  hint.classList.remove('d-none');
+
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
 }
 
 
@@ -498,6 +535,38 @@ function setupToDoDragListeners() {
     if (!isInteractive) {
       const toDoId = row.getAttribute('data-id');
       editToDo(toDoId);
+    }
+  });
+
+  // Context menu for todos
+  let contextMenuTodoId = null;
+  const contextMenu = document.getElementById('toDoContextMenu');
+
+  container.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.todo-row');
+    if (!row) {
+      contextMenu.classList.add('d-none');
+      return;
+    }
+
+    e.preventDefault();
+    contextMenuTodoId = row.getAttribute('data-id');
+    contextMenu.style.left = e.clientX + 'px';
+    contextMenu.style.top = e.clientY + 'px';
+    contextMenu.classList.remove('d-none');
+  });
+
+  document.addEventListener('click', () => {
+    if (!contextMenu.classList.contains('d-none')) {
+      contextMenu.classList.add('d-none');
+    }
+  });
+
+  contextMenu.addEventListener('click', (e) => {
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    if (action === 'create-child-todo' && contextMenuTodoId) {
+      createChildToDo(contextMenuTodoId);
+      contextMenu.classList.add('d-none');
     }
   });
 }
