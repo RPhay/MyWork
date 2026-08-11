@@ -255,6 +255,51 @@ footer {
   background-color: #f8f9fa;
 }
 
+/* Context Menu Submenus */
+.context-menu-submenu-group {
+  position: relative;
+}
+
+.context-menu-submenu {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 1001;
+  padding: 0.25rem 0;
+  margin-left: 0.25rem;
+}
+
+.context-menu-submenu.d-none {
+  display: none !important;
+}
+
+.context-menu-submenu .context-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.context-menu-submenu .context-menu-item:hover {
+  background-color: #e7f3ff;
+}
+
+.context-menu-item.has-submenu {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 /* Associated Items Tree */
 .associate-tree {
   padding: 0.5rem 0;

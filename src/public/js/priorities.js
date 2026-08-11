@@ -1379,8 +1379,25 @@ function initPriorities() {
     }
   });
 
-  document.addEventListener('click', () => {
-    contextMenu.classList.add('d-none');
+  document.addEventListener('click', (e) => {
+    // Check if click is on a submenu button to show/hide submenus
+    const submenuBtn = e.target.closest('[data-submenu]');
+    if (submenuBtn && !contextMenu.classList.contains('d-none')) {
+      const submenuId = submenuBtn.dataset.submenu + '-submenu';
+      const submenu = document.getElementById(submenuId);
+      if (submenu) {
+        const isHidden = submenu.classList.contains('d-none');
+        // Hide all submenus first
+        contextMenu.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
+        // Show the clicked submenu
+        if (isHidden) {
+          submenu.classList.remove('d-none');
+        }
+      }
+      e.stopPropagation();
+    } else {
+      contextMenu.classList.add('d-none');
+    }
   });
 
   contextMenu.addEventListener('click', async (e) => {
@@ -1397,6 +1414,14 @@ function initPriorities() {
       showTicketSelector(contextMenuProjectId);
     } else if (action === 'associate-todo') {
       showTodoSelector(contextMenuProjectId);
+    } else if (action === 'create-category') {
+      createAndAssociateCategory(contextMenuProjectId);
+    } else if (action === 'create-idea') {
+      createAndAssociateIdea(contextMenuProjectId);
+    } else if (action === 'create-ticket') {
+      createAndAssociateTicket(contextMenuProjectId);
+    } else if (action === 'create-todo') {
+      createAndAssociateTodo(contextMenuProjectId);
     }
   });
 
@@ -1405,7 +1430,7 @@ function initPriorities() {
     const categories = await fetchCategories();
     showSelectionModal('Associate Category', categories, (categoryId) => {
       associateCategory(projectId, categoryId);
-    });
+    }, true); // Use tree format for hierarchical categories
   }
 
   // Idea selector
@@ -1432,25 +1457,37 @@ function initPriorities() {
     });
   }
 
-  // Generic selection modal
-  function showSelectionModal(title, items, callback) {
+  // Generic selection modal with tree support
+  function showSelectionModal(title, items, callback, isTreeFormat = false) {
     const modal = document.createElement('div');
     modal.className = 'modal fade';
+
+    let bodyHtml;
+    if (isTreeFormat) {
+      // Build tree structure for hierarchical items (areas)
+      bodyHtml = buildTreeHTML(items);
+    } else {
+      // Simple list for non-hierarchical items
+      bodyHtml = `
+        <div class="list-group">
+          ${items.map(item => `
+            <button type="button" class="list-group-item list-group-item-action" data-id="${item.id}">
+              ${app.escapeHtml(item.name || item.title || item.subject)}
+            </button>
+          `).join('')}
+        </div>
+      `;
+    }
+
     modal.innerHTML = `
-      <div class="modal-dialog">
+      <div class="modal-dialog ${isTreeFormat ? 'modal-dialog-scrollable' : ''}">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">${title}</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="list-group">
-              ${items.map(item => `
-                <button type="button" class="list-group-item list-group-item-action" data-id="${item.id}">
-                  ${app.escapeHtml(item.name || item.title || item.subject)}
-                </button>
-              `).join('')}
-            </div>
+            ${bodyHtml}
           </div>
         </div>
       </div>
@@ -1466,9 +1503,33 @@ function initPriorities() {
       }
     };
 
+    // Setup tree interactions if tree format
+    if (isTreeFormat) {
+      const treeItems = modal.querySelectorAll('[data-tree-toggle]');
+      treeItems.forEach(toggle => {
+        toggle.addEventListener('click', (e) => {
+          e.preventDefault();
+          const item = toggle.closest('[data-tree-item]');
+          const children = item.querySelector('[data-tree-children]');
+          if (children) {
+            const isExpanded = item.classList.contains('expanded');
+            if (isExpanded) {
+              item.classList.remove('expanded');
+              children.style.display = 'none';
+              toggle.style.transform = 'rotate(0deg)';
+            } else {
+              item.classList.add('expanded');
+              children.style.display = 'block';
+              toggle.style.transform = 'rotate(90deg)';
+            }
+          }
+        });
+      });
+    }
+
     modal.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-id]');
-      if (btn) {
+      if (btn && !btn.hasAttribute('data-tree-toggle')) {
         callback(btn.dataset.id);
         bsModal.hide();
       }
@@ -1482,6 +1543,32 @@ function initPriorities() {
       document.removeEventListener('keydown', escHandler);
       modal.remove();
     });
+  }
+
+  // Build tree HTML for hierarchical items
+  function buildTreeHTML(items, parentId = null, depth = 0) {
+    const children = items.filter(item => (item.parent_id || null) === parentId);
+    if (children.length === 0 && parentId !== null) return '';
+
+    return `
+      <div class="selection-tree" ${parentId === null ? 'style="padding: 0;"' : `style="padding-left: ${depth * 1.5}rem; margin-top: 0.25rem;"`}>
+        ${children.map(item => {
+          const hasChildren = items.some(i => i.parent_id === item.id);
+          const childrenHtml = hasChildren ? buildTreeHTML(items, item.id, depth + 1) : '';
+          return `
+            <div class="selection-tree-item" data-tree-item="${item.id}">
+              <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-radius: 3px; cursor: pointer; user-select: none;" data-id="${item.id}">
+                ${hasChildren ? `
+                  <i class="bi bi-chevron-right" data-tree-toggle style="font-size: 0.9rem; transition: transform 0.2s; flex: none; width: 1rem; display: flex; align-items: center;"></i>
+                ` : `<span style="flex: none; width: 1rem;"></span>`}
+                <span>${app.escapeHtml(item.name || item.path || item.title || item.subject)}</span>
+              </div>
+              ${childrenHtml ? `<div data-tree-children style="display: none;">${childrenHtml}</div>` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   // Fetch functions
@@ -1639,6 +1726,130 @@ function initPriorities() {
     } catch (error) {
       console.error('Error associating todo:', error);
       app.notify('Error associating todo', 'danger');
+    }
+  }
+
+  // Create and associate functions
+  async function createAndAssociateCategory(projectId) {
+    const name = prompt('Enter category name:');
+    if (!name) return;
+
+    try {
+      const response = await fetch('/api/areas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ name })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Category created and associated!', 'success');
+        await associateCategory(projectId, result.data.id);
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error creating category:', error);
+      app.notify('Error creating category', 'danger');
+    }
+  }
+
+  async function createAndAssociateIdea(projectId) {
+    const title = prompt('Enter idea title:');
+    if (!title) return;
+
+    try {
+      const response = await fetch('/api/ideas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ title, priority_id: projectId })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Idea created and associated!', 'success');
+        loadPriorities();
+        if (typeof PriorityEditor !== 'undefined' && PriorityEditor.renderAssociatedItems) {
+          const freshResponse = await fetch(`/api/priorities/${projectId}`);
+          const freshResult = await freshResponse.json();
+          await PriorityEditor.renderAssociatedItems(freshResult.data);
+        }
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error creating idea:', error);
+      app.notify('Error creating idea', 'danger');
+    }
+  }
+
+  async function createAndAssociateTicket(projectId) {
+    const subject = prompt('Enter ticket subject:');
+    if (!subject) return;
+
+    try {
+      const response = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ subject, priority_id: projectId })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Ticket created and associated!', 'success');
+        loadPriorities();
+        if (typeof PriorityEditor !== 'undefined' && PriorityEditor.renderAssociatedItems) {
+          const freshResponse = await fetch(`/api/priorities/${projectId}`);
+          const freshResult = await freshResponse.json();
+          await PriorityEditor.renderAssociatedItems(freshResult.data);
+        }
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+      app.notify('Error creating ticket', 'danger');
+    }
+  }
+
+  async function createAndAssociateTodo(projectId) {
+    const title = prompt('Enter todo title:');
+    if (!title) return;
+
+    try {
+      const response = await fetch('/api/to-dos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ title, priority_id: projectId })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Todo created and associated!', 'success');
+        loadPriorities();
+        if (typeof PriorityEditor !== 'undefined' && PriorityEditor.renderAssociatedItems) {
+          const freshResponse = await fetch(`/api/priorities/${projectId}`);
+          const freshResult = await freshResponse.json();
+          await PriorityEditor.renderAssociatedItems(freshResult.data);
+        }
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error creating todo:', error);
+      app.notify('Error creating todo', 'danger');
     }
   }
 
