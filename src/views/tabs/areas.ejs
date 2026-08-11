@@ -29,7 +29,13 @@
     <!-- Right Pane (Editor) -->
     <div class="split-pane-right hidden" id="areaEditorPane">
       <div class="split-pane-editor">
-        <div class="split-pane-editor-title" id="areaEditorTitle">Select a category to edit</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div class="split-pane-editor-title" id="areaEditorTitle">Select a category to edit</div>
+          <div style="gap: 0.5rem; display: flex;">
+            <button type="button" class="btn btn-primary btn-sm" id="saveAreaEditorBtn" disabled>Save</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="closeAreaEditorBtn">Cancel</button>
+          </div>
+        </div>
         <form id="areaEditorForm">
           <input type="hidden" id="areaEditorId" name="areaId">
           <input type="hidden" id="areaEditorParentId" name="parentId">
@@ -47,10 +53,6 @@
             <textarea class="form-control" id="areaEditorDescription" name="description" rows="4"></textarea>
           </div>
 
-          <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary" id="saveAreaEditorBtn">Save</button>
-            <button type="button" class="btn btn-secondary" id="closeAreaEditorBtn">Close</button>
-          </div>
         </form>
       </div>
     </div>
