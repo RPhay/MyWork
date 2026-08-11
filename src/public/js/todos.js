@@ -427,6 +427,10 @@ function initializeToDosTab() {
   // Initialize TodoEditor
   TodoEditor.init(window.todoSplitPane, 'toDoEditorForm');
 
+  // Set up event listeners ONCE on the container
+  // These persist even when innerHTML changes due to event delegation
+  setupToDoDragListeners();
+
   loadToDos();
 
   // Wire up modal buttons for creating new todos

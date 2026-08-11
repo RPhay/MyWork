@@ -431,6 +431,10 @@ function initializeTasksTab() {
   // Initialize TaskEditor
   TaskEditor.init(window.taskSplitPane);
 
+  // Set up event listeners ONCE on the container
+  // These persist even when innerHTML changes due to event delegation
+  setupDragListeners();
+
   loadTasks();
 
   const addBtn = document.getElementById('addTaskBtn');
