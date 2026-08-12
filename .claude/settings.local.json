@@ -75,7 +75,13 @@
       "Bash(git merge *)",
       "Bash(curl -s \"http://localhost:3000/api/work?date=2026-08-11\" -H \"Accept: application/json\")",
       "Bash(curl -s http://localhost:3000/api/priorities/1)",
-      "Bash(curl -s -b /tmp/cookies.txt -H \"Content-Type: application/json\" -d '{}' http://localhost:3000/api/tickets)"
+      "Bash(curl -s -b /tmp/cookies.txt -H \"Content-Type: application/json\" -d '{}' http://localhost:3000/api/tickets)",
+      "Bash(sed -i '' -E 's/\\\\ballToDos\\\\b/areaToDos/g; s/\\\\ballTickets\\\\b/areaTickets/g' src/public/js/areas.js)",
+      "Bash(sed -i '' -E 's/\\\\ballToDos\\\\b/ticketToDos/g' src/public/js/tickets.js)",
+      "Bash(perl -pi -e 's/\\\\ballToDos\\\\b/areaToDos/g; s/\\\\ballTickets\\\\b/areaTickets/g' src/public/js/areas.js)",
+      "Bash(perl -pi -e 's/\\\\ballToDos\\\\b/ticketToDos/g' src/public/js/tickets.js)",
+      "Bash(xargs -r ps -p)",
+      "Bash(curl *)"
     ]
   }
 }
