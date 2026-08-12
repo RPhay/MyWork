@@ -400,3 +400,19 @@
     border-radius: 4px;
   }
 </style>
+
+<!-- Work Item Context Menu -->
+<div id="workItemContextMenu" class="d-none" style="position: fixed; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; min-width: 150px;">
+  <button type="button" class="context-menu-item" data-menu-action="edit-notes" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-sticky"></i> Edit Notes
+  </button>
+  <button type="button" class="context-menu-item" data-menu-action="create-todo" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-check2-square"></i> Create To Do
+  </button>
+  <button type="button" class="context-menu-item" data-menu-action="move-to" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-arrow-left-right"></i> Move to Date
+  </button>
+  <button type="button" class="context-menu-item" data-menu-action="clone-to" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
+    <i class="bi bi-files"></i> Copy to Date
+  </button>
+</div>
