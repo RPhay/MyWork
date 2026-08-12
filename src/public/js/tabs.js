@@ -165,53 +165,47 @@ class TabManager {
     // loaded once at page load).
     console.log('Loading tab data for:', tabName);
 
-    const loads = [];
-
     switch (tabName) {
       case 'dailies':
-        if (typeof loadWorkItems !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadWorkItems()));
-        if (typeof loadPrioritiesAndGoals !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadPrioritiesAndGoals()));
+        if (typeof loadWorkItems !== 'undefined') loadWorkItems();
+        if (typeof loadPrioritiesAndGoals !== 'undefined') loadPrioritiesAndGoals();
         break;
       case 'my-priorities':
-        if (typeof loadPriorities !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadPriorities()));
-        if (typeof loadPriorityRightPanel !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadPriorityRightPanel()));
+        if (typeof loadPriorities !== 'undefined') loadPriorities();
+        if (typeof loadPriorityRightPanel !== 'undefined') loadPriorityRightPanel();
         break;
       case 'areas':
-        if (typeof loadAreas !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadAreas()));
+        if (typeof loadAreas !== 'undefined') loadAreas();
         break;
       case 'yearly-goals':
-        if (typeof loadYearlyGoals !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadYearlyGoals()));
+        if (typeof loadYearlyGoals !== 'undefined') loadYearlyGoals();
         break;
       case 'data-sources':
-        if (typeof loadSources !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadSources()));
+        if (typeof loadSources !== 'undefined') loadSources();
         break;
       case 'database-config':
-        if (typeof loadDatabaseConfig !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadDatabaseConfig()));
+        if (typeof loadDatabaseConfig !== 'undefined') loadDatabaseConfig();
         break;
       case 'contexts':
-        if (typeof loadContexts !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadContexts()));
+        if (typeof loadContexts !== 'undefined') loadContexts();
         break;
       case 'templates':
-        if (typeof loadTemplates !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadTemplates()));
-        if (typeof loadTemplateRightPanel !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadTemplateRightPanel()));
+        if (typeof loadTemplates !== 'undefined') loadTemplates();
+        if (typeof loadTemplateRightPanel !== 'undefined') loadTemplateRightPanel();
         break;
       case 'todos':
-        if (typeof loadToDos !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadToDos()));
+        if (typeof loadToDos !== 'undefined') loadToDos();
         break;
       case 'brainstorming':
-        if (typeof loadIdeas !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadIdeas()));
+        if (typeof loadIdeas !== 'undefined') loadIdeas();
         break;
       case 'priority-board':
-        if (typeof loadBoard !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadBoard()));
+        if (typeof loadBoard !== 'undefined') loadBoard();
         break;
       case 'reporting':
-        if (typeof loadActiveReportingSubtab !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadActiveReportingSubtab()));
+        if (typeof loadActiveReportingSubtab !== 'undefined') loadActiveReportingSubtab();
         break;
     }
-
-    Promise.all(loads).catch(error => {
-      console.error('Error loading tab data:', error);
-    });
   }
 
   static getInstance() {
