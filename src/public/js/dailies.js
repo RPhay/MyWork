@@ -2323,14 +2323,6 @@ function initWorkItemContextMenu() {
     const workItemId = contextMenuWorkItemId;
     hideWorkItemContextMenu();
 
-    // For removal actions, fetch the current work item to get its associations
-    let workItem = null;
-    if (action.startsWith("remove-")) {
-      const response = await fetch(`/api/work/${workItemId}`);
-      const result = await response.json();
-      workItem = result.success ? result.data : null;
-    }
-
     if (action === "add-project") showProjectSelector(workItemId);
     else if (action === "add-area") showAreaSelector(workItemId);
     else if (action === "add-goal") showGoalSelector(workItemId);
@@ -2339,21 +2331,13 @@ function initWorkItemContextMenu() {
     else if (action === "add-task") showTaskSelector(workItemId);
     else if (action === "add-ticket") showTicketSelector(workItemId);
     else if (action === "add-idea") showIdeaSelector(workItemId);
-    else if (action === "remove-project") showRemovalModal(workItem, "projects", "Project");
-    else if (action === "remove-area") showRemovalModal(workItem, "areas", "Category");
-    else if (action === "remove-goal") showRemovalModal(workItem, "goals", "Goal");
-    else if (action === "remove-template") showRemovalModal(workItem, "templates", "Template");
-    else if (action === "remove-todo") showRemovalModal(workItem, "todos", "Todo");
-    else if (action === "remove-task") showRemovalModal(workItem, "tasks", "Task");
-    else if (action === "remove-ticket") showRemovalModal(workItem, "tickets", "Ticket");
-    else if (action === "remove-idea") showRemovalModal(workItem, "ideas", "Idea");
-    else if (action === "create-project") createAndAssociateProject(workItemId);
-    else if (action === "create-area") createAndAssociateArea(workItemId);
-    else if (action === "create-goal") createAndAssociateGoal(workItemId);
-    else if (action === "create-todo") createAndAssociateTodo(workItemId);
-    else if (action === "create-task") createAndAssociateTask(workItemId);
-    else if (action === "create-ticket") createAndAssociateTicket(workItemId);
-    else if (action === "create-idea") createAndAssociateIdea(workItemId);
+    else if (action === "create-project") createAndEditItem("priority", workItemId);
+    else if (action === "create-area") createAndEditItem("area", workItemId);
+    else if (action === "create-goal") createAndEditItem("goal", workItemId);
+    else if (action === "create-todo") createAndEditItem("todo", workItemId);
+    else if (action === "create-task") createAndEditItem("task", workItemId);
+    else if (action === "create-ticket") createAndEditItem("ticket", workItemId);
+    else if (action === "create-idea") createAndEditItem("idea", workItemId);
     else if (action === "move-to") openMoveCloneModal(workItemId, "move");
     else if (action === "clone-to") openMoveCloneModal(workItemId, "clone");
   });
@@ -2851,6 +2835,144 @@ async function createAndAssociateIdea(workItemId) {
     console.error('Error creating idea:', error);
     app.notify('Error creating idea', 'danger');
   }
+}
+
+// Child item context menu (for associated items like categories, goals, etc.)
+let childItemContextMenuData = null;
+
+function showChildItemContextMenu(x, y, itemType, itemId) {
+  // For now, show delete option via confirmation
+  // TODO: Create a proper context menu for child items
+  if (confirm(`Delete this ${itemType}?`)) {
+    deleteChildItem(itemType, itemId);
+  }
+}
+
+function deleteChildItem(itemType, itemId) {
+  // Find the parent work item
+  const childRow = document.querySelector(`.child-item-row[data-work-id="${itemId}"]`);
+  if (!childRow) return;
+
+  const parentWorkItemId = childRow.dataset.parentWorkId;
+  if (!parentWorkItemId) return;
+
+  // Delete the association
+  const apiMap = {
+    'priority': 'priorities',
+    'area': 'areas',
+    'goal': 'goals',
+    'template': 'templates',
+    'todo': 'todos',
+    'task': 'tasks',
+    'ticket': 'tickets',
+    'idea': 'ideas'
+  };
+
+  const endpoint = apiMap[itemType];
+  if (!endpoint) return;
+
+  fetch(`/api/work/${parentWorkItemId}/${endpoint}/${itemId}`, {
+    method: 'DELETE',
+    headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+  })
+    .then(r => r.json())
+    .then(result => {
+      if (result.success) {
+        app.notify(`${itemType} removed`, 'success');
+        loadWorkItems();
+      }
+    })
+    .catch(error => {
+      console.error('Error deleting association:', error);
+      app.notify('Error removing association', 'danger');
+    });
+}
+
+// Edit child item - opens the appropriate editor for the item type
+function editChildItem(itemType, itemId) {
+  // Map item types to their editor functions
+  const editorMap = {
+    'priority': () => editPriority(itemId),
+    'area': () => editArea(itemId),
+    'goal': () => editGoal(itemId),
+    'template': () => editTemplate(itemId),
+    'todo': () => editTodo(itemId),
+    'task': () => editTask(itemId),
+    'ticket': () => editTicket(itemId),
+    'idea': () => editIdea(itemId)
+  };
+
+  const editor = editorMap[itemType];
+  if (editor) {
+    editor();
+  } else {
+    console.error('Unknown item type:', itemType);
+  }
+}
+
+// Create and edit item - creates a new item and opens it in the editor
+async function createAndEditItem(itemType, parentWorkItemId) {
+  // For now, use the existing create-and-associate functions
+  // TODO: Implement proper create-and-edit workflow that opens in editor instead of using prompts
+  const createFunctionMap = {
+    'priority': () => createAndAssociateProject(parentWorkItemId),
+    'area': () => createAndAssociateArea(parentWorkItemId),
+    'goal': () => createAndAssociateGoal(parentWorkItemId),
+    'template': () => {
+      app.notify('Template creation via editor coming soon', 'info');
+      // TODO: Implement template creation
+    },
+    'todo': () => createAndAssociateTodo(parentWorkItemId),
+    'task': () => createAndAssociateTask(parentWorkItemId),
+    'ticket': () => createAndAssociateTicket(parentWorkItemId),
+    'idea': () => createAndAssociateIdea(parentWorkItemId)
+  };
+
+  const createFn = createFunctionMap[itemType];
+  if (createFn) {
+    createFn();
+  }
+}
+
+// Stub editor functions - these should open the appropriate editor for each type
+function editPriority(priorityId) {
+  console.log('Edit priority:', priorityId);
+  // TODO: Open priority editor
+}
+
+function editArea(areaId) {
+  console.log('Edit area:', areaId);
+  // TODO: Open area editor
+}
+
+function editGoal(goalId) {
+  console.log('Edit goal:', goalId);
+  // TODO: Open goal editor
+}
+
+function editTemplate(templateId) {
+  console.log('Edit template:', templateId);
+  // TODO: Open template editor
+}
+
+function editTodo(todoId) {
+  console.log('Edit todo:', todoId);
+  // TODO: Open todo editor
+}
+
+function editTask(taskId) {
+  console.log('Edit task:', taskId);
+  // TODO: Open task editor
+}
+
+function editTicket(ticketId) {
+  console.log('Edit ticket:', ticketId);
+  // TODO: Open ticket editor
+}
+
+function editIdea(ideaId) {
+  console.log('Edit idea:', ideaId);
+  // TODO: Open idea editor
 }
 
 function initDailiesEventListeners() {
