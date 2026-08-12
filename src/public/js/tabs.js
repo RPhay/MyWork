@@ -19,10 +19,10 @@ class TabManager {
   }
 
   async initializeTabContent() {
+    // Only initialize the currently active tab
     const loads = [];
 
-    // Initialize Dailies tab if it exists
-    if (typeof renderCalendar !== 'undefined') {
+    if (this.currentTab === 'dailies' && typeof renderCalendar !== 'undefined') {
       renderCalendar();
       updateDateDisplay();
       const today = new Date().toISOString().split('T')[0];
@@ -38,56 +38,11 @@ class TabManager {
       loads.push(window.loadingManager.withLoader(() => loadPrioritiesAndGoals()));
     }
 
-    // Initialize Projects tab if it exists
-    if (typeof loadPriorities !== 'undefined') {
-      loads.push(window.loadingManager.withLoader(() => loadPriorities()));
-      loads.push(window.loadingManager.withLoader(() => loadPriorityRightPanel()));
-    }
-
-    // Initialize Areas tab if it exists
-    if (typeof loadAreas !== 'undefined') {
-      loads.push(window.loadingManager.withLoader(() => loadAreas()));
-    }
-
-    // Initialize Goals tab if it exists
-    if (typeof loadYearlyGoals !== 'undefined') {
-      loads.push(window.loadingManager.withLoader(() => loadYearlyGoals()));
-    }
-
-    // Initialize Data Sources tab if it exists
-    if (typeof loadSources !== 'undefined') {
-      loads.push(window.loadingManager.withLoader(() => loadSources()));
-    }
-
-    // Initialize Database Configuration tab if it exists
-    if (typeof loadDatabaseConfig !== 'undefined') {
-      loads.push(window.loadingManager.withLoader(() => loadDatabaseConfig()));
-    }
-
-    // Initialize Templates tab if it exists
-    if (typeof loadTemplates !== 'undefined') {
-      loads.push(window.loadingManager.withLoader(() => loadTemplates()));
-      loads.push(window.loadingManager.withLoader(() => loadTemplateRightPanel()));
-    }
-
-    // Initialize To Dos tab if it exists
-    if (typeof loadToDos !== 'undefined') {
-      loads.push(window.loadingManager.withLoader(() => loadToDos()));
-    }
-
-    // Initialize Priorities tab if it exists
-    if (typeof loadBoard !== 'undefined') {
-      loads.push(window.loadingManager.withLoader(() => loadBoard()));
-    }
-
-    // Wait for all loads to complete
     if (loads.length > 0) {
       try {
         await Promise.all(loads);
       } catch (error) {
         console.error('Error during tab initialization:', error);
-        // Still hide the modal even if there's an error
-        window.loadingManager.endLoad();
       }
     }
   }
@@ -228,47 +183,53 @@ class TabManager {
     // loaded once at page load).
     console.log('Loading tab data for:', tabName);
 
+    const loads = [];
+
     switch (tabName) {
       case 'dailies':
-        if (typeof loadWorkItems !== 'undefined') loadWorkItems();
-        if (typeof loadPrioritiesAndGoals !== 'undefined') loadPrioritiesAndGoals();
+        if (typeof loadWorkItems !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadWorkItems()));
+        if (typeof loadPrioritiesAndGoals !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadPrioritiesAndGoals()));
         break;
       case 'my-priorities':
-        if (typeof loadPriorities !== 'undefined') loadPriorities();
-        if (typeof loadPriorityRightPanel !== 'undefined') loadPriorityRightPanel();
+        if (typeof loadPriorities !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadPriorities()));
+        if (typeof loadPriorityRightPanel !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadPriorityRightPanel()));
         break;
       case 'areas':
-        if (typeof loadAreas !== 'undefined') loadAreas();
+        if (typeof loadAreas !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadAreas()));
         break;
       case 'yearly-goals':
-        if (typeof loadYearlyGoals !== 'undefined') loadYearlyGoals();
+        if (typeof loadYearlyGoals !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadYearlyGoals()));
         break;
       case 'data-sources':
-        if (typeof loadSources !== 'undefined') loadSources();
+        if (typeof loadSources !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadSources()));
         break;
       case 'database-config':
-        if (typeof loadDatabaseConfig !== 'undefined') loadDatabaseConfig();
+        if (typeof loadDatabaseConfig !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadDatabaseConfig()));
         break;
       case 'contexts':
-        if (typeof loadContexts !== 'undefined') loadContexts();
+        if (typeof loadContexts !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadContexts()));
         break;
       case 'templates':
-        if (typeof loadTemplates !== 'undefined') loadTemplates();
-        if (typeof loadTemplateRightPanel !== 'undefined') loadTemplateRightPanel();
+        if (typeof loadTemplates !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadTemplates()));
+        if (typeof loadTemplateRightPanel !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadTemplateRightPanel()));
         break;
       case 'todos':
-        if (typeof loadToDos !== 'undefined') loadToDos();
+        if (typeof loadToDos !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadToDos()));
         break;
       case 'brainstorming':
-        if (typeof loadIdeas !== 'undefined') loadIdeas();
+        if (typeof loadIdeas !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadIdeas()));
         break;
       case 'priority-board':
-        if (typeof loadBoard !== 'undefined') loadBoard();
+        if (typeof loadBoard !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadBoard()));
         break;
       case 'reporting':
-        if (typeof loadActiveReportingSubtab !== 'undefined') loadActiveReportingSubtab();
+        if (typeof loadActiveReportingSubtab !== 'undefined') loads.push(window.loadingManager.withLoader(() => loadActiveReportingSubtab()));
         break;
     }
+
+    Promise.all(loads).catch(error => {
+      console.error('Error loading tab data:', error);
+    });
   }
 
   static getInstance() {
