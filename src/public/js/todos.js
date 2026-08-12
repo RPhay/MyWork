@@ -5,7 +5,8 @@ if (!window.todoState) {
     allToDos: [],
     allCategories: [],
     allTickets: [],
-    draggedTodoId: null
+    draggedTodoId: null,
+    filterMode: 'incomplete'
   };
 }
 
@@ -129,7 +130,7 @@ function renderToDosList() {
   }
 
   const childrenMap = buildChildrenMap(getState().allToDos);
-  const rootTodos = getRootTodos(getState().allToDos);
+  const allRootTodos = getRootTodos(getState().allToDos);
 
   // Compute status map for all todos
   const statusMap = {};
@@ -137,7 +138,22 @@ function renderToDosList() {
     statusMap[todo.id] = computeToDoStatus(todo, childrenMap);
   });
 
-  container.innerHTML = rootTodos
+  // Filter based on current filter mode
+  const filterMode = getState().filterMode || 'incomplete';
+  let filteredRootTodos = allRootTodos;
+
+  if (filterMode === 'complete') {
+    filteredRootTodos = allRootTodos.filter(t => statusMap[t.id] === 'complete');
+  } else if (filterMode === 'incomplete') {
+    filteredRootTodos = allRootTodos.filter(t => statusMap[t.id] !== 'complete');
+  }
+
+  if (filteredRootTodos.length === 0) {
+    container.innerHTML = '<p class="text-center text-muted">No to dos matching filter</p>';
+    return;
+  }
+
+  container.innerHTML = filteredRootTodos
     .map(t => renderToDoRow(t, 0, childrenMap, statusMap))
     .join('');
 
@@ -916,6 +932,19 @@ function initializeToDosTab() {
   // Set up event listeners ONCE on the container
   // These persist even when innerHTML changes due to event delegation
   setupToDoDragListeners();
+
+  // Set up filter toggle buttons
+  document.querySelectorAll('.todo-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Update active state
+      document.querySelectorAll('.todo-filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Update filter mode and re-render
+      getState().filterMode = btn.dataset.filter;
+      renderToDosList();
+    });
+  });
 
   loadToDos();
 

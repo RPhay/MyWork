@@ -3,7 +3,14 @@
   <!-- Left Pane -->
   <div class="split-pane-left" id="todoListPane" style="padding: 15px; overflow-y: auto;">
     <div class="row mb-2">
-      <div class="col-md-12 text-end">
+      <div class="col-md-6">
+        <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+          <button type="button" class="btn btn-sm btn-outline-secondary todo-filter-btn" data-filter="all" title="Show all todos">All</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary todo-filter-btn active" data-filter="incomplete" title="Show only incomplete todos">Incomplete</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary todo-filter-btn" data-filter="complete" title="Show only complete todos">Complete</button>
+        </div>
+      </div>
+      <div class="col-md-6 text-end">
         <button class="btn btn-primary" id="addToDoBtn" data-bs-toggle="modal" data-bs-target="#toDoModal">
           + Add To Do
         </button>
