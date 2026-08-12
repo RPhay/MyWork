@@ -9,16 +9,11 @@ class TabManager {
     this.setupTabButtons();
     this.showTab(this.currentTab);
     this.setupUrlSync();
-    // Start 2 load operations: one for tab content, one for context config
-    window.loadingManager.startLoad();
-    window.loadingManager.startLoad();
-    this.initializeTabContent().finally(() => {
-      window.loadingManager.endLoad();
-    });
+    this.initializeTabContent();
     this.applyContextTabConfig();
   }
 
-  async initializeTabContent() {
+  initializeTabContent() {
     // Only initialize the currently active tab
     const loads = [];
 
@@ -39,11 +34,9 @@ class TabManager {
     }
 
     if (loads.length > 0) {
-      try {
-        await Promise.all(loads);
-      } catch (error) {
+      Promise.all(loads).catch(error => {
         console.error('Error during tab initialization:', error);
-      }
+      });
     }
   }
 
