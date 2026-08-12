@@ -484,50 +484,14 @@ function renderWorkItemsList(items) {
     return;
   }
 
-  container.innerHTML = items
-    .map((item) => {
-      const isExpanded = expandedWorkItems.has(String(item.id));
-      const children = [
-        ...(item.priorities || []).map((p) => ({
-          type: "priority",
-          id: p.id,
-          label: p.path || p.title,
-          icon: APP_ICONS.project,
-        })),
-        ...(item.goals || []).map((g) => ({
-          type: "goal",
-          id: g.id,
-          label: g.name,
-          icon: APP_ICONS.goal,
-        })),
-        ...(item.areas || []).map((a) => ({
-          type: "area",
-          id: a.id,
-          label: a.path || a.name,
-          icon: APP_ICONS.area,
-        })),
-      ];
+  let html = '';
 
-      const childrenHtml =
-        children.length > 0
-          ? children
-              .map(
-                (c) => `
-          <div class="child-item">
-            <i class="bi ${c.icon} text-muted"></i>
-            <span>${app.escapeHtml(c.label)}</span>
-            <button class="btn btn-sm btn-link text-danger child-remove p-0" data-action="unlink" data-type="${c.type}" data-child-id="${c.id}" title="Remove" aria-label="Remove">
-              <i class="bi bi-x-lg"></i>
-            </button>
-          </div>
-        `,
-              )
-              .join("")
-          : '<div class="text-muted small">Drag a project, goal, or category here</div>';
+  items.forEach((item) => {
+    const isExpanded = expandedWorkItems.has(String(item.id));
+    const hasChildren = (item.priorities?.length || 0) + (item.goals?.length || 0) + (item.areas?.length || 0) > 0;
 
-      const hasChildren = children.length > 0;
-
-      return `
+    // Render work item row
+    html += `
       <div class="work-item ${isExpanded ? "expanded" : ""}" data-work-id="${item.id}" data-has-children="${hasChildren}">
         <div class="work-item-header" draggable="true" data-status="${item.status}" title="${hasChildren ? "Click to expand/collapse, double-click to edit; drag to reorder" : "Click to change status, double-click to edit; drag to reorder"}">
           <span class="work-item-title-cell">
@@ -545,11 +509,50 @@ function renderWorkItemsList(items) {
             <button class="btn btn-sm btn-danger" data-action="delete" data-id="${item.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
           </span>
         </div>
-        <div class="work-item-children">${childrenHtml}</div>
-      </div>
     `;
-    })
-    .join("");
+
+    // Render child items if expanded
+    if (isExpanded) {
+      if (item.priorities?.length > 0) {
+        item.priorities.forEach((p) => {
+          html += renderChildItem('priority', p.id, p.path || p.title, APP_ICONS.project, item.id);
+        });
+      }
+      if (item.goals?.length > 0) {
+        item.goals.forEach((g) => {
+          html += renderChildItem('goal', g.id, g.name, APP_ICONS.goal, item.id);
+        });
+      }
+      if (item.areas?.length > 0) {
+        item.areas.forEach((a) => {
+          html += renderChildItem('area', a.id, a.path || a.name, APP_ICONS.area, item.id);
+        });
+      }
+    }
+
+    html += '</div>'; // Close work-item
+  });
+
+  container.innerHTML = html;
+}
+
+function renderChildItem(type, id, label, icon, parentWorkItemId) {
+  return `
+    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" style="margin-left: 30px;">
+      <div class="work-item-header" style="cursor: pointer;" title="Click to edit, right-click for menu">
+        <span class="work-item-title-cell">
+          <i class="bi ${icon} text-muted"></i>
+          <span class="work-item-title">${app.escapeHtml(label)}</span>
+        </span>
+        <span style="flex: 1;"></span>
+        <span class="work-item-actions">
+          <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink" data-type="${type}" data-child-id="${id}" title="Remove" aria-label="Remove">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </span>
+      </div>
+    </div>
+  `;
 }
 
 async function loadWorkItems() {
@@ -2012,9 +2015,17 @@ function initWorkItemsListEventListeners() {
     // Ignore clicks on elements with data-action (those are handled above)
     if (e.target.closest('[data-action]')) return;
 
-    // Click on work item to open editor
+    // Click on item to open editor
     const workItemEl = header.closest(".work-item");
-    editWorkItem(workItemEl.dataset.workId);
+    if (workItemEl.classList.contains("child-item-row")) {
+      // Child item - open its editor
+      const itemType = workItemEl.dataset.itemType;
+      const itemId = workItemEl.dataset.workId;
+      editChildItem(itemType, itemId);
+    } else {
+      // Work item - open work item editor
+      editWorkItem(workItemEl.dataset.workId);
+    }
   });
 
   container.addEventListener("dblclick", (e) => {
@@ -2033,7 +2044,16 @@ function initWorkItemsListEventListeners() {
     const workItemEl = e.target.closest(".work-item");
     if (!workItemEl) return;
     e.preventDefault();
-    showWorkItemContextMenu(e.clientX, e.clientY, workItemEl.dataset.workId);
+
+    // Check if this is a child item (associated object like category, goal, etc.)
+    if (workItemEl.classList.contains("child-item-row")) {
+      const itemType = workItemEl.dataset.itemType;
+      const itemId = workItemEl.dataset.workId;
+      showChildItemContextMenu(e.clientX, e.clientY, itemType, itemId);
+    } else {
+      // It's a work item
+      showWorkItemContextMenu(e.clientX, e.clientY, workItemEl.dataset.workId);
+    }
   });
 
   container.addEventListener("dragstart", (e) => {
