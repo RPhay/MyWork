@@ -1659,9 +1659,12 @@ async function cycleWorkItemStatus(workId, currentStatus) {
         if (header) {
           header.dataset.status = nextStatus;
         }
-        const statusIcon = workItemEl.querySelector('[data-action="cycle-status"] i');
-        if (statusIcon) {
-          statusIcon.className = `bi ${app.statusIcon(nextStatus)}`;
+        const statusBadge = workItemEl.querySelector('[data-action="cycle-status"]');
+        if (statusBadge) {
+          statusBadge.textContent = nextStatus;
+          // Update badge color based on status
+          const bgClass = nextStatus === "Complete" ? "success" : nextStatus === "In Progress" ? "warning" : "secondary";
+          statusBadge.className = `badge bg-${bgClass} work-item-status-badge`;
         }
       }
       loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
