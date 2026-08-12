@@ -14,9 +14,7 @@ class TabManager {
   }
 
   initializeTabContent() {
-    // Only initialize the currently active tab
-    const loads = [];
-
+    // Initialize the currently active tab
     if (this.currentTab === 'dailies' && typeof renderCalendar !== 'undefined') {
       renderCalendar();
       updateDateDisplay();
@@ -29,14 +27,8 @@ class TabManager {
         input.value = today;
         document.body.appendChild(input);
       }
-      loads.push(window.loadingManager.withLoader(() => loadWorkItems()));
-      loads.push(window.loadingManager.withLoader(() => loadPrioritiesAndGoals()));
-    }
-
-    if (loads.length > 0) {
-      Promise.all(loads).catch(error => {
-        console.error('Error during tab initialization:', error);
-      });
+      loadWorkItems();
+      loadPrioritiesAndGoals();
     }
   }
 
@@ -45,10 +37,7 @@ class TabManager {
   // and the drag-reorder target). Settings' own top-level tabs are a separate,
   // fixed-order tab strip and never go through this.
   applyContextTabConfig() {
-    window.loadingManager.startLoad();
-    this._applyContextTabConfig().finally(() => {
-      window.loadingManager.endLoad();
-    });
+    this._applyContextTabConfig();
   }
 
   async _applyContextTabConfig() {
