@@ -1652,7 +1652,18 @@ async function cycleWorkItemStatus(workId, currentStatus) {
 
     const result = await response.json();
     if (result.success) {
-      loadWorkItems();
+      // Update just this work item's status in the DOM without reloading everything
+      const workItemEl = document.querySelector(`[data-work-id="${workId}"]`);
+      if (workItemEl) {
+        const header = workItemEl.querySelector(".work-item-header");
+        if (header) {
+          header.dataset.status = nextStatus;
+        }
+        const statusIcon = workItemEl.querySelector('[data-action="cycle-status"] i');
+        if (statusIcon) {
+          statusIcon.className = `bi ${app.statusIcon(nextStatus)}`;
+        }
+      }
       loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
     } else {
       app.notify("Error: " + result.message, "danger");
@@ -1692,12 +1703,25 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
 
     const result = await response.json();
     if (result.success) {
+      // Update just this work item's timebox in the DOM
+      const workItemEl = document.querySelector(`[data-work-id="${workId}"]`);
+      if (workItemEl) {
+        const timeboxBtn = workItemEl.querySelector('[data-action="cycle-timebox"]');
+        if (timeboxBtn) {
+          if (nextMinutes === null) {
+            timeboxBtn.textContent = '';
+            timeboxBtn.dataset.minutes = '';
+          } else {
+            timeboxBtn.textContent = nextMinutes + 'm';
+            timeboxBtn.dataset.minutes = nextMinutes;
+          }
+        }
+      }
       // Update calendar total immediately without full reload
       const selectedDate = document.getElementById("selectedDate")?.value;
       if (selectedDate) {
         updateCalendarDayTotal(selectedDate);
       }
-      loadWorkItems();
     } else {
       app.notify("Error: " + result.message, "danger");
     }
@@ -1728,7 +1752,17 @@ async function toggleWorkItemClaude(workId) {
 
     const result = await response.json();
     if (result.success) {
-      loadWorkItems();
+      // Update just this work item's claude flag in the DOM
+      const workItemEl = document.querySelector(`[data-work-id="${workId}"]`);
+      if (workItemEl) {
+        const claudeToggle = workItemEl.querySelector('[data-action="toggle-claude"] i');
+        if (claudeToggle) {
+          // Toggle the color and opacity
+          const isActive = claudeToggle.style.color === '#FFA500' || claudeToggle.style.color === 'rgb(255, 165, 0)';
+          claudeToggle.style.color = isActive ? '#ddd' : '#FFA500';
+          claudeToggle.style.opacity = isActive ? '0.5' : '1';
+        }
+      }
     } else {
       app.notify("Error: " + result.message, "danger");
     }
