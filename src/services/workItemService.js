@@ -63,7 +63,7 @@ async function attachAssociations(items) {
       ids
     ),
     db.query(
-      `SELECT wti.work_item_id, ti.id, ti.subject
+      `SELECT wti.work_item_id, ti.id, ti.title
        FROM work_ticket_associations wti
        JOIN tickets ti ON wti.ticket_id = ti.id
        WHERE wti.work_item_id IN (${placeholders})`,
@@ -105,7 +105,7 @@ async function attachAssociations(items) {
       .map(r => ({ id: r.id, title: r.title })),
     tickets: ticketRows
       .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, title: r.subject })),
+      .map(r => ({ id: r.id, title: r.title })),
     ideas: ideaRows
       .filter(r => r.work_item_id === item.id)
       .map(r => ({ id: r.id, title: r.title })),

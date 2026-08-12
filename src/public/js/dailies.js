@@ -2790,13 +2790,13 @@ async function createAndAssociateTask(workItemId) {
 }
 
 async function createAndAssociateTicket(workItemId) {
-  const subject = prompt('Enter ticket subject:');
-  if (!subject) return;
+  const title = prompt('Enter ticket title:');
+  if (!title) return;
   try {
     const response = await fetch('/api/tickets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
-      body: JSON.stringify({ subject })
+      body: JSON.stringify({ title })
     });
     const result = await response.json();
     if (result.success) {
