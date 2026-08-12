@@ -807,10 +807,10 @@ function setupDragListeners() {
 async function loadItemsForModal() {
   const itemTypes = [
     { id: 'project', endpoint: '/api/priorities', listId: 'projectsList', label: 'projects' },
-    { id: 'task', endpoint: '/api/tasks', listId: 'tasksList', label: 'tasks' },
-    { id: 'ticket', endpoint: '/api/tickets', listId: 'ticketsList', label: 'tickets' },
+    { id: 'task', endpoint: '/api/tasks', listId: 'dailiesTasksList', label: 'tasks' },
+    { id: 'ticket', endpoint: '/api/tickets', listId: 'dailiesTicketsList', label: 'tickets' },
     { id: 'idea', endpoint: '/api/ideas', listId: 'ideaList', label: 'ideas' },
-    { id: 'template', endpoint: '/api/work-item-templates', listId: 'templatesList', label: 'templates' },
+    { id: 'template', endpoint: '/api/work-item-templates', listId: 'dailiesTemplatesList', label: 'templates' },
     { id: 'goal', endpoint: `/api/goals/year/${window.APP_CONFIG?.currentYear || new Date().getFullYear()}`, listId: 'goalsList', label: 'goals' },
     { id: 'todo', endpoint: '/api/to-dos', listId: 'todosList', label: 'to dos' }
   ];

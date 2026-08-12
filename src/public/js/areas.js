@@ -1,7 +1,7 @@
 let expandedAreas = new Set();
 let allAreas = [];
-let allToDos = [];
-let allTickets = [];
+let areaToDos = [];
+let areaTickets = [];
 let currentAreaId = null;
 let areaEditorHasChanges = false;
 
@@ -50,8 +50,8 @@ function renderAssociatedTicket(ticket) {
 
 function renderAreaNode(area, byParent, depth) {
   const children = byParent.get(area.id) || [];
-  const associatedTodos = allToDos.filter(t => t.category_id === area.id);
-  const associatedTickets = allTickets.filter(tick => tick.category_id === area.id);
+  const associatedTodos = areaToDos.filter(t => t.category_id === area.id);
+  const associatedTickets = areaTickets.filter(tick => tick.category_id === area.id);
   const hasChildren = children.length > 0 || associatedTodos.length > 0 || associatedTickets.length > 0;
   const isExpanded = expandedAreas.has(String(area.id));
 
@@ -124,8 +124,8 @@ async function loadAreas() {
 
     if (areasResult.success) {
       allAreas = areasResult.data;
-      allToDos = todosResult.success ? (todosResult.data || []) : [];
-      allTickets = ticketsResult.success ? (ticketsResult.data || []) : [];
+      areaToDos = todosResult.success ? (todosResult.data || []) : [];
+      areaTickets = ticketsResult.success ? (ticketsResult.data || []) : [];
       renderAreasList(allAreas);
 
       // Handle pending area edit (from clicking category node in priorities)
@@ -472,7 +472,7 @@ async function associateTicketWithArea(ticketId, areaId) {
 
 // What a category can be associated with, and how - drives both the "Add
 // association" picker and the grouped list below it in the modal. Reads
-// areas.js's own allToDos/allTickets (populated by loadAreas()), not
+// areas.js's own areaToDos/areaTickets (populated by loadAreas()), not
 // window.todoState/window.ticketState - the latter is what the previous
 // version of this function used, but tickets.js never sets window.ticketState,
 // so associated tickets never actually rendered here.
@@ -480,8 +480,8 @@ const AREA_ASSOCIATION_TYPES = {
   todo: {
     label: 'Todo',
     icon: 'bi-check2-square',
-    getAssociated: (areaId) => allToDos.filter(t => t.category_id === areaId),
-    getCandidates: (areaId) => allToDos.filter(t => t.category_id !== areaId),
+    getAssociated: (areaId) => areaToDos.filter(t => t.category_id === areaId),
+    getCandidates: (areaId) => areaToDos.filter(t => t.category_id !== areaId),
     getName: (t) => t.title,
     associate: associateTodoWithArea,
     unlink: unlinkTodoFromArea,
@@ -489,8 +489,8 @@ const AREA_ASSOCIATION_TYPES = {
   ticket: {
     label: 'Ticket',
     icon: 'bi-ticket',
-    getAssociated: (areaId) => allTickets.filter(t => t.category_id === areaId),
-    getCandidates: (areaId) => allTickets.filter(t => t.category_id !== areaId),
+    getAssociated: (areaId) => areaTickets.filter(t => t.category_id === areaId),
+    getCandidates: (areaId) => areaTickets.filter(t => t.category_id !== areaId),
     getName: (t) => t.title,
     associate: associateTicketWithArea,
     unlink: unlinkTicketFromArea,

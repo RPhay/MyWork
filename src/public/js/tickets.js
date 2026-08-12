@@ -1,5 +1,5 @@
 let allTickets = [];
-let allToDos = [];
+let ticketToDos = [];
 let allGoals = [];
 let expandedTicketTypes = new Set(['ServiceNow', 'Azure DevOps', 'Other']);
 let expandedTicketNodes = new Set();
@@ -93,7 +93,7 @@ async function loadTickets() {
 
     if (ticketsResult.success) {
       allTickets = ticketsResult.data || [];
-      allToDos = todosResult.success ? (todosResult.data || []) : [];
+      ticketToDos = todosResult.success ? (todosResult.data || []) : [];
       allGoals = goalsResult.success ? (goalsResult.data || []) : [];
       renderTickets();
     } else {
@@ -180,7 +180,7 @@ function renderTickets() {
           ticketHeaderDiv.style.cursor = 'pointer';
           ticketHeaderDiv.style.fontSize = '0.9rem';
 
-          const associatedTodos = allToDos.filter(t => t.ticket_id === ticket.id);
+          const associatedTodos = ticketToDos.filter(t => t.ticket_id === ticket.id);
           const associatedGoals = allGoals.filter(g => g.ticket_id === ticket.id);
           const hasChildren = associatedTodos.length > 0 || associatedGoals.length > 0;
 
@@ -422,8 +422,8 @@ const TICKET_ASSOCIATION_TYPES = {
   todo: {
     label: 'Todo',
     icon: 'bi-check2-square',
-    getAssociated: (ticketId) => allToDos.filter(t => t.ticket_id === ticketId),
-    getCandidates: (ticketId) => allToDos.filter(t => t.ticket_id !== ticketId),
+    getAssociated: (ticketId) => ticketToDos.filter(t => t.ticket_id === ticketId),
+    getCandidates: (ticketId) => ticketToDos.filter(t => t.ticket_id !== ticketId),
     getName: (t) => t.title,
     associate: associateTodoWithTicket,
     unlink: unlinkTodoFromTicket,
@@ -640,6 +640,10 @@ function renderTicketLinks(links) {
   links.forEach((link, index) => {
     const linkEl = document.createElement('div');
     linkEl.className = 'mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center';
+    // Links already saved to the server carry their id here, so saveTicket()
+    // can tell them apart from ones added locally in this modal session and
+    // not yet persisted.
+    if (link.id) linkEl.dataset.linkId = link.id;
 
     const titleSpan = document.createElement('span');
     titleSpan.className = 'flex-grow-1 cursor-pointer';
@@ -698,6 +702,69 @@ function addTicketLink(isEditor = false) {
   document.getElementById(`${prefix}LinkTitle`).value = '';
 }
 
+async function saveTicket() {
+  const ticketId = document.getElementById('ticketId').value;
+  const title = document.getElementById('ticketTitle').value;
+
+  if (!title.trim()) {
+    app.notify('Title is required', 'warning');
+    return;
+  }
+
+  const presetType = document.getElementById('ticketPresetType').value;
+  const data = {
+    title,
+    notes: document.getElementById('ticketNotes').value,
+    ticket_type: document.getElementById('ticketType').value || presetType || 'Other',
+  };
+
+  try {
+    const url = ticketId ? `/api/tickets/${ticketId}` : '/api/tickets';
+    const method = ticketId ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (!result.success) {
+      app.notify('Error: ' + result.message, 'danger');
+      return;
+    }
+
+    const savedTicketId = ticketId || result.data.id;
+
+    // Links typed into this modal only live in the DOM until now (addTicketLink
+    // just re-renders the local list); persist any that aren't already saved.
+    const unsavedLinkRows = Array.from(document.querySelectorAll('#ticketLinksList > div'))
+      .filter(row => !row.dataset.linkId);
+    for (const row of unsavedLinkRows) {
+      const a = row.querySelector('a');
+      if (!a) continue;
+      await fetch(`/api/tickets/${savedTicketId}/links`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        },
+        body: JSON.stringify({ url: a.href, title: a.textContent })
+      });
+    }
+
+    app.notify(ticketId ? 'Ticket updated!' : 'Ticket created!', 'success');
+    bootstrap.Modal.getInstance(document.getElementById('ticketModal'))?.hide();
+    loadTickets();
+  } catch (error) {
+    console.error('Error saving ticket:', error);
+    app.notify('Error saving ticket', 'danger');
+  }
+}
+
 function initTickets() {
   loadTicketFolderState();
 
@@ -708,9 +775,16 @@ function initTickets() {
   }
 
   document.getElementById('addTicketBtn')?.addEventListener('click', () => {
+    document.getElementById('ticketForm').reset();
+    document.getElementById('ticketId').value = '';
+    document.getElementById('ticketPresetType').value = '';
+    renderTicketLinks([]);
     const modal = new bootstrap.Modal(document.getElementById('ticketModal'));
     modal.show();
   });
+
+  document.getElementById('addTicketLinkBtn')?.addEventListener('click', () => addTicketLink(false));
+  document.getElementById('saveTicketBtn')?.addEventListener('click', saveTicket);
 
   document.getElementById('ticketEditorAddLinkBtn')?.addEventListener('click', () => addTicketLink(true));
 
