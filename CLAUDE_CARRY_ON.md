@@ -1,103 +1,56 @@
-# Carry-on: Modal-Based Association Management - COMPLETE
+# Carry-on: Association management — schema parity + modal enhancements
 
-Modal-based association management has been implemented across all entity pages (Tickets, Todos, Categories).
+## Uncommitted changes on disk right now
 
-## What was done
+None of this is committed yet:
 
-### Modal-Based Association System ✅ COMPLETE
+- `src/database/schema/mssqlSchema.js` — added the eight FK columns that existed
+  in `mysqlSchema.js` but were missing from the MSSQL translation (`ideas.priority_id`,
+  `tickets.priority_id`, and the six hierarchical-association columns:
+  `to_dos.ticket_id`, `goals.ticket_id`, `areas.todo_id`, `tickets.todo_id`,
+  `tickets.category_id`, `to_dos.category_id`). This is why "Fix Schema" wasn't
+  fully updating the work-machine MSSQL install after schema work done against
+  MySQL at home. Four of the eight use `ON DELETE NO ACTION` instead of MySQL's
+  `SET NULL` (`to_dos.ticket_id`, `tickets.todo_id`, `areas.todo_id`,
+  `to_dos.category_id`) because they form two mutual FK pairs and SQL Server
+  rejects a cascading action that creates a cycle.
+- `CLAUDE.md` — added a "Database schema changes must cover every supported
+  database type" section: schema changes must land in both `mysqlSchema.js` and
+  `mssqlSchema.js`, and notes the MSSQL cascade/cycle restriction.
+- `tickets.js`/`tickets.ejs`, `todos.js`/`todos.ejs`, `areas.js`/`areas.ejs` — each
+  "Manage Associations" modal now has an "Add association" picker (type select +
+  item select + Add button) that links an existing item without drag-and-drop,
+  and the associated-items list is grouped by type with a header per group
+  instead of a flat concatenated list. `areas.js`'s `showManageAreaAssociationsModal`
+  was also fixed to read its own local `allToDos`/`allTickets` instead of
+  `window.todoState`/`window.ticketState` — the latter never actually held ticket
+  data (`tickets.js` never sets `window.ticketState`), so associated tickets never
+  rendered in that modal before this fix.
+- No database schema change was needed for the modal/picker work — it only calls
+  the existing `PUT /api/to-dos/:id`, `/api/tickets/:id`, `/api/areas/:id`
+  endpoints with `ticket_id`/`category_id`/`todo_id`, same as the existing
+  drag-and-drop association code already did.
 
-**Pages Implemented:**
-1. ✅ **Tickets Page** - Context menu now shows "Manage Associations" and "Delete Ticket"
-2. ✅ **Todos Page** - Context menu now shows "Create Child Todo", "Manage Associations", and "Delete Todo"
-3. ✅ **Categories Page** - Context menu now shows "Create Subcategory", "Manage Associations", and "Delete Category"
+Explicitly out of scope for this pass, by request: drag-and-drop reordering of
+associated items within the modal (would need a new persisted `order_index`
+column per relationship — not started).
 
-**Key Changes:**
-- Simplified context menus (removed complex submenu structure)
-- Added Bootstrap modal dialogs for viewing/managing associated items
-- Each associated item displays with an "unlink" button
-- Modal refreshes after unlinking to show updated state
-- Consistent UI pattern across all pages
+## Still to do
 
-**Files Updated:**
-1. `src/views/tabs/tickets.ejs` - Added manageTicketAssociationsModal
-2. `src/views/tabs/todos.ejs` - Added manageTodoAssociationsModal
-3. `src/views/tabs/areas.ejs` - Added manageAreaAssociationsModal
-4. `src/public/js/tickets.js` - Added showManageTicketAssociationsModal()
-5. `src/public/js/todos.js` - Added showManageTodoAssociationsModal()
-6. `src/public/js/areas.js` - Added showManageAreaAssociationsModal()
-
-**Modal Structure:**
-- Header with title "Manage Associated Items"
-- Body showing list of associated items (categories, todos, tickets, goals)
-- Each item displays icon, name, and "unlink" button
-- Footer with "Close" button
-- Max-height with scrollbar for large lists
-
-**Context Menu Structure (Consistent Across Pages):**
-```
-Simplified action buttons:
-- Create Item action (type-specific: "Create Child Todo", "Create Subcategory", etc)
-- "Manage Associations" - Opens modal dialog
-- "Delete Item" - Deletes the item
-```
-
-## How to Use
-
-### For Users:
-1. Right-click on any Ticket, Todo, or Category
-2. Select "Manage Associations" from the context menu
-3. View all associated items in the modal
-4. Click the "X" button next to any item to unlink it
-5. Modal updates automatically
-
-### For Developers:
-- Modal IDs: `manageTicketAssociationsModal`, `manageTodoAssociationsModal`, `manageAreaAssociationsModal`
-- Modal content container IDs: `ticketAssociatedItemsList`, `todoAssociatedItemsList`, `areaAssociatedItemsList`
-- Functions: `showManageTicketAssociationsModal()`, `showManageTodoAssociationsModal()`, `showManageAreaAssociationsModal()`
-
-## Associated Item Rules
-
-**Tickets** can have:
-- Associated Todos (via `ticket_id` FK in todos table)
-- Associated Goals (via `ticket_id` FK in goals table)
-
-**Todos** can have:
-- Associated Categories (via `category_id` FK in todos table)
-- Associated Tickets (via `todo_id` FK in tickets table)
-
-**Categories** can have:
-- Associated Todos (via `category_id` FK in todos table)
-- Associated Tickets (via `category_id` FK in tickets table)
-
-## Known Issues
-
-None. Feature is complete and working.
-
-## Testing Status
-
-- ✅ Syntax validation passed (node -c)
-- ✅ Dev server running without errors
-- ✅ All three pages load without console errors
-- ✅ Modal dialogs appear and function correctly
-- ✅ Unlink buttons work and refresh modal content
-
-## Next Steps
-
-1. Test association management in browser:
-   - Create items with associations
-   - Right-click and open manage modal
-   - Unlink items and verify removal
-   - Test on all three pages
-
-2. Consider future enhancements:
-   - Add "Associate Item" menu option to create associations from context menu
-   - Add tree view of associations in modal (collapsed tree structure)
-   - Drag-and-drop to reorder associations
-
-## Migration Notes
-
-If pulling this code:
-1. No database schema changes required
-2. No API changes required
-3. Frontend-only changes to UI/UX
-4. All existing association data remains intact
+1. **Manual browser verification** — none of the above has been exercised in a
+   browser yet. Check on Tickets, Todos, and Categories pages:
+   - Existing view/unlink flow in "Manage Associations" still works and now
+     renders as grouped sections instead of a flat list.
+   - New "Add association" picker: switching the type dropdown repopulates the
+     item dropdown with only *unassociated* candidates, and clicking Add links
+     the item and refreshes the modal.
+   - Categories page specifically: confirm associated tickets now actually show
+     up in the modal (previously silently empty due to the `window.ticketState`
+     bug above).
+2. **Run the schema fix against a real MSSQL server** to confirm the eight new
+   backfill blocks apply cleanly — no MSSQL instance is reachable from the dev
+   environment this was written in, so this has only been syntax-checked
+   (`node --check`), not executed.
+3. **Playwright pass** (`npx playwright test tests/e2e/debug.spec.js` at least)
+   per this repo's own CLAUDE.md guidance, before committing.
+4. **Commit** — nothing above is committed yet.

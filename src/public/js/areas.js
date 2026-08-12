@@ -470,54 +470,101 @@ async function associateTicketWithArea(ticketId, areaId) {
   }
 }
 
+// What a category can be associated with, and how - drives both the "Add
+// association" picker and the grouped list below it in the modal. Reads
+// areas.js's own allToDos/allTickets (populated by loadAreas()), not
+// window.todoState/window.ticketState - the latter is what the previous
+// version of this function used, but tickets.js never sets window.ticketState,
+// so associated tickets never actually rendered here.
+const AREA_ASSOCIATION_TYPES = {
+  todo: {
+    label: 'Todo',
+    icon: 'bi-check2-square',
+    getAssociated: (areaId) => allToDos.filter(t => t.category_id === areaId),
+    getCandidates: (areaId) => allToDos.filter(t => t.category_id !== areaId),
+    getName: (t) => t.title,
+    associate: associateTodoWithArea,
+    unlink: unlinkTodoFromArea,
+  },
+  ticket: {
+    label: 'Ticket',
+    icon: 'bi-ticket',
+    getAssociated: (areaId) => allTickets.filter(t => t.category_id === areaId),
+    getCandidates: (areaId) => allTickets.filter(t => t.category_id !== areaId),
+    getName: (t) => t.title,
+    associate: associateTicketWithArea,
+    unlink: unlinkTicketFromArea,
+  },
+};
+
+function populateAreaAssociateControls(areaId) {
+  const typeSelect = document.getElementById('areaAssociateType');
+  const itemSelect = document.getElementById('areaAssociateItem');
+  const addBtn = document.getElementById('areaAssociateAddBtn');
+  if (!typeSelect || !itemSelect || !addBtn) return;
+
+  typeSelect.innerHTML = Object.entries(AREA_ASSOCIATION_TYPES)
+    .map(([key, cfg]) => `<option value="${key}">${cfg.label}</option>`)
+    .join('');
+
+  const fillItems = () => {
+    const cfg = AREA_ASSOCIATION_TYPES[typeSelect.value];
+    const candidates = cfg.getCandidates(areaId);
+    itemSelect.innerHTML = candidates.length
+      ? candidates.map(item => `<option value="${item.id}">${app.escapeHtml(cfg.getName(item))}</option>`).join('')
+      : '<option value="">No available items</option>';
+  };
+
+  typeSelect.onchange = fillItems;
+  fillItems();
+
+  addBtn.onclick = async () => {
+    const itemId = parseInt(itemSelect.value);
+    if (!itemId) return;
+    await AREA_ASSOCIATION_TYPES[typeSelect.value].associate(itemId, areaId);
+    showManageAreaAssociationsModal(areaId);
+  };
+}
+
 function showManageAreaAssociationsModal(areaId) {
   const area = allAreas.find(a => a.id === areaId);
   if (!area) return;
 
-  const associatedTodos = window.todoState?.allToDos?.filter(t => t.category_id === areaId) || [];
-  const associatedTickets = window.ticketState?.allTickets?.filter(t => t.category_id === areaId) || [];
+  populateAreaAssociateControls(areaId);
 
-  const listHtml = associatedTodos.map(t => `
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <i class="bi bi-check2-square text-muted"></i>
-        <span>${app.escapeHtml(t.title)}</span>
-      </div>
-      <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink-todo" data-id="${t.id}" title="Unlink">
-        <i class="bi bi-x-circle"></i>
-      </button>
-    </div>
-  `).concat(associatedTickets.map(t => `
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <i class="bi bi-ticket text-muted"></i>
-        <span>${app.escapeHtml(t.title)}</span>
-      </div>
-      <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink-ticket" data-id="${t.id}" title="Unlink">
-        <i class="bi bi-x-circle"></i>
-      </button>
-    </div>
-  `)).join('');
+  const groups = Object.entries(AREA_ASSOCIATION_TYPES)
+    .map(([type, cfg]) => ({ type, cfg, items: cfg.getAssociated(areaId) }))
+    .filter(g => g.items.length > 0);
 
   const itemsList = document.getElementById('areaAssociatedItemsList');
-  itemsList.innerHTML = listHtml || '<p class="text-center text-muted">No associated items</p>';
+  if (groups.length === 0) {
+    itemsList.innerHTML = '<p class="text-center text-muted">No associated items</p>';
+  } else {
+    itemsList.innerHTML = groups.map(({ type, cfg, items }) => `
+      <div class="association-group mb-2">
+        <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #888; padding: 4px 8px;">
+          <i class="bi ${cfg.icon}"></i> ${cfg.label}s (${items.length})
+        </div>
+        ${items.map(item => `
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 20px; background: #f8f9fa; border-radius: 4px; margin-bottom: 4px;">
+            <span style="flex: 1; font-size: 0.9rem;">${app.escapeHtml(cfg.getName(item))}</span>
+            <button class="btn btn-sm btn-link p-0" data-action="unlink-item" data-type="${type}" data-id="${item.id}" title="Unlink">
+              <i class="bi bi-x-circle text-danger"></i>
+            </button>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
 
-  // Attach event handlers
-  itemsList.querySelectorAll('[data-action="unlink-todo"]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await unlinkTodoFromArea(btn.dataset.id);
-      showManageAreaAssociationsModal(areaId);
+    itemsList.querySelectorAll('[data-action="unlink-item"]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const type = btn.dataset.type;
+        await AREA_ASSOCIATION_TYPES[type].unlink(btn.dataset.id);
+        showManageAreaAssociationsModal(areaId);
+      });
     });
-  });
-
-  itemsList.querySelectorAll('[data-action="unlink-ticket"]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await unlinkTicketFromArea(btn.dataset.id);
-      showManageAreaAssociationsModal(areaId);
-    });
-  });
+  }
 
   const modal = new bootstrap.Modal(document.getElementById('manageAreaAssociationsModal'));
   modal.show();

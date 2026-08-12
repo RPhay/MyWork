@@ -68,6 +68,17 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small mb-1">Add association</label>
+          <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" id="areaAssociateType" style="max-width: 110px;"></select>
+            <select class="form-select form-select-sm flex-grow-1" id="areaAssociateItem"></select>
+            <button type="button" class="btn btn-sm btn-primary text-nowrap" id="areaAssociateAddBtn">
+              <i class="bi bi-plus-lg"></i> Add
+            </button>
+          </div>
+        </div>
+        <hr>
         <p class="text-muted small mb-3">Associated items for this category:</p>
         <div id="areaAssociatedItemsList" style="max-height: 400px; overflow-y: auto;">
           <p class="text-center text-muted">No associated items</p>

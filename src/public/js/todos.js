@@ -807,54 +807,99 @@ async function associateTicketWithTodo(ticketId, todoId) {
   }
 }
 
+// What a todo can be associated with, and how - drives both the "Add
+// association" picker and the grouped list below it in the modal.
+const TODO_ASSOCIATION_TYPES = {
+  category: {
+    label: 'Category',
+    pluralLabel: 'Categories',
+    icon: 'bi-folder',
+    getAssociated: (todoId) => getState().allCategories.filter(c => c.todo_id === todoId),
+    getCandidates: (todoId) => getState().allCategories.filter(c => c.todo_id !== todoId),
+    getName: (c) => c.name,
+    associate: associateCategoryWithTodo,
+    unlink: unlinkCategoryFromTodo,
+  },
+  ticket: {
+    label: 'Ticket',
+    pluralLabel: 'Tickets',
+    icon: 'bi-ticket',
+    getAssociated: (todoId) => getState().allTickets.filter(t => t.todo_id === todoId),
+    getCandidates: (todoId) => getState().allTickets.filter(t => t.todo_id !== todoId),
+    getName: (t) => t.title,
+    associate: associateTicketWithTodo,
+    unlink: unlinkTicketFromTodo,
+  },
+};
+
+function populateTodoAssociateControls(todoId) {
+  const typeSelect = document.getElementById('todoAssociateType');
+  const itemSelect = document.getElementById('todoAssociateItem');
+  const addBtn = document.getElementById('todoAssociateAddBtn');
+  if (!typeSelect || !itemSelect || !addBtn) return;
+
+  typeSelect.innerHTML = Object.entries(TODO_ASSOCIATION_TYPES)
+    .map(([key, cfg]) => `<option value="${key}">${cfg.label}</option>`)
+    .join('');
+
+  const fillItems = () => {
+    const cfg = TODO_ASSOCIATION_TYPES[typeSelect.value];
+    const candidates = cfg.getCandidates(todoId);
+    itemSelect.innerHTML = candidates.length
+      ? candidates.map(item => `<option value="${item.id}">${app.escapeHtml(cfg.getName(item))}</option>`).join('')
+      : '<option value="">No available items</option>';
+  };
+
+  typeSelect.onchange = fillItems;
+  fillItems();
+
+  addBtn.onclick = async () => {
+    const itemId = parseInt(itemSelect.value);
+    if (!itemId) return;
+    await TODO_ASSOCIATION_TYPES[typeSelect.value].associate(itemId, todoId);
+    showManageTodoAssociationsModal(todoId);
+  };
+}
+
 function showManageTodoAssociationsModal(todoId) {
   const todo = getState().allToDos.find(t => t.id === todoId);
   if (!todo) return;
 
-  const associatedCategories = getState().allCategories.filter(c => c.todo_id === todoId);
-  const associatedTickets = getState().allTickets.filter(t => t.todo_id === todoId);
+  populateTodoAssociateControls(todoId);
 
-  const listHtml = associatedCategories.map(c => `
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <i class="bi bi-folder text-muted"></i>
-        <span>${app.escapeHtml(c.name)}</span>
-      </div>
-      <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink-category" data-id="${c.id}" title="Unlink">
-        <i class="bi bi-x-circle"></i>
-      </button>
-    </div>
-  `).concat(associatedTickets.map(t => `
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <i class="bi bi-ticket text-muted"></i>
-        <span>${app.escapeHtml(t.title)}</span>
-      </div>
-      <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink-ticket" data-id="${t.id}" title="Unlink">
-        <i class="bi bi-x-circle"></i>
-      </button>
-    </div>
-  `)).join('');
+  const groups = Object.entries(TODO_ASSOCIATION_TYPES)
+    .map(([type, cfg]) => ({ type, cfg, items: cfg.getAssociated(todoId) }))
+    .filter(g => g.items.length > 0);
 
   const itemsList = document.getElementById('todoAssociatedItemsList');
-  itemsList.innerHTML = listHtml || '<p class="text-center text-muted">No associated items</p>';
+  if (groups.length === 0) {
+    itemsList.innerHTML = '<p class="text-center text-muted">No associated items</p>';
+  } else {
+    itemsList.innerHTML = groups.map(({ type, cfg, items }) => `
+      <div class="association-group mb-2">
+        <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #888; padding: 4px 8px;">
+          <i class="bi ${cfg.icon}"></i> ${cfg.pluralLabel} (${items.length})
+        </div>
+        ${items.map(item => `
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 20px; background: #f8f9fa; border-radius: 4px; margin-bottom: 4px;">
+            <span style="flex: 1; font-size: 0.9rem;">${app.escapeHtml(cfg.getName(item))}</span>
+            <button class="btn btn-sm btn-link p-0" data-action="unlink-item" data-type="${type}" data-id="${item.id}" title="Unlink">
+              <i class="bi bi-x-circle text-danger"></i>
+            </button>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
 
-  // Attach event handlers
-  itemsList.querySelectorAll('[data-action="unlink-category"]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await unlinkCategoryFromTodo(btn.dataset.id);
-      showManageTodoAssociationsModal(todoId);
+    itemsList.querySelectorAll('[data-action="unlink-item"]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const type = btn.dataset.type;
+        await TODO_ASSOCIATION_TYPES[type].unlink(btn.dataset.id);
+        showManageTodoAssociationsModal(todoId);
+      });
     });
-  });
-
-  itemsList.querySelectorAll('[data-action="unlink-ticket"]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await unlinkTicketFromTodo(btn.dataset.id);
-      showManageTodoAssociationsModal(todoId);
-    });
-  });
+  }
 
   const modal = new bootstrap.Modal(document.getElementById('manageTodoAssociationsModal'));
   modal.show();

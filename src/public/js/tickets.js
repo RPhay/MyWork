@@ -416,69 +416,101 @@ function hideTicketContextMenu() {
   document.getElementById('ticketContextMenu').classList.add('d-none');
 }
 
+// What a ticket can be associated with, and how - drives both the "Add
+// association" picker and the grouped list below it in the modal.
+const TICKET_ASSOCIATION_TYPES = {
+  todo: {
+    label: 'Todo',
+    icon: 'bi-check2-square',
+    getAssociated: (ticketId) => allToDos.filter(t => t.ticket_id === ticketId),
+    getCandidates: (ticketId) => allToDos.filter(t => t.ticket_id !== ticketId),
+    getName: (t) => t.title,
+    associate: associateTodoWithTicket,
+    unlink: unlinkTodoFromTicket,
+  },
+  goal: {
+    label: 'Goal',
+    icon: 'bi-target',
+    getAssociated: (ticketId) => allGoals.filter(g => g.ticket_id === ticketId),
+    getCandidates: (ticketId) => allGoals.filter(g => g.ticket_id !== ticketId),
+    getName: (g) => g.name,
+    associate: associateGoalWithTicket,
+    unlink: unlinkGoalFromTicket,
+  },
+};
+
+function populateTicketAssociateControls(ticketId) {
+  const typeSelect = document.getElementById('ticketAssociateType');
+  const itemSelect = document.getElementById('ticketAssociateItem');
+  const addBtn = document.getElementById('ticketAssociateAddBtn');
+  if (!typeSelect || !itemSelect || !addBtn) return;
+
+  typeSelect.innerHTML = Object.entries(TICKET_ASSOCIATION_TYPES)
+    .map(([key, cfg]) => `<option value="${key}">${cfg.label}</option>`)
+    .join('');
+
+  const fillItems = () => {
+    const cfg = TICKET_ASSOCIATION_TYPES[typeSelect.value];
+    const candidates = cfg.getCandidates(ticketId);
+    itemSelect.innerHTML = candidates.length
+      ? candidates.map(item => `<option value="${item.id}">${app.escapeHtml(cfg.getName(item))}</option>`).join('')
+      : '<option value="">No available items</option>';
+  };
+
+  typeSelect.onchange = fillItems;
+  fillItems();
+
+  addBtn.onclick = async () => {
+    const itemId = parseInt(itemSelect.value);
+    if (!itemId) return;
+    await TICKET_ASSOCIATION_TYPES[typeSelect.value].associate(itemId, ticketId);
+    showManageTicketAssociationsModal(ticketId);
+  };
+}
+
 function showManageTicketAssociationsModal(ticketId) {
   const ticket = allTickets.find(t => t.id === ticketId);
   if (!ticket) return;
 
-  const associatedTodos = allToDos.filter(t => t.ticket_id === ticketId);
-  const associatedGoals = allGoals.filter(g => g.ticket_id === ticketId);
+  populateTicketAssociateControls(ticketId);
+
+  const groups = Object.entries(TICKET_ASSOCIATION_TYPES)
+    .map(([type, cfg]) => ({ type, cfg, items: cfg.getAssociated(ticketId) }))
+    .filter(g => g.items.length > 0);
 
   const itemsList = document.getElementById('ticketAssociatedItemsList');
-  if (associatedTodos.length === 0 && associatedGoals.length === 0) {
+  if (groups.length === 0) {
     itemsList.innerHTML = '<p class="text-center text-muted">No associated items</p>';
   } else {
-    let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
-
-    associatedTodos.forEach((todo) => {
-      html += `
-        <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
-          <i class="bi bi-check2-square"></i>
-          <span style="flex: 1; font-size: 0.9rem;">${app.escapeHtml(todo.title)}</span>
-          <button class="btn btn-sm btn-link p-0" data-action="unlink-item" data-type="todo" data-id="${todo.id}" title="Unlink">
-            <i class="bi bi-x-circle text-danger"></i>
-          </button>
+    itemsList.innerHTML = groups.map(({ type, cfg, items }) => `
+      <div class="association-group mb-2">
+        <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #888; padding: 4px 8px;">
+          <i class="bi ${cfg.icon}"></i> ${cfg.label}s (${items.length})
         </div>
-      `;
-    });
-
-    associatedGoals.forEach((goal) => {
-      html += `
-        <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
-          <i class="bi bi-target"></i>
-          <span style="flex: 1; font-size: 0.9rem;">${app.escapeHtml(goal.name)}</span>
-          <button class="btn btn-sm btn-link p-0" data-action="unlink-item" data-type="goal" data-id="${goal.id}" title="Unlink">
-            <i class="bi bi-x-circle text-danger"></i>
-          </button>
-        </div>
-      `;
-    });
-
-    html += '</div>';
-    itemsList.innerHTML = html;
+        ${items.map(item => `
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 20px; background: #f8f9fa; border-radius: 4px; margin-bottom: 4px;">
+            <span style="flex: 1; font-size: 0.9rem;">${app.escapeHtml(cfg.getName(item))}</span>
+            <button class="btn btn-sm btn-link p-0" data-action="unlink-item" data-type="${type}" data-id="${item.id}" title="Unlink">
+              <i class="bi bi-x-circle text-danger"></i>
+            </button>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
 
     itemsList.querySelectorAll('[data-action="unlink-item"]').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const type = btn.dataset.type;
         const id = parseInt(btn.dataset.id);
-        if (type === 'todo') {
-          await unlinkTodoFromTicket(id, ticketId);
-          showManageTicketAssociationsModal(ticketId);
-        } else if (type === 'goal') {
-          await unlinkGoalFromTicket(id, ticketId);
-          showManageTicketAssociationsModal(ticketId);
-        }
+        await TICKET_ASSOCIATION_TYPES[type].unlink(id, ticketId);
+        showManageTicketAssociationsModal(ticketId);
       });
     });
   }
 
   const modal = new bootstrap.Modal(document.getElementById('manageTicketAssociationsModal'));
   modal.show();
-}
-
-function showAssociateModal(type, ticketId) {
-  // TODO: Implement modal for associating items
-  app.notify(`Associate ${type} feature coming soon`, 'info');
 }
 
 function openCreateTodoForTicket(ticketId) {

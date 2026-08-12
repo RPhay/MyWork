@@ -726,6 +726,14 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "ideas");
 
+  // Backfill priority_id for pre-existing ideas tables (project association) - see mysqlSchema.js
+  if (!(await columnExists(pool, "ideas", "priority_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[ideas] ADD
+        priority_id INT NULL CONSTRAINT fk_ideas_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
+    `);
+  }
+
   await createTableIfNotExists(
     pool,
     "idea_items",
@@ -885,6 +893,14 @@ export async function createMssqlSchema(pool) {
   `,
   );
   await createUpdatedAtTrigger(pool, "tickets");
+
+  // Backfill priority_id for pre-existing tickets tables (project association) - see mysqlSchema.js
+  if (!(await columnExists(pool, "tickets", "priority_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[tickets] ADD
+        priority_id INT NULL CONSTRAINT fk_tickets_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
+    `);
+  }
 
   await createTableIfNotExists(
     pool,
@@ -1179,4 +1195,57 @@ export async function createMssqlSchema(pool) {
     "goals",
     "CREATE UNIQUE INDEX unique_context_year_name ON [MyWork].[goals](context_id, year, name)",
   );
+
+  // Hierarchical associations for cross-entity relationships - see mysqlSchema.js,
+  // which uses ON DELETE SET NULL for all six columns below. to_dos<->tickets and
+  // areas<->to_dos are each mutual pairs (both tables reference each other), and
+  // SQL Server rejects a cascading action - CASCADE or SET NULL alike - that forms
+  // a cycle ("may cause cycles or multiple cascade paths"), the same restriction
+  // already hit by the self-referencing parent_id columns above. So the four
+  // columns forming those two mutual pairs use NO ACTION instead; the app must
+  // clear the paired column itself before a delete that would otherwise leave a
+  // dangling reference. The other two columns (goals.ticket_id, tickets.category_id)
+  // aren't part of a cycle and keep MySQL's SET NULL behavior.
+
+  // Tickets can have todos and goals as children
+  if (!(await columnExists(pool, "to_dos", "ticket_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_dos] ADD
+        ticket_id INT NULL CONSTRAINT fk_to_dos_ticket FOREIGN KEY REFERENCES [MyWork].[tickets](id) ON DELETE NO ACTION
+    `);
+  }
+  if (!(await columnExists(pool, "goals", "ticket_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[goals] ADD
+        ticket_id INT NULL CONSTRAINT fk_goals_ticket FOREIGN KEY REFERENCES [MyWork].[tickets](id) ON DELETE SET NULL
+    `);
+  }
+
+  // Todos can have categories (areas) and tickets as children
+  if (!(await columnExists(pool, "areas", "todo_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[areas] ADD
+        todo_id INT NULL CONSTRAINT fk_areas_todo FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION
+    `);
+  }
+  if (!(await columnExists(pool, "tickets", "todo_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[tickets] ADD
+        todo_id INT NULL CONSTRAINT fk_tickets_todo FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION
+    `);
+  }
+
+  // Categories (areas) can have tickets and todos as children
+  if (!(await columnExists(pool, "tickets", "category_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[tickets] ADD
+        category_id INT NULL CONSTRAINT fk_tickets_category FOREIGN KEY REFERENCES [MyWork].[areas](id) ON DELETE SET NULL
+    `);
+  }
+  if (!(await columnExists(pool, "to_dos", "category_id"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_dos] ADD
+        category_id INT NULL CONSTRAINT fk_to_dos_category FOREIGN KEY REFERENCES [MyWork].[areas](id) ON DELETE NO ACTION
+    `);
+  }
 }
