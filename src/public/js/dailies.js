@@ -2296,16 +2296,19 @@ function initWorkItemContextMenu() {
     if (e.key === "Escape") hideWorkItemContextMenu();
   });
 
-  document
-    .getElementById("saveWorkNotesBtn")
-    .addEventListener("click", saveWorkItemNotes);
-  document
-    .getElementById("confirmMoveCloneBtn")
-    .addEventListener("click", confirmMoveClone);
+  const saveWorkNotesBtn = document.getElementById("saveWorkNotesBtn");
+  if (saveWorkNotesBtn) {
+    saveWorkNotesBtn.addEventListener("click", saveWorkItemNotes);
+  }
 
-  document
-    .getElementById("moveCloneCalendar")
-    .addEventListener("click", (e) => {
+  const confirmMoveCloneBtn = document.getElementById("confirmMoveCloneBtn");
+  if (confirmMoveCloneBtn) {
+    confirmMoveCloneBtn.addEventListener("click", confirmMoveClone);
+  }
+
+  const moveCloneCalendar = document.getElementById("moveCloneCalendar");
+  if (moveCloneCalendar) {
+    moveCloneCalendar.addEventListener("click", (e) => {
       const navBtn = e.target.closest("[data-cal-nav]");
       if (navBtn) {
         changeMoveCloneCalendarMonth(navBtn.dataset.calNav === "prev" ? -1 : 1);
@@ -2314,6 +2317,7 @@ function initWorkItemContextMenu() {
       const dayCell = e.target.closest("[data-date]");
       if (dayCell) selectMoveCloneDate(dayCell.dataset.date);
     });
+  }
 }
 
 function initDailiesEventListeners() {
