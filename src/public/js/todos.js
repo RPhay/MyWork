@@ -693,8 +693,6 @@ function setupToDoDragListeners() {
     const action = button.dataset.action;
     if (action === 'create-child-todo' && contextMenuTodoId) {
       createChildToDo(contextMenuTodoId);
-    } else if (action === 'manage-associations' && contextMenuTodoId) {
-      showManageTodoAssociationsModal(contextMenuTodoId);
     } else if (action === 'delete-todo' && contextMenuTodoId) {
       deleteToDo(contextMenuTodoId);
     }

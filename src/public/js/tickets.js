@@ -402,9 +402,7 @@ function showTicketContextMenu(e, ticketType, ticketId) {
   menu.querySelectorAll('.context-menu-item').forEach(item => {
     item.onclick = () => {
       const action = item.dataset.action;
-      if (action === 'manage-associations') {
-        showManageTicketAssociationsModal(ticketId);
-      } else if (action === 'delete-ticket') {
+      if (action === 'delete-ticket') {
         deleteTicket(ticketId);
       }
       hideTicketContextMenu();

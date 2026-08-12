@@ -768,9 +768,6 @@ function initAreaContextMenu() {
       openNewAreaForm(areaId);
       const modal = new bootstrap.Modal(document.getElementById('areaModal'));
       modal.show();
-    } else if (action === 'manage-associations') {
-      hideAreaContextMenu();
-      showManageAreaAssociationsModal(areaId);
     } else if (action === 'delete-area') {
       hideAreaContextMenu();
       deleteArea(areaId);
