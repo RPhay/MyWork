@@ -1080,6 +1080,7 @@ function showWorkItemContextMenu(x, y, workItemId) {
   const menu = document.getElementById("workItemContextMenu");
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
+  collapseContextMenuSubmenus();
   menu.classList.remove("d-none");
 }
 
@@ -2270,31 +2271,71 @@ function initWorkItemContextMenu() {
   const menu = document.getElementById("workItemContextMenu");
   if (!menu) return;
 
-  menu.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-menu-action]");
-    if (!btn || !contextMenuWorkItemId) {
+  // Submenu toggle handler (click-to-toggle, not hover)
+  document.addEventListener("click", (e) => {
+    const submenuBtn = e.target.closest("[data-submenu]");
+    if (submenuBtn && !menu.classList.contains("d-none")) {
+      const submenuId = submenuBtn.dataset.submenu + "-submenu";
+      const submenu = document.getElementById(submenuId);
+      if (submenu) {
+        const isHidden = submenu.classList.contains("d-none");
+        // Hide all submenus first
+        menu.querySelectorAll(".context-menu-submenu").forEach(m => m.classList.add("d-none"));
+        // Show the clicked submenu
+        if (isHidden) {
+          submenu.classList.remove("d-none");
+        }
+      }
+      e.stopPropagation();
+    } else if (e.target.closest("[data-action]") && !menu.classList.contains("d-none") && menu.contains(e.target)) {
+      // Let action handlers proceed
+    } else if (!menu.classList.contains("d-none") && !menu.contains(e.target)) {
       hideWorkItemContextMenu();
-      return;
-    }
-
-    const workItemId = contextMenuWorkItemId;
-    hideWorkItemContextMenu();
-
-    if (btn.dataset.menuAction === "edit-notes") {
-      openWorkItemNotesModal(workItemId);
-    } else if (btn.dataset.menuAction === "create-todo") {
-      createToDoFromWorkItem(workItemId);
-    } else if (btn.dataset.menuAction === "move-to") {
-      openMoveCloneModal(workItemId, "move");
-    } else if (btn.dataset.menuAction === "clone-to") {
-      openMoveCloneModal(workItemId, "clone");
     }
   });
 
-  document.addEventListener("click", (e) => {
-    if (!menu.classList.contains("d-none") && !menu.contains(e.target)) {
-      hideWorkItemContextMenu();
+  // Main action dispatcher
+  menu.addEventListener("click", async (e) => {
+    const actionBtn = e.target.closest("[data-action]");
+    if (!actionBtn || !contextMenuWorkItemId) return;
+
+    const action = actionBtn.dataset.action;
+    const workItemId = contextMenuWorkItemId;
+    hideWorkItemContextMenu();
+
+    // For removal actions, fetch the current work item to get its associations
+    let workItem = null;
+    if (action.startsWith("remove-")) {
+      const response = await fetch(`/api/work/${workItemId}`);
+      const result = await response.json();
+      workItem = result.success ? result.data : null;
     }
+
+    if (action === "add-project") showProjectSelector(workItemId);
+    else if (action === "add-area") showAreaSelector(workItemId);
+    else if (action === "add-goal") showGoalSelector(workItemId);
+    else if (action === "add-template") showTemplateSelector(workItemId);
+    else if (action === "add-todo") showTodoSelector(workItemId);
+    else if (action === "add-task") showTaskSelector(workItemId);
+    else if (action === "add-ticket") showTicketSelector(workItemId);
+    else if (action === "add-idea") showIdeaSelector(workItemId);
+    else if (action === "remove-project") showRemovalModal(workItem, "projects", "Project");
+    else if (action === "remove-area") showRemovalModal(workItem, "areas", "Category");
+    else if (action === "remove-goal") showRemovalModal(workItem, "goals", "Goal");
+    else if (action === "remove-template") showRemovalModal(workItem, "templates", "Template");
+    else if (action === "remove-todo") showRemovalModal(workItem, "todos", "Todo");
+    else if (action === "remove-task") showRemovalModal(workItem, "tasks", "Task");
+    else if (action === "remove-ticket") showRemovalModal(workItem, "tickets", "Ticket");
+    else if (action === "remove-idea") showRemovalModal(workItem, "ideas", "Idea");
+    else if (action === "create-project") createAndAssociateProject(workItemId);
+    else if (action === "create-area") createAndAssociateArea(workItemId);
+    else if (action === "create-goal") createAndAssociateGoal(workItemId);
+    else if (action === "create-todo") createAndAssociateTodo(workItemId);
+    else if (action === "create-task") createAndAssociateTask(workItemId);
+    else if (action === "create-ticket") createAndAssociateTicket(workItemId);
+    else if (action === "create-idea") createAndAssociateIdea(workItemId);
+    else if (action === "move-to") openMoveCloneModal(workItemId, "move");
+    else if (action === "clone-to") openMoveCloneModal(workItemId, "clone");
   });
 
   document.addEventListener("keydown", (e) => {
@@ -2322,6 +2363,473 @@ function initWorkItemContextMenu() {
       const dayCell = e.target.closest("[data-date]");
       if (dayCell) selectMoveCloneDate(dayCell.dataset.date);
     });
+  }
+}
+
+// Helper: Collapse all submenus before showing context menu
+function collapseContextMenuSubmenus() {
+  const menu = document.getElementById("workItemContextMenu");
+  if (menu) {
+    menu.querySelectorAll(".context-menu-submenu").forEach(m => m.classList.add("d-none"));
+  }
+}
+
+// Generic selection modal for adding associations
+function showSelectionModal(title, items, callback, isTreeFormat = false) {
+  const modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.setAttribute("tabindex", "-1");
+
+  let bodyHtml;
+  if (isTreeFormat) {
+    bodyHtml = buildTreeHTML(items);
+  } else {
+    bodyHtml = items.length > 0
+      ? `<div class="list-group">${items.map(item => `
+          <button type="button" class="list-group-item list-group-item-action item-row" data-item-id="${item.id}">
+            ${app.escapeHtml(item.title || item.name || item.subject || "")}
+          </button>
+        `).join("")}</div>`
+      : '<p class="text-muted">No items available</p>';
+  }
+
+  modal.innerHTML = `
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title">${app.escapeHtml(title)}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          ${bodyHtml}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  const bsModal = new bootstrap.Modal(modal);
+
+  modal.addEventListener("click", (e) => {
+    const itemBtn = e.target.closest("[data-item-id]");
+    if (itemBtn) {
+      callback(itemBtn.dataset.itemId);
+      bsModal.hide();
+    }
+  });
+
+  modal.addEventListener("hidden.bs.modal", () => {
+    modal.remove();
+  });
+
+  bsModal.show();
+}
+
+// Build tree HTML for hierarchical items (Priorities/Areas)
+function buildTreeHTML(items, parentId = null, depth = 0) {
+  const filtered = items.filter(item => (item.parent_id === parentId || item.parent_id === null));
+  const hasChildren = (itemId) => items.some(item => item.parent_id === itemId);
+
+  return filtered.map(item => {
+    const childrenHtml = hasChildren(item.id) ? buildTreeHTML(items, item.id, depth + 1) : '';
+    const paddingLeft = depth * 20;
+    return `
+      <div style="padding-left: ${paddingLeft}px;">
+        <button type="button" class="list-group-item list-group-item-action item-row" data-item-id="${item.id}">
+          ${app.escapeHtml(item.title || item.name || item.subject || "")}
+        </button>
+        ${childrenHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+// Modal for removing associations (scoped to only currently-associated items)
+function showRemovalModal(workItem, assocKey, typeName) {
+  const items = workItem[assocKey] || [];
+  if (items.length === 0) {
+    app.notify(`No ${typeName}s associated with this work item`, 'info');
+    return;
+  }
+
+  const typeToAssocPath = {
+    'projects': 'priority',
+    'areas': 'area',
+    'goals': 'goal',
+    'templates': 'template',
+    'todos': 'todo',
+    'tasks': 'task',
+    'tickets': 'ticket',
+    'ideas': 'idea'
+  };
+  const assocPath = typeToAssocPath[assocKey];
+
+  showSelectionModal(`Remove ${typeName}`, items, (itemId) => {
+    unlinkChild(workItem.id, assocPath, itemId);
+  });
+}
+
+// Fetch and show selection modal for projects/priorities
+async function showProjectSelector(workItemId) {
+  const response = await fetch('/api/priorities');
+  const result = await response.json();
+  const projects = result.success ? result.data : [];
+  showSelectionModal('Associate Project', projects, (projectId) => {
+    associateProject(workItemId, projectId);
+  }, true); // Projects are hierarchical
+}
+
+// Fetch and show selection modal for areas
+async function showAreaSelector(workItemId) {
+  const response = await fetch('/api/areas');
+  const result = await response.json();
+  const areas = result.success ? result.data : [];
+  showSelectionModal('Associate Category', areas, (areaId) => {
+    associateArea(workItemId, areaId);
+  }, true); // Areas are hierarchical
+}
+
+// Fetch and show selection modal for goals
+async function showGoalSelector(workItemId) {
+  const response = await fetch('/api/goals');
+  const result = await response.json();
+  const goals = result.success ? result.data : [];
+  showSelectionModal('Associate Goal', goals, (goalId) => {
+    associateGoal(workItemId, goalId);
+  });
+}
+
+// Fetch and show selection modal for templates
+async function showTemplateSelector(workItemId) {
+  const response = await fetch('/api/work-item-templates');
+  const result = await response.json();
+  const templates = result.success ? result.data : [];
+  showSelectionModal('Associate Template', templates, (templateId) => {
+    associateTemplate(workItemId, templateId);
+  });
+}
+
+// Fetch and show selection modal for todos
+async function showTodoSelector(workItemId) {
+  const response = await fetch('/api/to-dos');
+  const result = await response.json();
+  const todos = result.success ? result.data : [];
+  showSelectionModal('Associate Todo', todos, (todoId) => {
+    associateTodo(workItemId, todoId);
+  });
+}
+
+// Fetch and show selection modal for tasks
+async function showTaskSelector(workItemId) {
+  const response = await fetch('/api/tasks');
+  const result = await response.json();
+  const tasks = result.success ? result.data : [];
+  showSelectionModal('Associate Task', tasks, (taskId) => {
+    associateTask(workItemId, taskId);
+  });
+}
+
+// Fetch and show selection modal for tickets
+async function showTicketSelector(workItemId) {
+  const response = await fetch('/api/tickets');
+  const result = await response.json();
+  const tickets = result.success ? result.data : [];
+  showSelectionModal('Associate Ticket', tickets, (ticketId) => {
+    associateTicket(workItemId, ticketId);
+  });
+}
+
+// Fetch and show selection modal for ideas
+async function showIdeaSelector(workItemId) {
+  const response = await fetch('/api/ideas');
+  const result = await response.json();
+  const ideas = result.success ? result.data : [];
+  showSelectionModal('Associate Idea', ideas, (ideaId) => {
+    associateIdea(workItemId, ideaId);
+  });
+}
+
+// Association functions
+async function associateProject(workItemId, projectId) {
+  try {
+    const response = await fetch(`/api/work/${workItemId}/priorities/${projectId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    if (response.ok) {
+      app.notify('Project associated!', 'success');
+      loadWorkItems();
+    }
+  } catch (error) {
+    console.error('Error associating project:', error);
+    app.notify('Error associating project', 'danger');
+  }
+}
+
+async function associateArea(workItemId, areaId) {
+  try {
+    const response = await fetch(`/api/work/${workItemId}/areas/${areaId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    if (response.ok) {
+      app.notify('Category associated!', 'success');
+      loadWorkItems();
+    }
+  } catch (error) {
+    console.error('Error associating area:', error);
+    app.notify('Error associating category', 'danger');
+  }
+}
+
+async function associateGoal(workItemId, goalId) {
+  try {
+    const response = await fetch(`/api/work/${workItemId}/goals/${goalId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    if (response.ok) {
+      app.notify('Goal associated!', 'success');
+      loadWorkItems();
+    }
+  } catch (error) {
+    console.error('Error associating goal:', error);
+    app.notify('Error associating goal', 'danger');
+  }
+}
+
+async function associateTemplate(workItemId, templateId) {
+  try {
+    const response = await fetch(`/api/work/${workItemId}/templates/${templateId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    if (response.ok) {
+      app.notify('Template associated!', 'success');
+      loadWorkItems();
+    }
+  } catch (error) {
+    console.error('Error associating template:', error);
+    app.notify('Error associating template', 'danger');
+  }
+}
+
+async function associateTodo(workItemId, todoId) {
+  try {
+    const response = await fetch(`/api/work/${workItemId}/todos/${todoId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    if (response.ok) {
+      app.notify('Todo associated!', 'success');
+      loadWorkItems();
+    }
+  } catch (error) {
+    console.error('Error associating todo:', error);
+    app.notify('Error associating todo', 'danger');
+  }
+}
+
+async function associateTask(workItemId, taskId) {
+  try {
+    const response = await fetch(`/api/work/${workItemId}/tasks/${taskId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    if (response.ok) {
+      app.notify('Task associated!', 'success');
+      loadWorkItems();
+    }
+  } catch (error) {
+    console.error('Error associating task:', error);
+    app.notify('Error associating task', 'danger');
+  }
+}
+
+async function associateTicket(workItemId, ticketId) {
+  try {
+    const response = await fetch(`/api/work/${workItemId}/tickets/${ticketId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    if (response.ok) {
+      app.notify('Ticket associated!', 'success');
+      loadWorkItems();
+    }
+  } catch (error) {
+    console.error('Error associating ticket:', error);
+    app.notify('Error associating ticket', 'danger');
+  }
+}
+
+async function associateIdea(workItemId, ideaId) {
+  try {
+    const response = await fetch(`/api/work/${workItemId}/ideas/${ideaId}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+    });
+    if (response.ok) {
+      app.notify('Idea associated!', 'success');
+      loadWorkItems();
+    }
+  } catch (error) {
+    console.error('Error associating idea:', error);
+    app.notify('Error associating idea', 'danger');
+  }
+}
+
+// Create and associate functions
+async function createAndAssociateProject(workItemId) {
+  const title = prompt('Enter project name:');
+  if (!title) return;
+  try {
+    const response = await fetch('/api/priorities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ title })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Project created and associated!', 'success');
+      await associateProject(workItemId, result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating project:', error);
+    app.notify('Error creating project', 'danger');
+  }
+}
+
+async function createAndAssociateArea(workItemId) {
+  const name = prompt('Enter category name:');
+  if (!name) return;
+  try {
+    const response = await fetch('/api/areas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ name })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Category created and associated!', 'success');
+      await associateArea(workItemId, result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating area:', error);
+    app.notify('Error creating category', 'danger');
+  }
+}
+
+async function createAndAssociateGoal(workItemId) {
+  const name = prompt('Enter goal name:');
+  if (!name) return;
+  try {
+    const response = await fetch('/api/goals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ name })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Goal created and associated!', 'success');
+      await associateGoal(workItemId, result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating goal:', error);
+    app.notify('Error creating goal', 'danger');
+  }
+}
+
+async function createAndAssociateTodo(workItemId) {
+  const title = prompt('Enter todo title:');
+  if (!title) return;
+  try {
+    const response = await fetch('/api/to-dos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ title })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Todo created and associated!', 'success');
+      await associateTodo(workItemId, result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating todo:', error);
+    app.notify('Error creating todo', 'danger');
+  }
+}
+
+async function createAndAssociateTask(workItemId) {
+  const title = prompt('Enter task title:');
+  if (!title) return;
+  try {
+    const response = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ title })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Task created and associated!', 'success');
+      await associateTask(workItemId, result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating task:', error);
+    app.notify('Error creating task', 'danger');
+  }
+}
+
+async function createAndAssociateTicket(workItemId) {
+  const subject = prompt('Enter ticket subject:');
+  if (!subject) return;
+  try {
+    const response = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ subject })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Ticket created and associated!', 'success');
+      await associateTicket(workItemId, result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    app.notify('Error creating ticket', 'danger');
+  }
+}
+
+async function createAndAssociateIdea(workItemId) {
+  const title = prompt('Enter idea title:');
+  if (!title) return;
+  try {
+    const response = await fetch('/api/ideas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ title })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Idea created and associated!', 'success');
+      await associateIdea(workItemId, result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating idea:', error);
+    app.notify('Error creating idea', 'danger');
   }
 }
 
