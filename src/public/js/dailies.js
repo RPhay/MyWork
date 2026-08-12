@@ -978,6 +978,8 @@ async function saveWorkItem() {
   }
 }
 
+let workItemEditorRequestId = 0;
+
 async function editWorkItem(workId) {
   try {
     // Check if clicking on same row that's already open
@@ -989,9 +991,18 @@ async function editWorkItem(workId) {
       return;
     }
 
+    // Increment request ID to track which request is current
+    const requestId = ++workItemEditorRequestId;
+
     const response = await fetch(`/api/work/${workId}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
+
+    // Ignore if a newer request has been made
+    if (requestId !== workItemEditorRequestId) {
+      return;
+    }
+
     const item = result.data;
 
     const setFieldValue = (id, value) => {
