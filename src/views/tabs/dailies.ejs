@@ -202,6 +202,7 @@
           <span>Status</span>
           <span>Time Box</span>
           <span>Claude</span>
+          <span>Notes</span>
           <span>Actions</span>
         </div>
 
@@ -287,7 +288,7 @@
 
   .work-item-tree-header {
     display: grid;
-    grid-template-columns: 1fr 40px 50px 100px 70px 40px 84px;
+    grid-template-columns: 1fr 40px 50px 100px 70px 40px 40px 84px;
     align-items: center;
     gap: 8px;
   }
@@ -300,7 +301,7 @@
 
   .work-item-header {
     display: grid;
-    grid-template-columns: 1fr 40px 50px 100px 70px 40px 84px;
+    grid-template-columns: 1fr 40px 50px 100px 70px 40px 40px 84px;
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
@@ -402,17 +403,83 @@
 </style>
 
 <!-- Work Item Context Menu -->
-<div id="workItemContextMenu" class="d-none" style="position: fixed; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; min-width: 150px;">
-  <button type="button" class="context-menu-item" data-menu-action="edit-notes" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
-    <i class="bi bi-sticky"></i> Edit Notes
-  </button>
-  <button type="button" class="context-menu-item" data-menu-action="create-todo" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
-    <i class="bi bi-check2-square"></i> Create To Do
-  </button>
-  <button type="button" class="context-menu-item" data-menu-action="move-to" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
-    <i class="bi bi-arrow-left-right"></i> Move to Date
-  </button>
-  <button type="button" class="context-menu-item" data-menu-action="clone-to" style="display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; border: none; background: none; cursor: pointer;">
-    <i class="bi bi-files"></i> Copy to Date
-  </button>
+<div id="workItemContextMenu" class="context-menu d-none">
+  <div class="context-menu-submenu-group">
+    <button type="button" class="context-menu-item has-submenu" data-submenu="add-items">
+      <i class="bi bi-plus-circle"></i> Add
+      <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
+    </button>
+    <div id="add-items-submenu" class="context-menu-submenu d-none">
+      <button type="button" class="context-menu-item" data-action="add-project"><i class="bi bi-collection"></i> Project</button>
+      <button type="button" class="context-menu-item" data-action="add-area"><i class="bi bi-diagram-3"></i> Category</button>
+      <button type="button" class="context-menu-item" data-action="add-goal"><i class="bi bi-bullseye"></i> Goal</button>
+      <button type="button" class="context-menu-item" data-action="add-template"><i class="bi bi-clipboard-plus"></i> Template</button>
+      <button type="button" class="context-menu-item" data-action="add-todo"><i class="bi bi-check2-square"></i> Todo</button>
+      <button type="button" class="context-menu-item" data-action="add-task"><i class="bi bi-card-checklist"></i> Task</button>
+      <button type="button" class="context-menu-item" data-action="add-ticket"><i class="bi bi-ticket"></i> Ticket</button>
+      <button type="button" class="context-menu-item" data-action="add-idea"><i class="bi bi-lightbulb"></i> Idea</button>
+    </div>
+  </div>
+
+  <div class="context-menu-submenu-group">
+    <button type="button" class="context-menu-item has-submenu" data-submenu="remove-items">
+      <i class="bi bi-dash-circle"></i> Remove
+      <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
+    </button>
+    <div id="remove-items-submenu" class="context-menu-submenu d-none">
+      <button type="button" class="context-menu-item" data-action="remove-project"><i class="bi bi-collection"></i> Project</button>
+      <button type="button" class="context-menu-item" data-action="remove-area"><i class="bi bi-diagram-3"></i> Category</button>
+      <button type="button" class="context-menu-item" data-action="remove-goal"><i class="bi bi-bullseye"></i> Goal</button>
+      <button type="button" class="context-menu-item" data-action="remove-template"><i class="bi bi-clipboard-plus"></i> Template</button>
+      <button type="button" class="context-menu-item" data-action="remove-todo"><i class="bi bi-check2-square"></i> Todo</button>
+      <button type="button" class="context-menu-item" data-action="remove-task"><i class="bi bi-card-checklist"></i> Task</button>
+      <button type="button" class="context-menu-item" data-action="remove-ticket"><i class="bi bi-ticket"></i> Ticket</button>
+      <button type="button" class="context-menu-item" data-action="remove-idea"><i class="bi bi-lightbulb"></i> Idea</button>
+    </div>
+  </div>
+
+  <div class="context-menu-submenu-group">
+    <button type="button" class="context-menu-item has-submenu" data-submenu="create-items">
+      <i class="bi bi-plus-circle"></i> Create
+      <i class="bi bi-chevron-right" style="float: right; font-size: 0.8rem;"></i>
+    </button>
+    <div id="create-items-submenu" class="context-menu-submenu d-none">
+      <button type="button" class="context-menu-item" data-action="create-project"><i class="bi bi-collection"></i> Project</button>
+      <button type="button" class="context-menu-item" data-action="create-area"><i class="bi bi-diagram-3"></i> Category</button>
+      <button type="button" class="context-menu-item" data-action="create-goal"><i class="bi bi-bullseye"></i> Goal</button>
+      <button type="button" class="context-menu-item" data-action="create-todo"><i class="bi bi-check2-square"></i> Todo</button>
+      <button type="button" class="context-menu-item" data-action="create-task"><i class="bi bi-card-checklist"></i> Task</button>
+      <button type="button" class="context-menu-item" data-action="create-ticket"><i class="bi bi-ticket"></i> Ticket</button>
+      <button type="button" class="context-menu-item" data-action="create-idea"><i class="bi bi-lightbulb"></i> Idea</button>
+    </div>
+  </div>
+
+  <div class="context-menu-submenu-group" style="border-top: 1px solid #ddd; margin-top: 0.5rem; padding-top: 0.5rem;">
+    <button type="button" class="context-menu-item" data-action="move-to">
+      <i class="bi bi-arrow-left-right"></i> Move to Date
+    </button>
+    <button type="button" class="context-menu-item" data-action="clone-to">
+      <i class="bi bi-files"></i> Copy to Date
+    </button>
+  </div>
+</div>
+
+<!-- Work Item Notes Modal -->
+<div class="modal fade" id="workNotesModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title">Edit Notes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="workNotesModalId">
+        <textarea id="workNotesModalText" class="form-control" rows="6" placeholder="Add your notes here..."></textarea>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveWorkNotesBtn">Save</button>
+      </div>
+    </div>
+  </div>
 </div>

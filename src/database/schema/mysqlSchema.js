@@ -392,6 +392,66 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Create work_template_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_template_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      template_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (template_id) REFERENCES work_item_templates(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_template (work_item_id, template_id)
+    )
+  `);
+
+  // Create work_todo_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_todo_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      todo_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (todo_id) REFERENCES to_dos(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_todo (work_item_id, todo_id)
+    )
+  `);
+
+  // Create work_task_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_task_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      task_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_task (work_item_id, task_id)
+    )
+  `);
+
+  // Create work_ticket_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_ticket_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      ticket_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_ticket (work_item_id, ticket_id)
+    )
+  `);
+
+  // Create work_idea_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_idea_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      idea_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_idea (work_item_id, idea_id)
+    )
+  `);
+
   // Create work_item_templates table (reusable work item presets with pre-associated areas/goals/priorities)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS work_item_templates (

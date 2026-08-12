@@ -534,13 +534,13 @@ function renderWorkItemsList(items) {
             <i class="bi bi-chevron-right work-item-toggle" data-action="toggle-expand" title="Expand/collapse"></i>
             <i class="bi ${APP_ICONS.workItem} text-muted" title="Work Item"></i>
             <span class="work-item-title">${app.escapeHtml(item.title)}</span>
-            ${item.notes ? `<i class="bi bi-sticky text-muted" title="${app.escapeHtml(item.notes)}"></i>` : ""}
           </span>
           <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || "")}</span>
           <span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>
           <span class="badge bg-${item.status === "Complete" ? "success" : item.status === "In Progress" ? "warning" : "secondary"} work-item-status-badge" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
           <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${item.time_box_minutes ? item.time_box_minutes + "m" : "No time box"}</span>
           <span class="work-item-claude-toggle" data-action="toggle-claude" data-id="${item.id}" title="Toggle: worked with Claude" style="text-align: center; cursor: pointer; font-size: 18px;"><i class="bi bi-sun-fill" style="color: ${item.worked_with_claude ? "#FFA500" : "#ddd"}; opacity: ${item.worked_with_claude ? "1" : "0.5"};"></i></span>
+          <span class="work-item-notes-cell" data-action="edit-notes" data-id="${item.id}" style="cursor: pointer; text-align: center;" title="${item.notes ? 'Has notes - double-click to edit' : 'No notes - double-click to add'}"><i class="bi bi-sticky-fill" style="color: ${item.notes ? '#ffd43b' : '#dee2e6'};"></i></span>
           <span class="work-item-actions">
             <button class="btn btn-sm btn-danger" data-action="delete" data-id="${item.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
           </span>
@@ -2017,6 +2017,11 @@ function initWorkItemsListEventListeners() {
   });
 
   container.addEventListener("dblclick", (e) => {
+    const notesCell = e.target.closest('[data-action="edit-notes"]');
+    if (notesCell) {
+      openWorkItemNotesModal(notesCell.dataset.id);
+      return;
+    }
     if (e.target.closest("[data-action]")) return;
     const header = e.target.closest(".work-item-header");
     if (!header) return;

@@ -81,7 +81,9 @@
       "Bash(perl -pi -e 's/\\\\ballToDos\\\\b/areaToDos/g; s/\\\\ballTickets\\\\b/areaTickets/g' src/public/js/areas.js)",
       "Bash(perl -pi -e 's/\\\\ballToDos\\\\b/ticketToDos/g' src/public/js/tickets.js)",
       "Bash(xargs -r ps -p)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(git log *)",
+      "Bash(xargs -I{} echo {})"
     ]
   }
 }

@@ -228,4 +228,104 @@ router.delete('/:id/areas/:areaId', async (req, res) => {
   }
 });
 
+router.post('/:id/templates/:templateId', async (req, res) => {
+  try {
+    const item = await workItemService.addTemplateAssociation(req.params.id, req.params.templateId);
+    res.status(201).json({ success: true, message: 'Template associated', data: item });
+  } catch (error) {
+    logger.error('Error associating template:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id/templates/:templateId', async (req, res) => {
+  try {
+    await workItemService.removeTemplateAssociation(req.params.id, req.params.templateId);
+    res.json({ success: true, message: 'Template unlinked' });
+  } catch (error) {
+    logger.error('Error unlinking template:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/:id/todos/:todoId', async (req, res) => {
+  try {
+    const item = await workItemService.addTodoAssociation(req.params.id, req.params.todoId);
+    res.status(201).json({ success: true, message: 'Todo associated', data: item });
+  } catch (error) {
+    logger.error('Error associating todo:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id/todos/:todoId', async (req, res) => {
+  try {
+    await workItemService.removeTodoAssociation(req.params.id, req.params.todoId);
+    res.json({ success: true, message: 'Todo unlinked' });
+  } catch (error) {
+    logger.error('Error unlinking todo:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/:id/tasks/:taskId', async (req, res) => {
+  try {
+    const item = await workItemService.addTaskAssociation(req.params.id, req.params.taskId);
+    res.status(201).json({ success: true, message: 'Task associated', data: item });
+  } catch (error) {
+    logger.error('Error associating task:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id/tasks/:taskId', async (req, res) => {
+  try {
+    await workItemService.removeTaskAssociation(req.params.id, req.params.taskId);
+    res.json({ success: true, message: 'Task unlinked' });
+  } catch (error) {
+    logger.error('Error unlinking task:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/:id/tickets/:ticketId', async (req, res) => {
+  try {
+    const item = await workItemService.addTicketAssociation(req.params.id, req.params.ticketId);
+    res.status(201).json({ success: true, message: 'Ticket associated', data: item });
+  } catch (error) {
+    logger.error('Error associating ticket:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id/tickets/:ticketId', async (req, res) => {
+  try {
+    await workItemService.removeTicketAssociation(req.params.id, req.params.ticketId);
+    res.json({ success: true, message: 'Ticket unlinked' });
+  } catch (error) {
+    logger.error('Error unlinking ticket:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/:id/ideas/:ideaId', async (req, res) => {
+  try {
+    const item = await workItemService.addIdeaAssociation(req.params.id, req.params.ideaId);
+    res.status(201).json({ success: true, message: 'Idea associated', data: item });
+  } catch (error) {
+    logger.error('Error associating idea:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id/ideas/:ideaId', async (req, res) => {
+  try {
+    await workItemService.removeIdeaAssociation(req.params.id, req.params.ideaId);
+    res.json({ success: true, message: 'Idea unlinked' });
+  } catch (error) {
+    logger.error('Error unlinking idea:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

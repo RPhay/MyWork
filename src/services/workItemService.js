@@ -19,7 +19,7 @@ async function attachAssociations(items) {
   const ids = items.map(i => i.id);
   const placeholders = ids.map(() => '?').join(',');
 
-  const [priorityRows, goalRows, areaRows, allPriorities, allAreas] = await Promise.all([
+  const [priorityRows, goalRows, areaRows, templateRows, todoRows, taskRows, ticketRows, ideaRows, allPriorities, allAreas] = await Promise.all([
     db.query(
       `SELECT wpa.work_item_id, p.id, p.title
        FROM work_priority_associations wpa
@@ -41,6 +41,41 @@ async function attachAssociations(items) {
        WHERE waa.work_item_id IN (${placeholders})`,
       ids
     ),
+    db.query(
+      `SELECT wta.work_item_id, t.id, t.title
+       FROM work_template_associations wta
+       JOIN work_item_templates t ON wta.template_id = t.id
+       WHERE wta.work_item_id IN (${placeholders})`,
+      ids
+    ),
+    db.query(
+      `SELECT wtd.work_item_id, td.id, td.title
+       FROM work_todo_associations wtd
+       JOIN to_dos td ON wtd.todo_id = td.id
+       WHERE wtd.work_item_id IN (${placeholders})`,
+      ids
+    ),
+    db.query(
+      `SELECT wtk.work_item_id, tk.id, tk.title
+       FROM work_task_associations wtk
+       JOIN tasks tk ON wtk.task_id = tk.id
+       WHERE wtk.work_item_id IN (${placeholders})`,
+      ids
+    ),
+    db.query(
+      `SELECT wti.work_item_id, ti.id, ti.subject
+       FROM work_ticket_associations wti
+       JOIN tickets ti ON wti.ticket_id = ti.id
+       WHERE wti.work_item_id IN (${placeholders})`,
+      ids
+    ),
+    db.query(
+      `SELECT wid.work_item_id, i.id, i.title
+       FROM work_idea_associations wid
+       JOIN ideas i ON wid.idea_id = i.id
+       WHERE wid.work_item_id IN (${placeholders})`,
+      ids
+    ),
     db.query('SELECT id, title, parent_id FROM priorities'),
     db.query('SELECT id, name, parent_id FROM areas'),
   ]);
@@ -59,6 +94,21 @@ async function attachAssociations(items) {
     areas: areaRows
       .filter(r => r.work_item_id === item.id)
       .map(r => ({ id: r.id, name: r.name, path: areaPaths.get(r.id) || r.name })),
+    templates: templateRows
+      .filter(r => r.work_item_id === item.id)
+      .map(r => ({ id: r.id, title: r.title })),
+    todos: todoRows
+      .filter(r => r.work_item_id === item.id)
+      .map(r => ({ id: r.id, title: r.title })),
+    tasks: taskRows
+      .filter(r => r.work_item_id === item.id)
+      .map(r => ({ id: r.id, title: r.title })),
+    tickets: ticketRows
+      .filter(r => r.work_item_id === item.id)
+      .map(r => ({ id: r.id, title: r.subject })),
+    ideas: ideaRows
+      .filter(r => r.work_item_id === item.id)
+      .map(r => ({ id: r.id, title: r.title })),
   }));
 }
 
@@ -308,6 +358,21 @@ export async function cloneWorkItem(id, date) {
   for (const a of original.areas) {
     await db.insert('INSERT INTO work_area_associations (work_item_id, area_id) VALUES (?, ?)', [newId, a.id]);
   }
+  for (const t of original.templates) {
+    await db.insert('INSERT INTO work_template_associations (work_item_id, template_id) VALUES (?, ?)', [newId, t.id]);
+  }
+  for (const td of original.todos) {
+    await db.insert('INSERT INTO work_todo_associations (work_item_id, todo_id) VALUES (?, ?)', [newId, td.id]);
+  }
+  for (const tk of original.tasks) {
+    await db.insert('INSERT INTO work_task_associations (work_item_id, task_id) VALUES (?, ?)', [newId, tk.id]);
+  }
+  for (const ti of original.tickets) {
+    await db.insert('INSERT INTO work_ticket_associations (work_item_id, ticket_id) VALUES (?, ?)', [newId, ti.id]);
+  }
+  for (const i of original.ideas) {
+    await db.insert('INSERT INTO work_idea_associations (work_item_id, idea_id) VALUES (?, ?)', [newId, i.id]);
+  }
 
   return getWorkItemById(newId);
 }
@@ -354,5 +419,80 @@ export async function removeAreaAssociation(workItemId, areaId) {
   await db.deleteRecord(
     'DELETE FROM work_area_associations WHERE work_item_id = ? AND area_id = ?',
     [workItemId, areaId]
+  );
+}
+
+export async function addTemplateAssociation(workItemId, templateId) {
+  await db.query(
+    'INSERT IGNORE INTO work_template_associations (work_item_id, template_id) VALUES (?, ?)',
+    [workItemId, templateId]
+  );
+  return getWorkItemById(workItemId);
+}
+
+export async function removeTemplateAssociation(workItemId, templateId) {
+  await db.deleteRecord(
+    'DELETE FROM work_template_associations WHERE work_item_id = ? AND template_id = ?',
+    [workItemId, templateId]
+  );
+}
+
+export async function addTodoAssociation(workItemId, todoId) {
+  await db.query(
+    'INSERT IGNORE INTO work_todo_associations (work_item_id, todo_id) VALUES (?, ?)',
+    [workItemId, todoId]
+  );
+  return getWorkItemById(workItemId);
+}
+
+export async function removeTodoAssociation(workItemId, todoId) {
+  await db.deleteRecord(
+    'DELETE FROM work_todo_associations WHERE work_item_id = ? AND todo_id = ?',
+    [workItemId, todoId]
+  );
+}
+
+export async function addTaskAssociation(workItemId, taskId) {
+  await db.query(
+    'INSERT IGNORE INTO work_task_associations (work_item_id, task_id) VALUES (?, ?)',
+    [workItemId, taskId]
+  );
+  return getWorkItemById(workItemId);
+}
+
+export async function removeTaskAssociation(workItemId, taskId) {
+  await db.deleteRecord(
+    'DELETE FROM work_task_associations WHERE work_item_id = ? AND task_id = ?',
+    [workItemId, taskId]
+  );
+}
+
+export async function addTicketAssociation(workItemId, ticketId) {
+  await db.query(
+    'INSERT IGNORE INTO work_ticket_associations (work_item_id, ticket_id) VALUES (?, ?)',
+    [workItemId, ticketId]
+  );
+  return getWorkItemById(workItemId);
+}
+
+export async function removeTicketAssociation(workItemId, ticketId) {
+  await db.deleteRecord(
+    'DELETE FROM work_ticket_associations WHERE work_item_id = ? AND ticket_id = ?',
+    [workItemId, ticketId]
+  );
+}
+
+export async function addIdeaAssociation(workItemId, ideaId) {
+  await db.query(
+    'INSERT IGNORE INTO work_idea_associations (work_item_id, idea_id) VALUES (?, ?)',
+    [workItemId, ideaId]
+  );
+  return getWorkItemById(workItemId);
+}
+
+export async function removeIdeaAssociation(workItemId, ideaId) {
+  await db.deleteRecord(
+    'DELETE FROM work_idea_associations WHERE work_item_id = ? AND idea_id = ?',
+    [workItemId, ideaId]
   );
 }

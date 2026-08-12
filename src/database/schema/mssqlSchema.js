@@ -519,6 +519,81 @@ export async function createMssqlSchema(pool) {
 
   await createTableIfNotExists(
     pool,
+    "work_template_associations",
+    `
+    CREATE TABLE [MyWork].[work_template_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      template_id INT NOT NULL,
+      CONSTRAINT fk_wta_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wta_template FOREIGN KEY (template_id) REFERENCES [MyWork].[work_item_templates](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_template UNIQUE (work_item_id, template_id)
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
+    "work_todo_associations",
+    `
+    CREATE TABLE [MyWork].[work_todo_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      todo_id INT NOT NULL,
+      CONSTRAINT fk_wtd_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wtd_todo FOREIGN KEY (todo_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_todo UNIQUE (work_item_id, todo_id)
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
+    "work_task_associations",
+    `
+    CREATE TABLE [MyWork].[work_task_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      task_id INT NOT NULL,
+      CONSTRAINT fk_wtk_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wtk_task FOREIGN KEY (task_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_task UNIQUE (work_item_id, task_id)
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
+    "work_ticket_associations",
+    `
+    CREATE TABLE [MyWork].[work_ticket_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      ticket_id INT NOT NULL,
+      CONSTRAINT fk_wti_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wti_ticket FOREIGN KEY (ticket_id) REFERENCES [MyWork].[tickets](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_ticket UNIQUE (work_item_id, ticket_id)
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
+    "work_idea_associations",
+    `
+    CREATE TABLE [MyWork].[work_idea_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      idea_id INT NOT NULL,
+      CONSTRAINT fk_wid_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wid_idea FOREIGN KEY (idea_id) REFERENCES [MyWork].[ideas](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_idea UNIQUE (work_item_id, idea_id)
+    )
+  `,
+  );
+
+  await createTableIfNotExists(
+    pool,
     "work_item_templates",
     `
     CREATE TABLE [MyWork].[work_item_templates] (
