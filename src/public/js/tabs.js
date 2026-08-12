@@ -9,15 +9,101 @@ class TabManager {
     this.setupTabButtons();
     this.showTab(this.currentTab);
     this.setupUrlSync();
-    this.initializeTabContent();
+    // Start 2 load operations: one for tab content, one for context config
+    window.loadingManager.startLoad();
+    window.loadingManager.startLoad();
+    this.initializeTabContent().finally(() => {
+      window.loadingManager.endLoad();
+    });
     this.applyContextTabConfig();
+  }
+
+  async initializeTabContent() {
+    const loads = [];
+
+    // Initialize Dailies tab if it exists
+    if (typeof renderCalendar !== 'undefined') {
+      renderCalendar();
+      updateDateDisplay();
+      const today = new Date().toISOString().split('T')[0];
+      const dateInput = document.getElementById('selectedDate');
+      if (!dateInput) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.id = 'selectedDate';
+        input.value = today;
+        document.body.appendChild(input);
+      }
+      loads.push(window.loadingManager.withLoader(() => loadWorkItems()));
+      loads.push(window.loadingManager.withLoader(() => loadPrioritiesAndGoals()));
+    }
+
+    // Initialize Projects tab if it exists
+    if (typeof loadPriorities !== 'undefined') {
+      loads.push(window.loadingManager.withLoader(() => loadPriorities()));
+      loads.push(window.loadingManager.withLoader(() => loadPriorityRightPanel()));
+    }
+
+    // Initialize Areas tab if it exists
+    if (typeof loadAreas !== 'undefined') {
+      loads.push(window.loadingManager.withLoader(() => loadAreas()));
+    }
+
+    // Initialize Goals tab if it exists
+    if (typeof loadYearlyGoals !== 'undefined') {
+      loads.push(window.loadingManager.withLoader(() => loadYearlyGoals()));
+    }
+
+    // Initialize Data Sources tab if it exists
+    if (typeof loadSources !== 'undefined') {
+      loads.push(window.loadingManager.withLoader(() => loadSources()));
+    }
+
+    // Initialize Database Configuration tab if it exists
+    if (typeof loadDatabaseConfig !== 'undefined') {
+      loads.push(window.loadingManager.withLoader(() => loadDatabaseConfig()));
+    }
+
+    // Initialize Templates tab if it exists
+    if (typeof loadTemplates !== 'undefined') {
+      loads.push(window.loadingManager.withLoader(() => loadTemplates()));
+      loads.push(window.loadingManager.withLoader(() => loadTemplateRightPanel()));
+    }
+
+    // Initialize To Dos tab if it exists
+    if (typeof loadToDos !== 'undefined') {
+      loads.push(window.loadingManager.withLoader(() => loadToDos()));
+    }
+
+    // Initialize Priorities tab if it exists
+    if (typeof loadBoard !== 'undefined') {
+      loads.push(window.loadingManager.withLoader(() => loadBoard()));
+    }
+
+    // Wait for all loads to complete
+    if (loads.length > 0) {
+      try {
+        await Promise.all(loads);
+      } catch (error) {
+        console.error('Error during tab initialization:', error);
+        // Still hide the modal even if there's an error
+        window.loadingManager.endLoad();
+      }
+    }
   }
 
   // Per-context tab visibility/order - dashboard.ejs only (Dailies is always
   // shown first regardless, so it's excluded from both the fetched settings
   // and the drag-reorder target). Settings' own top-level tabs are a separate,
   // fixed-order tab strip and never go through this.
-  async applyContextTabConfig() {
+  applyContextTabConfig() {
+    window.loadingManager.startLoad();
+    this._applyContextTabConfig().finally(() => {
+      window.loadingManager.endLoad();
+    });
+  }
+
+  async _applyContextTabConfig() {
     const nav = document.getElementById('mainTabs');
     const dailiesTab = document.getElementById('dailies-tab');
     if (!nav || !dailiesTab) return;
@@ -67,66 +153,6 @@ class TabManager {
     }
   }
 
-  initializeTabContent() {
-    // Initialize Dailies tab if it exists
-    if (typeof renderCalendar !== 'undefined') {
-      renderCalendar();
-      updateDateDisplay();
-      const today = new Date().toISOString().split('T')[0];
-      const dateInput = document.getElementById('selectedDate');
-      if (!dateInput) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.id = 'selectedDate';
-        input.value = today;
-        document.body.appendChild(input);
-      }
-      loadWorkItems();
-      loadPrioritiesAndGoals();
-    }
-
-    // Initialize Projects tab if it exists
-    if (typeof loadPriorities !== 'undefined') {
-      loadPriorities();
-      loadPriorityRightPanel();
-    }
-
-    // Initialize Areas tab if it exists
-    if (typeof loadAreas !== 'undefined') {
-      loadAreas();
-    }
-
-    // Initialize Goals tab if it exists
-    if (typeof loadYearlyGoals !== 'undefined') {
-      loadYearlyGoals();
-    }
-
-    // Initialize Data Sources tab if it exists
-    if (typeof loadSources !== 'undefined') {
-      loadSources();
-    }
-
-    // Initialize Database Configuration tab if it exists
-    if (typeof loadDatabaseConfig !== 'undefined') {
-      loadDatabaseConfig();
-    }
-
-    // Initialize Templates tab if it exists
-    if (typeof loadTemplates !== 'undefined') {
-      loadTemplates();
-      loadTemplateRightPanel();
-    }
-
-    // Initialize To Dos tab if it exists
-    if (typeof loadToDos !== 'undefined') {
-      loadToDos();
-    }
-
-    // Initialize Priorities tab if it exists
-    if (typeof loadBoard !== 'undefined') {
-      loadBoard();
-    }
-  }
 
   setupTabButtons() {
     // button[data-tab] specifically - some tab <li> wrappers also carry a
