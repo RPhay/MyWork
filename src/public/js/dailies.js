@@ -2841,11 +2841,59 @@ async function createAndAssociateIdea(workItemId) {
 let childItemContextMenuData = null;
 
 function showChildItemContextMenu(x, y, itemType, itemId) {
-  // For now, show delete option via confirmation
-  // TODO: Create a proper context menu for child items
-  if (confirm(`Delete this ${itemType}?`)) {
-    deleteChildItem(itemType, itemId);
-  }
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.style.position = 'fixed';
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.style.zIndex = '2000';
+
+  const typeNames = {
+    'priority': 'Project',
+    'area': 'Category',
+    'goal': 'Goal',
+    'template': 'Template',
+    'todo': 'Todo',
+    'task': 'Task',
+    'ticket': 'Ticket',
+    'idea': 'Idea'
+  };
+
+  const typeName = typeNames[itemType] || itemType;
+
+  menu.innerHTML = `
+    <button type="button" class="context-menu-item" data-child-action="edit">
+      <i class="bi bi-pencil"></i> Edit ${typeName}
+    </button>
+    <button type="button" class="context-menu-item" data-child-action="delete">
+      <i class="bi bi-trash text-danger"></i> Remove ${typeName}
+    </button>
+  `;
+
+  menu.addEventListener('click', (e) => {
+    const actionBtn = e.target.closest('[data-child-action]');
+    if (!actionBtn) return;
+
+    const action = actionBtn.dataset.childAction;
+    document.body.removeChild(menu);
+
+    if (action === 'edit') {
+      editChildItem(itemType, itemId);
+    } else if (action === 'delete') {
+      if (confirm(`Remove this ${typeName}?`)) {
+        deleteChildItem(itemType, itemId);
+      }
+    }
+  });
+
+  document.body.appendChild(menu);
+
+  document.addEventListener('click', function closeMenu(e) {
+    if (!menu.contains(e.target)) {
+      if (menu.parentNode) document.body.removeChild(menu);
+      document.removeEventListener('click', closeMenu);
+    }
+  });
 }
 
 function deleteChildItem(itemType, itemId) {
@@ -2910,18 +2958,14 @@ function editChildItem(itemType, itemId) {
   }
 }
 
-// Create and edit item - creates a new item and opens it in the editor
+// Create and edit item - creates new item and opens in editor
 async function createAndEditItem(itemType, parentWorkItemId) {
-  // For now, use the existing create-and-associate functions
-  // TODO: Implement proper create-and-edit workflow that opens in editor instead of using prompts
+  // Use existing create-and-associate functions which now open in editors
   const createFunctionMap = {
     'priority': () => createAndAssociateProject(parentWorkItemId),
     'area': () => createAndAssociateArea(parentWorkItemId),
     'goal': () => createAndAssociateGoal(parentWorkItemId),
-    'template': () => {
-      app.notify('Template creation via editor coming soon', 'info');
-      // TODO: Implement template creation
-    },
+    'template': () => createAndAssociateTemplate(parentWorkItemId),
     'todo': () => createAndAssociateTodo(parentWorkItemId),
     'task': () => createAndAssociateTask(parentWorkItemId),
     'ticket': () => createAndAssociateTicket(parentWorkItemId),
@@ -2934,45 +2978,92 @@ async function createAndEditItem(itemType, parentWorkItemId) {
   }
 }
 
-// Stub editor functions - these should open the appropriate editor for each type
+// Template creation (was missing)
+async function createAndAssociateTemplate(workItemId) {
+  const title = prompt('Enter template name:');
+  if (!title) return;
+  try {
+    const response = await fetch('/api/work-item-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ title })
+    });
+    const result = await response.json();
+    if (result.success) {
+      app.notify('Template created and associated!', 'success');
+      await associateTemplate(workItemId, result.data.id);
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating template:', error);
+    app.notify('Error creating template', 'danger');
+  }
+}
+
+// Editor functions - open appropriate editor for each type by switching tabs
 function editPriority(priorityId) {
-  console.log('Edit priority:', priorityId);
-  // TODO: Open priority editor
+  window.tabManager?.switchTab('my-priorities');
+  setTimeout(() => {
+    const priorityRow = document.querySelector(`[data-priority-id="${priorityId}"]`);
+    if (priorityRow) priorityRow.click();
+  }, 100);
 }
 
 function editArea(areaId) {
-  console.log('Edit area:', areaId);
-  // TODO: Open area editor
+  window.tabManager?.switchTab('areas');
+  setTimeout(() => {
+    const areaRow = document.querySelector(`[data-area-id="${areaId}"]`);
+    if (areaRow) areaRow.click();
+  }, 100);
 }
 
 function editGoal(goalId) {
-  console.log('Edit goal:', goalId);
-  // TODO: Open goal editor
+  window.tabManager?.switchTab('yearly-goals');
+  setTimeout(() => {
+    const goalRow = document.querySelector(`[data-goal-id="${goalId}"]`);
+    if (goalRow) goalRow.click();
+  }, 100);
 }
 
 function editTemplate(templateId) {
-  console.log('Edit template:', templateId);
-  // TODO: Open template editor
+  window.tabManager?.switchTab('templates');
+  setTimeout(() => {
+    const templateRow = document.querySelector(`[data-template-id="${templateId}"]`);
+    if (templateRow) templateRow.click();
+  }, 100);
 }
 
 function editTodo(todoId) {
-  console.log('Edit todo:', todoId);
-  // TODO: Open todo editor
+  window.tabManager?.switchTab('todos');
+  setTimeout(() => {
+    const todoRow = document.querySelector(`[data-todo-id="${todoId}"]`);
+    if (todoRow) todoRow.click();
+  }, 100);
 }
 
 function editTask(taskId) {
-  console.log('Edit task:', taskId);
-  // TODO: Open task editor
+  window.tabManager?.switchTab('tasks');
+  setTimeout(() => {
+    const taskRow = document.querySelector(`[data-task-id="${taskId}"]`);
+    if (taskRow) taskRow.click();
+  }, 100);
 }
 
 function editTicket(ticketId) {
-  console.log('Edit ticket:', ticketId);
-  // TODO: Open ticket editor
+  window.tabManager?.switchTab('tickets');
+  setTimeout(() => {
+    const ticketRow = document.querySelector(`[data-ticket-id="${ticketId}"]`);
+    if (ticketRow) ticketRow.click();
+  }, 100);
 }
 
 function editIdea(ideaId) {
-  console.log('Edit idea:', ideaId);
-  // TODO: Open idea editor
+  window.tabManager?.switchTab('brainstorming');
+  setTimeout(() => {
+    const ideaRow = document.querySelector(`[data-idea-id="${ideaId}"]`);
+    if (ideaRow) ideaRow.click();
+  }, 100);
 }
 
 function initDailiesEventListeners() {
