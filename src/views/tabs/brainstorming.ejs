@@ -3,7 +3,17 @@
     <!-- Left Pane -->
     <div class="split-pane-left" id="ideaListPane" style="padding: 15px; overflow-y: auto;">
       <div class="row mb-2">
-        <div class="col-md-12 text-end">
+        <div class="col-md-6">
+          <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="expandAllIdeasBtn" title="Expand all folders">
+              <i class="bi bi-chevron-double-down"></i> Expand All
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="collapseAllIdeasBtn" title="Collapse all folders">
+              <i class="bi bi-chevron-double-up"></i> Collapse All
+            </button>
+          </div>
+        </div>
+        <div class="col-md-6 text-end">
           <button class="btn btn-outline-secondary" id="addIdeaFolderBtn" data-bs-toggle="modal" data-bs-target="#ideaFolderModal">
             + Add Folder
           </button>

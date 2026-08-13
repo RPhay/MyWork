@@ -772,6 +772,29 @@ function initTickets() {
     TicketEditor.init(window.ticketSplitPane);
   }
 
+  document.getElementById('expandAllTicketsBtn')?.addEventListener('click', () => {
+    expandedTicketTypes.clear();
+    expandedTicketNodes.clear();
+    // Get all ticket types and nodes and add them
+    document.querySelectorAll('[data-ticket-type]').forEach(el => {
+      const type = el.getAttribute('data-ticket-type');
+      if (type) expandedTicketTypes.add(type);
+    });
+    document.querySelectorAll('[data-ticket-id]').forEach(el => {
+      const id = el.getAttribute('data-ticket-id');
+      if (id) expandedTicketNodes.add(id);
+    });
+    saveTicketFolderState();
+    renderTickets();
+  });
+
+  document.getElementById('collapseAllTicketsBtn')?.addEventListener('click', () => {
+    expandedTicketTypes.clear();
+    expandedTicketNodes.clear();
+    saveTicketFolderState();
+    renderTickets();
+  });
+
   document.getElementById('addTicketBtn')?.addEventListener('click', () => {
     document.getElementById('ticketForm').reset();
     document.getElementById('ticketId').value = '';

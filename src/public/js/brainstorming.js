@@ -813,6 +813,18 @@ function clearIdeaDropTargets(container) {
 }
 
 function initBrainstormingEventListeners() {
+  document.getElementById('expandAllIdeasBtn')?.addEventListener('click', () => {
+    document.querySelectorAll('.idea-folder-node').forEach(node => {
+      expandedIdeaFolders.add(node.dataset.folderId);
+    });
+    renderIdeasList();
+  });
+
+  document.getElementById('collapseAllIdeasBtn')?.addEventListener('click', () => {
+    expandedIdeaFolders.clear();
+    renderIdeasList();
+  });
+
   document.getElementById('addIdeaBtn').addEventListener('click', () => openNewIdeaForm());
   document.getElementById('saveIdeaBtn').addEventListener('click', saveIdea);
   document.getElementById('addIdeaFolderBtn').addEventListener('click', openNewIdeaFolderForm);

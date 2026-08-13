@@ -54,7 +54,17 @@
       <!-- Center Pane: Templates List -->
       <div class="split-pane-left" id="templatesLeftPane" style="overflow-y: auto; padding: 15px;">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h6>Templates</h6>
+          <div>
+            <h6 class="mb-0 d-inline-block">Templates</h6>
+            <div class="btn-group" role="group" style="display: inline-flex; gap: 2px; margin-left: 1rem;">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="expandAllTemplatesBtn" title="Expand all templates">
+                <i class="bi bi-chevron-double-down"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="collapseAllTemplatesBtn" title="Collapse all templates">
+                <i class="bi bi-chevron-double-up"></i>
+              </button>
+            </div>
+          </div>
           <button class="btn btn-sm btn-primary" id="addTemplateBtn" data-bs-toggle="modal" data-bs-target="#templateModal">
             + Add Template
           </button>

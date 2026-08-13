@@ -568,6 +568,18 @@ function parseICalDate(dateStr) {
 }
 
 function initTemplatesEventListeners() {
+  document.getElementById('expandAllTemplatesBtn')?.addEventListener('click', () => {
+    document.querySelectorAll('.template-node').forEach(node => {
+      expandedTemplates.add(node.dataset.templateId);
+    });
+    renderTemplatesList(window.allTemplates || []);
+  });
+
+  document.getElementById('collapseAllTemplatesBtn')?.addEventListener('click', () => {
+    expandedTemplates.clear();
+    renderTemplatesList(window.allTemplates || []);
+  });
+
   document.getElementById('addTemplateBtn').addEventListener('click', openNewTemplateForm);
   document.getElementById('saveTemplateBtn').addEventListener('click', saveTemplate);
 

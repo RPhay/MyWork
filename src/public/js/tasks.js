@@ -544,6 +544,24 @@ function initializeTasksTab() {
 
   loadTasks();
 
+  const expandAllBtn = document.getElementById('expandAllTasksBtn');
+  if (expandAllBtn) {
+    expandAllBtn.addEventListener('click', () => {
+      getTaskState().allTasks.forEach(task => {
+        getTaskState().expandedTasks.add(String(task.id));
+      });
+      renderTasksList();
+    });
+  }
+
+  const collapseAllBtn = document.getElementById('collapseAllTasksBtn');
+  if (collapseAllBtn) {
+    collapseAllBtn.addEventListener('click', () => {
+      getTaskState().expandedTasks.clear();
+      renderTasksList();
+    });
+  }
+
   const addBtn = document.getElementById('addTaskBtn');
   if (addBtn) {
     addBtn.addEventListener('click', openNewTaskForm);

@@ -1167,6 +1167,26 @@ async function reorderPrioritySibling(draggedId, targetId, position) {
 }
 
 function initPrioritiesEventListeners() {
+  document.getElementById('expandAllProjectsBtn')?.addEventListener('click', () => {
+    document.querySelectorAll('.priority-node').forEach(node => {
+      expandedPriorities.add(node.dataset.priorityId);
+    });
+    document.querySelectorAll('.project-folder-node').forEach(node => {
+      expandedProjectFolders.add(node.dataset.folderId);
+    });
+    document.querySelectorAll('.project-task-folder-node').forEach(node => {
+      expandedProjectTaskFolders.add(node.dataset.folderId);
+    });
+    renderPrioritiesList();
+  });
+
+  document.getElementById('collapseAllProjectsBtn')?.addEventListener('click', () => {
+    expandedPriorities.clear();
+    expandedProjectFolders.clear();
+    expandedProjectTaskFolders.clear();
+    renderPrioritiesList();
+  });
+
   document.getElementById('addPriorityBtn').addEventListener('click', openNewPriorityForm);
   document.getElementById('savePriorityBtn').addEventListener('click', savePriority);
 

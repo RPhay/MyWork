@@ -788,6 +788,18 @@ function initAreaContextMenu() {
 }
 
 function initAreasEventListeners() {
+  document.getElementById('expandAllAreasBtn')?.addEventListener('click', () => {
+    document.querySelectorAll('.area-node').forEach(node => {
+      expandedAreas.add(node.dataset.areaId);
+    });
+    renderAreasList();
+  });
+
+  document.getElementById('collapseAllAreasBtn')?.addEventListener('click', () => {
+    expandedAreas.clear();
+    renderAreasList();
+  });
+
   document.getElementById('addAreaBtn').addEventListener('click', () => openNewAreaForm());
   document.getElementById('saveAreaBtn').addEventListener('click', saveArea);
 
