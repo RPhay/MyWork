@@ -1838,6 +1838,7 @@ function toggleWorkItem(workItemEl) {
     expandedWorkItems.add(id);
     workItemEl.classList.add("expanded");
   }
+  renderWorkItemsList(currentWorkItems);
 }
 
 async function linkChild(workId, type, id) {
@@ -2041,17 +2042,20 @@ function initWorkItemsListEventListeners() {
   });
 
   container.addEventListener("contextmenu", (e) => {
-    const workItemEl = e.target.closest(".work-item");
-    if (!workItemEl) return;
     e.preventDefault();
 
-    // Check if this is a child item (associated object like category, goal, etc.)
-    if (workItemEl.classList.contains("child-item-row")) {
-      const itemType = workItemEl.dataset.itemType;
-      const itemId = workItemEl.dataset.workId;
+    // Check for child item FIRST (before parent work item)
+    const childItem = e.target.closest(".child-item-row");
+    if (childItem) {
+      const itemType = childItem.dataset.itemType;
+      const itemId = childItem.dataset.workId;
       showChildItemContextMenu(e.clientX, e.clientY, itemType, itemId);
-    } else {
-      // It's a work item
+      return;
+    }
+
+    // Otherwise check for work item (which is not a child item)
+    const workItemEl = e.target.closest(".work-item");
+    if (workItemEl && !workItemEl.classList.contains("child-item-row")) {
       showWorkItemContextMenu(e.clientX, e.clientY, workItemEl.dataset.workId);
     }
   });
