@@ -52,7 +52,7 @@ export async function getToDoById(id) {
 }
 
 export async function createToDo(data, contextId) {
-  const { title, notes, parent_id, priority_id, ticket_id, category_id, items, recurrence } = data;
+  const { title, notes, parent_id, priority_id, ticket_id, category_id, target_date, importance, items, recurrence } = data;
 
   if (!title) {
     throw new ValidationError('To do title is required');
@@ -63,8 +63,8 @@ export async function createToDo(data, contextId) {
   }
 
   const toDoId = await db.insert(
-    'INSERT INTO to_dos (title, notes, parent_id, priority_id, ticket_id, category_id, recurrence, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [title, notes ?? null, parent_id || null, priority_id || null, ticket_id || null, category_id || null, recurrence ? JSON.stringify(recurrence) : null, contextId]
+    'INSERT INTO to_dos (title, notes, parent_id, priority_id, ticket_id, category_id, target_date, importance, recurrence, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [title, notes ?? null, parent_id || null, priority_id || null, ticket_id || null, category_id || null, target_date || null, importance || null, recurrence ? JSON.stringify(recurrence) : null, contextId]
   );
 
   if (items !== undefined) {
@@ -158,6 +158,18 @@ export async function updateToDo(id, data) {
   if (data.category_id !== undefined) {
     setClauses.push('category_id = ?');
     values.push(data.category_id || null);
+  }
+
+  // target_date - due date for the todo
+  if (data.target_date !== undefined) {
+    setClauses.push('target_date = ?');
+    values.push(data.target_date || null);
+  }
+
+  // importance - urgency level (low, medium, high, critical)
+  if (data.importance !== undefined) {
+    setClauses.push('importance = ?');
+    values.push(data.importance || null);
   }
 
   if (data.status !== undefined) {

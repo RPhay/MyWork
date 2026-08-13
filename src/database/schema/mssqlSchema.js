@@ -751,6 +751,20 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
+  // Backfill target_date for pre-existing to_dos tables
+  if (!(await columnExists(pool, "to_dos", "target_date"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_dos] ADD target_date DATE NULL
+    `);
+  }
+
+  // Backfill importance for pre-existing to_dos tables
+  if (!(await columnExists(pool, "to_dos", "importance"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[to_dos] ADD importance NVARCHAR(20) NULL
+    `);
+  }
+
   await createTableIfNotExists(
     pool,
     "to_do_items",
@@ -1323,4 +1337,22 @@ export async function createMssqlSchema(pool) {
         category_id INT NULL CONSTRAINT fk_to_dos_category FOREIGN KEY REFERENCES [MyWork].[areas](id) ON DELETE NO ACTION
     `);
   }
+
+  // Create quotes table (person + quote attribution for any object type)
+  await createTableIfNotExists(
+    pool,
+    "quotes",
+    `
+    CREATE TABLE [MyWork].[quotes] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      object_type NVARCHAR(50) NOT NULL,
+      object_id INT NOT NULL,
+      person NVARCHAR(255) NOT NULL,
+      quote NVARCHAR(MAX) NOT NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "quotes");
 }

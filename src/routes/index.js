@@ -26,6 +26,7 @@ import ssoRouter from "./api/sso.js";
 import contextSsoRouter from "./api/contextSso.js";
 import dataSourceAuthRouter from "./api/dataSourceAuth.js";
 import linksRouter from "./api/links.js";
+import quotesRouter from "./api/quotes.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
 
@@ -59,6 +60,7 @@ router.use("/api/sso", ssoRouter);
 router.use("/api", contextSsoRouter);
 router.use("/api", dataSourceAuthRouter);
 router.use("/api", linksRouter);
+router.use("/api/quotes", quotesRouter);
 
 // First-run bootstrap page: gets the app pointed at a working database and
 // schema before contexts (or anything else) can exist. Redirects itself back

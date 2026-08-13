@@ -192,6 +192,16 @@ const app = {
     return { complete: 'bi-check-lg', failed: 'bi-x-lg', skipped: 'bi-dash-lg' }[status] || '';
   },
 
+  // Icon shown for importance/urgency level
+  importanceIcon(importance) {
+    return { low: 'bi-arrow-down', medium: 'bi-dash', high: 'bi-arrow-up', critical: 'bi-exclamation-diamond-fill' }[importance] || '';
+  },
+
+  // Color class for importance level
+  importanceColor(importance) {
+    return { low: 'text-secondary', medium: 'text-info', high: 'text-warning', critical: 'text-danger' }[importance] || '';
+  },
+
   // Advance a to-do's or task's status to the next state in STATUS_CYCLE and
   // save it; shared by every page that renders a status checkbox. `endpoint`
   // is the full REST URL for the item being updated (e.g. `/api/to-dos/5` or

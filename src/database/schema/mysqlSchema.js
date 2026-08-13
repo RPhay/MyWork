@@ -672,6 +672,20 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Backfill target_date for pre-existing to_dos tables
+  if (!(await columnExists(connection, "to_dos", "target_date"))) {
+    await connection.query(
+      "ALTER TABLE to_dos ADD COLUMN target_date DATE"
+    );
+  }
+
+  // Backfill importance for pre-existing to_dos tables
+  if (!(await columnExists(connection, "to_dos", "importance"))) {
+    await connection.query(
+      "ALTER TABLE to_dos ADD COLUMN importance VARCHAR(20) DEFAULT NULL COMMENT 'low, medium, high, critical'"
+    );
+  }
+
   // Create idea_links table (1-n links associated with ideas)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS idea_links (
@@ -1151,4 +1165,17 @@ export async function createMysqlSchema(connection) {
       "ALTER TABLE to_dos ADD COLUMN category_id INT, ADD FOREIGN KEY (category_id) REFERENCES areas(id) ON DELETE SET NULL"
     );
   }
+
+  // Create quotes table (person + quote attribution for any object type)
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS quotes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      object_type VARCHAR(50) NOT NULL COMMENT 'todo, task, ticket, goal, area, project, idea',
+      object_id INT NOT NULL,
+      person VARCHAR(255) NOT NULL COMMENT 'Name of person being quoted (freeform for now)',
+      quote LONGTEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
 }

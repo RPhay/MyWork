@@ -89,6 +89,9 @@ function renderToDoRow(toDo, depth, childrenMap, statusMap, visited = new Set())
   const displayStatus = statusMap[toDo.id] || toDo.status;
   const statusIcon = app.statusIcon(displayStatus);
   const statusLabel = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
+  const importanceIcon = app.importanceIcon(toDo.importance);
+  const importanceColor = app.importanceColor(toDo.importance);
+  const importanceLabel = toDo.importance ? toDo.importance.charAt(0).toUpperCase() + toDo.importance.slice(1) : 'Set Importance';
 
   const childrenHtml = hasChildren && isExpanded
     ? `<div class="todo-node-children">
@@ -108,6 +111,9 @@ function renderToDoRow(toDo, depth, childrenMap, statusMap, visited = new Set())
             : '<span class="todo-folder-toggle"></span>'}
           <button type="button" class="todo-item-checkbox ${displayStatus !== 'incomplete' ? 'status-' + displayStatus : ''}" data-action="toggle-complete" data-id="${toDo.id}" data-status="${toDo.status}" title="${statusLabel} — click to change" aria-label="${statusLabel} — click to change">
             ${statusIcon ? `<i class="bi ${statusIcon}"></i>` : ''}
+          </button>
+          <button type="button" class="btn btn-sm btn-link p-0 ${importanceColor}" data-action="toggle-importance" data-id="${toDo.id}" data-importance="${toDo.importance || 'none'}" title="${importanceLabel} — click to cycle" aria-label="${importanceLabel} — click to cycle" style="margin: 0 4px;">
+            ${importanceIcon ? `<i class="bi ${importanceIcon}"></i>` : '<i class="bi bi-circle"></i>'}
           </button>
           <span class="todo-title" ${toDo.status === 'complete' ? 'style="text-decoration: line-through; opacity: 0.6;"' : ''}>${app.escapeHtml(toDo.title)}</span>
         </span>
@@ -449,6 +455,29 @@ async function cycleToDoStatus(toDoId, currentStatus) {
   }
 }
 
+async function updateToDoImportance(toDoId, importance) {
+  try {
+    const response = await fetch(`/api/to-dos/${toDoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+      },
+      body: JSON.stringify({ importance })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      loadToDos();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error updating importance:', error);
+    app.notify('Error updating importance', 'danger');
+  }
+}
+
 function createChildToDo(parentTodoId) {
   // Get parent todo to reference in modal
   const parentTodo = getState().allToDos.find(t => String(t.id) === String(parentTodoId));
@@ -562,6 +591,21 @@ function setupToDoDragListeners() {
       const toDoId = btn.getAttribute('data-id');
       const status = btn.getAttribute('data-status');
       cycleToDoStatus(toDoId, status);
+    }
+  });
+
+  // Toggle importance
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('button[data-action="toggle-importance"]')) {
+      e.preventDefault();
+      const btn = e.target.closest('button[data-action="toggle-importance"]');
+      const toDoId = btn.getAttribute('data-id');
+      const currentImportance = btn.getAttribute('data-importance');
+      const importanceCycle = ['none', 'low', 'medium', 'high', 'critical'];
+      const currentIdx = importanceCycle.indexOf(currentImportance || 'none');
+      const nextIdx = (currentIdx + 1) % importanceCycle.length;
+      const nextImportance = importanceCycle[nextIdx];
+      updateToDoImportance(toDoId, nextImportance === 'none' ? null : nextImportance);
     }
   });
 
@@ -944,6 +988,25 @@ function initializeToDosTab() {
     });
   });
 
+  // Set up expand all / collapse all buttons
+  const expandAllBtn = document.getElementById('expandAllTodosBtn');
+  if (expandAllBtn) {
+    expandAllBtn.addEventListener('click', () => {
+      getState().allToDos.forEach(todo => {
+        getState().expandedTodos.add(String(todo.id));
+      });
+      renderToDosList();
+    });
+  }
+
+  const collapseAllBtn = document.getElementById('collapseAllTodosBtn');
+  if (collapseAllBtn) {
+    collapseAllBtn.addEventListener('click', () => {
+      getState().expandedTodos.clear();
+      renderToDosList();
+    });
+  }
+
   loadToDos();
 
   // Wire up modal buttons for creating new todos
@@ -1045,6 +1108,84 @@ function initializeToDosTab() {
       const todoId = document.getElementById('toDoEditorId').value;
       if (todoId) {
         await deleteToDo(todoId);
+      }
+    });
+  }
+
+  // Wire up add link button in editor pane
+  const editorAddLinkBtn = document.getElementById('toDoEditorAddLinkBtn');
+  if (editorAddLinkBtn) {
+    editorAddLinkBtn.addEventListener('click', async () => {
+      const todoId = document.getElementById('toDoEditorId').value;
+      const url = document.getElementById('toDoEditorLinkUrl')?.value;
+      const title = document.getElementById('toDoEditorLinkTitle')?.value;
+
+      if (todoId && url) {
+        await addLinkToEntity('to-do', todoId, url, title, 'toDoEditorLinksList');
+        document.getElementById('toDoEditorLinkUrl').value = '';
+        document.getElementById('toDoEditorLinkTitle').value = '';
+      }
+    });
+  }
+
+  // Wire up add link button in modal form
+  const modalAddLinkBtn = document.getElementById('addToDoLinkBtn');
+  if (modalAddLinkBtn) {
+    modalAddLinkBtn.addEventListener('click', async () => {
+      const todoId = document.getElementById('toDoId')?.value;
+      const url = document.getElementById('toDoLinkUrl')?.value;
+      const title = document.getElementById('toDoLinkTitle')?.value;
+
+      if (todoId && url) {
+        await addLinkToEntity('to-do', todoId, url, title, 'toDoLinksList');
+        document.getElementById('toDoLinkUrl').value = '';
+        document.getElementById('toDoLinkTitle').value = '';
+      }
+    });
+  }
+
+  // Wire up add quote button in editor pane
+  const editorAddQuoteBtn = document.getElementById('toDoEditorAddQuoteBtn');
+  if (editorAddQuoteBtn) {
+    editorAddQuoteBtn.addEventListener('click', async () => {
+      const todoId = document.getElementById('toDoEditorId').value;
+      const person = document.getElementById('toDoEditorQuotePerson')?.value;
+      const quote = document.getElementById('toDoEditorQuoteText')?.value;
+
+      if (todoId && person && quote) {
+        try {
+          const response = await fetch('/api/quotes', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+            },
+            body: JSON.stringify({
+              objectType: 'todo',
+              objectId: todoId,
+              person,
+              quote
+            })
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            app.notify('Quote added', 'success');
+            document.getElementById('toDoEditorQuotePerson').value = '';
+            document.getElementById('toDoEditorQuoteText').value = '';
+            // Reload quotes list
+            if (typeof TodoEditor !== 'undefined' && TodoEditor.loadAndRenderQuotes) {
+              await TodoEditor.loadAndRenderQuotes(todoId);
+            }
+          } else {
+            app.notify('Error: ' + result.message, 'danger');
+          }
+        } catch (error) {
+          console.error('Error adding quote:', error);
+          app.notify('Error adding quote', 'danger');
+        }
+      } else {
+        app.notify('Person and quote are required', 'warning');
       }
     });
   }

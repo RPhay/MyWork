@@ -3,10 +3,29 @@ const TodoEditor = (() => {
   let formId = null;
   let currentTodoId = null;
   let hasChanges = false;
+  let quillEditor = null;
 
   const init = (splitPaneInstance, editorFormId) => {
     splitPane = splitPaneInstance;
     formId = editorFormId;
+
+    // Initialize Quill editor
+    const editorContainer = document.getElementById('toDoEditorNotesEditor');
+    if (editorContainer && window.Quill) {
+      quillEditor = new Quill(editorContainer, {
+        theme: 'snow',
+        placeholder: 'Add notes here...',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline'],
+            ['link'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        }
+      });
+      quillEditor.on('text-change', markChanged);
+    }
   };
 
   const markChanged = () => {
@@ -60,6 +79,9 @@ const TodoEditor = (() => {
         setupURLDragDrop('to-do', 'toDoEditorLinksList', () => toDo.id);
       }
 
+      // Load quotes
+      await loadAndRenderQuotes(toDo.id);
+
       // Load and display associated items
       await renderAssociatedItems(toDo);
 
@@ -74,7 +96,18 @@ const TodoEditor = (() => {
     document.getElementById('toDoEditorId').value = toDo.id;
     document.getElementById('toDoEditorFormTitle').value = toDo.title;
     document.getElementById('toDoEditorNotes').value = toDo.notes || '';
+    document.getElementById('toDoEditorTargetDate').value = toDo.target_date || '';
+    document.getElementById('toDoEditorImportance').value = toDo.importance || '';
     document.getElementById('todoEditorTitle').textContent = toDo.title;
+
+    // Set Quill editor content (parse as HTML if it exists)
+    if (quillEditor) {
+      if (toDo.notes) {
+        quillEditor.root.innerHTML = toDo.notes;
+      } else {
+        quillEditor.setContents([]);
+      }
+    }
 
     // Fill recurrence if present
     if (toDo.recurrence && toDo.recurrence.enabled) {
@@ -229,14 +262,18 @@ const TodoEditor = (() => {
   const save = async () => {
     const todoId = document.getElementById('toDoEditorId').value;
     const title = document.getElementById('toDoEditorFormTitle').value;
-    const notes = document.getElementById('toDoEditorNotes').value;
+    const notes = quillEditor ? quillEditor.root.innerHTML : document.getElementById('toDoEditorNotes').value;
+    const target_date = document.getElementById('toDoEditorTargetDate').value;
+    const importance = document.getElementById('toDoEditorImportance').value;
 
     if (!title.trim()) {
       app.notify('Title is required', 'warning');
       return false;
     }
 
-    const data = { title, notes };
+    const data = { title, notes: notes.trim() === '<p><br></p>' || notes === '' ? '' : notes };
+    if (target_date) data.target_date = target_date;
+    if (importance) data.importance = importance;
 
     const recurrence = getRecurrenceData();
     if (document.getElementById('toDoEditorRecurrenceEnabled').checked && recurrence === null) {
@@ -486,6 +523,65 @@ const TodoEditor = (() => {
     }
   };
 
+  const loadAndRenderQuotes = async (todoId) => {
+    try {
+      const response = await fetch(`/api/quotes/todo/${todoId}`);
+      const result = await response.json();
+
+      if (result.success) {
+        renderQuotesList(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading quotes:', error);
+    }
+  };
+
+  const renderQuotesList = (quotes) => {
+    const container = document.getElementById('toDoEditorQuotesList');
+    if (!container) return;
+
+    if (quotes.length === 0) {
+      container.innerHTML = '<p class="text-muted small">No quotes yet</p>';
+      return;
+    }
+
+    container.innerHTML = quotes.map(quote => `
+      <div class="d-flex align-items-start gap-2 mb-2 p-2 border rounded" data-quote-id="${quote.id}">
+        <div class="flex-grow-1">
+          <div class="small fw-bold">${app.escapeHtml(quote.person)}</div>
+          <div class="small">"${app.escapeHtml(quote.quote)}"</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger delete-quote-btn" data-quote-id="${quote.id}">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    `).join('');
+
+    // Attach delete listeners
+    container.querySelectorAll('.delete-quote-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (await app.confirm('Delete this quote?')) {
+          const quoteId = btn.dataset.quoteId;
+          try {
+            const response = await fetch(`/api/quotes/${quoteId}`, {
+              method: 'DELETE',
+              headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
+            });
+            const result = await response.json();
+            if (result.success) {
+              app.notify('Quote deleted', 'success');
+              const todoId = document.getElementById('toDoEditorId').value;
+              await loadAndRenderQuotes(todoId);
+            }
+          } catch (error) {
+            console.error('Error deleting quote:', error);
+            app.notify('Error deleting quote', 'danger');
+          }
+        }
+      });
+    });
+  };
+
   const close = () => {
     resetChangeTracking();
     currentTodoId = null;
@@ -515,6 +611,7 @@ const TodoEditor = (() => {
     renderLinks,
     renderAssociatedItems,
     renderAssociatedItemsTree,
+    loadAndRenderQuotes,
     save,
     close,
     toggleOnSameRow
