@@ -2433,12 +2433,28 @@ function showSelectionModal(title, items, callback, isTreeFormat = false) {
 }
 
 // Build tree HTML for hierarchical items (Priorities/Areas)
-function buildTreeHTML(items, parentId = null, depth = 0) {
+function buildTreeHTML(items, parentId = null, depth = 0, visited = new Set()) {
+  // Prevent infinite recursion with depth limit and cycle detection
+  const MAX_DEPTH = 50;
+  if (depth > MAX_DEPTH) {
+    console.warn('[buildTreeHTML] Max depth reached, stopping recursion');
+    return '';
+  }
+
   const filtered = items.filter(item => (item.parent_id === parentId || item.parent_id === null));
-  const hasChildren = (itemId) => items.some(item => item.parent_id === itemId);
+  const hasChildren = (itemId) => items.some(item => item.parent_id === itemId && !visited.has(item.id));
 
   return filtered.map(item => {
-    const childrenHtml = hasChildren(item.id) ? buildTreeHTML(items, item.id, depth + 1) : '';
+    // Detect and skip cycles
+    if (visited.has(item.id)) {
+      console.warn(`[buildTreeHTML] Cycle detected for item ${item.id}, skipping`);
+      return '';
+    }
+
+    const newVisited = new Set(visited);
+    newVisited.add(item.id);
+
+    const childrenHtml = hasChildren(item.id) ? buildTreeHTML(items, item.id, depth + 1, newVisited) : '';
     const paddingLeft = depth * 20;
     return `
       <div style="padding-left: ${paddingLeft}px;">
