@@ -272,7 +272,7 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <div>
               <div class="split-pane-editor-title" id="childItemEditorDisplayTitle">Select an item to edit</div>
-              <small class="text-muted" id="childItemEditorType"></small>
+              <small class="text-muted" id="childItemEditorTypeLabel"></small>
             </div>
             <div style="gap: 0.5rem; display: flex;">
               <button type="button" class="btn btn-primary btn-sm" id="saveChildItemEditorBtn" disabled>Save</button>
@@ -282,17 +282,39 @@
           <form id="childItemEditorForm">
             <input type="hidden" id="childItemEditorId" name="id">
             <input type="hidden" id="childItemEditorType" name="type">
-            <input type="hidden" id="childItemEditorParentId" name="parentId">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
+            <!-- Universal fields -->
             <div class="mb-3">
               <label for="childItemEditorTitle" class="form-label">Title *</label>
               <input type="text" class="form-control" id="childItemEditorTitle" name="title" required>
             </div>
 
-            <div class="mb-3">
+            <!-- For todos and tasks: notes/description -->
+            <div class="mb-3" id="childItemEditorNotesField" style="display: none;">
+              <label for="childItemEditorNotes" class="form-label">Notes</label>
+              <textarea class="form-control" id="childItemEditorNotes" name="notes" rows="3"></textarea>
+            </div>
+
+            <!-- For priorities/areas: description -->
+            <div class="mb-3" id="childItemEditorDescriptionField" style="display: none;">
               <label for="childItemEditorDescription" class="form-label">Description</label>
               <textarea class="form-control" id="childItemEditorDescription" name="description" rows="3"></textarea>
+            </div>
+
+            <!-- For todos/tasks: status -->
+            <div class="mb-3" id="childItemEditorStatusField" style="display: none;">
+              <label for="childItemEditorStatus" class="form-label">Status</label>
+              <select class="form-select" id="childItemEditorStatus" name="status">
+                <option value="incomplete">Incomplete</option>
+                <option value="complete">Complete</option>
+              </select>
+            </div>
+
+            <!-- For goals: year -->
+            <div class="mb-3" id="childItemEditorYearField" style="display: none;">
+              <label for="childItemEditorYear" class="form-label">Year</label>
+              <input type="number" class="form-control" id="childItemEditorYear" name="year">
             </div>
 
           </form>

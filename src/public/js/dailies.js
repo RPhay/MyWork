@@ -3109,6 +3109,17 @@ async function loadChildItemForEditing(type, id) {
     'idea': '/api/ideas'
   };
 
+  const typeLabels = {
+    'priority': 'Priority',
+    'area': 'Category',
+    'goal': 'Goal',
+    'template': 'Template',
+    'todo': 'Todo',
+    'task': 'Task',
+    'ticket': 'Ticket',
+    'idea': 'Idea'
+  };
+
   const endpoint = typeMap[type];
   if (!endpoint) return;
 
@@ -3117,11 +3128,36 @@ async function loadChildItemForEditing(type, id) {
     const result = await response.json();
     if (result.success) {
       const item = result.data;
+
+      // Set common fields
       document.getElementById('childItemEditorId').value = id;
       document.getElementById('childItemEditorType').value = type;
       document.getElementById('childItemEditorTitle').value = item.title || item.name || '';
-      document.getElementById('childItemEditorDescription').value = item.description || item.notes || '';
       document.getElementById('childItemEditorDisplayTitle').textContent = item.title || item.name || 'Edit Item';
+      document.getElementById('childItemEditorTypeLabel').textContent = typeLabels[type] || type;
+
+      // Hide all optional fields first
+      document.getElementById('childItemEditorNotesField').style.display = 'none';
+      document.getElementById('childItemEditorDescriptionField').style.display = 'none';
+      document.getElementById('childItemEditorStatusField').style.display = 'none';
+      document.getElementById('childItemEditorYearField').style.display = 'none';
+
+      // Show and populate fields based on type
+      if (type === 'todo' || type === 'task') {
+        document.getElementById('childItemEditorNotesField').style.display = 'block';
+        document.getElementById('childItemEditorStatusField').style.display = 'block';
+        document.getElementById('childItemEditorNotes').value = item.notes || '';
+        document.getElementById('childItemEditorStatus').value = item.status || 'incomplete';
+      } else if (type === 'goal') {
+        document.getElementById('childItemEditorDescriptionField').style.display = 'block';
+        document.getElementById('childItemEditorYearField').style.display = 'block';
+        document.getElementById('childItemEditorDescription').value = item.description || '';
+        document.getElementById('childItemEditorYear').value = item.year || '';
+      } else {
+        // priority, area, template, ticket, idea
+        document.getElementById('childItemEditorDescriptionField').style.display = 'block';
+        document.getElementById('childItemEditorDescription').value = item.description || '';
+      }
     }
   } catch (error) {
     console.error('Error loading child item:', error);
@@ -3784,7 +3820,6 @@ function initDailies() {
       const type = document.getElementById("childItemEditorType").value;
       const id = document.getElementById("childItemEditorId").value;
       const title = document.getElementById("childItemEditorTitle").value;
-      const description = document.getElementById("childItemEditorDescription").value;
 
       if (!title) {
         app.notify("Title is required", "warning");
@@ -3806,17 +3841,27 @@ function initDailies() {
         const endpoint = typeMap[type];
         if (!endpoint) return;
 
+        // Build payload based on type
+        const payload = { title, name: title };
+
+        if (type === 'todo' || type === 'task') {
+          payload.notes = document.getElementById('childItemEditorNotes').value;
+          payload.status = document.getElementById('childItemEditorStatus').value;
+        } else if (type === 'goal') {
+          payload.description = document.getElementById('childItemEditorDescription').value;
+          const year = document.getElementById('childItemEditorYear').value;
+          if (year) payload.year = parseInt(year, 10);
+        } else {
+          payload.description = document.getElementById('childItemEditorDescription').value;
+        }
+
         const response = await fetch(`${endpoint}/${id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRF-Token': window.APP_CONFIG?.csrfToken
           },
-          body: JSON.stringify({
-            title: title,
-            description: description,
-            name: title
-          })
+          body: JSON.stringify(payload)
         });
 
         const result = await response.json();
