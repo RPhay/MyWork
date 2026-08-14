@@ -3068,79 +3068,97 @@ async function createAndAssociateTemplate(workItemId) {
 
 // Store currently edited child item
 let currentEditingChild = null;
+let childItemEditorId = null;
 
-// Editor functions - open appropriate editor for each type by switching tabs
-// These switch to the item's native tab to open full editors
+function openChildItemEditor(type, id) {
+  // If clicking same item, toggle close
+  if (currentEditingChild?.id === id && currentEditingChild?.type === type) {
+    closeChildItemEditor();
+    return;
+  }
+
+  currentEditingChild = { type, id };
+  childItemEditorId = id;
+
+  // Hide work item editor, show child editor
+  const workPane = document.getElementById('workItemEditorPane');
+  const childPane = document.getElementById('childItemEditorPane');
+  if (workPane) workPane.classList.add('hidden');
+  if (childPane) childPane.classList.remove('hidden');
+
+  // Load child item data
+  loadChildItemForEditing(type, id);
+}
+
+function closeChildItemEditor() {
+  currentEditingChild = null;
+  childItemEditorId = null;
+  const childPane = document.getElementById('childItemEditorPane');
+  if (childPane) childPane.classList.add('hidden');
+}
+
+async function loadChildItemForEditing(type, id) {
+  const typeMap = {
+    'priority': '/api/priorities',
+    'area': '/api/areas',
+    'goal': '/api/goals',
+    'template': '/api/work-item-templates',
+    'todo': '/api/to-dos',
+    'task': '/api/tasks',
+    'ticket': '/api/tickets',
+    'idea': '/api/ideas'
+  };
+
+  const endpoint = typeMap[type];
+  if (!endpoint) return;
+
+  try {
+    const response = await fetch(`${endpoint}/${id}`);
+    const result = await response.json();
+    if (result.success) {
+      const item = result.data;
+      document.getElementById('childItemEditorId').value = id;
+      document.getElementById('childItemEditorType').value = type;
+      document.getElementById('childItemEditorTitle').value = item.title || item.name || '';
+      document.getElementById('childItemEditorDescription').value = item.description || item.notes || '';
+      document.getElementById('childItemEditorDisplayTitle').textContent = item.title || item.name || 'Edit Item';
+    }
+  } catch (error) {
+    console.error('Error loading child item:', error);
+  }
+}
+
+// Editor functions - open child item editor in right pane
 function editPriority(priorityId) {
-  currentEditingChild = { type: 'priority', id: priorityId };
-  window.tabManager?.switchTab('my-priorities');
-  setTimeout(() => {
-    const priorityRow = document.querySelector(`[data-priority-id="${priorityId}"]`);
-    if (priorityRow) priorityRow.click();
-  }, 100);
+  openChildItemEditor('priority', priorityId);
 }
 
 function editArea(areaId) {
-  currentEditingChild = { type: 'area', id: areaId };
-  window.tabManager?.switchTab('areas');
-  setTimeout(() => {
-    const areaRow = document.querySelector(`[data-area-id="${areaId}"]`);
-    if (areaRow) areaRow.click();
-  }, 100);
+  openChildItemEditor('area', areaId);
 }
 
 function editGoal(goalId) {
-  currentEditingChild = { type: 'goal', id: goalId };
-  window.tabManager?.switchTab('yearly-goals');
-  setTimeout(() => {
-    const goalRow = document.querySelector(`[data-goal-id="${goalId}"]`);
-    if (goalRow) goalRow.click();
-  }, 100);
+  openChildItemEditor('goal', goalId);
 }
 
 function editTemplate(templateId) {
-  currentEditingChild = { type: 'template', id: templateId };
-  window.tabManager?.switchTab('templates');
-  setTimeout(() => {
-    const templateRow = document.querySelector(`[data-template-id="${templateId}"]`);
-    if (templateRow) templateRow.click();
-  }, 100);
+  openChildItemEditor('template', templateId);
 }
 
 function editTodo(todoId) {
-  currentEditingChild = { type: 'todo', id: todoId };
-  window.tabManager?.switchTab('todos');
-  setTimeout(() => {
-    const todoRow = document.querySelector(`[data-todo-id="${todoId}"]`);
-    if (todoRow) todoRow.click();
-  }, 100);
+  openChildItemEditor('todo', todoId);
 }
 
 function editTask(taskId) {
-  currentEditingChild = { type: 'task', id: taskId };
-  window.tabManager?.switchTab('tasks');
-  setTimeout(() => {
-    const taskRow = document.querySelector(`[data-task-id="${taskId}"]`);
-    if (taskRow) taskRow.click();
-  }, 100);
+  openChildItemEditor('task', taskId);
 }
 
 function editTicket(ticketId) {
-  currentEditingChild = { type: 'ticket', id: ticketId };
-  window.tabManager?.switchTab('tickets');
-  setTimeout(() => {
-    const ticketRow = document.querySelector(`[data-ticket-id="${ticketId}"]`);
-    if (ticketRow) ticketRow.click();
-  }, 100);
+  openChildItemEditor('ticket', ticketId);
 }
 
 function editIdea(ideaId) {
-  currentEditingChild = { type: 'idea', id: ideaId };
-  window.tabManager?.switchTab('brainstorming');
-  setTimeout(() => {
-    const ideaRow = document.querySelector(`[data-idea-id="${ideaId}"]`);
-    if (ideaRow) ideaRow.click();
-  }, 100);
+  openChildItemEditor('idea', ideaId);
 }
 
 function initDailiesEventListeners() {
@@ -3752,6 +3770,68 @@ function initDailies() {
 
   if (closeWorkItemEditorBtn) {
     closeWorkItemEditorBtn.addEventListener("click", closeWorkItemEditor);
+  }
+
+  // Child item editor handlers
+  const closeChildBtn = document.getElementById("closeChildItemEditorBtn");
+  if (closeChildBtn) {
+    closeChildBtn.addEventListener("click", closeChildItemEditor);
+  }
+
+  const saveChildBtn = document.getElementById("saveChildItemEditorBtn");
+  if (saveChildBtn) {
+    saveChildBtn.addEventListener("click", async () => {
+      const type = document.getElementById("childItemEditorType").value;
+      const id = document.getElementById("childItemEditorId").value;
+      const title = document.getElementById("childItemEditorTitle").value;
+      const description = document.getElementById("childItemEditorDescription").value;
+
+      if (!title) {
+        app.notify("Title is required", "warning");
+        return;
+      }
+
+      try {
+        const typeMap = {
+          'priority': '/api/priorities',
+          'area': '/api/areas',
+          'goal': '/api/goals',
+          'template': '/api/work-item-templates',
+          'todo': '/api/to-dos',
+          'task': '/api/tasks',
+          'ticket': '/api/tickets',
+          'idea': '/api/ideas'
+        };
+
+        const endpoint = typeMap[type];
+        if (!endpoint) return;
+
+        const response = await fetch(`${endpoint}/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+          },
+          body: JSON.stringify({
+            title: title,
+            description: description,
+            name: title
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          app.notify("Item saved!", "success");
+          closeChildItemEditor();
+          loadWorkItems();
+        } else {
+          app.notify("Error: " + result.message, "danger");
+        }
+      } catch (error) {
+        console.error("Error saving child item:", error);
+        app.notify("Error saving item", "danger");
+      }
+    });
   }
 
   initDailiesEventListeners();

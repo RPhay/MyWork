@@ -265,6 +265,39 @@
           </form>
         </div>
       </div>
+
+      <!-- Right Pane: Child Item Editor (Hidden by default) -->
+      <div class="split-pane-right hidden" id="childItemEditorPane">
+        <div class="split-pane-editor">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <div class="split-pane-editor-title" id="childItemEditorDisplayTitle">Select an item to edit</div>
+              <small class="text-muted" id="childItemEditorType"></small>
+            </div>
+            <div style="gap: 0.5rem; display: flex;">
+              <button type="button" class="btn btn-primary btn-sm" id="saveChildItemEditorBtn" disabled>Save</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="closeChildItemEditorBtn">Cancel</button>
+            </div>
+          </div>
+          <form id="childItemEditorForm">
+            <input type="hidden" id="childItemEditorId" name="id">
+            <input type="hidden" id="childItemEditorType" name="type">
+            <input type="hidden" id="childItemEditorParentId" name="parentId">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <div class="mb-3">
+              <label for="childItemEditorTitle" class="form-label">Title *</label>
+              <input type="text" class="form-control" id="childItemEditorTitle" name="title" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="childItemEditorDescription" class="form-label">Description</label>
+              <textarea class="form-control" id="childItemEditorDescription" name="description" rows="3"></textarea>
+            </div>
+
+          </form>
+        </div>
+      </div>
       </div>
     </div>
   </div>
