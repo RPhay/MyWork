@@ -3117,7 +3117,9 @@ function closeChildItemEditor() {
   currentEditingChild = null;
   childItemEditorId = null;
   const childPane = document.getElementById('childItemEditorPane');
+  const workPane = document.getElementById('workItemEditorPane');
   if (childPane) childPane.classList.add('hidden');
+  if (workPane) workPane.classList.remove('hidden');
 }
 
 async function loadChildItemForEditing(type, id) {
