@@ -3167,17 +3167,27 @@ async function loadChildItemForEditing(type, id) {
 
       // Show and populate fields based on type
       if (type === 'todo' || type === 'task') {
+        // Todos and tasks have: notes, status
         document.getElementById('childItemEditorNotesField').style.display = 'block';
         document.getElementById('childItemEditorStatusField').style.display = 'block';
         document.getElementById('childItemEditorNotes').value = item.notes || '';
         document.getElementById('childItemEditorStatus').value = item.status || 'incomplete';
+      } else if (type === 'ticket' || type === 'idea') {
+        // Tickets and ideas have: notes (no status field)
+        document.getElementById('childItemEditorNotesField').style.display = 'block';
+        document.getElementById('childItemEditorNotes').value = item.notes || '';
+      } else if (type === 'priority') {
+        // Priorities have: notes (not description!)
+        document.getElementById('childItemEditorNotesField').style.display = 'block';
+        document.getElementById('childItemEditorNotes').value = item.notes || '';
       } else if (type === 'goal') {
+        // Goals have: description, year
         document.getElementById('childItemEditorDescriptionField').style.display = 'block';
         document.getElementById('childItemEditorYearField').style.display = 'block';
         document.getElementById('childItemEditorDescription').value = item.description || '';
         document.getElementById('childItemEditorYear').value = item.year || '';
       } else {
-        // priority, area, template, ticket, idea
+        // Areas and templates have: description
         document.getElementById('childItemEditorDescriptionField').style.display = 'block';
         document.getElementById('childItemEditorDescription').value = item.description || '';
       }
@@ -3868,13 +3878,19 @@ function initDailies() {
         const payload = { title, name: title };
 
         if (type === 'todo' || type === 'task') {
+          // Todos and tasks have: notes, status
           payload.notes = document.getElementById('childItemEditorNotes').value;
           payload.status = document.getElementById('childItemEditorStatus').value;
+        } else if (type === 'ticket' || type === 'idea' || type === 'priority') {
+          // Tickets, ideas, priorities have: notes (no status)
+          payload.notes = document.getElementById('childItemEditorNotes').value;
         } else if (type === 'goal') {
+          // Goals have: description, year
           payload.description = document.getElementById('childItemEditorDescription').value;
           const year = document.getElementById('childItemEditorYear').value;
           if (year) payload.year = parseInt(year, 10);
         } else {
+          // Areas and templates have: description
           payload.description = document.getElementById('childItemEditorDescription').value;
         }
 
