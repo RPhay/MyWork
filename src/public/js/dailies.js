@@ -557,11 +557,12 @@ function renderWorkItemsList(items) {
 }
 
 function renderChildItem(type, id, label, icon, parentWorkItemId) {
+  const iconClass = icon || (APP_ICONS[type] || 'bi-circle');
   return `
-    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" style="margin-left: 30px;">
+    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" style="margin-left: 30px;" data-child-id="${id}">
       <div class="work-item-header" style="cursor: pointer;" title="Click to edit, right-click for menu">
         <span class="work-item-title-cell">
-          <i class="bi ${icon} text-muted"></i>
+          <i class="bi ${iconClass} text-muted"></i>
           <span class="work-item-title">${app.escapeHtml(label)}</span>
         </span>
         <span style="flex: 1;"></span>
@@ -3065,8 +3066,13 @@ async function createAndAssociateTemplate(workItemId) {
   }
 }
 
+// Store currently edited child item
+let currentEditingChild = null;
+
 // Editor functions - open appropriate editor for each type by switching tabs
+// These switch to the item's native tab to open full editors
 function editPriority(priorityId) {
+  currentEditingChild = { type: 'priority', id: priorityId };
   window.tabManager?.switchTab('my-priorities');
   setTimeout(() => {
     const priorityRow = document.querySelector(`[data-priority-id="${priorityId}"]`);
@@ -3075,6 +3081,7 @@ function editPriority(priorityId) {
 }
 
 function editArea(areaId) {
+  currentEditingChild = { type: 'area', id: areaId };
   window.tabManager?.switchTab('areas');
   setTimeout(() => {
     const areaRow = document.querySelector(`[data-area-id="${areaId}"]`);
@@ -3083,6 +3090,7 @@ function editArea(areaId) {
 }
 
 function editGoal(goalId) {
+  currentEditingChild = { type: 'goal', id: goalId };
   window.tabManager?.switchTab('yearly-goals');
   setTimeout(() => {
     const goalRow = document.querySelector(`[data-goal-id="${goalId}"]`);
@@ -3091,6 +3099,7 @@ function editGoal(goalId) {
 }
 
 function editTemplate(templateId) {
+  currentEditingChild = { type: 'template', id: templateId };
   window.tabManager?.switchTab('templates');
   setTimeout(() => {
     const templateRow = document.querySelector(`[data-template-id="${templateId}"]`);
@@ -3099,6 +3108,7 @@ function editTemplate(templateId) {
 }
 
 function editTodo(todoId) {
+  currentEditingChild = { type: 'todo', id: todoId };
   window.tabManager?.switchTab('todos');
   setTimeout(() => {
     const todoRow = document.querySelector(`[data-todo-id="${todoId}"]`);
@@ -3107,6 +3117,7 @@ function editTodo(todoId) {
 }
 
 function editTask(taskId) {
+  currentEditingChild = { type: 'task', id: taskId };
   window.tabManager?.switchTab('tasks');
   setTimeout(() => {
     const taskRow = document.querySelector(`[data-task-id="${taskId}"]`);
@@ -3115,6 +3126,7 @@ function editTask(taskId) {
 }
 
 function editTicket(ticketId) {
+  currentEditingChild = { type: 'ticket', id: ticketId };
   window.tabManager?.switchTab('tickets');
   setTimeout(() => {
     const ticketRow = document.querySelector(`[data-ticket-id="${ticketId}"]`);
@@ -3123,6 +3135,7 @@ function editTicket(ticketId) {
 }
 
 function editIdea(ideaId) {
+  currentEditingChild = { type: 'idea', id: ideaId };
   window.tabManager?.switchTab('brainstorming');
   setTimeout(() => {
     const ideaRow = document.querySelector(`[data-idea-id="${ideaId}"]`);
