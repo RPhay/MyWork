@@ -2514,7 +2514,8 @@ async function showAreaSelector(workItemId) {
 
 // Fetch and show selection modal for goals
 async function showGoalSelector(workItemId) {
-  const response = await fetch('/api/goals');
+  const year = window.APP_CONFIG?.currentYear || new Date().getFullYear();
+  const response = await fetch(`/api/goals/year/${year}`);
   const result = await response.json();
   const goals = result.success ? result.data : [];
   showSelectionModal('Associate Goal', goals, (goalId) => {
