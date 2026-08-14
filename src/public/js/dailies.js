@@ -3149,7 +3149,6 @@ async function loadChildItemForEditing(type, id) {
   try {
     const response = await fetch(`${endpoint}/${id}`);
     const result = await response.json();
-    console.log(`[loadChildItemForEditing] Loading ${type}/${id}:`, result.data);
     if (result.success) {
       const item = result.data;
 
@@ -3172,7 +3171,6 @@ async function loadChildItemForEditing(type, id) {
         document.getElementById('childItemEditorStatusField').style.display = 'block';
         document.getElementById('childItemEditorNotes').value = item.notes || '';
         document.getElementById('childItemEditorStatus').value = item.status || 'incomplete';
-        console.log(`[loadChildItemForEditing] Set notes to: "${item.notes}"`);
       } else if (type === 'goal') {
         document.getElementById('childItemEditorDescriptionField').style.display = 'block';
         document.getElementById('childItemEditorYearField').style.display = 'block';
