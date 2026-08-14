@@ -488,7 +488,7 @@ function renderWorkItemsList(items) {
 
   items.forEach((item) => {
     const isExpanded = expandedWorkItems.has(String(item.id));
-    const hasChildren = (item.priorities?.length || 0) + (item.goals?.length || 0) + (item.areas?.length || 0) > 0;
+    const hasChildren = (item.priorities?.length || 0) + (item.goals?.length || 0) + (item.areas?.length || 0) + (item.todos?.length || 0) + (item.tasks?.length || 0) + (item.tickets?.length || 0) + (item.ideas?.length || 0) > 0;
 
     // Render work item row
     html += `
@@ -526,6 +526,26 @@ function renderWorkItemsList(items) {
       if (item.areas?.length > 0) {
         item.areas.forEach((a) => {
           html += renderChildItem('area', a.id, a.path || a.name, APP_ICONS.area, item.id);
+        });
+      }
+      if (item.todos?.length > 0) {
+        item.todos.forEach((t) => {
+          html += renderChildItem('todo', t.id, t.title, APP_ICONS.todo, item.id);
+        });
+      }
+      if (item.tasks?.length > 0) {
+        item.tasks.forEach((t) => {
+          html += renderChildItem('task', t.id, t.title, APP_ICONS.task, item.id);
+        });
+      }
+      if (item.tickets?.length > 0) {
+        item.tickets.forEach((t) => {
+          html += renderChildItem('ticket', t.id, t.title, APP_ICONS.ticket, item.id);
+        });
+      }
+      if (item.ideas?.length > 0) {
+        item.ideas.forEach((i) => {
+          html += renderChildItem('idea', i.id, i.title, APP_ICONS.idea, item.id);
         });
       }
     }
