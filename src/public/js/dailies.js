@@ -2330,7 +2330,6 @@ function initWorkItemContextMenu() {
     if (action === "add-project") showProjectSelector(workItemId);
     else if (action === "add-area") showAreaSelector(workItemId);
     else if (action === "add-goal") showGoalSelector(workItemId);
-    else if (action === "add-template") showTemplateSelector(workItemId);
     else if (action === "add-todo") showTodoSelector(workItemId);
     else if (action === "add-task") showTaskSelector(workItemId);
     else if (action === "add-ticket") showTicketSelector(workItemId);
@@ -2564,9 +2563,12 @@ async function associateProject(workItemId, projectId) {
       method: 'POST',
       headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
     });
-    if (response.ok) {
+    const result = await response.json();
+    if (result.success) {
       app.notify('Project associated!', 'success');
       loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error associating project:', error);
@@ -2580,9 +2582,12 @@ async function associateArea(workItemId, areaId) {
       method: 'POST',
       headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
     });
-    if (response.ok) {
+    const result = await response.json();
+    if (result.success) {
       app.notify('Category associated!', 'success');
       loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error associating area:', error);
@@ -2596,9 +2601,12 @@ async function associateGoal(workItemId, goalId) {
       method: 'POST',
       headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
     });
-    if (response.ok) {
+    const result = await response.json();
+    if (result.success) {
       app.notify('Goal associated!', 'success');
       loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error associating goal:', error);
@@ -2612,9 +2620,12 @@ async function associateTemplate(workItemId, templateId) {
       method: 'POST',
       headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
     });
-    if (response.ok) {
+    const result = await response.json();
+    if (result.success) {
       app.notify('Template associated!', 'success');
       loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error associating template:', error);
@@ -2628,9 +2639,12 @@ async function associateTodo(workItemId, todoId) {
       method: 'POST',
       headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
     });
-    if (response.ok) {
+    const result = await response.json();
+    if (result.success) {
       app.notify('Todo associated!', 'success');
       loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error associating todo:', error);
@@ -2644,9 +2658,12 @@ async function associateTask(workItemId, taskId) {
       method: 'POST',
       headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
     });
-    if (response.ok) {
+    const result = await response.json();
+    if (result.success) {
       app.notify('Task associated!', 'success');
       loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error associating task:', error);
@@ -2660,9 +2677,12 @@ async function associateTicket(workItemId, ticketId) {
       method: 'POST',
       headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
     });
-    if (response.ok) {
+    const result = await response.json();
+    if (result.success) {
       app.notify('Ticket associated!', 'success');
       loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error associating ticket:', error);
@@ -2676,9 +2696,12 @@ async function associateIdea(workItemId, ideaId) {
       method: 'POST',
       headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
     });
-    if (response.ok) {
+    const result = await response.json();
+    if (result.success) {
       app.notify('Idea associated!', 'success');
       loadWorkItems();
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error associating idea:', error);
