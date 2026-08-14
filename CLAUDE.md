@@ -34,7 +34,9 @@ Local config: copy `.env.example` to `.env.local` (not `.env`). `CONFIG_ENCRYPTI
 
 ## Browser testing after changes
 
-After any significant change (new features, bug fixes, security updates), run Playwright to check for browser errors before committing:
+**Always test UI changes in a real browser before pushing.** Start the dev server (`npm run dev`) and verify the feature works end-to-end — this catches issues Playwright might miss and ensures the feature actually works as intended. Type checking and tests verify code correctness, not feature correctness.
+
+After any significant change (new features, bug fixes, security updates), also run Playwright to check for browser errors:
 
 ```bash
 npx playwright test tests/e2e/debug.spec.js  # Quick check for CSP and JS errors
