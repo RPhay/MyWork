@@ -3872,7 +3872,10 @@ function initDailies() {
         };
 
         const endpoint = typeMap[type];
-        if (!endpoint) return;
+        if (!endpoint) {
+          console.error('Unknown type:', type);
+          return;
+        }
 
         // Build payload based on type
         const payload = { title, name: title };
@@ -3894,6 +3897,8 @@ function initDailies() {
           payload.description = document.getElementById('childItemEditorDescription').value;
         }
 
+        console.log('[Save child item] Sending to', endpoint + '/' + id, 'payload:', payload);
+
         const response = await fetch(`${endpoint}/${id}`, {
           method: 'PUT',
           headers: {
@@ -3903,7 +3908,15 @@ function initDailies() {
           body: JSON.stringify(payload)
         });
 
+        if (!response.ok) {
+          console.error('Save failed with status:', response.status);
+          const text = await response.text();
+          console.error('Response body:', text);
+        }
+
         const result = await response.json();
+        console.log('[Save child item] Response:', result);
+
         if (result.success) {
           app.notify("Item saved!", "success");
           closeChildItemEditor();
