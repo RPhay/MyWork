@@ -3069,6 +3069,24 @@ async function createAndAssociateTemplate(workItemId) {
 // Store currently edited child item
 let currentEditingChild = null;
 let childItemEditorId = null;
+let childItemEditorHasChanges = false;
+
+const markChildItemEditorChanged = () => {
+  childItemEditorHasChanges = true;
+  const saveBtn = document.getElementById('saveChildItemEditorBtn');
+  if (saveBtn) saveBtn.disabled = false;
+};
+
+const trackChildItemFormChanges = () => {
+  const form = document.getElementById('childItemEditorForm');
+  if (!form) return;
+
+  const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="number"], select');
+  inputs.forEach(input => {
+    input.addEventListener('change', markChildItemEditorChanged);
+    input.addEventListener('input', markChildItemEditorChanged);
+  });
+};
 
 function openChildItemEditor(type, id) {
   // If clicking same item, toggle close
@@ -3087,7 +3105,12 @@ function openChildItemEditor(type, id) {
   if (childPane) childPane.classList.remove('hidden');
 
   // Load child item data
+  childItemEditorHasChanges = false;
+  const saveBtn = document.getElementById('saveChildItemEditorBtn');
+  if (saveBtn) saveBtn.disabled = true;
+
   loadChildItemForEditing(type, id);
+  trackChildItemFormChanges();
 }
 
 function closeChildItemEditor() {
@@ -3126,6 +3149,7 @@ async function loadChildItemForEditing(type, id) {
   try {
     const response = await fetch(`${endpoint}/${id}`);
     const result = await response.json();
+    console.log(`[loadChildItemForEditing] Loading ${type}/${id}:`, result.data);
     if (result.success) {
       const item = result.data;
 
@@ -3148,6 +3172,7 @@ async function loadChildItemForEditing(type, id) {
         document.getElementById('childItemEditorStatusField').style.display = 'block';
         document.getElementById('childItemEditorNotes').value = item.notes || '';
         document.getElementById('childItemEditorStatus').value = item.status || 'incomplete';
+        console.log(`[loadChildItemForEditing] Set notes to: "${item.notes}"`);
       } else if (type === 'goal') {
         document.getElementById('childItemEditorDescriptionField').style.display = 'block';
         document.getElementById('childItemEditorYearField').style.display = 'block';
