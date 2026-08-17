@@ -247,7 +247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const response = await fetch('/api/entity-types');
     const data = await response.json();
 
-    if (data.success) {
+    if (data.success && data.data && data.data.length > 0) {
       const systemTypesList = document.getElementById('systemTypesList');
       systemTypesList.innerHTML = '';
 
@@ -275,6 +275,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
         systemTypesList.insertAdjacentHTML('beforeend', html);
       });
+    } else {
+      document.getElementById('systemTypesList').innerHTML =
+        '<p class="text-muted">No system types available.</p>';
     }
   } catch (error) {
     console.error('Error loading system types:', error);
