@@ -178,9 +178,164 @@ async function ensureGenericSchema() {
 
 async function seedSystemTypes() {
   try {
-    // Import seeding function
-    const { seedSystemEntityTypes } = await import('../database/schema/genericEntitySchema.js');
-    await seedSystemEntityTypes();
+    // Define system entity types with their fields
+    const types = [
+      {
+        slug: 'work_item',
+        label: 'Dailies',
+        label_singular: 'Work Item',
+        icon: '✓',
+        supports_hierarchy: true,
+        is_system: true,
+        primary_date_field: 'date',
+        fields: [
+          { field_key: 'date', label: 'Date', field_type: 'date', required: true, show_in_row: true },
+          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true, is_completion_signal: true },
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+      {
+        slug: 'priority',
+        label: 'Projects',
+        label_singular: 'Priority',
+        icon: '📌',
+        supports_hierarchy: true,
+        is_system: true,
+        primary_date_field: null,
+        fields: [
+          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true },
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+      {
+        slug: 'area',
+        label: 'Categories',
+        label_singular: 'Area',
+        icon: '📂',
+        supports_hierarchy: true,
+        is_system: true,
+        primary_date_field: null,
+        fields: [
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+      {
+        slug: 'goal',
+        label: 'Goals',
+        label_singular: 'Goal',
+        icon: '🎯',
+        supports_hierarchy: false,
+        is_system: true,
+        primary_date_field: null,
+        fields: [
+          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true },
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+      {
+        slug: 'to_do',
+        label: 'Todos',
+        label_singular: 'Todo',
+        icon: '☑',
+        supports_hierarchy: true,
+        is_system: true,
+        primary_date_field: null,
+        fields: [
+          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true, is_completion_signal: true },
+          { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+      {
+        slug: 'task',
+        label: 'Tasks',
+        label_singular: 'Task',
+        icon: '📋',
+        supports_hierarchy: true,
+        is_system: true,
+        primary_date_field: null,
+        fields: [
+          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true, is_completion_signal: true },
+          { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+      {
+        slug: 'ticket',
+        label: 'Tickets',
+        label_singular: 'Ticket',
+        icon: '🎫',
+        supports_hierarchy: true,
+        is_system: true,
+        primary_date_field: null,
+        fields: [
+          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true },
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+      {
+        slug: 'idea',
+        label: 'Brainstorming',
+        label_singular: 'Idea',
+        icon: '💡',
+        supports_hierarchy: true,
+        is_system: true,
+        primary_date_field: null,
+        fields: [
+          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Raw', 'Developing', 'Ready'], doneValues: ['Ready'] }, required: false, show_in_row: true },
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+      {
+        slug: 'template',
+        label: 'Templates',
+        label_singular: 'Template',
+        icon: '📑',
+        supports_hierarchy: false,
+        is_system: true,
+        primary_date_field: null,
+        fields: [
+          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+        ]
+      },
+    ];
+
+    const typeMap = new Map();
+
+    // Create all types
+    for (const typeData of types) {
+      try {
+        const result = await query(
+          'INSERT INTO entity_types (slug, label, label_singular, icon, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [typeData.slug, typeData.label, typeData.label_singular, typeData.icon, typeData.supports_hierarchy ? 1 : 0, 1, typeData.primary_date_field || null, types.indexOf(typeData)]
+        );
+        typeMap.set(typeData.slug, result.insertId);
+      } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+          const existing = await query('SELECT id FROM entity_types WHERE slug = ?', [typeData.slug]);
+          typeMap.set(typeData.slug, existing[0].id);
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    // Create fields for each type
+    for (const typeData of types) {
+      const typeId = typeMap.get(typeData.slug);
+      for (let i = 0; i < typeData.fields.length; i++) {
+        const field = typeData.fields[i];
+        try {
+          await query(
+            'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [typeId, field.field_key, field.label, field.field_type, field.field_options ? JSON.stringify(field.field_options) : null, field.required ? 1 : 0, i, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0]
+          );
+        } catch (error) {
+          if (error.code !== 'ER_DUP_ENTRY') throw error;
+        }
+      }
+    }
+
   } catch (error) {
     logger.error('Error seeding system types:', error);
     throw new Error(`Failed to seed system types: ${error.message}`);
