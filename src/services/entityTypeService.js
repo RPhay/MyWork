@@ -26,6 +26,14 @@ export async function getEntityType(idOrSlug) {
   return rows[0];
 }
 
+// Get a type with all its fields and relationships (full schema)
+export async function getEntityTypeWithSchema(idOrSlug) {
+  const type = await getEntityType(idOrSlug);
+  const fields = await getEntityTypeFields(type.id);
+  const relationships = await getEntityTypeRelationships(type.id);
+  return { ...type, fields, relationships };
+}
+
 // Create a new entity type
 export async function createEntityType(data) {
   if (!data.slug) throw new ValidationError('slug is required');

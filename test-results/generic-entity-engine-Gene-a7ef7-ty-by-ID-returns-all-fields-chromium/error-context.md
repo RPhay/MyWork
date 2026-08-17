@@ -7,7 +7,7 @@
 # Test info
 
 - Name: generic-entity-engine.spec.js >> Generic Entity Engine - Full Integration Tests >> GET entity by ID returns all fields
-- Location: tests/e2e/generic-entity-engine.spec.js:90:3
+- Location: tests/e2e/generic-entity-engine.spec.js:126:3
 
 # Error details
 
@@ -18,204 +18,206 @@ SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
 # Test source
 
 ```ts
-  1   | import { test, expect } from '@playwright/test';
-  2   | 
-  3   | test.describe('Generic Entity Engine - Full Integration Tests', () => {
-  4   |   let contextId = 1;
-  5   | 
-  6   |   // Helper to create a unique ID for test isolation
-  7   |   function uniqueId(prefix) {
-  8   |     return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  9   |   }
-  10  | 
-  11  |   // ========== ENTITY TYPE OPERATIONS ==========
-  12  | 
-  13  |   test('GET entity types returns all system types', async ({ request }) => {
-  14  |     const response = await request.get('/api/entity-types');
-  15  |     expect(response.ok()).toBeTruthy();
-  16  | 
-  17  |     const data = await response.json();
-  18  |     expect(data.success).toBe(true);
-  19  |     expect(Array.isArray(data.data)).toBe(true);
-  20  |     expect(data.data.length).toBeGreaterThanOrEqual(9);
-  21  | 
-  22  |     const typeNames = data.data.map(t => t.slug);
-  23  |     expect(typeNames).toContain('work_item');
-  24  |     expect(typeNames).toContain('priority');
-  25  |     expect(typeNames).toContain('to_do');
-  26  |     expect(typeNames).toContain('task');
-  27  |     expect(typeNames).toContain('ticket');
-  28  |   });
-  29  | 
-  30  |   test('GET entity type by slug returns type with fields', async ({ request }) => {
-  31  |     const response = await request.get('/api/entity-types/priority');
-  32  |     expect(response.ok()).toBeTruthy();
-  33  | 
-  34  |     const data = await response.json();
-  35  |     expect(data.success).toBe(true);
-  36  |     expect(data.data.slug).toBe('priority');
-  37  |     expect(data.data.label).toBe('Projects');
-  38  |     expect(Array.isArray(data.data.fields)).toBe(true);
-  39  |   });
-  40  | 
-  41  |   test('GET entity type includes relationship rules', async ({ request }) => {
-  42  |     const response = await request.get('/api/entity-types/priority');
-  43  |     const data = await response.json();
-  44  | 
-  45  |     expect(data.data).toHaveProperty('relationships');
-  46  |     expect(Array.isArray(data.data.relationships)).toBe(true);
-  47  |   });
-  48  | 
-  49  |   // ========== ENTITY CRUD OPERATIONS ==========
-  50  | 
-  51  |   test('CREATE entity with required fields', async ({ request }) => {
-  52  |     const payload = {
-  53  |       title: uniqueId('Test Priority'),
-  54  |     };
-  55  | 
-  56  |     const response = await request.post('/api/entities/priority', {
-  57  |       data: payload,
-  58  |     });
-  59  |     expect(response.ok()).toBeTruthy();
-  60  | 
-  61  |     const data = await response.json();
-  62  |     expect(data.success).toBe(true);
-  63  |     expect(data.data).toHaveProperty('id');
-  64  |     expect(data.data.title).toBe(payload.title);
-  65  |     expect(data.data.entity_type_id).toBe(3); // priority type
-  66  |   });
-  67  | 
-  68  |   test('CREATE entity with custom fields', async ({ request }) => {
-  69  |     const payload = {
-  70  |       title: uniqueId('Priority with Status'),
-  71  |       status: 'In Progress',
-  72  |     };
+  39  |     const response = await request.get('/api/entity-types');
+  40  |     expect(response.ok()).toBeTruthy();
+  41  | 
+  42  |     const data = await response.json();
+  43  |     expect(data.success).toBe(true);
+  44  |     expect(Array.isArray(data.data)).toBe(true);
+  45  |     expect(data.data.length).toBeGreaterThanOrEqual(9);
+  46  | 
+  47  |     const typeNames = data.data.map(t => t.slug);
+  48  |     expect(typeNames).toContain('work_item');
+  49  |     expect(typeNames).toContain('priority');
+  50  |     expect(typeNames).toContain('to_do');
+  51  |     expect(typeNames).toContain('task');
+  52  |     expect(typeNames).toContain('ticket');
+  53  |   });
+  54  | 
+  55  |   test('GET entity type by slug returns type with fields', async ({ request }) => {
+  56  |     const response = await request.get('/api/entity-types/priority');
+  57  |     expect(response.ok()).toBeTruthy();
+  58  | 
+  59  |     const data = await response.json();
+  60  |     expect(data.success).toBe(true);
+  61  |     expect(data.data.slug).toBe('priority');
+  62  |     expect(data.data.label).toBe('Projects');
+  63  |     expect(Array.isArray(data.data.fields)).toBe(true);
+  64  |   });
+  65  | 
+  66  |   test('GET entity type includes relationship rules', async ({ request }) => {
+  67  |     const response = await request.get('/api/entity-types/priority');
+  68  |     const data = await response.json();
+  69  | 
+  70  |     expect(data.data).toHaveProperty('relationships');
+  71  |     expect(Array.isArray(data.data.relationships)).toBe(true);
+  72  |   });
   73  | 
-  74  |     const response = await request.post('/api/entities/priority', {
-  75  |       data: payload,
-  76  |     });
-  77  |     expect(response.ok()).toBeTruthy();
-  78  | 
-  79  |     const data = await response.json();
-  80  |     expect(data.success).toBe(true);
-  81  |     const entityId = data.data.id;
-  82  | 
-  83  |     // Verify fields were stored
-  84  |     const getResponse = await request.get(`/api/entities/priority/${entityId}`);
-  85  |     const getData = await getResponse.json();
-  86  |     expect(getData.data.fields).toHaveProperty('status');
-  87  |     expect(getData.data.fields.status).toBe('In Progress');
-  88  |   });
-  89  | 
-  90  |   test('GET entity by ID returns all fields', async ({ request }) => {
-  91  |     // First create an entity
-  92  |     const createResp = await request.post('/api/entities/to_do', {
-  93  |       data: {
-  94  |         title: uniqueId('Test Todo'),
-  95  |         notes: 'This is a test note',
-  96  |         status: 'incomplete',
-  97  |       },
-  98  |     });
-> 99  |     const createdEntity = await createResp.json();
-      |                           ^ SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
-  100 |     const entityId = createdEntity.data.id;
-  101 | 
-  102 |     // Then fetch it
-  103 |     const response = await request.get(`/api/entities/to_do/${entityId}`);
-  104 |     expect(response.ok()).toBeTruthy();
+  74  |   // ========== ENTITY CRUD OPERATIONS ==========
+  75  | 
+  76  |   test('CREATE entity with required fields', async ({ request }) => {
+  77  |     const payload = {
+  78  |       title: uniqueId('Test Priority'),
+  79  |     };
+  80  | 
+  81  |     const response = await request.post('/api/entities/priority', {
+  82  |       headers: {
+  83  |         'X-CSRF-Token': csrfToken,
+  84  |         'Content-Type': 'application/json',
+  85  |       },
+  86  |       data: payload,
+  87  |     });
+  88  | 
+  89  |     if (!response.ok()) {
+  90  |       console.error('POST failed:', response.status(), await response.text());
+  91  |     }
+  92  |     expect(response.ok()).toBeTruthy();
+  93  | 
+  94  |     const data = await response.json();
+  95  |     expect(data.success).toBe(true);
+  96  |     expect(data.data).toHaveProperty('id');
+  97  |     expect(data.data.title).toBe(payload.title);
+  98  |   });
+  99  | 
+  100 |   test('CREATE entity with custom fields', async ({ request }) => {
+  101 |     const payload = {
+  102 |       title: uniqueId('Priority with Status'),
+  103 |       status: 'In Progress',
+  104 |     };
   105 | 
-  106 |     const data = await response.json();
-  107 |     expect(data.success).toBe(true);
-  108 |     expect(data.data.id).toBe(entityId);
-  109 |     expect(data.data.title).toBe(createdEntity.data.title);
-  110 |     expect(data.data.fields.notes).toBe('This is a test note');
-  111 |     expect(data.data.fields.status).toBe('incomplete');
-  112 |   });
-  113 | 
-  114 |   test('UPDATE entity updates title', async ({ request }) => {
-  115 |     // Create
-  116 |     const createResp = await request.post('/api/entities/priority', {
-  117 |       data: { title: uniqueId('Original Title') },
-  118 |     });
-  119 |     const entity = await createResp.json();
-  120 |     const entityId = entity.data.id;
-  121 | 
-  122 |     // Update
-  123 |     const newTitle = uniqueId('Updated Title');
-  124 |     const updateResp = await request.put(`/api/entities/priority/${entityId}`, {
-  125 |       data: { title: newTitle },
-  126 |     });
-  127 |     expect(updateResp.ok()).toBeTruthy();
-  128 | 
-  129 |     const updated = await updateResp.json();
-  130 |     expect(updated.data.title).toBe(newTitle);
-  131 | 
-  132 |     // Verify persistence
-  133 |     const getResp = await request.get(`/api/entities/priority/${entityId}`);
-  134 |     const verified = await getResp.json();
-  135 |     expect(verified.data.title).toBe(newTitle);
-  136 |   });
-  137 | 
-  138 |   test('UPDATE entity updates field values', async ({ request }) => {
-  139 |     // Create
-  140 |     const createResp = await request.post('/api/entities/to_do', {
-  141 |       data: {
-  142 |         title: uniqueId('Todo'),
-  143 |         status: 'incomplete',
-  144 |       },
-  145 |     });
-  146 |     const entity = await createResp.json();
-  147 |     const entityId = entity.data.id;
-  148 | 
-  149 |     // Update field
-  150 |     const updateResp = await request.put(`/api/entities/to_do/${entityId}`, {
-  151 |       data: {
-  152 |         title: entity.data.title,
-  153 |         status: 'complete',
-  154 |       },
-  155 |     });
-  156 |     expect(updateResp.ok()).toBeTruthy();
-  157 | 
-  158 |     // Verify
-  159 |     const getResp = await request.get(`/api/entities/to_do/${entityId}`);
-  160 |     const verified = await getResp.json();
-  161 |     expect(verified.data.fields.status).toBe('complete');
-  162 |   });
+  106 |     const response = await request.post('/api/entities/priority', {
+  107 |       headers: {
+  108 |         'X-CSRF-Token': csrfToken,
+  109 |         'Content-Type': 'application/json',
+  110 |       },
+  111 |       data: payload,
+  112 |     });
+  113 |     expect(response.ok()).toBeTruthy();
+  114 | 
+  115 |     const data = await response.json();
+  116 |     expect(data.success).toBe(true);
+  117 |     const entityId = data.data.id;
+  118 | 
+  119 |     // Verify fields were stored
+  120 |     const getResponse = await request.get(`/api/entities/priority/${entityId}`);
+  121 |     const getData = await getResponse.json();
+  122 |     expect(getData.data.fields).toHaveProperty('status');
+  123 |     expect(getData.data.fields.status).toBe('In Progress');
+  124 |   });
+  125 | 
+  126 |   test('GET entity by ID returns all fields', async ({ request }) => {
+  127 |     // First create an entity
+  128 |     const createResp = await request.post('/api/entities/priority', {
+  129 |       headers: {
+  130 |         'X-CSRF-Token': csrfToken,
+  131 |         'Content-Type': 'application/json',
+  132 |       },
+  133 |       data: {
+  134 |         title: uniqueId('Test Entity'),
+  135 |         status: 'In Progress',
+  136 |       },
+  137 |     });
+  138 | 
+> 139 |     const createData = await createResp.json();
+      |                        ^ SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+  140 |     const entityId = createData.data.id;
+  141 | 
+  142 |     // Now get it
+  143 |     const getResp = await request.get(`/api/entities/priority/${entityId}`);
+  144 |     expect(getResp.ok()).toBeTruthy();
+  145 | 
+  146 |     const getData = await getResp.json();
+  147 |     expect(getData.data.id).toBe(entityId);
+  148 |     expect(getData.data.title).toContain('Test Entity');
+  149 |     expect(getData.data.fields).toHaveProperty('status');
+  150 |   });
+  151 | 
+  152 |   test('UPDATE entity updates title', async ({ request }) => {
+  153 |     // Create
+  154 |     const createResp = await request.post('/api/entities/priority', {
+  155 |       headers: {
+  156 |         'X-CSRF-Token': csrfToken,
+  157 |         'Content-Type': 'application/json',
+  158 |       },
+  159 |       data: {
+  160 |         title: uniqueId('Original Title'),
+  161 |       },
+  162 |     });
   163 | 
-  164 |   test('DELETE entity removes it from list', async ({ request }) => {
-  165 |     // Create
-  166 |     const createResp = await request.post('/api/entities/priority', {
-  167 |       data: { title: uniqueId('To Delete') },
-  168 |     });
-  169 |     const entity = await createResp.json();
-  170 |     const entityId = entity.data.id;
-  171 | 
-  172 |     // Verify it exists
-  173 |     let listResp = await request.get('/api/entities/priority');
-  174 |     let list = await listResp.json();
-  175 |     const beforeCount = list.data.length;
-  176 | 
-  177 |     // Delete
-  178 |     const delResp = await request.delete(`/api/entities/priority/${entityId}`);
-  179 |     expect(delResp.ok()).toBeTruthy();
-  180 | 
-  181 |     // Verify it's gone
-  182 |     listResp = await request.get('/api/entities/priority');
-  183 |     list = await listResp.json();
-  184 |     const afterCount = list.data.length;
-  185 |     expect(afterCount).toBe(beforeCount - 1);
-  186 |   });
-  187 | 
-  188 |   // ========== ENTITY LISTING ==========
-  189 | 
-  190 |   test('LIST entities by type returns all of that type', async ({ request }) => {
-  191 |     // Create 3 priorities
-  192 |     for (let i = 0; i < 3; i++) {
-  193 |       await request.post('/api/entities/priority', {
-  194 |         data: { title: uniqueId(`Priority ${i}`) },
-  195 |       });
-  196 |     }
-  197 | 
-  198 |     // List priorities
-  199 |     const response = await request.get('/api/entities/priority');
+  164 |     const createData = await createResp.json();
+  165 |     const entityId = createData.data.id;
+  166 | 
+  167 |     // Update
+  168 |     const newTitle = uniqueId('Updated Title');
+  169 |     const updateResp = await request.put(`/api/entities/priority/${entityId}`, {
+  170 |       headers: {
+  171 |         'X-CSRF-Token': csrfToken,
+  172 |         'Content-Type': 'application/json',
+  173 |       },
+  174 |       data: {
+  175 |         title: newTitle,
+  176 |       },
+  177 |     });
+  178 |     expect(updateResp.ok()).toBeTruthy();
+  179 | 
+  180 |     // Verify
+  181 |     const getResp = await request.get(`/api/entities/priority/${entityId}`);
+  182 |     const getData = await getResp.json();
+  183 |     expect(getData.data.title).toBe(newTitle);
+  184 |   });
+  185 | 
+  186 |   test('UPDATE entity updates field values', async ({ request }) => {
+  187 |     // Create
+  188 |     const createResp = await request.post('/api/entities/priority', {
+  189 |       headers: {
+  190 |         'X-CSRF-Token': csrfToken,
+  191 |         'Content-Type': 'application/json',
+  192 |       },
+  193 |       data: {
+  194 |         title: uniqueId('Test Entity'),
+  195 |         status: 'Not Started',
+  196 |       },
+  197 |     });
+  198 | 
+  199 |     const createData = await createResp.json();
+  200 |     const entityId = createData.data.id;
+  201 | 
+  202 |     // Update field
+  203 |     const updateResp = await request.put(`/api/entities/priority/${entityId}`, {
+  204 |       headers: {
+  205 |         'X-CSRF-Token': csrfToken,
+  206 |         'Content-Type': 'application/json',
+  207 |       },
+  208 |       data: {
+  209 |         title: uniqueId('Test Entity'),
+  210 |         status: 'Complete',
+  211 |       },
+  212 |     });
+  213 |     expect(updateResp.ok()).toBeTruthy();
+  214 | 
+  215 |     // Verify
+  216 |     const getResp = await request.get(`/api/entities/priority/${entityId}`);
+  217 |     const getData = await getResp.json();
+  218 |     expect(getData.data.fields.status).toBe('Complete');
+  219 |   });
+  220 | 
+  221 |   test('DELETE entity removes it from list', async ({ request }) => {
+  222 |     // Create
+  223 |     const createResp = await request.post('/api/entities/priority', {
+  224 |       headers: {
+  225 |         'X-CSRF-Token': csrfToken,
+  226 |         'Content-Type': 'application/json',
+  227 |       },
+  228 |       data: {
+  229 |         title: uniqueId('To Delete'),
+  230 |       },
+  231 |     });
+  232 | 
+  233 |     const createData = await createResp.json();
+  234 |     const entityId = createData.data.id;
+  235 | 
+  236 |     // Delete
+  237 |     const deleteResp = await request.delete(`/api/entities/priority/${entityId}`, {
+  238 |       headers: {
+  239 |         'X-CSRF-Token': csrfToken,
 ```
