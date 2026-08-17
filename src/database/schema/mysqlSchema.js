@@ -440,17 +440,7 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create work_idea_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_idea_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      idea_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_idea (work_item_id, idea_id)
-    )
-  `);
+  // work_idea_associations junction table removed in Phase 1 (ideas migrated to generic entities)
 
   // Create work_item_templates table (reusable work item presets with pre-associated areas/goals/priorities)
   await connection.query(`
@@ -617,46 +607,11 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create idea_folders table (Brainstorming tab; supports sub-folders via parent_id,
-  // structurally identical to to_do_folders)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS idea_folders (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      parent_id INT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (parent_id) REFERENCES idea_folders(id) ON DELETE CASCADE
-    )
-  `);
+  // idea_folders table removed in Phase 1 (ideas migrated to generic entities)
 
-  // Create ideas table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS ideas (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      notes LONGTEXT,
-      folder_id INT,
-      priority_id INT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (folder_id) REFERENCES idea_folders(id) ON DELETE SET NULL,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
-    )
-  `);
+  // ideas table removed in Phase 1 (ideas migrated to generic entities)
 
-  // Create idea_items table (an idea's checklist of 1-n sub-items)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS idea_items (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      idea_id INT NOT NULL,
-      text VARCHAR(500) NOT NULL,
-      is_done BOOLEAN DEFAULT FALSE,
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE
-    )
-  `);
+  // idea_items table removed in Phase 1 (ideas migrated to generic entities)
 
   // Create to_do_links table (1-n links associated with to dos)
   await connection.query(`
@@ -686,26 +641,9 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Create idea_links table (1-n links associated with ideas)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS idea_links (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      idea_id INT NOT NULL,
-      url VARCHAR(2048) NOT NULL,
-      title VARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE
-    )
-  `);
+  // idea_links table removed in Phase 1 (ideas migrated to generic entities)
 
-  // Add priority_id column to ideas table (for project association)
-  if (!(await columnExists(connection, "ideas", "priority_id"))) {
-    await connection.query(
-      "ALTER TABLE ideas ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL"
-    );
-  }
+  // ALTER TABLE ideas removed in Phase 1 (ideas migrated to generic entities)
 
   // Create priority_links table (1-n links associated with priorities/projects)
   await connection.query(`

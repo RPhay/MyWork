@@ -577,20 +577,7 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  await createTableIfNotExists(
-    pool,
-    "work_idea_associations",
-    `
-    CREATE TABLE [MyWork].[work_idea_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      idea_id INT NOT NULL,
-      CONSTRAINT fk_wid_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wid_idea FOREIGN KEY (idea_id) REFERENCES [MyWork].[ideas](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_idea UNIQUE (work_item_id, idea_id)
-    )
-  `,
-  );
+  // work_idea_associations table removed in Phase 1 (ideas migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
@@ -781,63 +768,11 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  await createTableIfNotExists(
-    pool,
-    "idea_folders",
-    `
-    CREATE TABLE [MyWork].[idea_folders] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      name NVARCHAR(255) NOT NULL,
-      parent_id INT NULL,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      -- NO ACTION, not CASCADE - see the note on fk_areas_parent above.
-      CONSTRAINT fk_idea_folders_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[idea_folders](id) ON DELETE NO ACTION
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "idea_folders");
+  // idea_folders table removed in Phase 1 (ideas migrated to generic entities)
 
-  await createTableIfNotExists(
-    pool,
-    "ideas",
-    `
-    CREATE TABLE [MyWork].[ideas] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      title NVARCHAR(255) NOT NULL,
-      notes NVARCHAR(MAX),
-      folder_id INT NULL,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_ideas_folder FOREIGN KEY (folder_id) REFERENCES [MyWork].[idea_folders](id) ON DELETE SET NULL
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "ideas");
+  // ideas table removed in Phase 1 (ideas migrated to generic entities)
 
-  // Backfill priority_id for pre-existing ideas tables (project association) - see mysqlSchema.js
-  if (!(await columnExists(pool, "ideas", "priority_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[ideas] ADD
-        priority_id INT NULL CONSTRAINT fk_ideas_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
-    `);
-  }
-
-  await createTableIfNotExists(
-    pool,
-    "idea_items",
-    `
-    CREATE TABLE [MyWork].[idea_items] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      idea_id INT NOT NULL,
-      text NVARCHAR(500) NOT NULL,
-      is_done BIT DEFAULT 0,
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_idea_items_idea FOREIGN KEY (idea_id) REFERENCES [MyWork].[ideas](id) ON DELETE CASCADE
-    )
-  `,
-  );
+  // idea_items table removed in Phase 1 (ideas migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
@@ -856,22 +791,7 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  await createTableIfNotExists(
-    pool,
-    "idea_links",
-    `
-    CREATE TABLE [MyWork].[idea_links] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      idea_id INT NOT NULL,
-      url NVARCHAR(2048) NOT NULL,
-      title NVARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_idea_links_idea FOREIGN KEY (idea_id) REFERENCES [MyWork].[ideas](id) ON DELETE CASCADE
-    )
-  `,
-  );
+  // idea_links table removed in Phase 1 (ideas migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
