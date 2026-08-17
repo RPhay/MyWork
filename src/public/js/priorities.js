@@ -1470,36 +1470,6 @@ function initPriorities() {
   window.prioritySplitPane = new SplitPane('prioritySplitPane', 'priorityListPane', 'priorityDivider', 'priorityEditorPane', 66.66);
   PriorityEditor.init(window.prioritySplitPane);
 
-  // Setup drawer toggle for associate items
-  const associateToggle = document.getElementById('associateItemsToggle');
-  const associatePanel = document.getElementById('associateItemsPanel');
-
-  const savedState = localStorage.getItem('prioritiesDrawerOpen');
-  const isOpen = savedState === 'true'; // default to closed
-
-  if (isOpen && associatePanel) {
-    associatePanel.style.width = '220px';
-    associatePanel.style.padding = '15px';
-    associatePanel.dataset.drawerOpen = 'true';
-  }
-
-  associateToggle?.addEventListener('click', () => {
-    if (associatePanel) {
-      const isCurrentlyOpen = associatePanel.dataset.drawerOpen === 'true';
-      if (isCurrentlyOpen) {
-        associatePanel.style.width = '0';
-        associatePanel.style.padding = '0';
-        associatePanel.dataset.drawerOpen = 'false';
-        localStorage.setItem('prioritiesDrawerOpen', 'false');
-      } else {
-        associatePanel.style.width = '220px';
-        associatePanel.style.padding = '15px';
-        associatePanel.dataset.drawerOpen = 'true';
-        localStorage.setItem('prioritiesDrawerOpen', 'true');
-      }
-    }
-  });
-
   // Setup split-pane editor buttons
   const savePriorityEditorBtn = document.getElementById('savePriorityEditorBtn');
   const closePriorityEditorBtn = document.getElementById('closePriorityEditorBtn');

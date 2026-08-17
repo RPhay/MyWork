@@ -617,147 +617,6 @@ function buildDashPathMap(records, labelField) {
   return map;
 }
 
-async function loadPrioritiesAndGoals() {
-  // Load priorities
-  try {
-    const prioResponse = await fetch("/api/priorities");
-    if (!prioResponse.ok) throw new Error(`HTTP ${prioResponse.status}`);
-    const prioResult = await prioResponse.json();
-    const prioritiesDiv = document.getElementById("prioritiesListRight");
-
-    if (prioResult.success && prioResult.data.length > 0) {
-      const prioPaths = buildDashPathMap(prioResult.data, "title");
-      prioritiesDiv.innerHTML = app
-        .flattenTree(prioResult.data)
-        .map(
-          (p) => `
-        <div class="priority-item" draggable="true" data-type="priority" data-id="${p.id}" data-name="${app.escapeHtml(prioPaths.get(p.id))}" style="margin-left: ${p.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.project}"></i> ${app.escapeHtml(p.title)}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `,
-        )
-        .join("");
-      setupDragListeners();
-    } else {
-      prioritiesDiv.innerHTML =
-        '<small class="text-muted">No priorities</small>';
-    }
-  } catch (error) {
-    console.error("Error loading priorities:", error);
-  }
-
-  // Load goals
-  try {
-    const year = new Date().getFullYear();
-    const goalResponse = await fetch(`/api/goals/year/${year}`);
-    if (!goalResponse.ok) throw new Error(`HTTP ${goalResponse.status}`);
-    const goalResult = await goalResponse.json();
-    const goalsDiv = document.getElementById("goalsListRight");
-
-    if (goalResult.success && goalResult.data.length > 0) {
-      goalsDiv.innerHTML = goalResult.data
-        .map(
-          (g) => `
-        <div class="goal-item" draggable="true" data-type="goal" data-id="${g.id}" data-name="${app.escapeHtml(g.name)}">
-          <span><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `,
-        )
-        .join("");
-      setupDragListeners();
-    } else {
-      goalsDiv.innerHTML = '<small class="text-muted">No goals</small>';
-    }
-  } catch (error) {
-    console.error("Error loading goals:", error);
-  }
-
-  // Load areas
-  try {
-    const areaResponse = await fetch("/api/areas");
-    if (!areaResponse.ok) throw new Error(`HTTP ${areaResponse.status}`);
-    const areaResult = await areaResponse.json();
-    const areasDiv = document.getElementById("areasListRight");
-
-    if (areaResult.success && areaResult.data.length > 0) {
-      const areaPaths = buildDashPathMap(areaResult.data, "name");
-      areasDiv.innerHTML = app
-        .flattenTree(areaResult.data)
-        .map(
-          (a) => `
-        <div class="area-item" draggable="true" data-type="area" data-id="${a.id}" data-name="${app.escapeHtml(areaPaths.get(a.id))}" style="margin-left: ${a.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.name)}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `,
-        )
-        .join("");
-      setupDragListeners();
-    } else {
-      areasDiv.innerHTML = '<small class="text-muted">No categories</small>';
-    }
-  } catch (error) {
-    console.error("Error loading areas:", error);
-  }
-
-  // Load templates
-  try {
-    const templateResponse = await fetch("/api/work-item-templates");
-    if (!templateResponse.ok)
-      throw new Error(`HTTP ${templateResponse.status}`);
-    const templateResult = await templateResponse.json();
-    const templatesDiv = document.getElementById("templatesListRight");
-
-    if (templateResult.success && templateResult.data.length > 0) {
-      templatesDiv.innerHTML = templateResult.data
-        .map(
-          (t) => `
-        <div class="template-item" draggable="true" data-type="template" data-id="${t.id}">
-          <span><i class="bi ${APP_ICONS.template}"></i> ${app.escapeHtml(t.title)}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `,
-        )
-        .join("");
-      setupDragListeners();
-    } else {
-      templatesDiv.innerHTML = '<small class="text-muted">No templates</small>';
-    }
-  } catch (error) {
-    console.error("Error loading templates:", error);
-  }
-}
-
-// Shared across every tab that has draggable priority/goal/area/template chips
-// (Dailies, Templates). Only binds elements that aren't already bound, since all
-// tab panes live in the DOM at once and each tab's load function calls this again.
-function setupDragListeners() {
-  const draggables = document.querySelectorAll(
-    '[draggable="true"]:not([data-drag-bound])',
-  );
-  draggables.forEach((item) => {
-    item.dataset.dragBound = "true";
-
-    item.addEventListener("dragstart", (e) => {
-      e.dataTransfer.effectAllowed = "copy";
-      e.dataTransfer.setData("type", item.dataset.type);
-      e.dataTransfer.setData("id", item.dataset.id);
-      e.dataTransfer.setData(
-        "name",
-        item.dataset.name || item.textContent.trim(),
-      );
-      currentDragType = item.dataset.type;
-      item.classList.add("dragging-item");
-    });
-
-    item.addEventListener("dragend", () => {
-      item.classList.remove("dragging-item");
-      currentDragType = null;
-    });
-  });
-}
 
 // Load and display items of each type in the modal
 async function loadItemsForModal() {
@@ -2192,58 +2051,6 @@ function initWorkItemsListEventListeners() {
   });
 }
 
-function initRightPanelTabs() {
-  // Handle folder toggling for associate items
-  document.querySelectorAll(".associate-folder-header").forEach((header) => {
-    header.addEventListener("click", () => {
-      const folder = header.dataset.folder;
-      const content = document.querySelector(`.associate-folder-content[data-folder="${folder}"]`);
-      const toggle = header.querySelector(".associate-folder-toggle");
-
-      if (content) {
-        const isOpen = content.style.display !== "none";
-        content.style.display = isOpen ? "none" : "block";
-        if (toggle) {
-          toggle.style.transform = isOpen ? "rotate(0deg)" : "rotate(90deg)";
-        }
-        localStorage.setItem(`dailiesFolder_${folder}`, isOpen ? "closed" : "open");
-      }
-    });
-
-    // Restore state from localStorage
-    const folder = header.dataset.folder;
-    const savedState = localStorage.getItem(`dailiesFolder_${folder}`);
-    const content = document.querySelector(`.associate-folder-content[data-folder="${folder}"]`);
-    const toggle = header.querySelector(".associate-folder-toggle");
-
-    if (savedState === "open" && content) {
-      content.style.display = "block";
-      if (toggle) toggle.style.transform = "rotate(90deg)";
-    }
-  });
-}
-
-// Double-clicking a project/goal/area/template chip in the right panel opens that
-// item's own edit modal (shared globally since all tab scripts share one scope).
-function initRightPanelEditOnDblClick() {
-  document.querySelectorAll(".right-panel-list").forEach((panel) => {
-    panel.addEventListener("dblclick", (e) => {
-      const item = e.target.closest("[data-type][data-id]");
-      if (!item) return;
-
-      const { type, id } = item.dataset;
-      if (type === "priority" && typeof editPriority === "function") {
-        editPriority(id);
-      } else if (type === "goal" && typeof editGoal === "function") {
-        editGoal(id);
-      } else if (type === "area" && typeof editArea === "function") {
-        editArea(id);
-      } else if (type === "template" && typeof editTemplate === "function") {
-        editTemplate(id);
-      }
-    });
-  });
-}
 
 function initWorkItemContextMenu() {
   const menu = document.getElementById("workItemContextMenu");
@@ -3131,8 +2938,7 @@ async function loadChildItemForEditing(type, id) {
 // tickets.js/brainstorming.js each declare their own same-named global edit
 // function - all tab scripts share one scope (no modules), so a plain editArea
 // here would silently overwrite areas.js's editArea and vice versa depending on
-// script load order. initRightPanelEditOnDblClick() above deliberately calls the
-// bare (other tab's) names instead of these, to open that tab's own full editor.
+// script load order.
 function editChildPriority(priorityId) {
   openChildItemEditor('priority', priorityId);
 }
@@ -3202,8 +3008,6 @@ function initDailiesEventListeners() {
   }
 
   initWorkItemsListEventListeners();
-  initRightPanelTabs();
-  initRightPanelEditOnDblClick();
   initWorkItemContextMenu();
   initCalendarDropMenu();
   initCalendarDayContextMenu();
@@ -3467,78 +3271,6 @@ function initDailiesEventListeners() {
   });
 }
 
-async function loadDataSourcesForImport() {
-  try {
-    const response = await fetch("/api/sources");
-    if (!response.ok) return;
-    const result = await response.json();
-
-    const container = document.getElementById("dataSourcesIcons");
-    if (!container || !result.success || !result.data.length) return;
-
-    container.innerHTML = "";
-
-    const sourceIcons = {
-      teams: { icon: "bi-microsoft-teams", label: "Teams", color: "#6264A7" },
-      outlook: { icon: "bi-envelope", label: "Outlook", color: "#0078D4" },
-      "azure-devops": {
-        icon: "bi-diagram-3",
-        label: "Azure DevOps",
-        color: "#0078D4",
-      },
-      "github-enterprise": {
-        icon: "bi-github",
-        label: "GitHub",
-        color: "#000",
-      },
-      servicenow: { icon: "bi-ticket", label: "ServiceNow", color: "#00A699" },
-    };
-
-    result.data.forEach((source) => {
-      const config = sourceIcons[source.type];
-      if (!config) return;
-
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn btn-sm";
-      btn.style.cssText = `
-        width: 38px;
-        height: 38px;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #dee2e6;
-        background: #fff;
-        color: ${config.color};
-        font-size: 18px;
-        border-radius: 4px;
-      `;
-      btn.title = `Import from ${config.label}`;
-      btn.innerHTML = `<i class="bi ${config.icon}"></i>`;
-      btn.dataset.sourceId = source.id;
-      btn.dataset.sourceType = source.type;
-      btn.onclick = (e) => {
-        e.preventDefault();
-        importFromDataSource(source.id, source.type);
-      };
-
-      container.appendChild(btn);
-    });
-  } catch (error) {
-    console.error("Error loading data sources:", error);
-  }
-}
-
-async function importFromDataSource(sourceId, sourceType) {
-  console.log("Import from source:", sourceId, sourceType);
-
-  if (sourceType === "outlook") {
-    await loadOutlookEmails(sourceId);
-  } else {
-    app.notify("Import from " + sourceType + " coming soon!", "info");
-  }
-}
 
 async function importSelectedOutlookEmails() {
   const selectedIndices = Array.from(
@@ -3694,36 +3426,6 @@ function initDailies() {
   // Setup inner split-pane (Work Items | Editor)
   dailiesSplitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
 
-  // Setup drawer toggle for associate items
-  const associateToggle = document.getElementById("dailiesAssociateItemsToggle");
-  const associatePanel = document.getElementById("dailiesAssociateItemsPanel");
-
-  const savedState = localStorage.getItem("dailiesDrawerOpen");
-  const isOpen = savedState === "true"; // default to closed
-
-  if (isOpen && associatePanel) {
-    associatePanel.style.width = "220px";
-    associatePanel.style.padding = "15px";
-    associatePanel.dataset.drawerOpen = "true";
-  }
-
-  associateToggle?.addEventListener("click", () => {
-    if (associatePanel) {
-      const isCurrentlyOpen = associatePanel.dataset.drawerOpen === "true";
-      if (isCurrentlyOpen) {
-        associatePanel.style.width = "0";
-        associatePanel.style.padding = "0";
-        associatePanel.dataset.drawerOpen = "false";
-        localStorage.setItem("dailiesDrawerOpen", "false");
-      } else {
-        associatePanel.style.width = "220px";
-        associatePanel.style.padding = "15px";
-        associatePanel.dataset.drawerOpen = "true";
-        localStorage.setItem("dailiesDrawerOpen", "true");
-      }
-    }
-  });
-
   // Setup split-pane editor buttons
   const saveWorkItemEditorBtn = document.getElementById("saveWorkItemEditorBtn");
   const closeWorkItemEditorBtn = document.getElementById("closeWorkItemEditorBtn");
@@ -3866,8 +3568,6 @@ function initDailies() {
   renderCalendar();
   updateDateDisplay();
   loadWorkItems();
-  loadPrioritiesAndGoals();
-  loadDataSourcesForImport();
 }
 
 if (document.readyState === "loading") {

@@ -1,66 +1,4 @@
-<div class="drawer-layout" style="display: flex; gap: 0; height: 70vh; position: relative;">
-  <!-- Vertical Tab (far left, always on top) -->
-  <div class="drawer-tab" style="width: 30px; background: #f8f9fa; border-right: 1px solid #dee2e6; display: flex; align-items: center; justify-content: center; position: relative; z-index: 20;">
-    <button class="drawer-toggle" id="associateItemsToggle" style="background: none; border: none; cursor: pointer; padding: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-      <span style="writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); font-size: 11px; font-weight: 500; white-space: nowrap; color: #666; user-select: none;">Associate Items</span>
-    </button>
-  </div>
-
-  <!-- Drawer Panel (Associate Items) - pushes content right -->
-  <div class="drawer-panel" id="associateItemsPanel" style="width: 0; background: white; border-right: 1px solid #dee2e6; overflow: hidden; padding: 0; transition: width 0.3s ease; overflow-y: auto;" data-drawer-open="false">
-      <div style="margin-bottom: 15px;">
-        <h6 class="mb-3">Associate Items</h6>
-
-        <!-- Categories Folder -->
-        <div class="associate-folder mb-2">
-          <div class="associate-folder-header" data-folder="categories" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
-            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
-            <i class="bi bi-folder" style="font-size: 14px;"></i>
-            <span style="font-size: 13px; font-weight: 500;">Categories</span>
-          </div>
-          <div id="projCategoriesListRight" class="associate-folder-content small" data-folder="categories" style="display: none; padding-left: 24px; margin-top: 4px;">
-            <small class="text-muted">No categories</small>
-          </div>
-        </div>
-
-        <!-- Goals Folder -->
-        <div class="associate-folder mb-2">
-          <div class="associate-folder-header" data-folder="goals" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
-            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
-            <i class="bi bi-flag" style="font-size: 14px;"></i>
-            <span style="font-size: 13px; font-weight: 500;">Goals</span>
-          </div>
-          <div id="projGoalsListRight" class="associate-folder-content small" data-folder="goals" style="display: none; padding-left: 24px; margin-top: 4px;">
-            <small class="text-muted">No goals</small>
-          </div>
-        </div>
-
-        <!-- To Dos Folder -->
-        <div class="associate-folder mb-2">
-          <div class="associate-folder-header" data-folder="todos" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
-            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
-            <i class="bi bi-check2-square" style="font-size: 14px;"></i>
-            <span style="font-size: 13px; font-weight: 500;">To Dos</span>
-          </div>
-          <div id="projToDosListRight" class="associate-folder-content small" data-folder="todos" style="display: none; padding-left: 24px; margin-top: 4px;">
-            <small class="text-muted">No to dos</small>
-          </div>
-        </div>
-
-        <!-- Tasks Folder -->
-        <div class="associate-folder mb-2">
-          <div class="associate-folder-header" data-folder="tasks" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
-            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
-            <i class="bi bi-card-checklist" style="font-size: 14px;"></i>
-            <span style="font-size: 13px; font-weight: 500;">Tasks</span>
-          </div>
-          <div id="projTasksListRight" class="associate-folder-content small" data-folder="tasks" style="display: none; padding-left: 24px; margin-top: 4px;">
-            <small class="text-muted">No tasks</small>
-          </div>
-        </div>
-      </div>
-    </div>
-
+<div style="display: flex; gap: 0; height: 70vh; position: relative;">
   <!-- Split Pane (Center + Right) -->
   <div class="split-pane-container" id="prioritySplitPane" style="flex: 1; display: flex; gap: 0; overflow: hidden;">
       <!-- Center Pane: Projects List -->
@@ -342,17 +280,6 @@
     display: block;
   }
 
-  .drawer-layout {
-    position: relative;
-  }
-
-  .drawer-panel.open {
-    transform: translateX(0) !important;
-  }
-
-  .drawer-panel.open ~ .split-pane-container {
-    margin-left: 220px;
-  }
 </style>
 
 <!-- Project Context Menu -->

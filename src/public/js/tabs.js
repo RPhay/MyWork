@@ -28,7 +28,6 @@ class TabManager {
         document.body.appendChild(input);
       }
       loadWorkItems();
-      loadPrioritiesAndGoals();
     }
   }
 
@@ -168,7 +167,6 @@ class TabManager {
     switch (tabName) {
       case 'dailies':
         if (typeof loadWorkItems !== 'undefined') loadWorkItems();
-        if (typeof loadPrioritiesAndGoals !== 'undefined') loadPrioritiesAndGoals();
         break;
       case 'my-priorities':
         if (typeof loadPriorities !== 'undefined') loadPriorities();

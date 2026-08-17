@@ -1355,4 +1355,137 @@ export async function createMssqlSchema(pool) {
   `,
   );
   await createUpdatedAtTrigger(pool, "quotes");
+
+  // Generic Entity Type System — structural tables
+  // These define the types that entities can be; applies globally across all contexts.
+
+  await createTableIfNotExists(
+    pool,
+    "entity_types",
+    `
+    CREATE TABLE [MyWork].[entity_types] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      slug NVARCHAR(100) NOT NULL UNIQUE,
+      label NVARCHAR(255) NOT NULL,
+      label_singular NVARCHAR(255) NOT NULL,
+      icon NVARCHAR(50),
+      supports_hierarchy BIT DEFAULT 0,
+      is_system BIT DEFAULT 0,
+      primary_date_field NVARCHAR(100),
+      order_index INT DEFAULT 0,
+      deleted_at DATETIME2 NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "entity_types");
+
+  await createTableIfNotExists(
+    pool,
+    "entity_type_fields",
+    `
+    CREATE TABLE [MyWork].[entity_type_fields] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      entity_type_id INT NOT NULL,
+      field_key NVARCHAR(100) NOT NULL,
+      label NVARCHAR(255) NOT NULL,
+      field_type NVARCHAR(50) NOT NULL,
+      field_options NVARCHAR(MAX),
+      required BIT DEFAULT 0,
+      display_order INT DEFAULT 0,
+      show_in_row BIT DEFAULT 0,
+      is_completion_signal BIT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      FOREIGN KEY (entity_type_id) REFERENCES [MyWork].[entity_types](id) ON DELETE CASCADE,
+      UNIQUE ([entity_type_id], field_key)
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "entity_type_fields");
+
+  await createTableIfNotExists(
+    pool,
+    "entity_type_relationships",
+    `
+    CREATE TABLE [MyWork].[entity_type_relationships] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      parent_type_id INT NOT NULL,
+      child_type_id INT NOT NULL,
+      relationship_kind NVARCHAR(50) NOT NULL,
+      max_children_per_parent INT,
+      max_parents_per_child INT,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      FOREIGN KEY (parent_type_id) REFERENCES [MyWork].[entity_types](id) ON DELETE CASCADE,
+      FOREIGN KEY (child_type_id) REFERENCES [MyWork].[entity_types](id) ON DELETE CASCADE,
+      UNIQUE (parent_type_id, child_type_id, relationship_kind)
+    )
+  `,
+  );
+
+  // Generic Entity Storage — content tables (per-context, context_id scoped)
+
+  await createTableIfNotExists(
+    pool,
+    "entities",
+    `
+    CREATE TABLE [MyWork].[entities] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      entity_type_id INT NOT NULL,
+      context_id INT NOT NULL,
+      title NVARCHAR(255) NOT NULL,
+      order_index INT DEFAULT 0,
+      legacy_work_item_id INT UNIQUE,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      FOREIGN KEY (context_id) REFERENCES [MyWork].[contexts](id) ON DELETE CASCADE
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "entities");
+
+  await createTableIfNotExists(
+    pool,
+    "entity_field_values",
+    `
+    CREATE TABLE [MyWork].[entity_field_values] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      entity_id INT NOT NULL,
+      field_key NVARCHAR(100) NOT NULL,
+      value_text NVARCHAR(500),
+      value_long NVARCHAR(MAX),
+      value_number DECIMAL(15,2),
+      value_date DATE,
+      value_bool BIT,
+      value_json NVARCHAR(MAX),
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      FOREIGN KEY (entity_id) REFERENCES [MyWork].[entities](id) ON DELETE CASCADE,
+      UNIQUE (entity_id, field_key)
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "entity_field_values");
+
+  await createTableIfNotExists(
+    pool,
+    "entity_relationships",
+    `
+    CREATE TABLE [MyWork].[entity_relationships] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      context_id INT NOT NULL,
+      parent_entity_id INT NOT NULL,
+      child_entity_id INT NOT NULL,
+      relationship_kind NVARCHAR(50) NOT NULL,
+      is_generated BIT DEFAULT 0,
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      FOREIGN KEY (context_id) REFERENCES [MyWork].[contexts](id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_entity_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
+      FOREIGN KEY (child_entity_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
+      UNIQUE (parent_entity_id, child_entity_id, relationship_kind)
+    )
+  `,
+  );
 }

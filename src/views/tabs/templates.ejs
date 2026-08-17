@@ -1,54 +1,4 @@
-<div class="drawer-layout" style="display: flex; gap: 0; height: 60vh; position: relative;">
-  <!-- Vertical Tab (far left, always on top) -->
-  <div class="drawer-tab" style="width: 30px; background: #f8f9fa; border-right: 1px solid #dee2e6; display: flex; align-items: center; justify-content: center; position: relative; z-index: 20;">
-    <button class="drawer-toggle" id="templatesAssociateItemsToggle" style="background: none; border: none; cursor: pointer; padding: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-      <span style="writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); font-size: 11px; font-weight: 500; white-space: nowrap; color: #666; user-select: none;">Associate Items</span>
-    </button>
-  </div>
-
-  <!-- Drawer Panel (Associate Items) - pushes content right -->
-  <div class="drawer-panel" id="templatesAssociateItemsPanel" style="width: 0; background: white; border-right: 1px solid #dee2e6; overflow: hidden; padding: 0; transition: width 0.3s ease; overflow-y: auto;" data-drawer-open="false">
-      <div style="margin-bottom: 15px;">
-        <h6 class="mb-3">Associate Items</h6>
-
-        <!-- Projects Folder -->
-        <div class="associate-folder mb-2">
-          <div class="associate-folder-header" data-folder="projects" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
-            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
-            <i class="bi bi-folder" style="font-size: 14px;"></i>
-            <span style="font-size: 13px; font-weight: 500;">Projects</span>
-          </div>
-          <div id="tplPrioritiesListRight" class="associate-folder-content small" data-folder="projects" style="display: none; padding-left: 24px; margin-top: 4px;">
-            <small class="text-muted">No projects</small>
-          </div>
-        </div>
-
-        <!-- Goals Folder -->
-        <div class="associate-folder mb-2">
-          <div class="associate-folder-header" data-folder="goals" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
-            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
-            <i class="bi bi-flag" style="font-size: 14px;"></i>
-            <span style="font-size: 13px; font-weight: 500;">Goals</span>
-          </div>
-          <div id="tplGoalsListRight" class="associate-folder-content small" data-folder="goals" style="display: none; padding-left: 24px; margin-top: 4px;">
-            <small class="text-muted">No goals</small>
-          </div>
-        </div>
-
-        <!-- Categories Folder -->
-        <div class="associate-folder mb-2">
-          <div class="associate-folder-header" data-folder="areas" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 3px; user-select: none;">
-            <i class="bi bi-chevron-right associate-folder-toggle" style="font-size: 12px; transition: transform 0.2s; flex: none;"></i>
-            <i class="bi bi-tags" style="font-size: 14px;"></i>
-            <span style="font-size: 13px; font-weight: 500;">Categories</span>
-          </div>
-          <div id="tplAreasListRight" class="associate-folder-content small" data-folder="areas" style="display: none; padding-left: 24px; margin-top: 4px;">
-            <small class="text-muted">No categories</small>
-          </div>
-        </div>
-      </div>
-    </div>
-
+<div style="display: flex; gap: 0; height: 60vh; position: relative;">
   <!-- Split Pane (Center + Right) -->
   <div class="split-pane-container" id="templatesSplitPane" style="flex: 1; display: flex; gap: 0; overflow: hidden;">
       <!-- Center Pane: Templates List -->
@@ -211,18 +161,6 @@
 </div>
 
 <style>
-  .drawer-layout {
-    position: relative;
-  }
-
-  .drawer-panel.open {
-    transform: translateX(0) !important;
-  }
-
-  .drawer-panel.open ~ .split-pane-container {
-    margin-left: 220px;
-  }
-
   .template-tree-header, .template-node-header {
     display: grid;
     grid-template-columns: 1fr 40px 50px 100px 70px 84px;
