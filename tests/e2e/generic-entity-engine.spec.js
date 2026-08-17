@@ -2,10 +2,19 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Generic Entity Engine - Full Integration Tests', () => {
   let contextId = 1;
+  let csrfToken = '';
 
   // Helper to create a unique ID for test isolation
   function uniqueId(prefix) {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // Get CSRF token from page
+  async function getCsrfToken(page) {
+    const response = await page.goto('/');
+    const content = await page.content();
+    const match = content.match(/csrfToken['"]\s*:\s*['"]([^'"]+)['"]/);
+    return match ? match[1] : '';
   }
 
   // ========== ENTITY TYPE OPERATIONS ==========

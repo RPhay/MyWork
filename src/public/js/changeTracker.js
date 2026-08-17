@@ -1,44 +1,34 @@
-// Shared "unsaved changes" tracking for editor panes: watches a form's inputs,
-// enables/disables a save button, and exposes whether anything changed since
-// the last reset. Plain global (no ES module system in this app) - load this
-// script before any editor script that calls createChangeTracker().
-function createChangeTracker({ formId, saveBtnId, selectors }) {
-  let hasChanges = false;
+/**
+ * createChangeTracker - Reusable change tracking factory
+ * Used by all editors (generic and legacy) to track form modifications
+ */
 
-  const defaultSelectors = [
-    'input[type="text"]', 'textarea', 'input[type="checkbox"]',
-    'input[type="radio"]', 'input[type="date"]'
-  ];
-  const inputSelector = (selectors || defaultSelectors).join(', ');
+function createChangeTracker(formElement, saveButton) {
+  let hasChanges = false;
 
   const markChanged = () => {
     hasChanges = true;
-    const saveBtn = document.getElementById(saveBtnId);
-    if (saveBtn) saveBtn.disabled = false;
-  };
-
-  const trackFormChanges = () => {
-    const form = document.getElementById(formId);
-    if (!form) return;
-
-    const inputs = form.querySelectorAll(inputSelector);
-    inputs.forEach(input => {
-      input.addEventListener('change', markChanged);
-      input.addEventListener('input', markChanged);
-    });
+    if (saveButton) saveButton.disabled = false;
   };
 
   const resetChangeTracking = () => {
     hasChanges = false;
-    const saveBtn = document.getElementById(saveBtnId);
-    if (saveBtn) saveBtn.disabled = true;
+    if (saveButton) saveButton.disabled = true;
   };
+
+  const trackFormChanges = () => {
+    if (formElement) {
+      formElement.addEventListener('input', markChanged);
+      formElement.addEventListener('change', markChanged);
+    }
+  };
+
+  const hasUnsavedChanges = () => hasChanges;
 
   return {
     markChanged,
-    trackFormChanges,
     resetChangeTracking,
-    get hasChanges() { return hasChanges; },
+    trackFormChanges,
+    hasUnsavedChanges
   };
 }
-window.createChangeTracker = createChangeTracker;
