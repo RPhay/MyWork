@@ -59,4 +59,16 @@ router.post('/schema/update', async (req, res) => {
   }
 });
 
+// Analyze database and perform safe migrations
+router.post('/schema/analyze-and-migrate', async (req, res) => {
+  try {
+    const schemaMigrationService = await import('../../services/schemaMigrationService.js');
+    const report = await schemaMigrationService.analyzeAndMigrate();
+    res.json({ success: report.success, data: report, message: report.success ? 'Analysis and migration complete' : 'Analysis and migration encountered errors' });
+  } catch (error) {
+    logger.error('Error during schema analysis and migration:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

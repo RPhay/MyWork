@@ -90,6 +90,9 @@ function showSystemDbConfigured(dbType, config) {
           <button type="button" class="btn btn-sm btn-secondary me-2" id="updateSystemDbBtn">
             <i class="bi bi-pencil"></i> Update Settings
           </button>
+          <button type="button" class="btn btn-sm btn-info me-2" id="analyzeAndMigrateBtn" title="Analyze database and perform safe migrations">
+            <i class="bi bi-magic"></i> Analyze & Migrate
+          </button>
           <button type="button" class="btn btn-sm btn-primary me-2" id="checkSystemDbSchemaBtn">
             <i class="bi bi-arrow-repeat"></i> Check Schema
           </button>
@@ -108,6 +111,7 @@ function showSystemDbConfigured(dbType, config) {
   document.getElementById("updateSystemDbBtn").addEventListener("click", async () => {
     showSystemDbEditForm(dbType, config);
   });
+  document.getElementById("analyzeAndMigrateBtn").addEventListener("click", analyzeAndMigrate);
   document.getElementById("checkSystemDbSchemaBtn").addEventListener("click", checkSystemDbSchema);
   document.getElementById("fixSystemDbSchemaBtn").addEventListener("click", fixSystemDbSchema);
   document.getElementById("removeSystemDbBtn").addEventListener("click", removeSystemDbConfig);
@@ -410,6 +414,119 @@ async function fixSystemDbSchema() {
       </div>
     `;
     app.notify("Error fixing schema", "danger");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function analyzeAndMigrate() {
+  const btn = document.getElementById("analyzeAndMigrateBtn");
+  const statusEl = document.getElementById("systemDbSchemaStatus");
+
+  btn.disabled = true;
+  statusEl.innerHTML = '<div class="alert alert-info py-2 px-3"><i class="bi bi-hourglass-split"></i> Analyzing database and performing migrations...</div>';
+
+  try {
+    const response = await fetch('/api/system-database/schema/analyze-and-migrate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.APP_CONFIG?.csrfToken,
+      },
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      statusEl.innerHTML = `
+        <div class="alert alert-danger">
+          <h6><i class="bi bi-exclamation-circle"></i> Analysis and Migration Failed</h6>
+          <p class="mb-2">${app.escapeHtml(result.message)}</p>
+          ${result.data?.errors?.length > 0 ? `
+            <div class="small">
+              <strong>Errors:</strong>
+              <ul class="mb-0">
+                ${result.data.errors.map(err => `<li>${app.escapeHtml(err)}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+      `;
+      app.notify("Error: " + result.message, "danger");
+      return;
+    }
+
+    const report = result.data;
+    let html = `
+      <div class="alert alert-success">
+        <h6><i class="bi bi-check-circle"></i> Database Analysis & Migration Complete</h6>
+        <div class="small">
+          <p><strong>Database Type:</strong> ${report.databaseType === 'mssql' ? 'MSSQL' : 'MySQL/MariaDB'}</p>
+          <p><strong>Timestamp:</strong> ${new Date(report.timestamp).toLocaleString()}</p>
+    `;
+
+    if (report.analysis) {
+      html += `
+        <div class="mt-3 mb-3">
+          <strong>Analysis Results:</strong>
+          <ul class="mb-2">
+            ${report.analysis.oldTables?.length > 0 ? `<li>Old entity tables found: ${report.analysis.oldTables.join(', ')}</li>` : ''}
+            ${report.analysis.totalOldRows > 0 ? `<li>Old data rows to migrate: ${report.analysis.totalOldRows}</li>` : ''}
+            ${report.analysis.existingGenericTables?.length > 0 ? `<li>Generic entity tables: ${report.analysis.existingGenericTables.length}/${NEW_GENERIC_TABLES?.length || 6}</li>` : ''}
+            ${report.analysis.missingGenericTables?.length > 0 ? `<li>Created missing tables: ${report.analysis.missingGenericTables.join(', ')}</li>` : ''}
+          </ul>
+        </div>
+      `;
+    }
+
+    if (report.actions?.length > 0) {
+      html += `
+        <div class="mt-3 mb-3">
+          <strong>Actions Performed:</strong>
+          <ul class="mb-2">
+            ${report.actions.map(action => `<li>${app.escapeHtml(action)}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    if (report.warnings?.length > 0) {
+      html += `
+        <div class="mt-3 mb-3 alert alert-warning py-2 px-3">
+          <strong>Warnings:</strong>
+          <ul class="mb-0">
+            ${report.warnings.map(warning => `<li>${app.escapeHtml(warning)}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    if (report.migratedEntities) {
+      const total = Object.values(report.migratedEntities).reduce((a, b) => a + b, 0);
+      if (total > 0) {
+        html += `
+          <div class="mt-3 mb-3">
+            <strong>Data Migrated:</strong>
+            <ul class="mb-0">
+              ${Object.entries(report.migratedEntities).map(([table, count]) => `<li>${app.escapeHtml(table)}: ${count} rows</li>`).join('')}
+            </ul>
+          </div>
+        `;
+      }
+    }
+
+    html += `</div></div>`;
+    statusEl.innerHTML = html;
+    app.notify("Database analysis and migration complete", "success");
+
+  } catch (error) {
+    console.error("Error during analysis and migration:", error);
+    statusEl.innerHTML = `
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(error.message)}
+      </div>
+    `;
+    app.notify("Error during analysis and migration", "danger");
   } finally {
     btn.disabled = false;
   }
