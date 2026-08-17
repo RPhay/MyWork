@@ -1,5 +1,5 @@
 import express from 'express';
-import * as ideaService from '../../services/ideaService.js';
+import * as entityService from '../../services/entityService.js';
 import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const ideas = await ideaService.getAllIdeas(contextId);
+    const ideas = await entityService.getAllEntities('idea', contextId);
     res.json({ success: true, data: ideas });
   } catch (error) {
     logger.error('Error fetching ideas:', error);
@@ -20,7 +20,8 @@ router.get('/', async (req, res) => {
 // Get single idea
 router.get('/:id', async (req, res) => {
   try {
-    const idea = await ideaService.getIdeaById(req.params.id);
+    const contextId = await activeContextService.getActiveContextId();
+    const idea = await entityService.getEntityById(req.params.id, contextId);
     res.json({ success: true, data: idea });
   } catch (error) {
     logger.error('Error fetching idea:', error);
@@ -32,7 +33,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const idea = await ideaService.createIdea(req.body, contextId);
+    const idea = await entityService.createEntity('idea', req.body, contextId);
     res.status(201).json({ success: true, message: 'Idea created', data: idea });
   } catch (error) {
     logger.error('Error creating idea:', error);
@@ -43,7 +44,7 @@ router.post('/', async (req, res) => {
 // Update idea
 router.put('/:id', async (req, res) => {
   try {
-    const idea = await ideaService.updateIdea(req.params.id, req.body);
+    const idea = await entityService.updateEntity(req.params.id, req.body);
     res.json({ success: true, message: 'Idea updated', data: idea });
   } catch (error) {
     logger.error('Error updating idea:', error);
@@ -54,7 +55,7 @@ router.put('/:id', async (req, res) => {
 // Delete idea
 router.delete('/:id', async (req, res) => {
   try {
-    await ideaService.deleteIdea(req.params.id);
+    await entityService.deleteEntity(req.params.id);
     res.json({ success: true, message: 'Idea deleted' });
   } catch (error) {
     logger.error('Error deleting idea:', error);
