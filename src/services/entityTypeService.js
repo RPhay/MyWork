@@ -7,11 +7,18 @@ import { ValidationError, NotFoundError, ConflictError } from '../config/errors.
  * in content DBs that aren't currently live.
  */
 
-// Get all active (non-deleted) entity types
+// Get all active (non-deleted) entity types with their fields
 export async function getAllEntityTypes() {
   const rows = await query(
     'SELECT * FROM entity_types WHERE deleted_at IS NULL ORDER BY order_index, id'
   );
+
+  // Load fields for each type
+  for (const type of rows) {
+    const fields = await getEntityTypeFields(type.id);
+    type.fields = fields;
+  }
+
   return rows;
 }
 
