@@ -1,5 +1,7 @@
 // System Database configuration (app-level, not context-specific)
 
+const NEW_GENERIC_TABLES = ['entity_types', 'entity_type_fields', 'entity_type_relationships', 'entities', 'entity_field_values', 'entity_relationships'];
+
 async function loadSystemDatabaseSubpanel() {
   const panel = document.getElementById("systemDatabasePanel");
   if (!panel) return;
