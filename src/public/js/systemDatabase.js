@@ -90,14 +90,8 @@ function showSystemDbConfigured(dbType, config) {
           <button type="button" class="btn btn-sm btn-secondary me-2" id="updateSystemDbBtn">
             <i class="bi bi-pencil"></i> Update Settings
           </button>
-          <button type="button" class="btn btn-sm btn-info me-2" id="analyzeAndMigrateBtn" title="Analyze database and perform safe migrations">
+          <button type="button" class="btn btn-sm btn-primary me-2" id="analyzeAndMigrateBtn" title="Analyze database and perform safe migrations">
             <i class="bi bi-magic"></i> Analyze & Migrate
-          </button>
-          <button type="button" class="btn btn-sm btn-primary me-2" id="checkSystemDbSchemaBtn">
-            <i class="bi bi-arrow-repeat"></i> Check Schema
-          </button>
-          <button type="button" class="btn btn-sm btn-success me-2" id="fixSystemDbSchemaBtn">
-            <i class="bi bi-wrench"></i> Fix Schema
           </button>
           <button type="button" class="btn btn-sm btn-danger" id="removeSystemDbBtn">
             <i class="bi bi-trash"></i> Remove
@@ -112,8 +106,6 @@ function showSystemDbConfigured(dbType, config) {
     showSystemDbEditForm(dbType, config);
   });
   document.getElementById("analyzeAndMigrateBtn").addEventListener("click", analyzeAndMigrate);
-  document.getElementById("checkSystemDbSchemaBtn").addEventListener("click", checkSystemDbSchema);
-  document.getElementById("fixSystemDbSchemaBtn").addEventListener("click", fixSystemDbSchema);
   document.getElementById("removeSystemDbBtn").addEventListener("click", removeSystemDbConfig);
 }
 
@@ -293,129 +285,6 @@ async function removeSystemDbConfig() {
   } catch (error) {
     console.error("Error removing system database config:", error);
     app.notify("Error removing configuration", "danger");
-  }
-}
-
-async function checkSystemDbSchema() {
-  const btn = document.getElementById("checkSystemDbSchemaBtn");
-  const statusEl = document.getElementById("systemDbSchemaStatus");
-
-  btn.disabled = true;
-  statusEl.innerHTML = '<div class="alert alert-info py-2 px-3 small"><i class="bi bi-hourglass-split"></i> Checking schema...</div>';
-
-  try {
-    const response = await fetch('/api/system-database/schema/check', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const result = await response.json();
-
-    if (!result.success) {
-      statusEl.innerHTML = `
-        <div class="alert alert-danger py-2 px-3 small">
-          <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(result.message)}
-        </div>
-      `;
-      app.notify("Error: " + result.message, "danger");
-      return;
-    }
-
-    const missingTables = result.data.missingTables || [];
-
-    if (missingTables.length === 0) {
-      statusEl.innerHTML = `
-        <div class="alert alert-success py-2 px-3 small">
-          <i class="bi bi-check-circle"></i> Schema is up to date - all tables exist
-        </div>
-      `;
-      app.notify("Schema check complete - no updates needed", "success");
-    } else {
-      let html = `
-        <div class="alert alert-warning py-2 px-3 small">
-          <i class="bi bi-exclamation-triangle"></i> Found ${missingTables.length} missing table(s):
-        </div>
-        <div class="list-group small mt-2">
-      `;
-
-      missingTables.forEach(tableName => {
-        html += `
-          <div class="list-group-item">
-            <code>${app.escapeHtml(tableName)}</code>
-          </div>
-        `;
-      });
-
-      html += `
-        </div>
-        <div class="mt-2 small text-muted">
-          Click "Fix Schema" to create all missing tables at once.
-        </div>
-      `;
-      statusEl.innerHTML = html;
-    }
-  } catch (error) {
-    console.error("Error checking schema:", error);
-    statusEl.innerHTML = `
-      <div class="alert alert-danger py-2 px-3 small">
-        <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(error.message)}
-      </div>
-    `;
-    app.notify("Error checking schema", "danger");
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function fixSystemDbSchema() {
-  const btn = document.getElementById("fixSystemDbSchemaBtn");
-  const statusEl = document.getElementById("systemDbSchemaStatus");
-
-  btn.disabled = true;
-  statusEl.innerHTML = '<div class="alert alert-info py-2 px-3 small"><i class="bi bi-hourglass-split"></i> Fixing schema...</div>';
-
-  try {
-    const response = await fetch('/api/system-database/schema/update', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken,
-      },
-    });
-
-    const result = await response.json();
-
-    if (!result.success) {
-      statusEl.innerHTML = `
-        <div class="alert alert-danger py-2 px-3 small">
-          <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(result.message)}
-        </div>
-      `;
-      app.notify("Error: " + result.message, "danger");
-      return;
-    }
-
-    statusEl.innerHTML = `
-      <div class="alert alert-success py-2 px-3 small">
-        <i class="bi bi-check-circle"></i> Schema fixed successfully
-      </div>
-    `;
-    app.notify("Schema fixed successfully", "success");
-
-    // Re-run the check to update the list and confirm all tables are now present
-    setTimeout(() => checkSystemDbSchema(), 1000);
-  } catch (error) {
-    console.error("Error fixing schema:", error);
-    statusEl.innerHTML = `
-      <div class="alert alert-danger py-2 px-3 small">
-        <i class="bi bi-exclamation-circle"></i> ${app.escapeHtml(error.message)}
-      </div>
-    `;
-    app.notify("Error fixing schema", "danger");
-  } finally {
-    btn.disabled = false;
   }
 }
 
