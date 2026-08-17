@@ -1,13 +1,11 @@
 const TodoEditor = (() => {
   let splitPane = null;
-  let formId = null;
   let currentTodoId = null;
-  let hasChanges = false;
   let quillEditor = null;
+  const changeTracker = createChangeTracker({ formId: 'toDoEditorForm', saveBtnId: 'saveToDoEditorBtn' });
 
   const init = (splitPaneInstance, editorFormId) => {
     splitPane = splitPaneInstance;
-    formId = editorFormId;
 
     // Initialize Quill editor
     const editorContainer = document.getElementById('toDoEditorNotesEditor');
@@ -24,31 +22,8 @@ const TodoEditor = (() => {
           ]
         }
       });
-      quillEditor.on('text-change', markChanged);
+      quillEditor.on('text-change', changeTracker.markChanged);
     }
-  };
-
-  const markChanged = () => {
-    hasChanges = true;
-    const saveBtn = document.getElementById('saveToDoEditorBtn');
-    if (saveBtn) saveBtn.disabled = false;
-  };
-
-  const trackFormChanges = () => {
-    const form = document.getElementById(formId);
-    if (!form) return;
-
-    const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="checkbox"], input[type="radio"], input[type="date"]');
-    inputs.forEach(input => {
-      input.addEventListener('change', markChanged);
-      input.addEventListener('input', markChanged);
-    });
-  };
-
-  const resetChangeTracking = () => {
-    hasChanges = false;
-    const saveBtn = document.getElementById('saveToDoEditorBtn');
-    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (todoId) => {
@@ -64,9 +39,9 @@ const TodoEditor = (() => {
 
       const toDo = result.data;
       currentTodoId = todoId;
-      resetChangeTracking();
+      changeTracker.resetChangeTracking();
       fillForm(toDo);
-      trackFormChanges();
+      changeTracker.trackFormChanges();
 
       // Call external functions if they exist (from todos.js)
       if (typeof renderToDoItemsEditor === 'function') {
@@ -583,7 +558,7 @@ const TodoEditor = (() => {
   };
 
   const close = () => {
-    resetChangeTracking();
+    changeTracker.resetChangeTracking();
     currentTodoId = null;
     if (splitPane) {
       splitPane.hideRightPane();
@@ -592,7 +567,7 @@ const TodoEditor = (() => {
 
   const toggleOnSameRow = (todoId) => {
     if (currentTodoId === todoId) {
-      if (hasChanges) {
+      if (changeTracker.hasChanges) {
         return false; // Don't close if there are unsaved changes
       }
       close();

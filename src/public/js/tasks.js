@@ -69,7 +69,7 @@ function renderTaskRow(task, depth, childrenMap, statusMap, visited = new Set())
   const statusIcon = app.statusIcon(displayStatus);
   const statusLabel = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
 
-  const childrenHtml = hasChildren && isExpanded
+  const childrenHtml = hasChildren
     ? `<div class="task-node-children">
         ${children.map(c => renderTaskRow(c, depth + 1, childrenMap, statusMap, visited)).join('')}
       </div>`
@@ -385,7 +385,12 @@ async function cycleTaskStatus(taskId, currentStatus) {
   }
 }
 
-function setupDragListeners() {
+// Named setupTaskDragListeners (not setupDragListeners) because dragDropUtils.js
+// and dailies.js each declare their own same-named global function - all tab
+// scripts share one scope (no modules), and dailies.js loads last, so a plain
+// setupDragListeners here would get silently overwritten and this tab's row
+// click/drag listeners would never attach.
+function setupTaskDragListeners() {
   const container = document.getElementById('tasksList');
   if (!container) return;
 
@@ -448,19 +453,21 @@ function setupDragListeners() {
     }
   });
 
-  // Toggle expand/collapse
+  // Toggle expand/collapse - CSS-only (children stay in the DOM, only the
+  // .expanded class toggles), matching areas.js's toggleAreaNode. No re-render.
   newContainer.addEventListener('click', (e) => {
-    if (e.target.classList.contains('task-folder-toggle')) {
-      const row = e.target.closest('.task-row');
-      const node = row?.closest('.task-node');
+    const toggleIcon = e.target.closest('[data-action="toggle-expand"]');
+    if (toggleIcon) {
+      const node = toggleIcon.closest('.task-node');
       if (node) {
         const taskId = node.getAttribute('data-task-id');
         if (getTaskState().expandedTasks.has(taskId)) {
           getTaskState().expandedTasks.delete(taskId);
+          node.classList.remove('expanded');
         } else {
           getTaskState().expandedTasks.add(taskId);
+          node.classList.add('expanded');
         }
-        renderTasksList();
       }
       e.stopPropagation();
     }
@@ -540,7 +547,7 @@ function initializeTasksTab() {
 
   // Set up event listeners ONCE on the container
   // These persist even when innerHTML changes due to event delegation
-  setupDragListeners();
+  setupTaskDragListeners();
 
   loadTasks();
 

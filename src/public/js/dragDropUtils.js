@@ -375,42 +375,6 @@ async function createIdeaFromCalendarEvent(event) {
   }
 }
 
-// Create idea from email
-async function createIdeaFromEmail(email) {
-  const description = [
-    email.sender ? `From: ${email.sender}` : '',
-    email.cc ? `Cc: ${email.cc}` : '',
-    email.attachments.length ? `Attachments: ${email.attachments.join(', ')}` : '',
-    email.body ? `\n${email.body}` : ''
-  ].filter(l => l).join('\n');
-
-  const data = {
-    title: email.subject || '(No subject)',
-    description: description.trim()
-  };
-
-  try {
-    const response = await fetch('/api/ideas', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(`Idea created from email: ${email.subject}`, 'success');
-      if (typeof loadIdeas === 'function') loadIdeas();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error creating idea from email:', error);
-    app.notify('Error creating idea from email', 'danger');
-  }
-}
 
 // Create template from email
 async function createTemplateFromEmail(email) {

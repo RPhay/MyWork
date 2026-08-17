@@ -1,33 +1,14 @@
 const TicketEditor = (() => {
   let splitPane = null;
   let currentTicketId = null;
-  let hasChanges = false;
+  const changeTracker = createChangeTracker({
+    formId: 'ticketEditorForm',
+    saveBtnId: 'saveTicketEditorBtn',
+    selectors: ['input[type="text"]', 'textarea', 'input[type="url"]', 'select'],
+  });
 
   const init = (splitPaneInstance) => {
     splitPane = splitPaneInstance;
-  };
-
-  const markChanged = () => {
-    hasChanges = true;
-    const saveBtn = document.getElementById('saveTicketEditorBtn');
-    if (saveBtn) saveBtn.disabled = false;
-  };
-
-  const trackFormChanges = () => {
-    const form = document.getElementById('ticketEditorForm');
-    if (!form) return;
-
-    const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="url"], select');
-    inputs.forEach(input => {
-      input.addEventListener('change', markChanged);
-      input.addEventListener('input', markChanged);
-    });
-  };
-
-  const resetChangeTracking = () => {
-    hasChanges = false;
-    const saveBtn = document.getElementById('saveTicketEditorBtn');
-    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (ticketId) => {
@@ -43,9 +24,9 @@ const TicketEditor = (() => {
 
       const ticket = result.data;
       currentTicketId = ticketId;
-      resetChangeTracking();
+      changeTracker.resetChangeTracking();
       fillForm(ticket);
-      trackFormChanges();
+      changeTracker.trackFormChanges();
       splitPane.showRightPane();
     } catch (error) {
       console.error('Error loading ticket:', error);
@@ -126,7 +107,7 @@ const TicketEditor = (() => {
   };
 
   const close = () => {
-    resetChangeTracking();
+    changeTracker.resetChangeTracking();
     currentTicketId = null;
     if (splitPane) {
       splitPane.hideRightPane();
@@ -135,7 +116,7 @@ const TicketEditor = (() => {
 
   const toggleOnSameRow = (ticketId) => {
     if (currentTicketId === ticketId) {
-      if (hasChanges) {
+      if (changeTracker.hasChanges) {
         return false;
       }
       close();

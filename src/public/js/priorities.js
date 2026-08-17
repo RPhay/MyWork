@@ -22,7 +22,7 @@ function renderCategoryInTree(category, depth) {
   `;
 }
 
-function renderGoalInTree(goal, depth) {
+function renderPriorityGoalInTree(goal, depth) {
   return `
     <div class="priority-node goal-node" data-goal-id="${goal.id}">
       <div class="priority-node-header goal-node-header" style="cursor: default;">
@@ -37,7 +37,7 @@ function renderGoalInTree(goal, depth) {
   `;
 }
 
-function renderToDoInTree(toDo, depth, showRemove = true) {
+function renderPriorityToDoInTree(toDo, depth, showRemove = true) {
   const hasLinks = toDo.links && toDo.links.length > 0;
   const linksBadge = hasLinks
     ? `<span class="badge bg-info text-white" title="Has links">🔗</span>`
@@ -53,7 +53,7 @@ function renderToDoInTree(toDo, depth, showRemove = true) {
   const children = allToDos.filter(t => t.parent_id === toDo.id);
   const childrenHtml = children.length > 0
     ? `<div class="priority-node-children">
-        ${children.map(child => renderToDoInTree(child, depth + 1, false)).join('')}
+        ${children.map(child => renderPriorityToDoInTree(child, depth + 1, false)).join('')}
       </div>`
     : '';
 
@@ -149,7 +149,7 @@ function renderFolderInProjectTree(folder, todosInFolder, depth) {
   const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
 
   const childrenHtml = hasChildren
-    ? `<div class="priority-node-children">${todosInFolder.map(td => renderToDoInTree(td, depth + 1, false)).join('')}</div>`
+    ? `<div class="priority-node-children">${todosInFolder.map(td => renderPriorityToDoInTree(td, depth + 1, false)).join('')}</div>`
     : '';
 
   return `
@@ -289,11 +289,11 @@ function renderPriorityNode(priority, byParent, depth) {
     // Render categories
     html += categories.map(cat => renderCategoryInTree(cat, depth + 1)).join('');
     // Render goals
-    html += goals.map(goal => renderGoalInTree(goal, depth + 1)).join('');
+    html += goals.map(goal => renderPriorityGoalInTree(goal, depth + 1)).join('');
     // Render linked to-do folders (live - always shows whatever's currently in the folder)
     html += linkedFolders.map(f => renderFolderInProjectTree(f, allToDos.filter(td => td.folder_id === f.id), depth + 1)).join('');
     // Render directly associated todos
-    html += directToDos.map(td => renderToDoInTree(td, depth + 1)).join('');
+    html += directToDos.map(td => renderPriorityToDoInTree(td, depth + 1)).join('');
     // Render linked task folders (live)
     html += linkedTaskFolders.map(f => renderTaskFolderInProjectTree(f, allTasks.filter(t => t.folder_id === f.id), depth + 1)).join('');
     // Render directly associated tasks
@@ -889,7 +889,7 @@ async function cycleProjectToDoStatus(toDoId, currentStatus) {
   }
 }
 
-function getDescendantIds(priorityId) {
+function getPriorityDescendantIds(priorityId) {
   const descendants = new Set();
   const byParent = app.groupByParent(allPriorities);
   const queue = [Number(priorityId)];
@@ -1026,7 +1026,7 @@ async function editPriority(priorityId) {
 }
 
 async function deletePriority(priorityId) {
-  const hasChildren = getDescendantIds(priorityId).size > 0;
+  const hasChildren = getPriorityDescendantIds(priorityId).size > 0;
   const message = hasChildren
     ? 'This project has sub-projects that will also be deleted. Delete anyway?'
     : 'Delete this project?';
@@ -1109,7 +1109,7 @@ async function reparentPriority(priorityId, newParentId) {
   }
 }
 
-function clearDropTargets(container) {
+function clearPriorityDropTargets(container) {
   container.querySelectorAll('.priority-drop-target').forEach(el => el.classList.remove('priority-drop-target'));
   container.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
     el.classList.remove('drop-indicator-before', 'drop-indicator-after');
@@ -1243,13 +1243,13 @@ function initPrioritiesEventListeners() {
   container.addEventListener('dragend', (e) => {
     const header = e.target.closest('.priority-node-header');
     if (header) header.classList.remove('dragging-item');
-    clearDropTargets(container);
+    clearPriorityDropTargets(container);
   });
 
   container.addEventListener('dragover', (e) => {
     e.preventDefault();
     const header = e.target.closest('.priority-node-header');
-    clearDropTargets(container);
+    clearPriorityDropTargets(container);
     const isInternalDrag = e.dataTransfer.types.includes('priority-id');
 
     if (header) {
@@ -1276,7 +1276,7 @@ function initPrioritiesEventListeners() {
 
     if (priorityDraggedId) {
       const zone = header ? app.getTreeDropZone(e, header) : null;
-      clearDropTargets(container);
+      clearPriorityDropTargets(container);
 
       const targetId = header ? header.closest('.priority-node').dataset.priorityId : null;
       if (targetId && String(targetId) === String(priorityDraggedId)) return;
@@ -1293,7 +1293,7 @@ function initPrioritiesEventListeners() {
 
     // External chip drop (category/goal/todo from the right panel) - associates it
     // onto whichever project/sub-project row it was dropped on.
-    clearDropTargets(container);
+    clearPriorityDropTargets(container);
     const type = e.dataTransfer.getData('type');
     const id = e.dataTransfer.getData('id');
     if (!type || !id || !header) return;
@@ -1399,8 +1399,12 @@ function initPrioritiesEventListeners() {
         const priorityNode = header.closest('.priority-node');
         if (priorityNode && priorityNode.dataset.priorityId) {
           console.log('[Priorities] Opening priority:', priorityNode.dataset.priorityId);
-          // Check if clicking on same row that's already open
-          if (!PriorityEditor.toggleOnSameRow(priorityNode.dataset.priorityId)) {
+          // toggleOnSameRow() returns false both when this is a different row
+          // (should open it) and when it's the same row with unsaved changes
+          // (should do nothing, not re-fetch and clobber the draft) - only
+          // treat it as "open a (possibly different) row" in the former case.
+          const isSameRow = PriorityEditor.currentPriorityId === priorityNode.dataset.priorityId;
+          if (!PriorityEditor.toggleOnSameRow(priorityNode.dataset.priorityId) && !isSameRow) {
             editPriority(priorityNode.dataset.priorityId);
           }
         }

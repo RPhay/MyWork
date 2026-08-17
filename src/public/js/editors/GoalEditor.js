@@ -3,35 +3,16 @@ const GoalEditor = (() => {
   let formId = null;
   let categoriesSelect = null;
   let currentGoalId = null;
-  let hasChanges = false;
+  const changeTracker = createChangeTracker({
+    formId: 'goalEditorForm',
+    saveBtnId: 'saveGoalEditorBtn',
+    selectors: ['input[type="text"]', 'textarea', 'input[type="date"]', 'select'],
+  });
 
   const init = (splitPaneInstance, editorFormId) => {
     splitPane = splitPaneInstance;
     formId = editorFormId;
     categoriesSelect = document.getElementById('goalEditorCategories');
-  };
-
-  const markChanged = () => {
-    hasChanges = true;
-    const saveBtn = document.getElementById('saveGoalEditorBtn');
-    if (saveBtn) saveBtn.disabled = false;
-  };
-
-  const trackFormChanges = () => {
-    const form = document.getElementById('goalEditorForm');
-    if (!form) return;
-
-    const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="date"], select');
-    inputs.forEach(input => {
-      input.addEventListener('change', markChanged);
-      input.addEventListener('input', markChanged);
-    });
-  };
-
-  const resetChangeTracking = () => {
-    hasChanges = false;
-    const saveBtn = document.getElementById('saveGoalEditorBtn');
-    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (goalId) => {
@@ -47,9 +28,9 @@ const GoalEditor = (() => {
 
       const goal = result.data;
       currentGoalId = goalId;
-      resetChangeTracking();
+      changeTracker.resetChangeTracking();
       fillForm(goal);
-      trackFormChanges();
+      changeTracker.trackFormChanges();
       splitPane.showRightPane();
     } catch (error) {
       console.error('Error loading goal:', error);
@@ -123,7 +104,7 @@ const GoalEditor = (() => {
   };
 
   const close = () => {
-    resetChangeTracking();
+    changeTracker.resetChangeTracking();
     currentGoalId = null;
     if (splitPane) {
       splitPane.hideRightPane();
@@ -132,7 +113,7 @@ const GoalEditor = (() => {
 
   const toggleOnSameRow = (goalId) => {
     if (currentGoalId === goalId) {
-      if (hasChanges) {
+      if (changeTracker.hasChanges) {
         return false;
       }
       close();

@@ -1,34 +1,15 @@
 const PriorityEditor = (() => {
   let splitPane = null;
   let currentPriorityId = null;
-  let hasChanges = false;
   const originalValues = {};
+  const changeTracker = createChangeTracker({
+    formId: 'priorityEditorForm',
+    saveBtnId: 'savePriorityEditorBtn',
+    selectors: ['input[type="text"]', 'textarea'],
+  });
 
   const init = (splitPaneInstance) => {
     splitPane = splitPaneInstance;
-  };
-
-  const markChanged = () => {
-    hasChanges = true;
-    const saveBtn = document.getElementById('savePriorityEditorBtn');
-    if (saveBtn) saveBtn.disabled = false;
-  };
-
-  const trackFormChanges = () => {
-    const form = document.getElementById('priorityEditorForm');
-    if (!form) return;
-
-    const inputs = form.querySelectorAll('input[type="text"], textarea');
-    inputs.forEach(input => {
-      input.addEventListener('change', markChanged);
-      input.addEventListener('input', markChanged);
-    });
-  };
-
-  const resetChangeTracking = () => {
-    hasChanges = false;
-    const saveBtn = document.getElementById('savePriorityEditorBtn');
-    if (saveBtn) saveBtn.disabled = true;
   };
 
   const populate = async (priorityId) => {
@@ -44,9 +25,9 @@ const PriorityEditor = (() => {
 
       const priority = result.data;
       currentPriorityId = priorityId;
-      resetChangeTracking();
+      changeTracker.resetChangeTracking();
       fillForm(priority, 'priority');
-      trackFormChanges();
+      changeTracker.trackFormChanges();
 
       // Load and display links
       const linksResponse = await fetch(`/api/priorities/${priorityId}/links`).catch(() => ({ json: () => ({ data: [] }) }));
@@ -324,7 +305,7 @@ const PriorityEditor = (() => {
   };
 
   const close = () => {
-    resetChangeTracking();
+    changeTracker.resetChangeTracking();
     currentPriorityId = null;
     if (splitPane) {
       splitPane.hideRightPane();
@@ -333,7 +314,7 @@ const PriorityEditor = (() => {
 
   const toggleOnSameRow = (priorityId) => {
     if (currentPriorityId === priorityId) {
-      if (hasChanges) {
+      if (changeTracker.hasChanges) {
         return false; // Don't close if there are unsaved changes
       }
       close();
@@ -351,6 +332,7 @@ const PriorityEditor = (() => {
     renderAssociatedItemsTree,
     save,
     close,
-    toggleOnSameRow
+    toggleOnSameRow,
+    get currentPriorityId() { return currentPriorityId; },
   };
 })();

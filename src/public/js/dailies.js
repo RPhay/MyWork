@@ -114,79 +114,6 @@ async function createWorkItemFromEmail(email, date) {
   }
 }
 
-async function createTemplateFromCalendarEvent(event) {
-  const data = {
-    title: event.title,
-    description: event.description || "",
-    time_box_minutes: event.duration || null,
-  };
-
-  try {
-    const response = await fetch("/api/work-item-templates", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify(data),
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(
-        `Template created from calendar event: ${event.title}`,
-        "success",
-      );
-      if (typeof loadTemplates === "function") loadTemplates();
-    } else {
-      app.notify("Error: " + result.message, "danger");
-    }
-  } catch (error) {
-    console.error("Error creating template from calendar event:", error);
-    app.notify("Error creating template from calendar event", "danger");
-  }
-}
-
-async function createTemplateFromEmail(email) {
-  const description = [
-    email.sender ? `From: ${email.sender}` : "",
-    email.cc ? `Cc: ${email.cc}` : "",
-    email.attachments.length
-      ? `Attachments: ${email.attachments.join(", ")}`
-      : "",
-    email.body ? `\n${email.body}` : "",
-  ]
-    .filter((l) => l)
-    .join("\n");
-
-  const data = {
-    title: email.subject || "(No subject)",
-    description: description.trim(),
-  };
-
-  try {
-    const response = await fetch("/api/work-item-templates", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify(data),
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(`Template created from email: ${email.subject}`, "success");
-      if (typeof loadTemplates === "function") loadTemplates();
-    } else {
-      app.notify("Error: " + result.message, "danger");
-    }
-  } catch (error) {
-    console.error("Error creating template from email:", error);
-    app.notify("Error creating template from email", "danger");
-  }
-}
-
 // Formats a minute total as "2h 15m" / "45m", or '' for zero/falsy so callers
 // can drop it from the UI entirely rather than show "0m".
 function formatMinutesTotal(minutes) {
@@ -511,43 +438,48 @@ function renderWorkItemsList(items) {
         </div>
     `;
 
-    // Render child items if expanded
-    if (isExpanded) {
+    // Render child items - always in the DOM when there are any (CSS-only
+    // expand/collapse, matching areas.js's toggleAreaNode: only the parent's
+    // .expanded class is toggled, no re-render), wrapped so
+    // ".work-item.expanded > .work-item-children" in dailies.ejs applies.
+    if (hasChildren) {
+      let childrenHtml = '';
       if (item.priorities?.length > 0) {
         item.priorities.forEach((p) => {
-          html += renderChildItem('priority', p.id, p.path || p.title, APP_ICONS.project, item.id);
+          childrenHtml += renderChildItem('priority', p.id, p.path || p.title, APP_ICONS.project, item.id);
         });
       }
       if (item.goals?.length > 0) {
         item.goals.forEach((g) => {
-          html += renderChildItem('goal', g.id, g.name, APP_ICONS.goal, item.id);
+          childrenHtml += renderChildItem('goal', g.id, g.name, APP_ICONS.goal, item.id);
         });
       }
       if (item.areas?.length > 0) {
         item.areas.forEach((a) => {
-          html += renderChildItem('area', a.id, a.path || a.name, APP_ICONS.area, item.id);
+          childrenHtml += renderChildItem('area', a.id, a.path || a.name, APP_ICONS.area, item.id);
         });
       }
       if (item.todos?.length > 0) {
         item.todos.forEach((t) => {
-          html += renderChildItem('todo', t.id, t.title, APP_ICONS.todo, item.id);
+          childrenHtml += renderChildItem('todo', t.id, t.title, APP_ICONS.todo, item.id);
         });
       }
       if (item.tasks?.length > 0) {
         item.tasks.forEach((t) => {
-          html += renderChildItem('task', t.id, t.title, APP_ICONS.task, item.id);
+          childrenHtml += renderChildItem('task', t.id, t.title, APP_ICONS.task, item.id);
         });
       }
       if (item.tickets?.length > 0) {
         item.tickets.forEach((t) => {
-          html += renderChildItem('ticket', t.id, t.title, APP_ICONS.ticket, item.id);
+          childrenHtml += renderChildItem('ticket', t.id, t.title, APP_ICONS.ticket, item.id);
         });
       }
       if (item.ideas?.length > 0) {
         item.ideas.forEach((i) => {
-          html += renderChildItem('idea', i.id, i.title, APP_ICONS.idea, item.id);
+          childrenHtml += renderChildItem('idea', i.id, i.title, APP_ICONS.idea, item.id);
         });
       }
+      html += `<div class="work-item-children">${childrenHtml}</div>`;
     }
 
     html += '</div>'; // Close work-item
@@ -1851,6 +1783,8 @@ function updateCalendarDayTotal(dateStr) {
 }
 
 function toggleWorkItem(workItemEl) {
+  // CSS-only expand/collapse (children already in the DOM, see
+  // renderWorkItemsList) - no re-render, matching areas.js's toggleAreaNode.
   const id = String(workItemEl.dataset.workId);
   if (expandedWorkItems.has(id)) {
     expandedWorkItems.delete(id);
@@ -1859,7 +1793,6 @@ function toggleWorkItem(workItemEl) {
     expandedWorkItems.add(id);
     workItemEl.classList.add("expanded");
   }
-  renderWorkItemsList(currentWorkItems);
 }
 
 async function linkChild(workId, type, id) {
@@ -3005,14 +2938,14 @@ function deleteChildItem(itemType, itemId) {
 function editChildItem(itemType, itemId) {
   // Map item types to their editor functions
   const editorMap = {
-    'priority': () => editPriority(itemId),
-    'area': () => editArea(itemId),
-    'goal': () => editGoal(itemId),
-    'template': () => editTemplate(itemId),
-    'todo': () => editTodo(itemId),
-    'task': () => editTask(itemId),
-    'ticket': () => editTicket(itemId),
-    'idea': () => editIdea(itemId)
+    'priority': () => editChildPriority(itemId),
+    'area': () => editChildArea(itemId),
+    'goal': () => editChildGoal(itemId),
+    'template': () => editChildTemplate(itemId),
+    'todo': () => editChildTodo(itemId),
+    'task': () => editChildTask(itemId),
+    'ticket': () => editChildTicket(itemId),
+    'idea': () => editChildIdea(itemId)
   };
 
   const editor = editorMap[itemType];
@@ -3066,27 +2999,36 @@ async function createAndAssociateTemplate(workItemId) {
   }
 }
 
+// Which fields the compact child-item editor form shows/collects per type -
+// the single source of truth for both loadChildItemForEditing() (which fields
+// to show) and the save handler (which fields to send), so they can't drift
+// apart the way the two separate if/else chains they replaced could.
+const CHILD_ITEM_FIELD_MAP = {
+  todo: ['notes', 'status'],
+  task: ['notes', 'status'],
+  ticket: ['notes'],
+  idea: ['notes'],
+  priority: ['notes'],
+  goal: ['description', 'year'],
+  area: ['description'],
+  template: ['description'],
+};
+
+const CHILD_ITEM_FIELD_TO_GROUP_ID = {
+  notes: 'childItemEditorNotesField',
+  description: 'childItemEditorDescriptionField',
+  status: 'childItemEditorStatusField',
+  year: 'childItemEditorYearField',
+};
+
 // Store currently edited child item
 let currentEditingChild = null;
 let childItemEditorId = null;
-let childItemEditorHasChanges = false;
-
-const markChildItemEditorChanged = () => {
-  childItemEditorHasChanges = true;
-  const saveBtn = document.getElementById('saveChildItemEditorBtn');
-  if (saveBtn) saveBtn.disabled = false;
-};
-
-const trackChildItemFormChanges = () => {
-  const form = document.getElementById('childItemEditorForm');
-  if (!form) return;
-
-  const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="number"], select');
-  inputs.forEach(input => {
-    input.addEventListener('change', markChildItemEditorChanged);
-    input.addEventListener('input', markChildItemEditorChanged);
-  });
-};
+const childItemChangeTracker = createChangeTracker({
+  formId: 'childItemEditorForm',
+  saveBtnId: 'saveChildItemEditorBtn',
+  selectors: ['input[type="text"]', 'textarea', 'input[type="number"]', 'select'],
+});
 
 function openChildItemEditor(type, id) {
   // If clicking same item, toggle close
@@ -3105,12 +3047,10 @@ function openChildItemEditor(type, id) {
   if (childPane) childPane.classList.remove('hidden');
 
   // Load child item data
-  childItemEditorHasChanges = false;
-  const saveBtn = document.getElementById('saveChildItemEditorBtn');
-  if (saveBtn) saveBtn.disabled = true;
+  childItemChangeTracker.resetChangeTracking();
 
   loadChildItemForEditing(type, id);
-  trackChildItemFormChanges();
+  childItemChangeTracker.trackFormChanges();
 }
 
 function closeChildItemEditor() {
@@ -3162,73 +3102,66 @@ async function loadChildItemForEditing(type, id) {
       document.getElementById('childItemEditorTypeLabel').textContent = typeLabels[type] || type;
 
       // Hide all optional fields first
-      document.getElementById('childItemEditorNotesField').style.display = 'none';
-      document.getElementById('childItemEditorDescriptionField').style.display = 'none';
-      document.getElementById('childItemEditorStatusField').style.display = 'none';
-      document.getElementById('childItemEditorYearField').style.display = 'none';
+      Object.values(CHILD_ITEM_FIELD_TO_GROUP_ID).forEach((groupId) => {
+        document.getElementById(groupId).style.display = 'none';
+      });
 
-      // Show and populate fields based on type
-      if (type === 'todo' || type === 'task') {
-        // Todos and tasks have: notes, status
-        document.getElementById('childItemEditorNotesField').style.display = 'block';
-        document.getElementById('childItemEditorStatusField').style.display = 'block';
-        document.getElementById('childItemEditorNotes').value = item.notes || '';
-        document.getElementById('childItemEditorStatus').value = item.status || 'incomplete';
-      } else if (type === 'ticket' || type === 'idea') {
-        // Tickets and ideas have: notes (no status field)
-        document.getElementById('childItemEditorNotesField').style.display = 'block';
-        document.getElementById('childItemEditorNotes').value = item.notes || '';
-      } else if (type === 'priority') {
-        // Priorities have: notes (not description!)
-        document.getElementById('childItemEditorNotesField').style.display = 'block';
-        document.getElementById('childItemEditorNotes').value = item.notes || '';
-      } else if (type === 'goal') {
-        // Goals have: description, year
-        document.getElementById('childItemEditorDescriptionField').style.display = 'block';
-        document.getElementById('childItemEditorYearField').style.display = 'block';
-        document.getElementById('childItemEditorDescription').value = item.description || '';
-        document.getElementById('childItemEditorYear').value = item.year || '';
-      } else {
-        // Areas and templates have: description
-        document.getElementById('childItemEditorDescriptionField').style.display = 'block';
-        document.getElementById('childItemEditorDescription').value = item.description || '';
-      }
+      // Show and populate only the fields this type actually has
+      const fields = CHILD_ITEM_FIELD_MAP[type] || [];
+      fields.forEach((field) => {
+        document.getElementById(CHILD_ITEM_FIELD_TO_GROUP_ID[field]).style.display = 'block';
+        if (field === 'notes') {
+          document.getElementById('childItemEditorNotes').value = item.notes || '';
+        } else if (field === 'description') {
+          document.getElementById('childItemEditorDescription').value = item.description || '';
+        } else if (field === 'status') {
+          document.getElementById('childItemEditorStatus').value = item.status || 'incomplete';
+        } else if (field === 'year') {
+          document.getElementById('childItemEditorYear').value = item.year || '';
+        }
+      });
     }
   } catch (error) {
     console.error('Error loading child item:', error);
   }
 }
 
-// Editor functions - open child item editor in right pane
-function editPriority(priorityId) {
+// Editor functions - open child item editor in right pane. Named editChild*
+// (not e.g. editPriority) because areas.js/priorities.js/goals.js/templates.js/
+// tickets.js/brainstorming.js each declare their own same-named global edit
+// function - all tab scripts share one scope (no modules), so a plain editArea
+// here would silently overwrite areas.js's editArea and vice versa depending on
+// script load order. initRightPanelEditOnDblClick() above deliberately calls the
+// bare (other tab's) names instead of these, to open that tab's own full editor.
+function editChildPriority(priorityId) {
   openChildItemEditor('priority', priorityId);
 }
 
-function editArea(areaId) {
+function editChildArea(areaId) {
   openChildItemEditor('area', areaId);
 }
 
-function editGoal(goalId) {
+function editChildGoal(goalId) {
   openChildItemEditor('goal', goalId);
 }
 
-function editTemplate(templateId) {
+function editChildTemplate(templateId) {
   openChildItemEditor('template', templateId);
 }
 
-function editTodo(todoId) {
+function editChildTodo(todoId) {
   openChildItemEditor('todo', todoId);
 }
 
-function editTask(taskId) {
+function editChildTask(taskId) {
   openChildItemEditor('task', taskId);
 }
 
-function editTicket(ticketId) {
+function editChildTicket(ticketId) {
   openChildItemEditor('ticket', ticketId);
 }
 
-function editIdea(ideaId) {
+function editChildIdea(ideaId) {
   openChildItemEditor('idea', ideaId);
 }
 
@@ -3879,25 +3812,21 @@ function initDailies() {
           return;
         }
 
-        // Build payload based on type
+        // Build payload from only the fields this type actually has
         const payload = { title, name: title };
 
-        if (type === 'todo' || type === 'task') {
-          // Todos and tasks have: notes, status
-          payload.notes = document.getElementById('childItemEditorNotes').value;
-          payload.status = document.getElementById('childItemEditorStatus').value;
-        } else if (type === 'ticket' || type === 'idea' || type === 'priority') {
-          // Tickets, ideas, priorities have: notes (no status)
-          payload.notes = document.getElementById('childItemEditorNotes').value;
-        } else if (type === 'goal') {
-          // Goals have: description, year
-          payload.description = document.getElementById('childItemEditorDescription').value;
-          const year = document.getElementById('childItemEditorYear').value;
-          if (year) payload.year = parseInt(year, 10);
-        } else {
-          // Areas and templates have: description
-          payload.description = document.getElementById('childItemEditorDescription').value;
-        }
+        (CHILD_ITEM_FIELD_MAP[type] || []).forEach((field) => {
+          if (field === 'notes') {
+            payload.notes = document.getElementById('childItemEditorNotes').value;
+          } else if (field === 'description') {
+            payload.description = document.getElementById('childItemEditorDescription').value;
+          } else if (field === 'status') {
+            payload.status = document.getElementById('childItemEditorStatus').value;
+          } else if (field === 'year') {
+            const year = document.getElementById('childItemEditorYear').value;
+            if (year) payload.year = parseInt(year, 10);
+          }
+        });
 
         console.log('[Save child item] Sending to', endpoint + '/' + id, 'payload:', payload);
 

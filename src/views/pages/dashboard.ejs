@@ -17,6 +17,9 @@
   data-csrf-token="<%= csrfToken %>"
   data-version="<%= version %>"
 >
+  <!-- Loaded first, before any tab partial's own trailing scripts (areas.js,
+       editors/*.js), since those call createChangeTracker() at module-load time. -->
+  <script src="/js/changeTracker.js"></script>
   <%- include('../components/dbHealthBanner.ejs') %>
   <%- include('../components/navbar.ejs') %>
 

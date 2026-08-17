@@ -1,39 +1,18 @@
 const TaskEditor = (() => {
   let splitPane = null;
   let currentTaskId = null;
-  let hasChanges = false;
+  const changeTracker = createChangeTracker({ formId: 'taskEditorForm', saveBtnId: 'saveTaskEditorBtn' });
 
   const init = (splitPaneInstance) => {
     splitPane = splitPaneInstance;
   };
 
-  const markChanged = () => {
-    hasChanges = true;
-    const saveBtn = document.getElementById('saveTaskEditorBtn');
-    if (saveBtn) saveBtn.disabled = false;
-  };
-
-  const trackFormChanges = () => {
-    const form = document.getElementById('taskEditorForm');
-    if (!form) return;
-
-    const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="checkbox"], input[type="radio"], input[type="date"]');
-    inputs.forEach(input => {
-      input.addEventListener('change', markChanged);
-      input.addEventListener('input', markChanged);
-    });
-  };
-
-  const resetChangeTracking = () => {
-    hasChanges = false;
-    const saveBtn = document.getElementById('saveTaskEditorBtn');
-    if (saveBtn) saveBtn.disabled = true;
-  };
-
   const populate = async (taskId) => {
     try {
       const allTasks = window.allTasks || [];
-      const task = allTasks.find(t => t.id === taskId);
+      // taskId comes from a DOM data-attribute (string); allTasks[].id is numeric
+      // from the API response, so this must compare by String() not ===.
+      const task = allTasks.find(t => String(t.id) === String(taskId));
 
       if (!task) {
         app.notify('Task not found', 'danger');
@@ -41,9 +20,9 @@ const TaskEditor = (() => {
       }
 
       currentTaskId = taskId;
-      resetChangeTracking();
+      changeTracker.resetChangeTracking();
       fillForm(task);
-      trackFormChanges();
+      changeTracker.trackFormChanges();
       splitPane.showRightPane();
     } catch (error) {
       console.error('Error loading task:', error);
@@ -326,7 +305,7 @@ const TaskEditor = (() => {
   };
 
   const close = () => {
-    resetChangeTracking();
+    changeTracker.resetChangeTracking();
     currentTaskId = null;
     if (splitPane) {
       splitPane.hideRightPane();
@@ -335,7 +314,7 @@ const TaskEditor = (() => {
 
   const toggleOnSameRow = (taskId) => {
     if (currentTaskId === taskId) {
-      if (hasChanges) {
+      if (changeTracker.hasChanges) {
         return false;
       }
       close();

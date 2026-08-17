@@ -3,30 +3,11 @@ let allAreas = [];
 let areaToDos = [];
 let areaTickets = [];
 let currentAreaId = null;
-let areaEditorHasChanges = false;
-
-const markAreaEditorChanged = () => {
-  areaEditorHasChanges = true;
-  const saveBtn = document.getElementById('saveAreaEditorBtn');
-  if (saveBtn) saveBtn.disabled = false;
-};
-
-const trackAreaFormChanges = () => {
-  const form = document.getElementById('areaEditorForm');
-  if (!form) return;
-
-  const inputs = form.querySelectorAll('input[type="text"], textarea');
-  inputs.forEach(input => {
-    input.addEventListener('change', markAreaEditorChanged);
-    input.addEventListener('input', markAreaEditorChanged);
-  });
-};
-
-const resetAreaEditorTracking = () => {
-  areaEditorHasChanges = false;
-  const saveBtn = document.getElementById('saveAreaEditorBtn');
-  if (saveBtn) saveBtn.disabled = true;
-};
+const areaChangeTracker = createChangeTracker({
+  formId: 'areaEditorForm',
+  saveBtnId: 'saveAreaEditorBtn',
+  selectors: ['input[type="text"]', 'textarea'],
+});
 
 function renderAssociatedTodo(todo) {
   return `
@@ -257,7 +238,7 @@ async function saveAreaEditor() {
 }
 
 function closeAreaEditor() {
-  resetAreaEditorTracking();
+  areaChangeTracker.resetChangeTracking();
   currentAreaId = null;
   if (window.areaSplitPane) {
     window.areaSplitPane.hideRightPane();
@@ -272,7 +253,7 @@ async function editArea(areaId) {
   try {
     // Check if clicking on same row that's already open
     if (currentAreaId === areaId) {
-      if (areaEditorHasChanges) {
+      if (areaChangeTracker.hasChanges) {
         return; // Don't close if there are unsaved changes
       }
       closeAreaEditor();
@@ -284,7 +265,7 @@ async function editArea(areaId) {
     const area = result.data;
 
     currentAreaId = areaId;
-    resetAreaEditorTracking();
+    areaChangeTracker.resetChangeTracking();
 
     // Make sure form is visible
     const editorForm = document.getElementById('areaEditorForm');
@@ -296,7 +277,7 @@ async function editArea(areaId) {
     document.getElementById('areaEditorParentId').value = '';
     document.getElementById('areaEditorParentHint').classList.add('d-none');
     document.getElementById('areaEditorTitle').textContent = area.name;
-    trackAreaFormChanges();
+    areaChangeTracker.trackFormChanges();
 
     // Show split-pane editor
     if (window.areaSplitPane) {
