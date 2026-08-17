@@ -15,6 +15,7 @@ const CONFIG_FILE = path.join(__dirname, '../..', 'data', 'system-db-config.enc.
 const VALID_TYPES = ['mysql', 'mssql'];
 
 const ALL_SYSTEM_TABLES = [
+  // Legacy tables (kept for backward compatibility with existing data)
   'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
   'sources', 'source_auth', 'categories', 'areas', 'years', 'priorities',
   'priority_areas', 'priority_goals', 'goals', 'goal_categories', 'work_items',
@@ -23,7 +24,10 @@ const ALL_SYSTEM_TABLES = [
   'template_goals', 'template_priorities',
   'to_do_folders', 'to_dos', 'to_do_items', 'idea_folders', 'ideas', 'idea_items',
   'tasks', 'tickets', 'priority_links', 'to_do_links', 'idea_links', 'task_links',
-  'ticket_links', 'context_tab_settings'
+  'ticket_links', 'context_tab_settings',
+  // New generic entity engine tables (Phase 10 migration)
+  'entity_types', 'entity_type_fields', 'entity_type_relationships',
+  'entities', 'entity_field_values', 'entity_relationships'
 ];
 
 function loadSystemDbConfig() {
