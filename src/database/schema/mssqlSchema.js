@@ -286,9 +286,7 @@ export async function createMssqlSchema(pool) {
       recurring_from_todo_id INT NULL,
       recurring_from_task_id INT NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_work_items_recurring_todo FOREIGN KEY (recurring_from_todo_id) REFERENCES [MyWork].[to_dos](id) ON DELETE SET NULL,
-      CONSTRAINT fk_work_items_recurring_task FOREIGN KEY (recurring_from_task_id) REFERENCES [MyWork].[tasks](id) ON DELETE SET NULL
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
     )
   `,
   );
@@ -379,65 +377,10 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  await createTableIfNotExists(
-    pool,
-    "work_template_associations",
-    `
-    CREATE TABLE [MyWork].[work_template_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      template_id INT NOT NULL,
-      CONSTRAINT fk_wta_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wta_template FOREIGN KEY (template_id) REFERENCES [MyWork].[work_item_templates](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_template UNIQUE (work_item_id, template_id)
-    )
-  `,
-  );
-
-  await createTableIfNotExists(
-    pool,
-    "work_todo_associations",
-    `
-    CREATE TABLE [MyWork].[work_todo_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      todo_id INT NOT NULL,
-      CONSTRAINT fk_wtd_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wtd_todo FOREIGN KEY (todo_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_todo UNIQUE (work_item_id, todo_id)
-    )
-  `,
-  );
-
-  await createTableIfNotExists(
-    pool,
-    "work_task_associations",
-    `
-    CREATE TABLE [MyWork].[work_task_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      task_id INT NOT NULL,
-      CONSTRAINT fk_wtk_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wtk_task FOREIGN KEY (task_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_task UNIQUE (work_item_id, task_id)
-    )
-  `,
-  );
-
-  await createTableIfNotExists(
-    pool,
-    "work_ticket_associations",
-    `
-    CREATE TABLE [MyWork].[work_ticket_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      ticket_id INT NOT NULL,
-      CONSTRAINT fk_wti_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wti_ticket FOREIGN KEY (ticket_id) REFERENCES [MyWork].[tickets](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_ticket UNIQUE (work_item_id, ticket_id)
-    )
-  `,
-  );
+  // work_template_associations moved to after work_item_templates is created (see below)
+  // work_todo_associations moved to after to_dos is created (see below)
+  // work_task_associations moved to after tasks is created (see below)
+  // work_ticket_associations moved to after tickets is created (see below)
 
   // work_idea_associations table removed in Phase 1 (ideas migrated to generic entities)
 
@@ -484,6 +427,22 @@ export async function createMssqlSchema(pool) {
       ALTER TABLE [MyWork].[work_item_templates] ADD order_index INT DEFAULT 0
     `);
   }
+
+  // Now that work_item_templates exists, create work_template_associations junction table
+  await createTableIfNotExists(
+    pool,
+    "work_template_associations",
+    `
+    CREATE TABLE [MyWork].[work_template_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      template_id INT NOT NULL,
+      CONSTRAINT fk_wta_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wta_template FOREIGN KEY (template_id) REFERENCES [MyWork].[work_item_templates](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_template UNIQUE (work_item_id, template_id)
+    )
+  `,
+  );
 
   // template_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
@@ -627,6 +586,22 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
+  // Now that to_dos table is created, create work_todo_associations junction table
+  await createTableIfNotExists(
+    pool,
+    "work_todo_associations",
+    `
+    CREATE TABLE [MyWork].[work_todo_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      todo_id INT NOT NULL,
+      CONSTRAINT fk_wtd_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wtd_todo FOREIGN KEY (todo_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_todo UNIQUE (work_item_id, todo_id)
+    )
+  `,
+  );
+
   // idea_links table removed in Phase 1 (ideas migrated to generic entities)
 
   await createTableIfNotExists(
@@ -704,6 +679,25 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
+  // Now that to_dos and tasks tables are created, add the FK from work_items to them
+  // Use ALTER TABLE instead of adding to CREATE TABLE since those tables didn't exist yet
+  try {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items]
+      ADD CONSTRAINT fk_work_items_recurring_todo FOREIGN KEY (recurring_from_todo_id) REFERENCES [MyWork].[to_dos](id) ON DELETE SET NULL
+    `);
+  } catch (err) {
+    // Constraint might already exist, ignore
+  }
+  try {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[work_items]
+      ADD CONSTRAINT fk_work_items_recurring_task FOREIGN KEY (recurring_from_task_id) REFERENCES [MyWork].[tasks](id) ON DELETE SET NULL
+    `);
+  } catch (err) {
+    // Constraint might already exist, ignore
+  }
+
   await createTableIfNotExists(
     pool,
     "task_links",
@@ -720,6 +714,61 @@ export async function createMssqlSchema(pool) {
     )
   `,
   );
+
+  // Now that tasks table is created, create work_task_associations junction table
+  await createTableIfNotExists(
+    pool,
+    "work_task_associations",
+    `
+    CREATE TABLE [MyWork].[work_task_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      task_id INT NOT NULL,
+      CONSTRAINT fk_wtk_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wtk_task FOREIGN KEY (task_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_task UNIQUE (work_item_id, task_id)
+    )
+  `,
+  );
+
+  // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
+  // distinct from the "areas" table, which backs the unrelated Categories tab)
+  // Note: This must be created BEFORE tickets since tickets references contexts
+  await createTableIfNotExists(
+    pool,
+    "contexts",
+    `
+    CREATE TABLE [MyWork].[contexts] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      name NVARCHAR(255) NOT NULL UNIQUE,
+      order_index INT DEFAULT 0,
+      icon NVARCHAR(50) NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "contexts");
+
+  // Backfill for contexts created before icon existed.
+  if (!(await columnExists(pool, "contexts", "icon"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[contexts] ADD icon NVARCHAR(50) NULL
+    `);
+  }
+
+  // Seed a starting context so the app is never contextless out of the box.
+  const contextCountResult = await pool
+    .request()
+    .query("SELECT COUNT(*) as cnt FROM [MyWork].[contexts]");
+  if (contextCountResult.recordset[0].cnt === 0) {
+    await pool
+      .request()
+      .input("name", "Default")
+      .query(
+        "INSERT INTO [MyWork].[contexts] (name, order_index) VALUES (@name, 0)",
+      );
+  }
 
   await createTableIfNotExists(
     pool,
@@ -760,6 +809,22 @@ export async function createMssqlSchema(pool) {
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       CONSTRAINT fk_ticket_links_ticket FOREIGN KEY (ticket_id) REFERENCES [MyWork].[tickets](id) ON DELETE CASCADE
+    )
+  `,
+  );
+
+  // Now that tickets table is created, create work_ticket_associations junction table
+  await createTableIfNotExists(
+    pool,
+    "work_ticket_associations",
+    `
+    CREATE TABLE [MyWork].[work_ticket_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      ticket_id INT NOT NULL,
+      CONSTRAINT fk_wti_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wti_ticket FOREIGN KEY (ticket_id) REFERENCES [MyWork].[tickets](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_ticket UNIQUE (work_item_id, ticket_id)
     )
   `,
   );
@@ -820,41 +885,7 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "sso_identities");
 
-  await createTableIfNotExists(
-    pool,
-    "contexts",
-    `
-    CREATE TABLE [MyWork].[contexts] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      name NVARCHAR(255) NOT NULL UNIQUE,
-      order_index INT DEFAULT 0,
-      icon NVARCHAR(50) NULL,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "contexts");
-
-  // Backfill for contexts created before icon existed.
-  if (!(await columnExists(pool, "contexts", "icon"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[contexts] ADD icon NVARCHAR(50) NULL
-    `);
-  }
-
-  // Seed a starting context so the app is never contextless out of the box.
-  const contextCountResult = await pool
-    .request()
-    .query("SELECT COUNT(*) as cnt FROM [MyWork].[contexts]");
-  if (contextCountResult.recordset[0].cnt === 0) {
-    await pool
-      .request()
-      .input("name", "Default")
-      .query(
-        "INSERT INTO [MyWork].[contexts] (name, order_index) VALUES (@name, 0)",
-      );
-  }
+  // Contexts table moved to before tickets table (see below, tickets references contexts)
 
   // Every context belongs to a user once someone's logged in - see the
   // matching note in mysqlSchema.js.
@@ -992,17 +1023,15 @@ export async function createMssqlSchema(pool) {
   const firstContextId = firstContextResult.recordset[0].id;
   const contextTables = [
     "sources",
-    "areas",
     "priorities",
-    "goals",
     "work_items",
     "work_item_templates",
     "to_dos",
-    "idea_folders",
-    "ideas",
     "tasks",
     "tickets",
   ];
+  // Note: "areas", "goals", "idea_folders", "ideas" were migrated to generic entities
+  // in Phases 1-3 and no longer exist as separate tables
   for (const table of contextTables) {
     if (!(await columnExists(pool, table, "context_id"))) {
       await pool
@@ -1022,23 +1051,12 @@ export async function createMssqlSchema(pool) {
   // These three used to be uniquely constrained globally (e.g. only one area
   // ever named "Meetings" in the whole app); widened to per-context now that
   // context_id exists, so the same name can exist in different contexts.
-  await createIndexIfNotExists(
-    pool,
-    "unique_context_name",
-    "areas",
-    "CREATE UNIQUE INDEX unique_context_name ON [MyWork].[areas](context_id, name)",
-  );
+  // Note: areas and goals were migrated to generic entities and no longer have these tables
   await createIndexIfNotExists(
     pool,
     "unique_context_title",
     "priorities",
     "CREATE UNIQUE INDEX unique_context_title ON [MyWork].[priorities](context_id, title)",
-  );
-  await createIndexIfNotExists(
-    pool,
-    "unique_context_year_name",
-    "goals",
-    "CREATE UNIQUE INDEX unique_context_year_name ON [MyWork].[goals](context_id, year, name)",
   );
 
   // Hierarchical associations for cross-entity relationships - see mysqlSchema.js,
@@ -1052,25 +1070,11 @@ export async function createMssqlSchema(pool) {
   // dangling reference. The other two columns (goals.ticket_id, tickets.category_id)
   // aren't part of a cycle and keep MySQL's SET NULL behavior.
 
-  // Tickets can have todos and goals as children
+  // Todos can have tickets as children
   if (!(await columnExists(pool, "to_dos", "ticket_id"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[to_dos] ADD
         ticket_id INT NULL CONSTRAINT fk_to_dos_ticket FOREIGN KEY REFERENCES [MyWork].[tickets](id) ON DELETE NO ACTION
-    `);
-  }
-  if (!(await columnExists(pool, "goals", "ticket_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[goals] ADD
-        ticket_id INT NULL CONSTRAINT fk_goals_ticket FOREIGN KEY REFERENCES [MyWork].[tickets](id) ON DELETE SET NULL
-    `);
-  }
-
-  // Todos can have categories (areas) and tickets as children
-  if (!(await columnExists(pool, "areas", "todo_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[areas] ADD
-        todo_id INT NULL CONSTRAINT fk_areas_todo FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION
     `);
   }
   if (!(await columnExists(pool, "tickets", "todo_id"))) {
@@ -1080,19 +1084,7 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  // Categories (areas) can have tickets and todos as children
-  if (!(await columnExists(pool, "tickets", "category_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[tickets] ADD
-        category_id INT NULL CONSTRAINT fk_tickets_category FOREIGN KEY REFERENCES [MyWork].[areas](id) ON DELETE SET NULL
-    `);
-  }
-  if (!(await columnExists(pool, "to_dos", "category_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_dos] ADD
-        category_id INT NULL CONSTRAINT fk_to_dos_category FOREIGN KEY REFERENCES [MyWork].[areas](id) ON DELETE NO ACTION
-    `);
-  }
+  // Note: goals and areas tables were migrated to generic entities and no longer exist
 
   // Create quotes table (person + quote attribution for any object type)
   await createTableIfNotExists(

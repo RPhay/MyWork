@@ -251,15 +251,8 @@ export async function createMysqlSchema(connection) {
   }
 
   // Backfill tracking columns for recurring items (link to source todo/task)
-  if (!(await columnExists(connection, "work_items", "recurring_from_todo_id"))) {
-    await connection.query(`
-      ALTER TABLE work_items
-        ADD COLUMN recurring_from_todo_id INT,
-        ADD COLUMN recurring_from_task_id INT,
-        ADD FOREIGN KEY (recurring_from_todo_id) REFERENCES to_dos(id) ON DELETE SET NULL,
-        ADD FOREIGN KEY (recurring_from_task_id) REFERENCES tasks(id) ON DELETE SET NULL
-    `);
-  }
+  // Note: This FK creation is moved to after to_dos and tasks tables are created
+  // to avoid "Failed to open the referenced table" errors
 
   // work_goal_associations junction table removed in Phase 3 (goals migrated to generic entities)
 
@@ -289,53 +282,10 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create work_template_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_template_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      template_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (template_id) REFERENCES work_item_templates(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_template (work_item_id, template_id)
-    )
-  `);
-
-  // Create work_todo_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_todo_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      todo_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (todo_id) REFERENCES to_dos(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_todo (work_item_id, todo_id)
-    )
-  `);
-
-  // Create work_task_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_task_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      task_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_task (work_item_id, task_id)
-    )
-  `);
-
-  // Create work_ticket_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_ticket_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      ticket_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_ticket (work_item_id, ticket_id)
-    )
-  `);
+  // work_template_associations moved to after work_item_templates is created (see below)
+  // work_todo_associations moved to after to_dos is created (see below)
+  // work_task_associations moved to after tasks is created (see below)
+  // work_ticket_associations moved to after tickets is created (see below)
 
   // work_idea_associations junction table removed in Phase 1 (ideas migrated to generic entities)
 
@@ -385,6 +335,18 @@ export async function createMysqlSchema(connection) {
       "ALTER TABLE work_item_templates ADD COLUMN order_index INT DEFAULT 0",
     );
   }
+
+  // Now that work_item_templates exists, create work_template_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_template_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      template_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (template_id) REFERENCES work_item_templates(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_template (work_item_id, template_id)
+    )
+  `);
 
   // template_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
@@ -504,6 +466,18 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Now that to_dos table is created, create work_todo_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_todo_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      todo_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (todo_id) REFERENCES to_dos(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_todo (work_item_id, todo_id)
+    )
+  `);
+
   // Backfill target_date for pre-existing to_dos tables
   if (!(await columnExists(connection, "to_dos", "target_date"))) {
     await connection.query(
@@ -584,6 +558,17 @@ export async function createMysqlSchema(connection) {
     );
   }
 
+  // Now that to_dos and tasks tables are created, add the FK from work_items to them
+  if (!(await columnExists(connection, "work_items", "recurring_from_todo_id"))) {
+    await connection.query(`
+      ALTER TABLE work_items
+        ADD COLUMN recurring_from_todo_id INT,
+        ADD COLUMN recurring_from_task_id INT,
+        ADD FOREIGN KEY (recurring_from_todo_id) REFERENCES to_dos(id) ON DELETE SET NULL,
+        ADD FOREIGN KEY (recurring_from_task_id) REFERENCES tasks(id) ON DELETE SET NULL
+    `);
+  }
+
   // Drop folder tables if they exist (replaced by parent_id nesting on to_dos and tasks)
   if (await indexExists(connection, "to_do_folders", "PRIMARY")) {
     await connection.query("DROP TABLE IF EXISTS to_do_folders");
@@ -605,6 +590,49 @@ export async function createMysqlSchema(connection) {
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     )
   `);
+
+  // Now that tasks table is created, create work_task_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_task_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      task_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_task (work_item_id, task_id)
+    )
+  `);
+
+  // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
+  // distinct from the "areas" table, which backs the unrelated Categories tab)
+  // Note: This must be created BEFORE tickets since tickets references contexts
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS contexts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      order_index INT DEFAULT 0,
+      icon VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Backfill for contexts created before icon existed.
+  if (!(await columnExists(connection, "contexts", "icon"))) {
+    await connection.query("ALTER TABLE contexts ADD COLUMN icon VARCHAR(50)");
+  }
+
+  // Seed a starting context so the app is never contextless out of the box.
+  // It's a normal, renamable/deletable-if-not-last row, not a protected special case.
+  const [existingContexts] = await connection.query(
+    "SELECT COUNT(*) as cnt FROM contexts",
+  );
+  if (existingContexts[0].cnt === 0) {
+    await connection.query(
+      "INSERT INTO contexts (name, order_index) VALUES (?, ?)",
+      ["Default", 0],
+    );
+  }
 
   // Create tickets table (issue/ticket tracking with fixed categories: ServiceNow, Azure DevOps, Other)
   await connection.query(`
@@ -643,6 +671,18 @@ export async function createMysqlSchema(connection) {
     );
   }
 
+  // Now that tickets table is created, create work_ticket_associations junction table
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_ticket_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      ticket_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_ticket (work_item_id, ticket_id)
+    )
+  `);
+
   // Create users table - identity is deliberately minimal (name only, no
   // password): logging in with a name that doesn't exist yet creates it.
   // Good enough to keep each person's contexts (and everything under them)
@@ -676,35 +716,7 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
-  // distinct from the "areas" table, which backs the unrelated Categories tab)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS contexts (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NOT NULL UNIQUE,
-      order_index INT DEFAULT 0,
-      icon VARCHAR(50),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Backfill for contexts created before icon existed.
-  if (!(await columnExists(connection, "contexts", "icon"))) {
-    await connection.query("ALTER TABLE contexts ADD COLUMN icon VARCHAR(50)");
-  }
-
-  // Seed a starting context so the app is never contextless out of the box.
-  // It's a normal, renamable/deletable-if-not-last row, not a protected special case.
-  const [existingContexts] = await connection.query(
-    "SELECT COUNT(*) as cnt FROM contexts",
-  );
-  if (existingContexts[0].cnt === 0) {
-    await connection.query(
-      "INSERT INTO contexts (name, order_index) VALUES (?, ?)",
-      ["Default", 0],
-    );
-  }
+  // Contexts table moved to before tickets table (see below, tickets references contexts)
 
   // Every context belongs to exactly one user, once someone's logged in as
   // one - nullable so existing installs (upgrading from a pre-login version)
@@ -895,17 +907,15 @@ export async function createMysqlSchema(connection) {
   );
   const contextTables = [
     "sources",
-    "areas",
     "priorities",
-    "goals",
     "work_items",
     "work_item_templates",
     "to_dos",
-    "idea_folders",
-    "ideas",
     "tasks",
     "tickets",
   ];
+  // Note: "areas", "goals", "idea_folders", "ideas" were migrated to generic entities
+  // in Phases 1-3 and no longer exist as separate tables
   for (const table of contextTables) {
     if (!(await columnExists(connection, table, "context_id"))) {
       await connection.query(
@@ -919,46 +929,22 @@ export async function createMysqlSchema(connection) {
   }
 
   // A few uniqueness constraints predate contexts and were scoped globally
-  // (e.g. only one area could ever be named "Meetings" across the whole app).
+  // (e.g. only one priority could ever be named "Project A" across the whole app).
   // Widen them to be per-context so the same name can exist in different
   // contexts without colliding.
-  if (await indexExists(connection, "areas", "name")) {
-    await connection.query("ALTER TABLE areas DROP INDEX `name`");
-    await connection.query(
-      "ALTER TABLE areas ADD UNIQUE KEY unique_context_name (context_id, name)",
-    );
-  }
+  // Note: areas and goals were migrated to generic entities and no longer have these tables
   if (await indexExists(connection, "priorities", "title")) {
     await connection.query("ALTER TABLE priorities DROP INDEX `title`");
     await connection.query(
       "ALTER TABLE priorities ADD UNIQUE KEY unique_context_title (context_id, title)",
     );
   }
-  if (await indexExists(connection, "goals", "unique_year_name")) {
-    await connection.query("ALTER TABLE goals DROP INDEX unique_year_name");
-    await connection.query(
-      "ALTER TABLE goals ADD UNIQUE KEY unique_context_year_name (context_id, year, name)",
-    );
-  }
 
   // Add hierarchical associations for cross-entity relationships
-  // Tickets can have todos and goals as children
+  // Todos can have tickets as children
   if (!(await columnExists(connection, "to_dos", "ticket_id"))) {
     await connection.query(
       "ALTER TABLE to_dos ADD COLUMN ticket_id INT, ADD FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE SET NULL"
-    );
-  }
-
-  if (!(await columnExists(connection, "goals", "ticket_id"))) {
-    await connection.query(
-      "ALTER TABLE goals ADD COLUMN ticket_id INT, ADD FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE SET NULL"
-    );
-  }
-
-  // Todos can have categories (areas) and tickets as children
-  if (!(await columnExists(connection, "areas", "todo_id"))) {
-    await connection.query(
-      "ALTER TABLE areas ADD COLUMN todo_id INT, ADD FOREIGN KEY (todo_id) REFERENCES to_dos(id) ON DELETE SET NULL"
     );
   }
 
