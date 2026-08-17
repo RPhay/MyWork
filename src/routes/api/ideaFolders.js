@@ -1,15 +1,17 @@
 import express from 'express';
-import * as ideaFolderService from '../../services/ideaFolderService.js';
+import * as entityService from '../../services/entityService.js';
 import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
 
-// Get all folders
+// Get all folders (in generic entity engine, folders are just ideas with children)
 router.get('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const folders = await ideaFolderService.getAllFolders(contextId);
+    const allIdeas = await entityService.getAllEntities('idea', contextId);
+    // Filter to only ideas that have children (are folders)
+    const folders = allIdeas.filter(idea => idea.parent_id === null || idea.parent_id === undefined);
     res.json({ success: true, data: folders });
   } catch (error) {
     logger.error('Error fetching idea folders:', error);
@@ -20,7 +22,8 @@ router.get('/', async (req, res) => {
 // Get single folder
 router.get('/:id', async (req, res) => {
   try {
-    const folder = await ideaFolderService.getFolderById(req.params.id);
+    const contextId = await activeContextService.getActiveContextId();
+    const folder = await entityService.getEntityById(req.params.id, contextId);
     res.json({ success: true, data: folder });
   } catch (error) {
     logger.error('Error fetching idea folder:', error);
@@ -28,11 +31,11 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create folder
+// Create folder (just create an idea with no parent)
 router.post('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const folder = await ideaFolderService.createFolder(req.body, contextId);
+    const folder = await entityService.createEntity('idea', req.body, contextId);
     res.status(201).json({ success: true, message: 'Folder created', data: folder });
   } catch (error) {
     logger.error('Error creating idea folder:', error);
@@ -43,7 +46,7 @@ router.post('/', async (req, res) => {
 // Update folder
 router.put('/:id', async (req, res) => {
   try {
-    const folder = await ideaFolderService.updateFolder(req.params.id, req.body);
+    const folder = await entityService.updateEntity(req.params.id, req.body);
     res.json({ success: true, message: 'Folder updated', data: folder });
   } catch (error) {
     logger.error('Error updating idea folder:', error);
@@ -54,7 +57,7 @@ router.put('/:id', async (req, res) => {
 // Delete folder
 router.delete('/:id', async (req, res) => {
   try {
-    await ideaFolderService.deleteFolder(req.params.id);
+    await entityService.deleteEntity(req.params.id);
     res.json({ success: true, message: 'Folder deleted' });
   } catch (error) {
     logger.error('Error deleting idea folder:', error);
