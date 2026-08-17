@@ -167,9 +167,113 @@ async function countRows(tableName) {
 
 async function ensureGenericSchema() {
   try {
-    // Import schema creation functions
-    const { createGenericEntityTables } = await import('../database/schema/genericEntitySchema.js');
-    await createGenericEntityTables();
+    const dbType = getCurrentConfig().type;
+
+    // Create generic entity tables
+    const createTableStatements = [
+      `CREATE TABLE IF NOT EXISTS entity_types (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        slug VARCHAR(100) NOT NULL UNIQUE,
+        label VARCHAR(255) NOT NULL,
+        label_singular VARCHAR(255) NOT NULL,
+        icon VARCHAR(50),
+        supports_hierarchy BOOLEAN DEFAULT FALSE,
+        is_system BOOLEAN DEFAULT FALSE,
+        primary_date_field VARCHAR(100),
+        order_index INT DEFAULT 0,
+        deleted_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_slug (slug),
+        INDEX idx_deleted (deleted_at)
+      )`,
+      `CREATE TABLE IF NOT EXISTS entity_type_fields (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        entity_type_id INT NOT NULL,
+        field_key VARCHAR(100) NOT NULL,
+        label VARCHAR(255) NOT NULL,
+        field_type ENUM('text','textarea','number','date','select','status','checkbox','recurrence') NOT NULL,
+        field_options JSON,
+        required BOOLEAN DEFAULT FALSE,
+        display_order INT DEFAULT 0,
+        show_in_row BOOLEAN DEFAULT FALSE,
+        is_completion_signal BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (entity_type_id) REFERENCES entity_types(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_type_field (entity_type_id, field_key),
+        INDEX idx_type (entity_type_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS entity_type_relationships (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        parent_type_id INT NOT NULL,
+        child_type_id INT NOT NULL,
+        relationship_kind ENUM('hierarchy','association','recurrence','instantiated_from') NOT NULL,
+        max_children_per_parent INT,
+        max_parents_per_child INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_type_id) REFERENCES entity_types(id) ON DELETE CASCADE,
+        FOREIGN KEY (child_type_id) REFERENCES entity_types(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_relationship (parent_type_id, child_type_id, relationship_kind),
+        INDEX idx_parent (parent_type_id),
+        INDEX idx_child (child_type_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS entities (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        entity_type_id INT NOT NULL,
+        context_id INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        order_index INT DEFAULT 0,
+        legacy_work_item_id INT UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
+        INDEX idx_type (entity_type_id),
+        INDEX idx_context (context_id),
+        INDEX idx_type_context (entity_type_id, context_id),
+        INDEX idx_legacy (legacy_work_item_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS entity_field_values (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        entity_id INT NOT NULL,
+        field_key VARCHAR(100) NOT NULL,
+        value_text VARCHAR(500),
+        value_long LONGTEXT,
+        value_number DECIMAL(15,2),
+        value_date DATE,
+        value_bool BOOLEAN,
+        value_json JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_entity_field (entity_id, field_key),
+        INDEX idx_entity (entity_id),
+        INDEX idx_field_key_date (field_key, value_date),
+        INDEX idx_field_key_text (field_key, value_text)
+      )`,
+      `CREATE TABLE IF NOT EXISTS entity_relationships (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        context_id INT NOT NULL,
+        parent_entity_id INT NOT NULL,
+        child_entity_id INT NOT NULL,
+        relationship_kind ENUM('hierarchy','association','recurrence','instantiated_from') NOT NULL,
+        generated BOOLEAN DEFAULT FALSE,
+        order_index INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_entity_id) REFERENCES entities(id) ON DELETE NO ACTION,
+        FOREIGN KEY (child_entity_id) REFERENCES entities(id) ON DELETE NO ACTION,
+        UNIQUE KEY unique_relationship (parent_entity_id, child_entity_id, relationship_kind),
+        INDEX idx_context (context_id),
+        INDEX idx_parent (parent_entity_id),
+        INDEX idx_child (child_entity_id)
+      )`
+    ];
+
+    for (const statement of createTableStatements) {
+      await query(statement);
+    }
+
   } catch (error) {
     logger.error('Error ensuring generic schema:', error);
     throw new Error(`Failed to create generic schema: ${error.message}`);
