@@ -212,60 +212,9 @@ export async function createMssqlSchema(pool) {
       INSERT INTO [MyWork].[years] (year) VALUES (@year)
   `);
 
-  await createTableIfNotExists(
-    pool,
-    "goals",
-    `
-    CREATE TABLE [MyWork].[goals] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      year INT NOT NULL,
-      name NVARCHAR(255) NOT NULL,
-      description NVARCHAR(MAX),
-      measurements NVARCHAR(MAX),
-      goal_updates NVARCHAR(MAX),
-      status NVARCHAR(50) NOT NULL DEFAULT 'Not Started',
-      due_date DATE NULL,
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "goals");
-  await createIndexIfNotExists(
-    pool,
-    "idx_goals_year",
-    "goals",
-    "CREATE INDEX idx_goals_year ON [MyWork].[goals](year)",
-  );
-  await createIndexIfNotExists(
-    pool,
-    "idx_goals_status",
-    "goals",
-    "CREATE INDEX idx_goals_status ON [MyWork].[goals](status)",
-  );
+  // goals table removed in Phase 3 (goals migrated to generic entities)
 
-  // Backfill for goals created before order_index existed - see mysqlSchema.js
-  if (!(await columnExists(pool, "goals", "order_index"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[goals] ADD order_index INT DEFAULT 0
-    `);
-  }
-
-  await createTableIfNotExists(
-    pool,
-    "goal_categories",
-    `
-    CREATE TABLE [MyWork].[goal_categories] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      goal_id INT NOT NULL,
-      category_id INT NOT NULL,
-      CONSTRAINT fk_goal_categories_goal FOREIGN KEY (goal_id) REFERENCES [MyWork].[goals](id) ON DELETE CASCADE,
-      CONSTRAINT fk_goal_categories_category FOREIGN KEY (category_id) REFERENCES [MyWork].[categories](id) ON DELETE CASCADE,
-      CONSTRAINT unique_goal_category UNIQUE (goal_id, category_id)
-    )
-  `,
-  );
+  // goal_categories table removed in Phase 3 (goals migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
@@ -316,20 +265,7 @@ export async function createMssqlSchema(pool) {
 
   // priority_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
-  await createTableIfNotExists(
-    pool,
-    "priority_goals",
-    `
-    CREATE TABLE [MyWork].[priority_goals] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      priority_id INT NOT NULL,
-      goal_id INT NOT NULL,
-      CONSTRAINT fk_priority_goals_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE CASCADE,
-      CONSTRAINT fk_priority_goals_goal FOREIGN KEY (goal_id) REFERENCES [MyWork].[goals](id) ON DELETE CASCADE,
-      CONSTRAINT unique_priority_goal UNIQUE (priority_id, goal_id)
-    )
-  `,
-  );
+  // priority_goals junction table removed in Phase 3 (goals migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
@@ -409,20 +345,7 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  await createTableIfNotExists(
-    pool,
-    "work_goal_associations",
-    `
-    CREATE TABLE [MyWork].[work_goal_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      goal_id INT NOT NULL,
-      CONSTRAINT fk_wga_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wga_goal FOREIGN KEY (goal_id) REFERENCES [MyWork].[goals](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_goal UNIQUE (work_item_id, goal_id)
-    )
-  `,
-  );
+  // work_goal_associations junction table removed in Phase 3 (goals migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
@@ -564,20 +487,7 @@ export async function createMssqlSchema(pool) {
 
   // template_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
-  await createTableIfNotExists(
-    pool,
-    "template_goals",
-    `
-    CREATE TABLE [MyWork].[template_goals] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      template_id INT NOT NULL,
-      goal_id INT NOT NULL,
-      CONSTRAINT fk_template_goals_template FOREIGN KEY (template_id) REFERENCES [MyWork].[work_item_templates](id) ON DELETE CASCADE,
-      CONSTRAINT fk_template_goals_goal FOREIGN KEY (goal_id) REFERENCES [MyWork].[goals](id) ON DELETE CASCADE,
-      CONSTRAINT unique_template_goal UNIQUE (template_id, goal_id)
-    )
-  `,
-  );
+  // template_goals junction table removed in Phase 3 (goals migrated to generic entities)
 
   await createTableIfNotExists(
     pool,

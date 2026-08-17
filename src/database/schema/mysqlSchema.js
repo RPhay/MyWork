@@ -124,44 +124,7 @@ export async function createMysqlSchema(connection) {
     new Date().getFullYear(),
   ]);
 
-  // Create goals table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS goals (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      year INT NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      description LONGTEXT,
-      measurements LONGTEXT,
-      goal_updates LONGTEXT,
-      status VARCHAR(50) NOT NULL DEFAULT 'Not Started',
-      due_date DATE,
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_year (year),
-      INDEX idx_status (status),
-      UNIQUE KEY unique_year_name (year, name)
-    )
-  `);
-
-  // Backfill order_index for pre-existing goals tables
-  if (!(await columnExists(connection, "goals", "order_index"))) {
-    await connection.query(
-      "ALTER TABLE goals ADD COLUMN order_index INT DEFAULT 0",
-    );
-  }
-
-  // Create goal_categories junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS goal_categories (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      goal_id INT NOT NULL,
-      category_id INT NOT NULL,
-      FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_goal_category (goal_id, category_id)
-    )
-  `);
+  // goals and goal_categories tables removed in Phase 3 (goals migrated to generic entities)
 
   // Create priorities table (supports sub-projects via parent_id; areas/goals are many-to-many;
   // status + order_index drive the Priority Board's per-bay drag ordering)
@@ -213,17 +176,7 @@ export async function createMysqlSchema(connection) {
 
   // priority_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
-  // Create priority_goals junction table (a project can span multiple yearly goals)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS priority_goals (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      priority_id INT NOT NULL,
-      goal_id INT NOT NULL,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE CASCADE,
-      FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_priority_goal (priority_id, goal_id)
-    )
-  `);
+  // priority_goals junction table removed in Phase 3 (goals migrated to generic entities)
 
   // A prior revision linked a priority to a single area via area_id. Migrate any
   // existing values into the new many-to-many priority_areas table, then drop it.
@@ -308,17 +261,7 @@ export async function createMysqlSchema(connection) {
     `);
   }
 
-  // Create work_goal_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_goal_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      goal_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_goal (work_item_id, goal_id)
-    )
-  `);
+  // work_goal_associations junction table removed in Phase 3 (goals migrated to generic entities)
 
   // Create work_priority_associations junction table
   await connection.query(`
@@ -445,17 +388,7 @@ export async function createMysqlSchema(connection) {
 
   // template_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
-  // Create template_goals junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS template_goals (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      template_id INT NOT NULL,
-      goal_id INT NOT NULL,
-      FOREIGN KEY (template_id) REFERENCES work_item_templates(id) ON DELETE CASCADE,
-      FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_template_goal (template_id, goal_id)
-    )
-  `);
+  // template_goals junction table removed in Phase 3 (goals migrated to generic entities)
 
   // Create template_priorities junction table
   await connection.query(`
