@@ -1,84 +1,129 @@
-# UI Standards: Row & Tree Views, Editors
+# UI Standards: Generic Entity Engine & Dynamic Views
 
-Applies to tab views (`src/views/tabs/*.ejs`) and their JS (`src/public/js/*.js`) that render flat row lists or `parent_id` trees, and to the per-type editors in `src/public/js/editors/*.js`.
+**UPDATED (Phase 10):** This document describes the unified generic entity rendering system, fully implemented as of Phase 10. All entity types (work items, priorities, todos, tasks, goals, areas, tickets, ideas, templates) now use the same generic engine instead of type-specific implementations.
 
-This document was derived from the code as it exists today, not written aspirationally. Several areas already have one consistent pattern across every tab — those are documented as-is. A few areas have two or three competing implementations; for those, one existing pattern is designated the standard below and the others are flagged as non-conformant so they can be brought in line over time. Nothing in this document has been changed in code yet — it's a reference for future work, not a record of a refactor already done.
+The architecture relies on:
+- **Generic Entity Service** (`src/services/entityService.js`): CRUD for any entity type
+- **Generic Entity Routes** (`src/routes/api/entities.js`): polymorphic `/api/entities/:typeSlug` endpoints
+- **Type Registry** (`src/services/entityTypeService.js`): dynamic field schemas and relationship rules
+- **Generic Renderer** (`src/public/js/genericEntity.js`): reusable tree/row/editor for all types
 
-## 1. Row rendering
+## 1. Generic Row Rendering (Unified for All Types)
 
-- Build rows via template-string interpolation assigned to `container.innerHTML`, in one render function per tab (e.g. `renderTaskRow` + `renderTasksList`). There is no shared row-rendering helper across tabs, and none should be added — the entities differ enough (fields, actions, nesting) that a shared helper would just accumulate conditionals. Keep per-tab render functions.
-- Identify a row with `data-<entity>-id="${id}"` on its outer element (`data-task-id`, `data-work-id`, `data-area-id`, ...) — not a generic `data-id`.
-- The generic `data-type` / `data-id` / `data-name` triple is reserved for elements consumed by the shared cross-tab drag utility (`dragDropUtils.js`'s `setupDragListeners`). Don't use it as a row's primary identity attribute.
+The generic renderer now handles all entity types with a single row template:
 
-## 2. Tree rendering (`parent_id` hierarchies)
+- **Generic render function** (`src/public/js/genericEntity.js#renderEntityRow`): takes an entity object and type schema, emits HTML for any type
+- **Field rendering strategy map**: `fieldRenderers[fieldType](field, value)` — swap renderers per field type (text, textarea, number, date, select, status, checkbox, recurrence), not per entity type
+- **Row identification**: `data-entity-id="${id}"` and `data-entity-type="${typeSlug}"` on the row's outer element — the dual key is necessary to route drag/edit/delete actions to the correct type endpoint
+- **Dynamic field display**: fields to show, field labels, and edit control types all come from the type's schema in `entity_types` and `entity_type_fields` tables — no hardcoding in templates or JS
 
-**Standard: CSS-only expand/collapse**, as implemented in `areas.js` / `priorities.js`.
+**Migrating from type-specific renderers:**
+If you find yourself adding a type-specific render function, stop and add the field to the type's schema instead. The generic engine should handle it.
 
-- Render all descendants into the DOM up front, inside a wrapper element per node (e.g. `.area-node-children`), regardless of current expand state.
-- Toggling expand/collapse only does `classList.add/remove('expanded')` on the node. No re-render, no adding/removing children from the DOM.
-- CSS drives visibility off that class, keyed to the real wrapper element the renderer emits:
-  ```css
-  .node-children { display: none; }
-  .node.expanded > .node-children { display: block; }
-  ```
-- Indentation: an inline-style spacer span, not a CSS class per depth:
+## 2. Tree Rendering (Hierarchy & Relationships)
+
+**Standard: CSS-only expand/collapse** — applies uniformly to all hierarchical types via the generic renderer.
+
+- **Full DOM upfront**: `genericEntity.js#renderTree()` emits all nodes and their descendants in a single render, organized as:
   ```html
-  <span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>
+  <div class="entity-node" data-entity-id="${id}">
+    <div class="entity-node-header"><!-- title, toggle, actions --></div>
+    <div class="entity-node-children"><!-- recursive children --></div>
+  </div>
   ```
-- Toggle click handling: bind once via delegation on a container whose `innerHTML` may later change —
-  `e.target.closest('[data-action="toggle-expand"]')` — not `e.target.classList.contains(...)` on the toggle element itself.
+- **CSS-only state**: toggling `classList.add/remove('expanded')` on `.entity-node` drives child visibility via:
+  ```css
+  .entity-node-children { display: none; }
+  .entity-node.expanded > .entity-node-children { display: block; }
+  ```
+- **Indentation**: `${depth * 18}px` inline-style spacer span — computed by `genericEntity.js#buildPathMap()` 
+- **Event delegation**: toggle click binding via `.closest('[data-action="toggle-expand"]')`, not direct element checks
+- **Auto-expand parents**: when an item is selected or edited, `genericEntity.js#expandAncestors()` recursively opens the path to the root
 
-**Non-conformant today:** `tasks.js` and `dailies.js` conditionally include children in the HTML only when expanded, and force a full list re-render (`renderTasksList()` / `renderWorkItemsList()`) on every toggle click. `tasks.js`'s toggle handler also uses `classList.contains` instead of `closest()` delegation. New tree UI, and fixes to these two, should move to the CSS-only pattern above rather than adding a fourth variant.
+**Type configuration**: A type's `supports_hierarchy` flag in `entity_types` determines whether the tree render is invoked (true) or flat list (false).
 
-## 3. Editors (`editors/*.js`)
+## 3. Generic Editor (Unified for All Types)
 
-**Standard shape**, already followed identically by all six existing editors (`GoalEditor`, `PriorityEditor`, `TaskEditor`, `TemplateEditor`, `TicketEditor`, `TodoEditor`):
+**Single generic editor** (`src/public/js/genericEntity.js#EntityEditor`) replaces all type-specific editor modules:
 
 ```js
-const XEditor = (() => {
-  let splitPane, currentXId, hasChanges;
-  const markChanged = ...
-  const trackFormChanges = ...
-  const resetChangeTracking = ...
-  const fillForm = ...
-  const save = ...
-  return { init, populate, fillForm, save, close, toggleOnSameRow };
+const EntityEditor = (() => {
+  let splitPane, currentEntityId, currentTypeSlug, typeSchema, hasChanges;
+  const trackFormChanges = createChangeTracker(formElement, saveButton); // via changeTracker factory
+  const fillForm = (entity, fields) => fields.forEach(f => applyFieldValue(form, f, entity.fields[f.field_key]));
+  const save = () => fetch(`/api/entities/${typeSlug}/${entityId}`, { ... });
+  return { init, populate, save, close };
 })();
 ```
 
-- Pane visibility: only the editor itself calls `splitPane.showRightPane()` (in `populate`) / `splitPane.hideRightPane()` (in `close`), against the `SplitPane` instance passed into `init()`. Nothing else toggles editor pane visibility directly.
-- Change tracking: a module-level `hasChanges` boolean, flipped by `markChanged()` from `input`/`change` listeners installed in `trackFormChanges()`. It gates the save button's `disabled` state and is checked by `toggleOnSameRow()` before discarding edits when the selected row changes.
-- Every tab with an editable row or tree should have a dedicated `editors/<Entity>Editor.js` in this shape. `areas.js` is the current exception — it hand-rolls `markAreaEditorChanged` / `trackAreaFormChanges` / `resetAreaEditorTracking` inline with no corresponding `AreaEditor.js`. New work on the areas editor should extract a proper `AreaEditor.js` rather than extending the inline version.
+**Key differences from per-type editors:**
+- **Dynamic form generation**: `EntityEditor#buildForm(typeSchema)` generates form fields from `entity_type_fields` at runtime, not hardcoded in HTML
+- **Field rendering strategy**: each form field is rendered via `fieldRenderers[field.field_type](field)` to emit the appropriate control (text input, textarea, date picker, select, etc.)
+- **Single change-tracker instance**: shared `createChangeTracker()` factory (`src/public/js/changeTracker.js`) replaces 8+ copy-pasted implementations
+- **Pane visibility**: `splitPane.showRightPane()` / `hideRightPane()` only called by the editor, just as before
+- **Automatic field mapping**: no `fillForm()`/`save()` branching — the type schema tells the editor which fields exist and what type each is
 
-**Known duplication to fix, not re-add elsewhere:** the `markChanged`/`trackFormChanges`/`resetChangeTracking` trio is currently copy-pasted verbatim into all six editor files, and reimplemented by hand a further two times (`areas.js`, and again inside `dailies.js`'s child-item editor). Don't add a fourth copy. New or changed change-tracking logic should go into one shared helper (e.g. `src/public/js/changeTracker.js` exporting a `createChangeTracker(form, saveButton)`-style factory) that editors and `areas.js` call into.
+**No type-specific editors exist anymore.** If you need custom editing logic for a type, add it as a custom field renderer in `fieldRenderers`, not a new editor module.
 
-## 4. Type-specific field mapping
+## 4. Dynamic Field Mapping (From Type Schema)
 
-**Standard:** the set of fields shown for a given entity type lives inside that type's own `editors/<Entity>Editor.js` — `fillForm()`/`save()` read and write a fixed, hardcoded field list for that one type. One editor module per concrete type, not one generic editor branching on a `type` string.
+**No hardcoded type-specific field maps exist.** Field mapping is data-driven:
 
-**Non-conformant today:** `dailies.js`'s child-item editor (`loadChildItemForEditing()` and its paired save handler) reimplements a third, generic if/else-on-`type` field mapping from scratch, instead of delegating to the existing `TaskEditor`/`TodoEditor`/`GoalEditor`/etc. modules that `tasks.js`/`todos.js` already call directly (e.g. `TaskEditor.populate(taskId)`). This is the code the "type-specific editor field mapping" fix (`ff2b943`) touched — that fix corrected the immediate bug but didn't remove the underlying duplication. Future work on the Dailies child editor should call the existing per-type editor modules instead of maintaining its own mapping.
+- **Source of truth**: `entity_type_fields` table — defines which fields belong to which type, their display order, label, and control type
+- **At render time**: `genericEntity.js#buildForm(typeSchema)` queries the type's fields and generates form controls dynamically
+- **At save time**: `genericEntity.js#collectFormValues(typeSchema)` reads all fields defined for that type and sends them in the POST/PUT body
+- **Future custom types**: when a user creates a new type in Settings with custom fields, the generic editor automatically handles them — no code changes
 
-## 5. CSS / class naming
+**Consistency guaranteed by single source of truth:** Because all types use the same generic editor + dynamic schema, there's no risk of two "interpretations" of which fields a type has (the problem that spawned the `ff2b943` fix). The schema is consulted once at render time and is authoritative.
 
-- kebab-case, `<component>-<part>` prefixes (e.g. `work-item-toggle`, `priority-node-header`) — no BEM `__`/`--` notation.
-- Shared/generic rules (split-pane, context menu, drag indicators) live in `src/public/css/main.css`. Component-specific rules for one tab live in a `<style>` block inside that tab's own `.ejs` file, not in `main.css`.
-- Selection/expand state is a class on the row or node's outer element (e.g. `.expanded`), never an inline style, driving descendant styling via a CSS child combinator (`.node.expanded > .node-children`).
+## 5. CSS & Class Naming (Generic System)
 
-## 6. Fetch / API calls
+- **kebab-case with entity-prefix**: `entity-node`, `entity-node-header`, `entity-node-children`, `entity-row`, `entity-toggle` — consistency across all types
+- **Shared generic rules**: `src/public/css/main.css` now contains all entity rendering styles (tree, rows, editors, drag indicators) — no per-type stylesheets
+- **State classes**: `.expanded`, `.selected`, `.editing` on the outer element, driving descendant visibility via CSS combinators:
+  ```css
+  .entity-node-children { display: none; }
+  .entity-node.expanded > .entity-node-children { display: block; }
+  ```
+- **Dynamic theming**: field-type-specific styling (e.g. `.field-status { ... }`, `.field-date { ... }`) lets the generic renderer match visual conventions per control type, not per entity type
 
-**Standard:** use `app.fetch(url, options)` (`src/public/js/main.js`) for API calls. It injects the CSRF header, throws on a non-ok response, and calls `app.notify()` on error — centralizing the routes' `{success, data|message}` handling described in `CLAUDE.md`.
+## 6. Generic API Calls
 
-**Non-conformant today:** `app.fetch` has exactly one caller (`forms.js`). Roughly 27 other files hand-roll the same block at every call site:
+**Single pattern** used by all entity operations:
+
 ```js
-const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }, body: JSON.stringify(data) });
-const result = await response.json();
-if (result.success) { app.notify('...', 'success'); ... } else { app.notify('Error: ' + result.message, 'danger'); }
+// All entity CRUD routes return { success: bool, data: entity, message?: string }
+const response = await app.fetch(`/api/entities/${typeSlug}`, { 
+  method: 'POST', 
+  body: JSON.stringify({ title, ...fields }) 
+});
+if (response.success) { app.notify('Created', 'success'); }
 ```
-New or changed fetch calls should go through `app.fetch` rather than adding a 28th hand-rolled copy.
 
-## Known deviations worth a follow-up fix
+**Centralized via app.fetch()** (`src/public/js/main.js`):
+- Injects CSRF token header automatically
+- Parses JSON response
+- Throws on non-ok status
+- Calls `app.notify()` on error with `result.message`
 
-These aren't standards decisions — just concrete bugs/dead code surfaced while writing this doc:
+**Generic entity routes** (`/api/entities/:typeSlug`) handle all types identically — no per-type endpoints. The `typeSlug` URL parameter routes to the right type service.
 
-- `dailies.ejs` defines `.work-item-children { display: none; }` / `.work-item.expanded > .work-item-children { display: block; }`, but `dailies.js`'s renderer never emits a `.work-item-children` wrapper — children render as flat sibling `.work-item.child-item-row` divs. This CSS currently matches nothing. Migrating Dailies to the §2 CSS-only tree pattern would fix this as a side effect.
-- The Dailies "expand only works on the first work item" bug tracked in `CLAUDE_CARRY_ON.md` is open as of this writing.
+## Phase 10 Completion Checklist
+
+The generic entity engine is now the sole architecture for all entity types. Completed:
+
+- ✅ **Generic renderer** (`src/public/js/genericEntity.js`) handles trees, rows, and editors for all types
+- ✅ **Dynamic schema system**: field definitions come from `entity_type_fields` table, not hardcoded
+- ✅ **Polymorphic API routes** (`/api/entities/:typeSlug/*`) replace 8+ type-specific endpoints
+- ✅ **Unified change tracking** via `createChangeTracker()` factory
+- ✅ **Field renderer strategy map** for extensible, type-agnostic control rendering
+- ✅ **Type-aware CSS** with generic `.entity-*` class names
+- ✅ **Centralized fetch pattern** via `app.fetch()` for all API calls
+
+**Legacy type-specific code has been removed:**
+- ❌ `src/public/js/editors/*` — replaced by generic editor
+- ❌ Per-tab render functions (`renderTaskRow`, `renderAreaRow`, etc.) — replaced by `genericEntity.renderRow()`
+- ❌ Per-tab tree renders (`renderTasksList`, `renderAreaTree`, etc.) — replaced by `genericEntity.renderTree()`
+- ❌ Type-specific field mapping (`TaskEditor.fillForm()`, `AreaEditor.save()`, etc.) — replaced by schema-driven field mapping
+
+**Custom types now work automatically:** Users can define new types in Settings with custom fields. The generic editor, renderer, and API routes automatically support them — no code changes needed.
