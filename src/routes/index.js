@@ -31,6 +31,7 @@ import entityTypesRouter from "./api/entityTypes.js";
 import entitiesRouter from "./api/entities.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
+import * as entityTypeService from "../services/entityTypeService.js";
 
 const router = express.Router();
 
@@ -78,18 +79,34 @@ router.get("/setup", async (req, res) => {
 });
 
 // Dashboard route
-router.get("/", (req, res) => {
-  const currentYear = new Date().getFullYear();
-  const tab = req.query.tab || "dailies";
-  const version = readVersion();
+router.get("/", async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const tab = req.query.tab || "dailies";
+    const version = readVersion();
 
-  res.render("pages/dashboard", {
-    title: "MyWork Dashboard",
-    currentYear,
-    activeTab: tab,
-    version,
-    dbHealth: res.locals.dbHealth,
-  });
+    // Fetch all active entity types for generic tab rendering
+    const entityTypes = await entityTypeService.getAllEntityTypes();
+
+    res.render("pages/dashboard", {
+      title: "MyWork Dashboard",
+      currentYear,
+      activeTab: tab,
+      version,
+      dbHealth: res.locals.dbHealth,
+      entityTypes: entityTypes || [],
+    });
+  } catch (error) {
+    console.error("Dashboard route error:", error);
+    res.render("pages/dashboard", {
+      title: "MyWork Dashboard",
+      currentYear: new Date().getFullYear(),
+      activeTab: req.query.tab || "dailies",
+      version: readVersion(),
+      dbHealth: res.locals.dbHealth,
+      entityTypes: [],
+    });
+  }
 });
 
 // Redirect /dashboard to /

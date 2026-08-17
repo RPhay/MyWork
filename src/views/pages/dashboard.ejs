@@ -26,118 +26,74 @@
   <div class="container-fluid mt-4">
     <%- include('../components/alerts.ejs') %>
 
-    <!-- Tab Navigation -->
+    <!-- Tab Navigation (dynamically generated from entity types + special views) -->
     <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="dailies-tab" data-tab="dailies" type="button" role="tab">
-          <i class="bi bi-calendar-day"></i> Dailies
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="my-priorities" draggable="true">
-        <button class="nav-link" id="my-priorities-tab" data-tab="my-priorities" type="button" role="tab">
-          <i class="bi bi-folder2"></i> Projects
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="priority-board" draggable="true">
+      <% entityTypes.forEach(type => { %>
+        <li class="nav-item" role="presentation" <% if (type.slug !== 'work_item') { %>draggable="true"<% } %>>
+          <button class="nav-link" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
+            <% if (type.icon) { %>
+              <span><%= type.icon %></span>
+            <% } %>
+            <%= type.label %>
+          </button>
+        </li>
+      <% }); %>
+
+      <!-- Special View Tabs -->
+      <li class="nav-item" role="presentation" draggable="true">
         <button class="nav-link" id="priority-board-tab" data-tab="priority-board" type="button" role="tab">
           <i class="bi bi-kanban"></i> Priorities
         </button>
       </li>
-      <li class="nav-item" role="presentation" data-tab="areas" draggable="true">
-        <button class="nav-link" id="areas-tab" data-tab="areas" type="button" role="tab">
-          <i class="bi bi-diagram-3"></i> Categories
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="yearly-goals" draggable="true">
-        <button class="nav-link" id="yearly-goals-tab" data-tab="yearly-goals" type="button" role="tab">
-          <i class="bi bi-bullseye"></i> Yearly Goals
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="templates" draggable="true">
-        <button class="nav-link" id="templates-tab" data-tab="templates" type="button" role="tab">
-          <i class="bi bi-clipboard-plus"></i> Templates
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="todos" draggable="true">
-        <button class="nav-link" id="todos-tab" data-tab="todos" type="button" role="tab">
-          <i class="bi bi-check2-square"></i> To Dos
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="tasks" draggable="true">
-        <button class="nav-link" id="tasks-tab" data-tab="tasks" type="button" role="tab">
-          <i class="bi bi-list-task"></i> Tasks
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="brainstorming" draggable="true">
-        <button class="nav-link" id="brainstorming-tab" data-tab="brainstorming" type="button" role="tab">
-          <i class="bi bi-lightbulb"></i> Brainstorming
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="tickets" draggable="true">
-        <button class="nav-link" id="tickets-tab" data-tab="tickets" type="button" role="tab">
-          <i class="bi bi-ticket"></i> Tickets
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" data-tab="reporting" draggable="true">
+      <li class="nav-item" role="presentation" draggable="true">
         <button class="nav-link" id="reporting-tab" data-tab="reporting" type="button" role="tab">
           <i class="bi bi-bar-chart-line"></i> Reporting
         </button>
       </li>
     </ul>
 
-    <!-- Tab Content -->
+    <!-- Tab Content (dynamically generated from entity types) -->
     <div class="tab-content" id="mainTabContent">
-      <!-- Dailies Tab -->
-      <div id="tab-dailies" class="tab-content-pane">
-        <%- include('../tabs/dailies.ejs') %>
-      </div>
+      <%
+        // Map entity type slugs to template names and special handling
+        const templateMap = {
+          'work_item': 'dailies.ejs',
+          'priority': 'my-priorities.ejs',
+          'area': 'areas.ejs',
+          'goal': 'yearly-goals.ejs',
+          'to_do': 'todos.ejs',
+          'task': 'tasks.ejs',
+          'ticket': 'tickets.ejs',
+          'idea': 'brainstorming.ejs',
+          'template': 'templates.ejs'
+        };
 
-      <!-- Projects Tab -->
-      <div id="tab-my-priorities" class="tab-content-pane">
-        <%- include('../tabs/my-priorities.ejs') %>
-      </div>
+        // Special view tabs (not entity types, but views)
+        const specialTabs = ['priority-board', 'reporting'];
+      %>
 
-      <!-- Priorities Tab -->
+      <% entityTypes.forEach(type => { %>
+        <div id="tab-<%= type.slug %>" class="tab-content-pane">
+          <%
+            // Check if there's a type-specific template for backward compatibility
+            const templateFile = templateMap[type.slug];
+            if (templateFile) {
+          %>
+            <%- include('../tabs/' + templateFile) %>
+          <% } else { %>
+            <!-- Generic entity tab for custom types -->
+            <%- include('../tabs/generic-entity-tab.ejs', { typeSlug: type.slug, typeName: type.label }) %>
+          <% } %>
+        </div>
+      <% }); %>
+
+      <!-- Special view tabs (not entity types) -->
+      <!-- Priority Board - Kanban view of priorities -->
       <div id="tab-priority-board" class="tab-content-pane">
         <%- include('../tabs/priority-board.ejs') %>
       </div>
 
-      <!-- Areas Tab -->
-      <div id="tab-areas" class="tab-content-pane">
-        <%- include('../tabs/areas.ejs') %>
-      </div>
-
-      <!-- Yearly Goals Tab -->
-      <div id="tab-yearly-goals" class="tab-content-pane">
-        <%- include('../tabs/yearly-goals.ejs') %>
-      </div>
-
-      <!-- Templates Tab -->
-      <div id="tab-templates" class="tab-content-pane">
-        <%- include('../tabs/templates.ejs') %>
-      </div>
-
-      <!-- To Dos Tab -->
-      <div id="tab-todos" class="tab-content-pane">
-        <%- include('../tabs/todos.ejs') %>
-      </div>
-
-      <!-- Tasks Tab -->
-      <div id="tab-tasks" class="tab-content-pane">
-        <%- include('../tabs/tasks.ejs') %>
-      </div>
-
-      <!-- Brainstorming Tab -->
-      <div id="tab-brainstorming" class="tab-content-pane">
-        <%- include('../tabs/brainstorming.ejs') %>
-      </div>
-
-      <!-- Tickets Tab -->
-      <div id="tab-tickets" class="tab-content-pane">
-        <%- include('../tabs/tickets.ejs') %>
-      </div>
-
-      <!-- Reporting Tab -->
+      <!-- Reporting - Cross-type aggregation -->
       <div id="tab-reporting" class="tab-content-pane">
         <%- include('../tabs/reporting.ejs') %>
       </div>
@@ -173,6 +129,7 @@
   <script src="/js/dragDropUtils.js"></script>
   <script src="/js/splitPane.js"></script>
   <script src="/js/dataSourceAuth.js"></script>
+  <script src="/js/genericEntity.js"></script>
   <script src="/js/main.js"></script>
   <script src="/js/tabs.js"></script>
   <script src="/js/forms.js"></script>

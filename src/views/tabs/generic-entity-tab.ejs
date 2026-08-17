@@ -1,0 +1,133 @@
+<!-- Generic Entity Tab Template
+     This template is used for rendering any entity type with a hierarchical tree view
+     and split-pane editor. It works for any entity type that's configured in entity_types.
+-->
+
+<div class="split-pane" id="<%= typeSlug %>SplitPane">
+  <!-- Left Pane: List/Tree -->
+  <div class="split-pane-left">
+    <div class="panel-header">
+      <h3><%= typeName %></h3>
+      <button class="btn btn-sm btn-primary" onclick="window.GenericEntity.newEntity('<%= typeSlug %>')">
+        <i class="bi bi-plus"></i> New
+      </button>
+    </div>
+    <div class="list-container" id="<%= typeSlug %>ListPane">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div class="split-pane-divider" id="<%= typeSlug %>Divider"></div>
+
+  <!-- Right Pane: Editor -->
+  <div class="split-pane-right">
+    <div id="<%= typeSlug %>EditorPane" class="editor-pane"></div>
+  </div>
+</div>
+
+<script>
+// Initialize generic entity renderer for this type
+(async () => {
+  try {
+    // Fetch type schema
+    const typeResponse = await fetch('/api/entity-types/<%= typeSlug %>', {
+      headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+    });
+    if (!typeResponse.ok) throw new Error('Failed to fetch type schema');
+    const typeData = await typeResponse.json();
+    if (!typeData.success) throw new Error(typeData.message);
+    const typeSchema = typeData.data;
+
+    // Fetch entities for this type
+    const entitiesResponse = await fetch('/api/entities/<%= typeSlug %>', {
+      headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+    });
+    if (!entitiesResponse.ok) throw new Error('Failed to fetch entities');
+    const entitiesData = await entitiesResponse.json();
+    if (!entitiesData.success) throw new Error(entitiesData.message);
+    const entities = entitiesData.data || [];
+
+    // Initialize split pane for this type
+    const splitPane = new SplitPane(
+      '<%= typeSlug %>SplitPane',
+      '<%= typeSlug %>ListPane',
+      '<%= typeSlug %>EditorPane',
+      '<%= typeSlug %>Divider'
+    );
+
+    // Render tree
+    const listContainer = document.getElementById('<%= typeSlug %>ListPane');
+    if (typeSchema.supports_hierarchy) {
+      listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema);
+    } else {
+      listContainer.innerHTML = entities.map(e => GenericEntity.renderRow(e, typeSchema, 0)).join('');
+    }
+
+    // Initialize event listeners
+    listContainer.addEventListener('click', async (e) => {
+      const editBtn = e.target.closest('[data-action="edit"]');
+      const deleteBtn = e.target.closest('[data-action="delete"]');
+      const toggleBtn = e.target.closest('[data-action="toggle-expand"]');
+
+      if (editBtn) {
+        const row = editBtn.closest('[data-entity-id]');
+        const entityId = row.dataset.entityId;
+        const entity = entities.find(x => x.id == entityId);
+        GenericEntity.init('<%= typeSlug %>', typeSchema, splitPane);
+        GenericEntity.populate(entityId, entity, typeSchema);
+      }
+
+      if (deleteBtn) {
+        const row = deleteBtn.closest('[data-entity-id]');
+        const entityId = row.dataset.entityId;
+        if (confirm('Delete this item?')) {
+          const delResp = await fetch(`/api/entities/<%= typeSlug %>/${entityId}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+          });
+          if (delResp.ok) {
+            location.reload();
+          }
+        }
+      }
+
+      if (toggleBtn) {
+        const row = toggleBtn.closest('[data-entity-id]');
+        const node = row.closest('[data-entity-id]');
+        node.classList.toggle('expanded');
+        const entityId = node.dataset.entityId;
+        const isExpanded = node.classList.contains('expanded');
+        localStorage.setItem(`entity-expanded-${entityId}`, isExpanded ? 'true' : 'false');
+      }
+    });
+
+    // Wire save button
+    const editorPane = document.getElementById('<%= typeSlug %>EditorPane');
+    editorPane.addEventListener('click', async (e) => {
+      if (e.target.id === 'entity-save-btn') {
+        e.preventDefault();
+        try {
+          const saved = await GenericEntity.save();
+          app.notify('Saved successfully', 'success');
+          GenericEntity.close();
+          // Reload entities list
+          location.reload();
+        } catch (error) {
+          app.notify(error.message, 'danger');
+        }
+      }
+      if (e.target.dataset.action === 'cancel') {
+        GenericEntity.close();
+      }
+    });
+
+  } catch (error) {
+    console.error('Error initializing <%= typeSlug %> tab:', error);
+    document.getElementById('<%= typeSlug %>ListPane').innerHTML =
+      `<div class="alert alert-danger">Error loading <%= typeName %>: ${error.message}</div>`;
+  }
+})();
+</script>
