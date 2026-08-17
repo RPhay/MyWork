@@ -1,10 +1,11 @@
 <!-- Generic Entity Tab Template
-     This template is used for rendering any entity type with a hierarchical tree view
-     and split-pane editor. It works for any entity type that's configured in entity_types.
+     This template is used for rendering any entity type with a hierarchical tree view,
+     optional calendar view, and split-pane editor. It works for any entity type that's
+     configured in entity_types.
 -->
 
 <div class="split-pane" id="<%= typeSlug %>SplitPane">
-  <!-- Left Pane: List/Tree -->
+  <!-- Left Pane: Calendar View (if primary_date_field exists) or List/Tree -->
   <div class="split-pane-left">
     <div class="panel-header">
       <h3><%= typeName %></h3>
@@ -12,6 +13,11 @@
         <i class="bi bi-plus"></i> New
       </button>
     </div>
+
+    <!-- Calendar View (if type has date field) -->
+    <div id="<%= typeSlug %>CalendarPane" style="display: none; padding: 15px; overflow-y: auto;"></div>
+
+    <!-- List/Tree View (default) -->
     <div class="list-container" id="<%= typeSlug %>ListPane">
       <div class="spinner-border" role="status">
         <span class="visually-hidden">Loading...</span>
@@ -57,6 +63,12 @@
       '<%= typeSlug %>EditorPane',
       '<%= typeSlug %>Divider'
     );
+
+    // Initialize calendar view if type has a date field
+    if (typeSchema.primary_date_field && window.CalendarView) {
+      const calendarPane = document.getElementById('<%= typeSlug %>CalendarPane');
+      CalendarView.init('<%= typeSlug %>', typeSchema, calendarPane);
+    }
 
     // Render tree
     const listContainer = document.getElementById('<%= typeSlug %>ListPane');

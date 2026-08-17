@@ -1,0 +1,285 @@
+<!-- Settings: Manage Entity Types -->
+<div style="padding: 20px; max-width: 1000px;">
+  <h2>Manage Entity Types</h2>
+  <p class="text-muted">Create custom entity types to organize work the way you need.</p>
+
+  <!-- Create New Type Form -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">Create New Type</h5>
+    </div>
+    <div class="card-body">
+      <form id="createTypeForm">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="typeLabel" class="form-label">Type Name *</label>
+              <input type="text" class="form-control" id="typeLabel" name="label" required
+                     placeholder="e.g., Books, Projects, Health Goals">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="typeIcon" class="form-label">Icon (emoji)</label>
+              <input type="text" class="form-control" id="typeIcon" name="icon" maxlength="2"
+                     placeholder="e.g., 📚, 🎯, ❤️">
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="typeLabelSingular" class="form-label">Singular Name</label>
+              <input type="text" class="form-control" id="typeLabelSingular" name="label_singular"
+                     placeholder="e.g., Book, Project, Health Goal">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label">Options</label>
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="supportsHierarchy" name="supports_hierarchy">
+                <label class="form-check-label" for="supportsHierarchy">
+                  Supports Hierarchy (parent/child nesting)
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Fields</label>
+          <div id="fieldsContainer" class="border rounded p-3 mb-3" style="min-height: 100px; background-color: #f8f9fa;">
+            <!-- Fields will be added here dynamically -->
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="addFieldBtn">
+            <i class="bi bi-plus"></i> Add Field
+          </button>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Create Type</button>
+          <button type="reset" class="btn btn-outline-secondary">Clear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Existing System Types -->
+  <div class="card">
+    <div class="card-header">
+      <h5 class="mb-0">System Types (Read-only)</h5>
+    </div>
+    <div class="card-body">
+      <div id="systemTypesList" class="list-group">
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding: 10px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+
+  .field-row input,
+  .field-row select {
+    font-size: 0.9em;
+  }
+
+  .field-row .btn-sm {
+    padding: 0.375rem 0.5rem;
+  }
+
+  .type-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .type-item:last-child {
+    border-bottom: none;
+  }
+
+  .type-icon {
+    font-size: 1.5em;
+    margin-right: 10px;
+  }
+
+  .type-info {
+    flex: 1;
+  }
+
+  .type-slug {
+    font-family: monospace;
+    color: #6c757d;
+    font-size: 0.85em;
+  }
+
+  .type-fields {
+    color: #6c757d;
+    font-size: 0.9em;
+    margin-top: 3px;
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  let fieldIndex = 0;
+
+  // Initialize fields container
+  const fieldsContainer = document.getElementById('fieldsContainer');
+  const addFieldBtn = document.getElementById('addFieldBtn');
+
+  // Add field function
+  function addFieldRow(fieldData = {}) {
+    const fieldId = fieldIndex++;
+    const html = `
+      <div class="field-row" data-field-index="${fieldId}">
+        <input type="text" class="form-control" placeholder="Field key (auto from label)"
+               value="${fieldData.field_key || ''}" readonly style="background-color: #e9ecef;">
+        <input type="text" class="form-control field-label" placeholder="Label (e.g., Status)"
+               value="${fieldData.label || ''}" required>
+        <select class="form-control field-type" required>
+          <option value="">-- Select Type --</option>
+          <option value="text" ${fieldData.field_type === 'text' ? 'selected' : ''}>Text</option>
+          <option value="textarea" ${fieldData.field_type === 'textarea' ? 'selected' : ''}>Long Text</option>
+          <option value="number" ${fieldData.field_type === 'number' ? 'selected' : ''}>Number</option>
+          <option value="date" ${fieldData.field_type === 'date' ? 'selected' : ''}>Date</option>
+          <option value="select" ${fieldData.field_type === 'select' ? 'selected' : ''}>Select</option>
+          <option value="status" ${fieldData.field_type === 'status' ? 'selected' : ''}>Status</option>
+          <option value="checkbox" ${fieldData.field_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-danger remove-field">Remove</button>
+      </div>
+    `;
+    fieldsContainer.insertAdjacentHTML('beforeend', html);
+
+    // Auto-generate field key from label
+    const labelInput = fieldsContainer.querySelector(`[data-field-index="${fieldId}"] .field-label`);
+    const keyInput = fieldsContainer.querySelector(`[data-field-index="${fieldId}"] [readonly]`);
+    labelInput.addEventListener('change', (e) => {
+      keyInput.value = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    });
+
+    // Remove button
+    fieldsContainer.querySelector(`[data-field-index="${fieldId}"] .remove-field`).addEventListener('click', (e) => {
+      e.target.closest('.field-row').remove();
+    });
+  }
+
+  // Add field button
+  addFieldBtn.addEventListener('click', () => addFieldRow());
+
+  // Add one default field
+  addFieldRow({ label: 'Status', field_type: 'status' });
+
+  // Form submission
+  document.getElementById('createTypeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const typeData = {
+      label: formData.get('label'),
+      label_singular: formData.get('label_singular') || formData.get('label'),
+      icon: formData.get('icon') || null,
+      supports_hierarchy: formData.get('supports_hierarchy') ? true : false,
+      fields: []
+    };
+
+    // Collect fields
+    fieldsContainer.querySelectorAll('.field-row').forEach((row, index) => {
+      const fieldKey = row.querySelector('[readonly]').value;
+      const label = row.querySelector('.field-label').value;
+      const fieldType = row.querySelector('.field-type').value;
+
+      if (fieldKey && label && fieldType) {
+        typeData.fields.push({
+          field_key: fieldKey,
+          label: label,
+          field_type: fieldType,
+          required: false,
+          show_in_row: index < 2, // Show first 2 fields in row
+          display_order: index,
+          is_completion_signal: fieldType === 'status' && index === 0 // First status is completion signal
+        });
+      }
+    });
+
+    if (typeData.fields.length === 0) {
+      app.notify('Please add at least one field', 'warning');
+      return;
+    }
+
+    try {
+      const response = await app.fetch('/api/entity-types', {
+        method: 'POST',
+        body: JSON.stringify(typeData)
+      });
+
+      if (response.success) {
+        app.notify(`Type "${typeData.label}" created! Refreshing to show new tab...`, 'success');
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        app.notify(response.message || 'Failed to create type', 'danger');
+      }
+    } catch (error) {
+      app.notify(error.message, 'danger');
+    }
+  });
+
+  // Load and display system types
+  try {
+    const response = await fetch('/api/entity-types');
+    const data = await response.json();
+
+    if (data.success) {
+      const systemTypesList = document.getElementById('systemTypesList');
+      systemTypesList.innerHTML = '';
+
+      const systemTypes = data.data.filter(t => t.is_system);
+      if (systemTypes.length === 0) {
+        systemTypesList.innerHTML = '<p class="text-muted">No system types found.</p>';
+        return;
+      }
+
+      systemTypes.forEach(type => {
+        const fieldCount = type.fields?.length || 0;
+        const hierarchyLabel = type.supports_hierarchy ? '🌳 Hierarchical' : '📋 Flat';
+        const html = `
+          <div class="type-item">
+            <div style="display: flex; align-items: center; flex: 1;">
+              <span class="type-icon">${type.icon || '📦'}</span>
+              <div class="type-info">
+                <strong>${type.label}</strong>
+                <div class="type-slug">${type.slug}</div>
+                <div class="type-fields">${fieldCount} fields • ${hierarchyLabel}</div>
+              </div>
+            </div>
+            <span class="badge bg-secondary">System</span>
+          </div>
+        `;
+        systemTypesList.insertAdjacentHTML('beforeend', html);
+      });
+    }
+  } catch (error) {
+    console.error('Error loading system types:', error);
+    document.getElementById('systemTypesList').innerHTML =
+      `<p class="text-danger">Error loading types: ${error.message}</p>`;
+  }
+});
+</script>

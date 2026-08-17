@@ -30,6 +30,11 @@
     <!-- Tab Navigation -->
     <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
       <li class="nav-item" role="presentation">
+        <button class="nav-link" id="entity-types-tab" data-tab="entity-types" type="button" role="tab">
+          <i class="bi bi-tag"></i> Entity Types
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
         <button class="nav-link" id="system-database-tab" data-tab="system-database" type="button" role="tab">
           System Database
         </button>
@@ -43,6 +48,10 @@
 
     <!-- Tab Content -->
     <div class="tab-content" id="mainTabContent">
+      <!-- Entity Types Tab (Create and manage custom entity types) -->
+      <div id="tab-entity-types" class="tab-content-pane">
+        <%- include('../tabs/settings-entity-types.ejs') %>
+      </div>
       <!-- System Database Tab (app-level configuration for MyWork data storage) -->
       <div id="tab-system-database" class="tab-content-pane">
         <div id="systemDatabasePanel"></div>
