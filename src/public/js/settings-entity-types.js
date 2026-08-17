@@ -134,10 +134,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="type-fields">${fieldCount} fields • ${hierarchyLabel}</div>
               </div>
             </div>
-            <span class="badge bg-secondary">System</span>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-primary edit-system-type" data-type-id="${type.id}">
+                Edit
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-warning revert-system-type" data-type-id="${type.id}">
+                Revert
+              </button>
+            </div>
           </div>
         `;
         systemTypesList.insertAdjacentHTML('beforeend', html);
+      });
+
+      // Add edit click handlers
+      document.querySelectorAll('.edit-system-type').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const typeId = e.target.dataset.typeId;
+          const type = systemTypes.find(t => t.id == typeId);
+          if (type) showEditSystemTypeModal(type, systemTypes);
+        });
+      });
+
+      // Add revert click handlers
+      document.querySelectorAll('.revert-system-type').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const typeId = e.target.dataset.typeId;
+          const type = systemTypes.find(t => t.id == typeId);
+          if (type && confirm(`Revert "${type.label}" to default settings?`)) {
+            await revertSystemType(typeId);
+          }
+        });
       });
     } else {
       document.getElementById('systemTypesList').innerHTML =
@@ -147,5 +174,94 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Error loading system types:', error);
     document.getElementById('systemTypesList').innerHTML =
       `<p class="text-danger">Error loading types: ${error.message}</p>`;
+  }
+
+  // Edit system type modal
+  function showEditSystemTypeModal(type, allTypes) {
+    const modalHtml = `
+      <div class="modal fade" id="editSystemTypeModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Edit System Type: ${type.label}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="editSystemTypeForm">
+                <div class="mb-3">
+                  <label for="editTypeIcon" class="form-label">Icon (emoji)</label>
+                  <input type="text" class="form-control" id="editTypeIcon" maxlength="2" value="${type.icon || ''}">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Options</label>
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="editTypeHierarchy" ${type.supports_hierarchy ? 'checked' : ''}>
+                    <label class="form-check-label" for="editTypeHierarchy">
+                      Supports Hierarchy (parent/child nesting)
+                    </label>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-primary" id="saveEditSystemTypeBtn">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Remove old modal if exists
+    const oldModal = document.getElementById('editSystemTypeModal');
+    if (oldModal) oldModal.remove();
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('editSystemTypeModal'));
+
+    document.getElementById('saveEditSystemTypeBtn').addEventListener('click', async () => {
+      const icon = document.getElementById('editTypeIcon').value;
+      const supportsHierarchy = document.getElementById('editTypeHierarchy').checked;
+
+      try {
+        const response = await app.fetch(`/api/entity-types/${type.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            icon: icon || null,
+            supports_hierarchy: supportsHierarchy
+          })
+        });
+
+        if (response.success) {
+          app.notify(`Type "${type.label}" updated!`, 'success');
+          modal.hide();
+          setTimeout(() => location.reload(), 500);
+        } else {
+          app.notify(response.message || 'Failed to update type', 'danger');
+        }
+      } catch (error) {
+        app.notify(error.message, 'danger');
+      }
+    });
+
+    modal.show();
+  }
+
+  // Revert system type to defaults
+  async function revertSystemType(typeId) {
+    try {
+      const response = await app.fetch(`/api/entity-types/${typeId}/revert`, {
+        method: 'POST'
+      });
+
+      if (response.success) {
+        app.notify('Type reverted to default settings!', 'success');
+        setTimeout(() => location.reload(), 500);
+      } else {
+        app.notify(response.message || 'Failed to revert type', 'danger');
+      }
+    } catch (error) {
+      app.notify(error.message, 'danger');
+    }
   }
 });

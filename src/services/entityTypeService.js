@@ -246,3 +246,33 @@ export async function updateEntityTypeRelationship(ruleId, data) {
 export async function deleteEntityTypeRelationship(ruleId) {
   await query('DELETE FROM entity_type_relationships WHERE id = ?', [ruleId]);
 }
+
+// System type defaults (from phase0-seed-entity-types.js)
+const SYSTEM_TYPE_DEFAULTS = {
+  work_item: { label: 'Dailies', label_singular: 'Work Item', icon: '✓', supports_hierarchy: true, primary_date_field: 'date' },
+  priority: { label: 'Projects', label_singular: 'Priority', icon: '📌', supports_hierarchy: true, primary_date_field: null },
+  area: { label: 'Categories', label_singular: 'Area', icon: '📂', supports_hierarchy: true, primary_date_field: null },
+  goal: { label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: false, primary_date_field: null },
+  to_do: { label: 'Todos', label_singular: 'Todo', icon: '☑', supports_hierarchy: true, primary_date_field: null },
+  task: { label: 'Tasks', label_singular: 'Task', icon: '📋', supports_hierarchy: true, primary_date_field: null },
+  ticket: { label: 'Tickets', label_singular: 'Ticket', icon: '🎫', supports_hierarchy: true, primary_date_field: null },
+  idea: { label: 'Brainstorming', label_singular: 'Idea', icon: '💡', supports_hierarchy: true, primary_date_field: null },
+  template: { label: 'Templates', label_singular: 'Template', icon: '📑', supports_hierarchy: false, primary_date_field: null }
+};
+
+// Revert a system type to its default settings
+export async function revertSystemType(id) {
+  const type = await getEntityType(id);
+  if (!type.is_system) throw new ValidationError('Can only revert system types');
+
+  const defaults = SYSTEM_TYPE_DEFAULTS[type.slug];
+  if (!defaults) throw new ValidationError(`No default settings found for type: ${type.slug}`);
+
+  const values = [defaults.label, defaults.label_singular, defaults.icon, defaults.supports_hierarchy ? 1 : 0, defaults.primary_date_field || null, id];
+  await query(
+    'UPDATE entity_types SET label = ?, label_singular = ?, icon = ?, supports_hierarchy = ?, primary_date_field = ? WHERE id = ?',
+    values
+  );
+
+  return getEntityType(id);
+}

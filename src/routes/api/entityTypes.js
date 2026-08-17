@@ -65,6 +65,17 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/entity-types/:id/revert - Revert a system type to defaults
+router.post('/:id/revert', async (req, res) => {
+  try {
+    const type = await entityTypeService.revertSystemType(parseInt(req.params.id));
+    res.json({ success: true, data: type, message: 'Type reverted to default settings' });
+  } catch (error) {
+    logger.error('Error reverting entity type:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // ===== Entity Type Field Routes =====
 
 // GET /api/entity-types/:typeId/fields - List fields for a type
