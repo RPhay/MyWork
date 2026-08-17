@@ -954,18 +954,7 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Categories (areas) can have tickets and todos as children
-  if (!(await columnExists(connection, "tickets", "category_id"))) {
-    await connection.query(
-      "ALTER TABLE tickets ADD COLUMN category_id INT, ADD FOREIGN KEY (category_id) REFERENCES areas(id) ON DELETE SET NULL"
-    );
-  }
-
-  if (!(await columnExists(connection, "to_dos", "category_id"))) {
-    await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN category_id INT, ADD FOREIGN KEY (category_id) REFERENCES areas(id) ON DELETE SET NULL"
-    );
-  }
+  // Note: areas table was migrated to generic entities and no longer exists
 
   // Create quotes table (person + quote attribution for any object type)
   await connection.query(`
