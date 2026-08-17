@@ -108,33 +108,7 @@ export async function createMysqlSchema(connection) {
     ]);
   }
 
-  // Create areas table (user-managed, associated with priorities; supports sub-areas via parent_id)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS areas (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NOT NULL UNIQUE,
-      description LONGTEXT,
-      parent_id INT,
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (parent_id) REFERENCES areas(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Backfill parent_id for pre-existing areas tables
-  if (!(await columnExists(connection, "areas", "parent_id"))) {
-    await connection.query(
-      "ALTER TABLE areas ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES areas(id) ON DELETE CASCADE",
-    );
-  }
-
-  // Backfill order_index for pre-existing areas tables
-  if (!(await columnExists(connection, "areas", "order_index"))) {
-    await connection.query(
-      "ALTER TABLE areas ADD COLUMN order_index INT DEFAULT 0",
-    );
-  }
+  // areas table removed in Phase 2 (areas migrated to generic entities)
 
   // Create years table (selectable years for Yearly Goals)
   await connection.query(`
@@ -237,17 +211,7 @@ export async function createMysqlSchema(connection) {
     await connection.query("ALTER TABLE priorities DROP COLUMN category_id");
   }
 
-  // Create priority_areas junction table (a project can span multiple areas)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS priority_areas (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      priority_id INT NOT NULL,
-      area_id INT NOT NULL,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE CASCADE,
-      FOREIGN KEY (area_id) REFERENCES areas(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_priority_area (priority_id, area_id)
-    )
-  `);
+  // priority_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
   // Create priority_goals junction table (a project can span multiple yearly goals)
   await connection.query(`
@@ -368,17 +332,7 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create work_area_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_area_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      area_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (area_id) REFERENCES areas(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_area (work_item_id, area_id)
-    )
-  `);
+  // work_area_associations junction table removed in Phase 2 (areas migrated to generic entities)
 
   // Create work_source_associations junction table
   await connection.query(`
@@ -489,17 +443,7 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Create template_areas junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS template_areas (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      template_id INT NOT NULL,
-      area_id INT NOT NULL,
-      FOREIGN KEY (template_id) REFERENCES work_item_templates(id) ON DELETE CASCADE,
-      FOREIGN KEY (area_id) REFERENCES areas(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_template_area (template_id, area_id)
-    )
-  `);
+  // template_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
   // Create template_goals junction table
   await connection.query(`

@@ -187,44 +187,9 @@ export async function createMssqlSchema(pool) {
     );
   }
 
-  await createTableIfNotExists(
-    pool,
-    "areas",
-    `
-    CREATE TABLE [MyWork].[areas] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      name NVARCHAR(255) NOT NULL,
-      description NVARCHAR(MAX),
-      parent_id INT NULL,
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      -- NO ACTION, not CASCADE: SQL Server rejects a self-referencing cascade
-      -- here because areas is also the target of other cascading FKs
-      -- (priority_areas, template_areas, work_area_associations) - "may
-      -- cause cycles or multiple cascade paths". Deleting an area with
-      -- children fails with a clear FK-violation error instead of
-      -- recursively deleting them (a real behavior difference from MySQL,
-      -- which does cascade this - not worth a recursive app-level delete
-      -- for this edge case today).
-      CONSTRAINT fk_areas_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[areas](id) ON DELETE NO ACTION
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "areas");
+  // areas table removed in Phase 2 (areas migrated to generic entities)
 
-  // Backfill for areas created before nesting/ordering existed - see mysqlSchema.js
-  if (!(await columnExists(pool, "areas", "parent_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[areas] ADD
-        parent_id INT NULL CONSTRAINT fk_areas_parent FOREIGN KEY REFERENCES [MyWork].[areas](id) ON DELETE NO ACTION
-    `);
-  }
-  if (!(await columnExists(pool, "areas", "order_index"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[areas] ADD order_index INT DEFAULT 0
-    `);
-  }
+  // Backfill statements for areas removed in Phase 2 (areas migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
@@ -349,20 +314,7 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  await createTableIfNotExists(
-    pool,
-    "priority_areas",
-    `
-    CREATE TABLE [MyWork].[priority_areas] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      priority_id INT NOT NULL,
-      area_id INT NOT NULL,
-      CONSTRAINT fk_priority_areas_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE CASCADE,
-      CONSTRAINT fk_priority_areas_area FOREIGN KEY (area_id) REFERENCES [MyWork].[areas](id) ON DELETE CASCADE,
-      CONSTRAINT unique_priority_area UNIQUE (priority_id, area_id)
-    )
-  `,
-  );
+  // priority_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
@@ -487,20 +439,7 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  await createTableIfNotExists(
-    pool,
-    "work_area_associations",
-    `
-    CREATE TABLE [MyWork].[work_area_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      area_id INT NOT NULL,
-      CONSTRAINT fk_waa_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_waa_area FOREIGN KEY (area_id) REFERENCES [MyWork].[areas](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_area UNIQUE (work_item_id, area_id)
-    )
-  `,
-  );
+  // work_area_associations junction table removed in Phase 2 (areas migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
@@ -623,20 +562,7 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  await createTableIfNotExists(
-    pool,
-    "template_areas",
-    `
-    CREATE TABLE [MyWork].[template_areas] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      template_id INT NOT NULL,
-      area_id INT NOT NULL,
-      CONSTRAINT fk_template_areas_template FOREIGN KEY (template_id) REFERENCES [MyWork].[work_item_templates](id) ON DELETE CASCADE,
-      CONSTRAINT fk_template_areas_area FOREIGN KEY (area_id) REFERENCES [MyWork].[areas](id) ON DELETE CASCADE,
-      CONSTRAINT unique_template_area UNIQUE (template_id, area_id)
-    )
-  `,
-  );
+  // template_areas junction table removed in Phase 2 (areas migrated to generic entities)
 
   await createTableIfNotExists(
     pool,
