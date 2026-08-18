@@ -206,6 +206,34 @@ function selectGoalCategoriesEditor(categories) {
   });
 }
 
+async function createGoalFolder() {
+  const folderName = prompt('Folder name:');
+  if (!folderName) return;
+
+  try {
+    const response = await fetch('/api/goals', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.body.dataset.csrfToken
+      },
+      body: JSON.stringify({
+        name: folderName,
+        year: currentYear
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      await loadAllGoals();
+      renderGoals();
+      app.notify('Folder created', 'success');
+    }
+  } catch (error) {
+    console.error('Error creating folder:', error);
+  }
+}
+
 function openNewGoalForm() {
   document.getElementById('goalId').value = '';
   document.getElementById('goalForm').reset();
@@ -308,6 +336,7 @@ function initGoalsEventListeners() {
   document.getElementById('yearSelect').addEventListener('change', loadYearlyGoals);
   document.getElementById('addYearBtn').addEventListener('click', openNewYearForm);
   document.getElementById('saveYearBtn').addEventListener('click', saveYear);
+  document.getElementById('addGoalFolderBtn').addEventListener('click', createGoalFolder);
   document.getElementById('addGoalBtn').addEventListener('click', openNewGoalForm);
   document.getElementById('saveGoalBtn').addEventListener('click', saveGoal);
 

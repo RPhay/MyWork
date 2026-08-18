@@ -142,6 +142,37 @@ function getDescendantIds(areaId) {
   return descendants;
 }
 
+async function createAreaFolder() {
+  const folderName = prompt('Folder name:');
+  if (!folderName) return;
+
+  try {
+    const response = await fetch('/api/areas', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.body.dataset.csrfToken
+      },
+      body: JSON.stringify({
+        name: folderName,
+        description: null
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      await loadAllAreas();
+      renderAreasList();
+      app.notify('Folder created', 'success');
+    } else {
+      app.notify('Error creating folder: ' + result.message, 'danger');
+    }
+  } catch (error) {
+    console.error('Error creating folder:', error);
+    app.notify('Error creating folder', 'danger');
+  }
+}
+
 function openNewAreaForm(parentId) {
   document.getElementById('areaId').value = '';
   document.getElementById('areaForm').reset();
@@ -782,6 +813,7 @@ function initAreasEventListeners() {
   });
 
   document.getElementById('addAreaBtn').addEventListener('click', () => openNewAreaForm());
+  document.getElementById('addAreaFolderBtn').addEventListener('click', () => createAreaFolder());
   document.getElementById('saveAreaBtn').addEventListener('click', saveArea);
 
   // Side-panel editor buttons
