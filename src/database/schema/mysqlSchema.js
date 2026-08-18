@@ -1008,6 +1008,51 @@ export async function createMysqlSchema(connection) {
     await connection.query("CREATE INDEX idx_type_category ON entity_types(type_category)");
   }
 
+  // Seed system entity types if they don't exist
+  const systemTypes = [
+    { slug: 'work_item', label: 'Dailies', label_singular: 'Daily', icon: '⭐', supports_hierarchy: true, primary_date_field: 'date' },
+    { slug: 'priority', label: 'Projects', label_singular: 'Project', icon: '📍', supports_hierarchy: true, primary_date_field: null },
+    { slug: 'area', label: 'Categories', label_singular: 'Category', icon: '📁', supports_hierarchy: true, primary_date_field: null },
+    { slug: 'goal', label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: false, primary_date_field: null },
+    { slug: 'to_do', label: 'Todos', label_singular: 'Todo', icon: '✅', supports_hierarchy: true, primary_date_field: null },
+    { slug: 'task', label: 'Tasks', label_singular: 'Task', icon: '📂', supports_hierarchy: false, primary_date_field: null },
+    { slug: 'ticket', label: 'Tickets', label_singular: 'Ticket', icon: '🎟️', supports_hierarchy: false, primary_date_field: null },
+    { slug: 'idea', label: 'Ideas', label_singular: 'Idea', icon: '💡', supports_hierarchy: true, primary_date_field: null },
+    { slug: 'template', label: 'Templates', label_singular: 'Template', icon: '📋', supports_hierarchy: true, primary_date_field: null }
+  ];
+
+  for (const type of systemTypes) {
+    const [existing] = await connection.query(
+      'SELECT id FROM entity_types WHERE slug = ?',
+      [type.slug]
+    );
+    if (existing.length === 0) {
+      await connection.query(
+        'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [type.slug, type.label, type.label_singular, type.icon, 'editable', type.supports_hierarchy ? 1 : 0, 1, type.primary_date_field, 0]
+      );
+    }
+  }
+
+  // Seed special types (Daily and External) if they don't exist
+  const specialTypes = [
+    { slug: 'daily', label: 'Daily', label_singular: 'Daily', icon: '📅', type_category: 'daily' },
+    { slug: 'outlook_calendar', label: 'Outlook Calendar', label_singular: 'Outlook Event', icon: '📆', type_category: 'external', external_source: 'outlook' }
+  ];
+
+  for (const type of specialTypes) {
+    const [existing] = await connection.query(
+      'SELECT id FROM entity_types WHERE slug = ?',
+      [type.slug]
+    );
+    if (existing.length === 0) {
+      await connection.query(
+        'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [type.slug, type.label, type.label_singular, type.icon, type.type_category, type.external_source || null, 0, 1, 0]
+      );
+    }
+  }
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS entity_type_fields (
       id INT AUTO_INCREMENT PRIMARY KEY,

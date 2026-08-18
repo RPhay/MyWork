@@ -1148,6 +1148,51 @@ export async function createMssqlSchema(pool) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD template_structure NVARCHAR(MAX)");
   }
 
+  // Seed system entity types if they don't exist (MSSQL)
+  const escapeSQL = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
+
+  const systemTypes = [
+    { slug: 'work_item', label: 'Dailies', label_singular: 'Daily', icon: '⭐', supports_hierarchy: 1, primary_date_field: 'date' },
+    { slug: 'priority', label: 'Projects', label_singular: 'Project', icon: '📍', supports_hierarchy: 1, primary_date_field: null },
+    { slug: 'area', label: 'Categories', label_singular: 'Category', icon: '📁', supports_hierarchy: 1, primary_date_field: null },
+    { slug: 'goal', label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: 0, primary_date_field: null },
+    { slug: 'to_do', label: 'Todos', label_singular: 'Todo', icon: '✅', supports_hierarchy: 1, primary_date_field: null },
+    { slug: 'task', label: 'Tasks', label_singular: 'Task', icon: '📂', supports_hierarchy: 0, primary_date_field: null },
+    { slug: 'ticket', label: 'Tickets', label_singular: 'Ticket', icon: '🎟️', supports_hierarchy: 0, primary_date_field: null },
+    { slug: 'idea', label: 'Ideas', label_singular: 'Idea', icon: '💡', supports_hierarchy: 1, primary_date_field: null },
+    { slug: 'template', label: 'Templates', label_singular: 'Template', icon: '📋', supports_hierarchy: 1, primary_date_field: null }
+  ];
+
+  for (const type of systemTypes) {
+    const checkResult = await pool.request()
+      .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL(type.slug)}'`);
+
+    if (checkResult.recordset.length === 0) {
+      const primaryDateField = type.primary_date_field ? `'${escapeSQL(type.primary_date_field)}'` : 'NULL';
+      await pool.request()
+        .query(`INSERT INTO [MyWork].[entity_types] (slug, label, label_singular, icon, type_category, supports_hierarchy, is_system, primary_date_field, order_index)
+                VALUES ('${escapeSQL(type.slug)}', '${escapeSQL(type.label)}', '${escapeSQL(type.label_singular)}', '${escapeSQL(type.icon)}', 'editable', ${type.supports_hierarchy}, 1, ${primaryDateField}, 0)`);
+    }
+  }
+
+  // Seed special types (Daily and External) if they don't exist (MSSQL)
+  const specialTypes = [
+    { slug: 'daily', label: 'Daily', label_singular: 'Daily', icon: '📅', type_category: 'daily' },
+    { slug: 'outlook_calendar', label: 'Outlook Calendar', label_singular: 'Outlook Event', icon: '📆', type_category: 'external', external_source: 'outlook' }
+  ];
+
+  for (const type of specialTypes) {
+    const checkResult = await pool.request()
+      .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL(type.slug)}'`);
+
+    if (checkResult.recordset.length === 0) {
+      const externalSource = type.external_source ? `'${escapeSQL(type.external_source)}'` : 'NULL';
+      await pool.request()
+        .query(`INSERT INTO [MyWork].[entity_types] (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index)
+                VALUES ('${escapeSQL(type.slug)}', '${escapeSQL(type.label)}', '${escapeSQL(type.label_singular)}', '${escapeSQL(type.icon)}', '${escapeSQL(type.type_category)}', ${externalSource}, 0, 1, 0)`);
+    }
+  }
+
   await createTableIfNotExists(
     pool,
     "entity_type_fields",
