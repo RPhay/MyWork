@@ -108,7 +108,7 @@ const GenericEntity = (() => {
   // no such column. Hierarchy lives entirely in entity_relationships
   // (kind='hierarchy'), fetched separately and passed in as `relationships`
   // ([{parent_entity_id, child_entity_id, order_index}, ...]).
-  function renderTree(entities, typeSchema, relationships = []) {
+  function renderTree(entities, typeSchema, relationships = [], getSchemaForEntity = null) {
     const entityMap = new Map(entities.map(e => [e.id, e]));
 
     const childrenByParent = new Map();
@@ -126,6 +126,7 @@ const GenericEntity = (() => {
     function renderNode(entity, depth = 0) {
       const children = childrenByParent.get(entity.id) || [];
       const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
+      const entitySchema = getSchemaForEntity ? getSchemaForEntity(entity) : typeSchema;
 
       const childrenHtml = children.length > 0 ? `
         <div class="entity-node-children ${isExpanded ? 'visible' : ''}">
@@ -135,7 +136,7 @@ const GenericEntity = (() => {
 
       return `
         <div class="entity-node ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}">
-          ${renderEntityRow(entity, typeSchema, depth, children.length > 0)}
+          ${renderEntityRow(entity, entitySchema, depth, children.length > 0)}
           ${childrenHtml}
         </div>
       `;

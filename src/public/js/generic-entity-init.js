@@ -44,7 +44,7 @@ async function initAllGenericTabs() {
 
 async function initGenericEntityTab(typeSlug, typeName) {
   try {
-    // Fetch type schema
+    // Fetch type schema and additional schemas for mixed-type tabs (like area with folders)
     const typeResponse = await fetch(`/api/entity-types/${typeSlug}`, {
       headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
     });
@@ -52,6 +52,25 @@ async function initGenericEntityTab(typeSlug, typeName) {
     const typeData = await typeResponse.json();
     if (!typeData.success) throw new Error(typeData.message);
     const typeSchema = typeData.data;
+
+    // For area tab, also fetch folder schema
+    let typeSchemas = { [typeSchema.id]: typeSchema };
+    if (typeSlug === 'area') {
+      const folderResponse = await fetch('/api/entity-types/folder', {
+        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+      });
+      if (folderResponse.ok) {
+        const folderData = await folderResponse.json();
+        if (folderData.success) {
+          typeSchemas[folderData.data.id] = folderData.data;
+        }
+      }
+    }
+
+    // Helper to get correct schema for an entity based on its type
+    function getSchemaForEntity(entity) {
+      return typeSchemas[entity.entity_type_id] || typeSchema;
+    }
 
     // Fetch entities (special case: area also fetches folders)
     async function fetchAllEntities() {
@@ -122,7 +141,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // Render tree or list from the current `entities`/`relationships` arrays
     function renderList() {
       if (typeSchema.supports_hierarchy) {
-        listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema, relationships);
+        // For mixed-type tabs, use the schema from typeSchemas map
+        listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema, relationships, getSchemaForEntity);
       } else {
         listContainer.innerHTML = entities.map(e => GenericEntity.renderRow(e, typeSchema, 0)).join('');
       }
