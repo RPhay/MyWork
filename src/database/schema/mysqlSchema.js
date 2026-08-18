@@ -1075,43 +1075,44 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Seed default fields for system entity types
+  // Seed default fields for system entity types (from Phase 0 seeding script)
   const typeFields = {
     'work_item': [
-      { field_key: 'date', label: 'Date', field_type: 'date', required: false, show_in_row: true, is_completion_signal: false, display_order: 0 },
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 1 },
-      { field_key: 'priority', label: 'Priority', field_type: 'select', required: false, show_in_row: true, is_completion_signal: false, display_order: 2 }
+      { field_key: 'date', label: 'Date', field_type: 'date', required: true, show_in_row: true, is_completion_signal: false, display_order: 0 },
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 1, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 }
     ],
     'priority': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0 },
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
     ],
     'area': [
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 }
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 }
     ],
     'goal': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0 },
-      { field_key: 'category', label: 'Category', field_type: 'select', required: false, show_in_row: true, is_completion_signal: false, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
     ],
     'to_do': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0 },
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
+      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 }
     ],
     'task': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0 },
-      { field_key: 'priority', label: 'Priority', field_type: 'select', required: false, show_in_row: true, is_completion_signal: false, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
+      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 }
     ],
     'ticket': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0 },
-      { field_key: 'priority', label: 'Priority', field_type: 'select', required: false, show_in_row: true, is_completion_signal: false, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
     ],
     'idea': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0 },
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Raw', 'Developing', 'Ready'], doneValues: ['Ready'] }) },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
     ],
     'template': [
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 },
-      { field_key: 'template_content', label: 'Template Content', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 }
     ]
   };
 
@@ -1132,8 +1133,8 @@ export async function createMysqlSchema(connection) {
 
         if (existing.length === 0) {
           await connection.query(
-            'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, required, display_order, show_in_row, is_completion_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [typeId, field.field_key, field.label, field.field_type, field.required ? 1 : 0, field.display_order, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0]
+            'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [typeId, field.field_key, field.label, field.field_type, field.field_options || null, field.required ? 1 : 0, field.display_order, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0]
           );
         }
       }

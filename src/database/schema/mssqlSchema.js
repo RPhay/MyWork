@@ -1219,45 +1219,47 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "entity_type_fields");
 
-  // Seed default fields for system entity types (MSSQL)
+  // Seed default fields for system entity types (MSSQL, from Phase 0 seeding script)
   const escapeSQL2 = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
+  const escapeJSON = (obj) => (obj ? escapeSQL2(JSON.stringify(obj)) : 'NULL');
 
   const typeFields = {
     'work_item': [
-      { field_key: 'date', label: 'Date', field_type: 'date', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 1 },
-      { field_key: 'priority', label: 'Priority', field_type: 'select', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 2 }
+      { field_key: 'date', label: 'Date', field_type: 'date', required: 1, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: null },
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 1, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null }
     ],
     'priority': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
     ],
     'area': [
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0 }
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0, field_options: null }
     ],
     'goal': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
-      { field_key: 'category', label: 'Category', field_type: 'select', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
     ],
     'to_do': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0 },
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
+      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null }
     ],
     'task': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0 },
-      { field_key: 'priority', label: 'Priority', field_type: 'select', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
+      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null }
     ],
     'ticket': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
-      { field_key: 'priority', label: 'Priority', field_type: 'select', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
     ],
     'idea': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1 }
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Raw', 'Developing', 'Ready'], doneValues: ['Ready'] } },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
     ],
     'template': [
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0 },
-      { field_key: 'template_content', label: 'Template Content', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1 }
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0, field_options: null }
     ]
   };
 
@@ -1273,9 +1275,10 @@ export async function createMssqlSchema(pool) {
           .query(`SELECT id FROM [MyWork].[entity_type_fields] WHERE entity_type_id = ${typeId} AND field_key = '${escapeSQL2(field.field_key)}'`);
 
         if (checkResult.recordset.length === 0) {
+          const fieldOptionsStr = field.field_options ? `'${escapeJSON(field.field_options)}'` : 'NULL';
           await pool.request()
-            .query(`INSERT INTO [MyWork].[entity_type_fields] (entity_type_id, field_key, label, field_type, required, display_order, show_in_row, is_completion_signal)
-                    VALUES (${typeId}, '${escapeSQL2(field.field_key)}', '${escapeSQL2(field.label)}', '${escapeSQL2(field.field_type)}', ${field.required}, ${field.display_order}, ${field.show_in_row}, ${field.is_completion_signal})`);
+            .query(`INSERT INTO [MyWork].[entity_type_fields] (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal)
+                    VALUES (${typeId}, '${escapeSQL2(field.field_key)}', '${escapeSQL2(field.label)}', '${escapeSQL2(field.field_type)}', ${fieldOptionsStr}, ${field.required}, ${field.display_order}, ${field.show_in_row}, ${field.is_completion_signal})`);
         }
       }
     }
