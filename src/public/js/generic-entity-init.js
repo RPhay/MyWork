@@ -53,14 +53,31 @@ async function initGenericEntityTab(typeSlug, typeName) {
     if (!typeData.success) throw new Error(typeData.message);
     const typeSchema = typeData.data;
 
-    // Fetch entities
-    const entitiesResponse = await fetch(`/api/entities/${typeSlug}`, {
-      headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-    });
-    if (!entitiesResponse.ok) throw new Error('Failed to fetch entities');
-    const entitiesData = await entitiesResponse.json();
-    if (!entitiesData.success) throw new Error(entitiesData.message);
-    let entities = entitiesData.data || [];
+    // Fetch entities (special case: area also fetches folders)
+    async function fetchAllEntities() {
+      const response = await fetch(`/api/entities/${typeSlug}`, {
+        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+      });
+      if (!response.ok) throw new Error('Failed to fetch entities');
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message);
+      let allEntities = data.data || [];
+
+      // For area (categories), also fetch folders
+      if (typeSlug === 'area') {
+        const folderResponse = await fetch('/api/entities/folder', {
+          headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+        });
+        if (folderResponse.ok) {
+          const folderData = await folderResponse.json();
+          if (folderData.success) {
+            allEntities = [...allEntities, ...(folderData.data || [])];
+          }
+        }
+      }
+      return allEntities;
+    }
+    let entities = await fetchAllEntities();
 
     // Hierarchy (parent/child) lives entirely in entity_relationships - the
     // entities table itself has no parent column - so hierarchy types need a
@@ -72,7 +89,19 @@ async function initGenericEntityTab(typeSlug, typeName) {
         headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
       });
       const result = await r.json();
-      return result.success ? result.data : [];
+      let rels = result.success ? result.data : [];
+
+      // For area, also fetch folder relationships
+      if (typeSlug === 'area') {
+        const folderRels = await fetch('/api/entities/folder/relationships?kind=hierarchy', {
+          headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+        });
+        const folderResult = await folderRels.json();
+        if (folderResult.success) {
+          rels = [...rels, ...(folderResult.data || [])];
+        }
+      }
+      return rels;
     }
     relationships = await fetchRelationships();
 
@@ -103,16 +132,10 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // of location.reload() - which was slow, jarring, and made a successful
     // save look like it had done nothing until the reload caught up.
     async function refreshEntities() {
-      const response = await fetch(`/api/entities/${typeSlug}`, {
-        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-      });
-      const result = await response.json();
-      if (result.success) {
-        entities = result.data || [];
-        relationships = await fetchRelationships();
-        GenericEntity.setEntities(entities);
-        renderList();
-      }
+      entities = await fetchAllEntities();
+      relationships = await fetchRelationships();
+      GenericEntity.setEntities(entities);
+      renderList();
     }
 
     renderList();
