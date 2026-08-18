@@ -18,6 +18,25 @@ router.get('/:typeSlug', async (req, res) => {
   }
 });
 
+// GET /api/entities/:typeSlug/relationships - All relationships of a kind
+// between entities of this type (bulk, for tree rendering - avoids an N+1
+// per-entity relationships fetch). Must stay above the /:typeSlug/:id route
+// below, or Express would match "relationships" as the :id param instead.
+router.get('/:typeSlug/relationships', async (req, res) => {
+  try {
+    const contextId = await getActiveContextId();
+    const relationships = await entityRelationshipService.getRelationshipsForType(
+      req.params.typeSlug,
+      contextId,
+      req.query.kind || 'hierarchy'
+    );
+    res.json({ success: true, data: relationships });
+  } catch (error) {
+    logger.error('Error fetching type relationships:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/entities/:typeSlug/:id - Get a single entity
 router.get('/:typeSlug/:id', async (req, res) => {
   try {

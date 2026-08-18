@@ -100,8 +100,8 @@ export async function createEntity(entityTypeSlug, data, contextId = null) {
   }
 
   const result = await queryPool(
-    'INSERT INTO entities (entity_type_id, context_id, title, order_index) VALUES (?, ?, ?, ?)',
-    [type.id, contextId, data.title, orderIndex]
+    'INSERT INTO entities (entity_type_id, context_id, title, order_index, is_folder) VALUES (?, ?, ?, ?, ?)',
+    [type.id, contextId, data.title, orderIndex, data.is_folder ? 1 : 0]
   );
 
   const entity = await getEntityById(result.insertId, contextId);

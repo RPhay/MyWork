@@ -1178,6 +1178,7 @@ export async function createMysqlSchema(connection) {
       context_id INT NOT NULL,
       title VARCHAR(255) NOT NULL,
       order_index INT DEFAULT 0,
+      is_folder BOOLEAN DEFAULT FALSE,
       legacy_work_item_id INT UNIQUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1188,6 +1189,16 @@ export async function createMysqlSchema(connection) {
       INDEX idx_legacy (legacy_work_item_id)
     )
   `);
+
+  // Backfill is_folder for pre-existing entities tables (added after the
+  // initial Phase 10 rollout - "+ Folder" previously created an
+  // indistinguishable plain entity, so folder rows only looked different
+  // once they happened to have children)
+  if (!(await columnExists(connection, "entities", "is_folder"))) {
+    await connection.query(
+      "ALTER TABLE entities ADD COLUMN is_folder BOOLEAN DEFAULT FALSE",
+    );
+  }
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS entity_field_values (

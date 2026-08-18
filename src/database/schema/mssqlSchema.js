@@ -1328,6 +1328,7 @@ export async function createMssqlSchema(pool) {
       context_id INT NOT NULL,
       title NVARCHAR(255) NOT NULL,
       order_index INT DEFAULT 0,
+      is_folder BIT DEFAULT 0,
       legacy_work_item_id INT UNIQUE,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
@@ -1336,6 +1337,13 @@ export async function createMssqlSchema(pool) {
   `,
   );
   await createUpdatedAtTrigger(pool, "entities");
+
+  // Backfill for entities tables created before is_folder existed - see mysqlSchema.js
+  if (!(await columnExists(pool, "entities", "is_folder"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[entities] ADD is_folder BIT DEFAULT 0
+    `);
+  }
 
   await createTableIfNotExists(
     pool,

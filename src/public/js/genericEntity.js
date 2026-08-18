@@ -75,7 +75,7 @@ const GenericEntity = (() => {
   };
 
   // ========== ROW RENDERING ==========
-  function renderEntityRow(entity, typeSchema, depth = 0) {
+  function renderEntityRow(entity, typeSchema, depth = 0, hasChildren = false) {
     const fields = (typeSchema.fields || [])
       .filter(f => f.show_in_row)
       .map(f => {
@@ -85,19 +85,20 @@ const GenericEntity = (() => {
       .join(' ');
 
     const indent = `<span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>`;
-    const hasChildren = entity.has_children || false;
     const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
 
     return `
-      <div class="entity-row ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}" data-entity-type="${typeSchema.slug}" data-depth="${depth}">
+      <div class="entity-row ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}" data-entity-type="${typeSchema.slug}" data-depth="${depth}" draggable="true">
         <div class="entity-row-content">
           ${indent}
           ${hasChildren ? `<span class="entity-toggle" data-action="toggle-expand">▶</span>` : '<span style="width: 18px; display: inline-block;"></span>'}
+          ${entity.is_folder || hasChildren
+            ? '<i class="bi bi-folder-fill entity-row-icon text-warning"></i>'
+            : (typeSchema.icon ? `<span class="entity-row-icon">${typeSchema.icon}</span>` : '')}
           <span class="entity-title">${entity.title}</span>
           ${fields}
           <div class="entity-actions">
-            <button data-action="edit" class="btn-sm">Edit</button>
-            <button data-action="delete" class="btn-sm btn-danger">Delete</button>
+            <button class="btn btn-sm btn-danger" data-action="delete" data-entity-id="${entity.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
           </div>
         </div>
       </div>
@@ -105,15 +106,27 @@ const GenericEntity = (() => {
   }
 
   // ========== TREE RENDERING ==========
-  function renderTree(entities, typeSchema) {
-    // Build a map of id -> entity for quick lookup
+  // `entities` carries no parent link of its own - the `entities` table has
+  // no such column. Hierarchy lives entirely in entity_relationships
+  // (kind='hierarchy'), fetched separately and passed in as `relationships`
+  // ([{parent_entity_id, child_entity_id, order_index}, ...]).
+  function renderTree(entities, typeSchema, relationships = []) {
     const entityMap = new Map(entities.map(e => [e.id, e]));
 
-    // Find root entities (those with no parents in this context)
-    const roots = entities.filter(e => !e.parent_entity_id);
+    const childrenByParent = new Map();
+    const childIds = new Set();
+    relationships.forEach((rel) => {
+      if (!entityMap.has(rel.parent_entity_id) || !entityMap.has(rel.child_entity_id)) return;
+      childIds.add(rel.child_entity_id);
+      if (!childrenByParent.has(rel.parent_entity_id)) childrenByParent.set(rel.parent_entity_id, []);
+      childrenByParent.get(rel.parent_entity_id).push(entityMap.get(rel.child_entity_id));
+    });
+
+    // Roots: entities that never appear as a child in a hierarchy relationship.
+    const roots = entities.filter((e) => !childIds.has(e.id));
 
     function renderNode(entity, depth = 0) {
-      const children = entities.filter(e => e.parent_entity_id === entity.id);
+      const children = childrenByParent.get(entity.id) || [];
       const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
 
       const childrenHtml = children.length > 0 ? `
@@ -124,7 +137,7 @@ const GenericEntity = (() => {
 
       return `
         <div class="entity-node ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}">
-          ${renderEntityRow(entity, typeSchema, depth)}
+          ${renderEntityRow(entity, typeSchema, depth, children.length > 0)}
           ${childrenHtml}
         </div>
       `;
@@ -137,7 +150,7 @@ const GenericEntity = (() => {
   function buildForm(typeSchema, entity = {}) {
     const fields = typeSchema.fields || [];
     return `
-      <form id="entity-editor-form" class="entity-editor-form">
+      <form id="entity-editor-form" class="entity-editor-form" onsubmit="return false;">
         <div class="form-group">
           <label>Title *</label>
           <input type="text" name="title" value="${entity.title || ''}" class="form-control" required>
@@ -147,10 +160,6 @@ const GenericEntity = (() => {
           const value = entity.fields?.[field.field_key];
           return renderer(field, value);
         }).join('')}
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary" id="entity-save-btn">Save</button>
-          <button type="button" class="btn btn-secondary" data-action="cancel">Cancel</button>
-        </div>
       </form>
     `;
   }
@@ -187,6 +196,19 @@ const GenericEntity = (() => {
     if (form) {
       form.addEventListener('input', markChanged);
       form.addEventListener('change', markChanged);
+      // Pressing Enter in a form field can submit the form natively
+      // (navigating to the current URL with every field as a query param,
+      // losing the tab/editor state) - the onsubmit="return false" on the
+      // <form> guards against that, but Enter should still act like Save,
+      // not silently do nothing. Handled on keydown rather than relying on
+      // the 'submit' event, which isn't dispatched consistently for a form
+      // with only one text field in every environment.
+      form.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          document.getElementById(`${currentTypeSlug}SaveBtn`)?.click();
+        }
+      });
     }
   }
 
