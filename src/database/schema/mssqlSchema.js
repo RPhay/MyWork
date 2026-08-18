@@ -1219,6 +1219,68 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "entity_type_fields");
 
+  // Seed default fields for system entity types (MSSQL)
+  const escapeSQL2 = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
+
+  const typeFields = {
+    'work_item': [
+      { field_key: 'date', label: 'Date', field_type: 'date', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 1 },
+      { field_key: 'priority', label: 'Priority', field_type: 'select', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 2 }
+    ],
+    'priority': [
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1 }
+    ],
+    'area': [
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0 }
+    ],
+    'goal': [
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
+      { field_key: 'category', label: 'Category', field_type: 'select', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1 }
+    ],
+    'to_do': [
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0 },
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1 }
+    ],
+    'task': [
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0 },
+      { field_key: 'priority', label: 'Priority', field_type: 'select', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1 }
+    ],
+    'ticket': [
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
+      { field_key: 'priority', label: 'Priority', field_type: 'select', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1 }
+    ],
+    'idea': [
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0 },
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1 }
+    ],
+    'template': [
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0 },
+      { field_key: 'template_content', label: 'Template Content', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1 }
+    ]
+  };
+
+  for (const [slug, fields] of Object.entries(typeFields)) {
+    const typeResult = await pool.request()
+      .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL2(slug)}'`);
+
+    if (typeResult.recordset.length > 0) {
+      const typeId = typeResult.recordset[0].id;
+
+      for (const field of fields) {
+        const checkResult = await pool.request()
+          .query(`SELECT id FROM [MyWork].[entity_type_fields] WHERE entity_type_id = ${typeId} AND field_key = '${escapeSQL2(field.field_key)}'`);
+
+        if (checkResult.recordset.length === 0) {
+          await pool.request()
+            .query(`INSERT INTO [MyWork].[entity_type_fields] (entity_type_id, field_key, label, field_type, required, display_order, show_in_row, is_completion_signal)
+                    VALUES (${typeId}, '${escapeSQL2(field.field_key)}', '${escapeSQL2(field.label)}', '${escapeSQL2(field.field_type)}', ${field.required}, ${field.display_order}, ${field.show_in_row}, ${field.is_completion_signal})`);
+        }
+      }
+    }
+  }
+
   await createTableIfNotExists(
     pool,
     "entity_type_relationships",
