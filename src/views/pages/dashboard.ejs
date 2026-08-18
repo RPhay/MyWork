@@ -43,7 +43,7 @@
       <%
         // Render fixed-position tabs (Dailies only)
         const fixedTypes = sortedTypes.filter(t => t.slug === 'work_item');
-        const editableTypes = sortedTypes.filter(t => t.slug !== 'work_item');
+        const editableTypes = sortedTypes.filter(t => t.slug !== 'work_item' && t.slug !== 'folder');
       %>
 
       <% fixedTypes.forEach(type => { %>

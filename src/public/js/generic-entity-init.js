@@ -209,7 +209,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (row && !e.target.closest('[data-action]')) {
         const entityId = row.dataset.entityId;
         const entity = entities.find(x => x.id == entityId);
-        GenericEntity.populate(entity.id, entity, typeSchema, typeSlug);
+        const entitySchema = getSchemaForEntity(entity);
+        GenericEntity.populate(entity.id, entity, entitySchema, typeSlug);
       }
     });
 
