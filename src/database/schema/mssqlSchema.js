@@ -1219,22 +1219,27 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "entity_type_fields");
 
-  // Seed default fields for system entity types (MSSQL, from Phase 0 seeding script)
+  // Seed default fields for system entity types (MSSQL, restored from original schema)
   const escapeSQL2 = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
   const escapeJSON = (obj) => (obj ? escapeSQL2(JSON.stringify(obj)) : 'NULL');
 
   const typeFields = {
     'work_item': [
       { field_key: 'date', label: 'Date', field_type: 'date', required: 1, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: null },
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 1, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null }
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null },
+      { field_key: 'emoji', label: 'Emoji', field_type: 'text', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 2, field_options: null },
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 3, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
+      { field_key: 'time_box_minutes', label: 'Time Box (minutes)', field_type: 'number', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 4, field_options: null },
+      { field_key: 'start_time', label: 'Start Time', field_type: 'text', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 5, field_options: null },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 6, field_options: null }
     ],
     'priority': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
     ],
     'area': [
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0, field_options: null }
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0, field_options: null },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
     ],
     'goal': [
       { field_key: 'year', label: 'Year', field_type: 'number', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: null },
@@ -1248,7 +1253,9 @@ export async function createMssqlSchema(pool) {
     'to_do': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
       { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null }
+      { field_key: 'target_date', label: 'Target Date', field_type: 'date', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 2, field_options: null },
+      { field_key: 'importance', label: 'Importance', field_type: 'number', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 3, field_options: null },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 4, field_options: null }
     ],
     'task': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
@@ -1257,7 +1264,8 @@ export async function createMssqlSchema(pool) {
     ],
     'ticket': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
+      { field_key: 'ticket_type', label: 'Ticket Type', field_type: 'text', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1, field_options: null },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null }
     ],
     'idea': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Raw', 'Developing', 'Ready'], doneValues: ['Ready'] } },

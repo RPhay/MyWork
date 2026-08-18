@@ -1075,19 +1075,24 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Seed default fields for system entity types (from Phase 0 seeding script)
+  // Seed default fields for system entity types (restored from original schema)
   const typeFields = {
     'work_item': [
       { field_key: 'date', label: 'Date', field_type: 'date', required: true, show_in_row: true, is_completion_signal: false, display_order: 0 },
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 1, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 }
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 },
+      { field_key: 'emoji', label: 'Emoji', field_type: 'text', required: false, show_in_row: true, is_completion_signal: false, display_order: 2 },
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 3, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
+      { field_key: 'time_box_minutes', label: 'Time Box (minutes)', field_type: 'number', required: false, show_in_row: false, is_completion_signal: false, display_order: 4 },
+      { field_key: 'start_time', label: 'Start Time', field_type: 'text', required: false, show_in_row: false, is_completion_signal: false, display_order: 5 },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 6 }
     ],
     'priority': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
     ],
     'area': [
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 }
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
     ],
     'goal': [
       { field_key: 'year', label: 'Year', field_type: 'number', required: false, show_in_row: true, is_completion_signal: false, display_order: 0 },
@@ -1101,7 +1106,9 @@ export async function createMysqlSchema(connection) {
     'to_do': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
       { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 }
+      { field_key: 'target_date', label: 'Target Date', field_type: 'date', required: false, show_in_row: true, is_completion_signal: false, display_order: 2 },
+      { field_key: 'importance', label: 'Importance', field_type: 'number', required: false, show_in_row: true, is_completion_signal: false, display_order: 3 },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 4 }
     ],
     'task': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
@@ -1110,7 +1117,8 @@ export async function createMysqlSchema(connection) {
     ],
     'ticket': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
+      { field_key: 'ticket_type', label: 'Ticket Type', field_type: 'text', required: false, show_in_row: true, is_completion_signal: false, display_order: 1 },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 }
     ],
     'idea': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Raw', 'Developing', 'Ready'], doneValues: ['Ready'] }) },
