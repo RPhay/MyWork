@@ -218,15 +218,13 @@ async function createGoalFolder() {
         'X-CSRF-Token': document.body.dataset.csrfToken
       },
       body: JSON.stringify({
-        name: folderName,
-        year: currentYear
+        title: folderName
       })
     });
 
     const result = await response.json();
     if (result.success) {
-      await loadAllGoals();
-      renderGoals();
+      await loadYearlyGoals();
       app.notify('Folder created', 'success');
     }
   } catch (error) {

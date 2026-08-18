@@ -668,11 +668,14 @@ async function createTicketFolder() {
 
     const result = await response.json();
     if (result.success) {
-      await loadTickets();
+      loadTickets();
       app.notify('Folder created', 'success');
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error creating folder:', error);
+    app.notify('Error creating folder', 'danger');
   }
 }
 

@@ -925,11 +925,14 @@ async function createPriorityFolder() {
 
     const result = await response.json();
     if (result.success) {
-      await loadPriorities();
+      loadPriorities();
       app.notify('Folder created', 'success');
+    } else {
+      app.notify('Error: ' + result.message, 'danger');
     }
   } catch (error) {
     console.error('Error creating folder:', error);
+    app.notify('Error creating folder', 'danger');
   }
 }
 

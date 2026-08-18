@@ -154,14 +154,13 @@ async function createAreaFolder() {
         'X-CSRF-Token': document.body.dataset.csrfToken
       },
       body: JSON.stringify({
-        name: folderName,
-        description: null
+        title: folderName
       })
     });
 
     const result = await response.json();
     if (result.success) {
-      await loadAllAreas();
+      await loadAreas();
       renderAreasList();
       app.notify('Folder created', 'success');
     } else {
