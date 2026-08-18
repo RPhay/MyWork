@@ -92,9 +92,7 @@ const GenericEntity = (() => {
         <div class="entity-row-content">
           ${indent}
           ${hasChildren ? `<span class="entity-toggle" data-action="toggle-expand">▶</span>` : '<span style="width: 18px; display: inline-block;"></span>'}
-          ${entity.is_folder || hasChildren
-            ? '<i class="bi bi-folder-fill entity-row-icon text-warning"></i>'
-            : (typeSchema.icon ? `<span class="entity-row-icon">${typeSchema.icon}</span>` : '')}
+          ${typeSchema.icon ? `<span class="entity-row-icon">${typeSchema.icon}</span>` : ''}
           <span class="entity-title">${entity.title}</span>
           ${fields}
           <div class="entity-actions">

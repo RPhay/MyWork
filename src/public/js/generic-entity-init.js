@@ -347,33 +347,35 @@ async function initGenericEntityTab(typeSlug, typeName) {
       GenericEntity.close();
     });
 
-    // Folder creation
-    document.getElementById(`add${typeSlug}FolderBtn`)?.addEventListener('click', async () => {
-      const folderName = prompt('Folder name:');
-      if (!folderName) return;
+    // Folder creation (only for categories)
+    if (typeSlug === 'area') {
+      document.getElementById(`add${typeSlug}FolderBtn`)?.addEventListener('click', async () => {
+        const folderName = prompt('Folder name:');
+        if (!folderName) return;
 
-      try {
-        const response = await fetch(`/api/entities/${typeSlug}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': document.body.dataset.csrfToken
-          },
-          body: JSON.stringify({ title: folderName, is_folder: true })
-        });
+        try {
+          const response = await fetch('/api/entities/folder', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': document.body.dataset.csrfToken
+            },
+            body: JSON.stringify({ title: folderName })
+          });
 
-        const result = await response.json();
-        if (result.success) {
-          app.notify('Folder created', 'success');
-          await refreshEntities();
-        } else {
-          app.notify('Error: ' + result.message, 'danger');
+          const result = await response.json();
+          if (result.success) {
+            app.notify('Folder created', 'success');
+            await refreshEntities();
+          } else {
+            app.notify('Error: ' + result.message, 'danger');
+          }
+        } catch (error) {
+          console.error('Error creating folder:', error);
+          app.notify('Error creating folder', 'danger');
         }
-      } catch (error) {
-        console.error('Error creating folder:', error);
-        app.notify('Error creating folder', 'danger');
-      }
-    });
+      });
+    }
 
     // Add new entity
     const addBtn = document.getElementById(`add${typeSlug}Btn`);

@@ -128,12 +128,24 @@ const types = [
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ]
   },
+  {
+    slug: 'folder',
+    label: 'Folders',
+    label_singular: 'Folder',
+    icon: '📁',
+    supports_hierarchy: true,
+    is_system: true,
+    primary_date_field: null,
+    fields: []
+  },
 ];
 
 // Type-to-type relationships defining which types can parent/child which types
 const relationships = [
   // Hierarchy: types can have children of the same type
-  { parent_type_id: null, child_type_id: null, type_slugs: ['work_item', 'priority', 'area', 'to_do', 'task', 'ticket', 'idea'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+  { parent_type_id: null, child_type_id: null, type_slugs: ['work_item', 'priority', 'to_do', 'task', 'ticket', 'idea', 'folder'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+  // Areas (categories) can be children of folders
+  { parent_type_id: null, child_type_id: null, type_slugs_parent: 'folder', type_slugs_child: 'area', relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
   // Associations: work items link to priorities, areas, goals
   { parent_type_id: null, child_type_id: null, type_slugs_parent: 'work_item', type_slugs_child: ['priority', 'area', 'goal'], relationship_kind: 'association', max_children_per_parent: null, max_parents_per_child: null },
