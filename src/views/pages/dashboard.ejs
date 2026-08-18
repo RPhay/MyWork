@@ -70,16 +70,11 @@
     <!-- Tab Content (dynamically generated from entity types) -->
     <div class="tab-content" id="mainTabContent">
       <%
-        // Map entity type slugs to template names and special handling
-        const templateMap = {
+        // Map entity type slugs to custom templates (only Dailies, Templates, Priorities have custom implementations)
+        // All other types use the generic entity template
+        const customTemplateMap = {
           'work_item': 'dailies.ejs',
           'priority': 'my-priorities.ejs',
-          'area': 'areas.ejs',
-          'goal': 'yearly-goals.ejs',
-          'to_do': 'todos.ejs',
-          'task': 'tasks.ejs',
-          'ticket': 'tickets.ejs',
-          'idea': 'brainstorming.ejs',
           'template': 'templates.ejs'
         };
 
@@ -90,13 +85,13 @@
       <% sortedTypes.forEach(type => { %>
         <div id="tab-<%= type.slug %>" class="tab-content-pane">
           <%
-            // Check if there's a type-specific template for backward compatibility
-            const templateFile = templateMap[type.slug];
+            // Check if there's a custom template for this type
+            const templateFile = customTemplateMap[type.slug];
             if (templateFile) {
           %>
             <%- include('../tabs/' + templateFile) %>
           <% } else { %>
-            <!-- Generic entity tab for custom types -->
+            <!-- Generic entity tab for all other types -->
             <%- include('../tabs/generic-entity-tab.ejs', { typeSlug: type.slug, typeName: type.label }) %>
           <% } %>
         </div>

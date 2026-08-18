@@ -4,7 +4,7 @@
  */
 
 const GenericEntity = (() => {
-  let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges;
+  let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges, allEntities = [];
 
   // ========== FIELD RENDERERS STRATEGY MAP ==========
   const fieldRenderers = {
@@ -202,12 +202,21 @@ const GenericEntity = (() => {
     trackFormChanges: trackFormChanges,
 
     populate: (entityId, entity, typeConfig) => {
+      // Toggle close: if clicking same entity with no changes, close the editor
+      if (currentEntityId === entityId) {
+        if (hasChanges) {
+          return; // Don't close if there are unsaved changes
+        }
+        GenericEntity.close();
+        return;
+      }
+
       currentEntityId = entityId;
       hasChanges = false;
       typeSchema = typeConfig;
 
       const formHtml = buildForm(typeConfig, entity);
-      const editorPane = document.getElementById('entity-editor');
+      const editorPane = document.getElementById('entity-editor-pane');
       if (editorPane) {
         editorPane.innerHTML = formHtml;
         trackFormChanges();
@@ -251,7 +260,17 @@ const GenericEntity = (() => {
         localStorage.setItem(`entity-expanded-${entity.parent_entity_id}`, 'true');
         this.expandAncestors(entity.parent_entity_id, entities);
       }
-    }
+    },
+
+    setEntities: (entities) => {
+      allEntities = entities;
+    },
+
+    getEntities: () => allEntities,
+
+    getCurrentEntityId: () => currentEntityId,
+
+    hasUnsavedChanges: () => hasChanges
   };
 })();
 

@@ -1,41 +1,60 @@
 <!-- Generic Entity Tab Template
-     This template is used for rendering any entity type with a hierarchical tree view,
-     optional calendar view, and split-pane editor. It works for any entity type that's
-     configured in entity_types.
+     Unified template for any entity type (except Dailies, Templates, Priorities which have custom implementations)
+     Handles hierarchical tree view, drag/drop, split-pane editor
 -->
 
-<div class="split-pane" id="<%= typeSlug %>SplitPane">
-  <!-- Left Pane: Calendar View (if primary_date_field exists) or List/Tree -->
-  <div class="split-pane-left">
-    <div class="panel-header">
-      <h3><%= typeName %></h3>
-      <button class="btn btn-sm btn-primary" onclick="window.GenericEntity.newEntity('<%= typeSlug %>')">
-        <i class="bi bi-plus"></i> New
-      </button>
-    </div>
+<div style="display: flex; gap: 0; height: 70vh; position: relative;">
+  <div class="split-pane-container" id="<%= typeSlug %>SplitPane" style="flex: 1; display: flex; gap: 0; overflow: hidden;">
+    <!-- Left Pane: List/Tree -->
+    <div class="split-pane-left" id="<%= typeSlug %>ListPane" style="padding: 15px; overflow-y: auto;">
+      <div class="row mb-2">
+        <div class="col-md-6">
+          <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="expandAll<%= typeSlug %>Btn" title="Expand all">
+              <i class="bi bi-chevron-double-down"></i> Expand All
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="collapseAll<%= typeSlug %>Btn" title="Collapse all">
+              <i class="bi bi-chevron-double-up"></i> Collapse All
+            </button>
+          </div>
+        </div>
+        <div class="col-md-6 text-end">
+          <button class="btn btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="Create a folder to organize items">
+            <i class="bi bi-folder-plus"></i> + Folder
+          </button>
+          <button class="btn btn-primary" id="add<%= typeSlug %>Btn">
+            + New <%= typeName %>
+          </button>
+        </div>
+      </div>
 
-    <!-- Calendar View (if type has date field) -->
-    <div id="<%= typeSlug %>CalendarPane" style="display: none; padding: 15px; overflow-y: auto;"></div>
+      <p class="text-muted small mb-2">Drag to organize. Click to edit, click again to close.</p>
 
-    <!-- List/Tree View (default) -->
-    <div class="list-container" id="<%= typeSlug %>ListPane">
-      <div class="spinner-border" role="status">
-        <span class="visually-hidden">Loading...</span>
+      <div id="<%= typeSlug %>EntityList" style="overflow-y: auto;">
+        <p class="text-center text-muted">Loading...</p>
       </div>
     </div>
-  </div>
 
-  <!-- Divider -->
-  <div class="split-pane-divider" id="<%= typeSlug %>Divider"></div>
+    <!-- Divider -->
+    <div class="split-pane-divider" id="<%= typeSlug %>Divider"></div>
 
-  <!-- Right Pane: Editor -->
-  <div class="split-pane-right">
-    <div id="<%= typeSlug %>EditorPane" class="editor-pane"></div>
+    <!-- Right Pane: Editor -->
+    <div class="split-pane-right hidden" id="<%= typeSlug %>EditorPane">
+      <div class="split-pane-editor">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div class="split-pane-editor-title">Edit <%= typeName %></div>
+          <div style="gap: 0.5rem; display: flex;">
+            <button type="button" class="btn btn-primary btn-sm" id="<%= typeSlug %>SaveBtn" disabled>Save</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="<%= typeSlug %>CloseBtn">Cancel</button>
+          </div>
+        </div>
+        <div id="entity-editor-pane" style="overflow-y: auto;"></div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-// Initialize generic entity renderer for this type
 (async () => {
   try {
     // Fetch type schema
@@ -47,7 +66,7 @@
     if (!typeData.success) throw new Error(typeData.message);
     const typeSchema = typeData.data;
 
-    // Fetch entities for this type
+    // Fetch entities
     const entitiesResponse = await fetch('/api/entities/<%= typeSlug %>', {
       headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
     });
@@ -56,7 +75,7 @@
     if (!entitiesData.success) throw new Error(entitiesData.message);
     const entities = entitiesData.data || [];
 
-    // Initialize split pane for this type
+    // Initialize split pane
     const splitPane = new SplitPane(
       '<%= typeSlug %>SplitPane',
       '<%= typeSlug %>ListPane',
@@ -64,82 +83,244 @@
       '<%= typeSlug %>Divider'
     );
 
-    // Initialize calendar view if type has a date field
-    if (typeSchema.primary_date_field && window.CalendarView) {
-      const calendarPane = document.getElementById('<%= typeSlug %>CalendarPane');
-      CalendarView.init('<%= typeSlug %>', typeSchema, calendarPane);
-    }
+    // Initialize GenericEntity
+    GenericEntity.init('<%= typeSlug %>', typeSchema, splitPane);
+    GenericEntity.setEntities(entities);
 
-    // Render tree
-    const listContainer = document.getElementById('<%= typeSlug %>ListPane');
+    // Render tree or list
+    const listContainer = document.getElementById('<%= typeSlug %>EntityList');
     if (typeSchema.supports_hierarchy) {
       listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema);
     } else {
       listContainer.innerHTML = entities.map(e => GenericEntity.renderRow(e, typeSchema, 0)).join('');
     }
 
-    // Initialize event listeners
-    listContainer.addEventListener('click', async (e) => {
-      const editBtn = e.target.closest('[data-action="edit"]');
-      const deleteBtn = e.target.closest('[data-action="delete"]');
-      const toggleBtn = e.target.closest('[data-action="toggle-expand"]');
+    // Expand/collapse handlers
+    document.getElementById('expandAll<%= typeSlug %>Btn')?.addEventListener('click', () => {
+      listContainer.querySelectorAll('.entity-node').forEach(n => {
+        n.classList.add('expanded');
+        localStorage.setItem(`entity-expanded-${n.dataset.entityId}`, 'true');
+      });
+    });
 
-      if (editBtn) {
-        const row = editBtn.closest('[data-entity-id]');
-        const entityId = row.dataset.entityId;
-        const entity = entities.find(x => x.id == entityId);
-        GenericEntity.init('<%= typeSlug %>', typeSchema, splitPane);
-        GenericEntity.populate(entityId, entity, typeSchema);
+    document.getElementById('collapseAll<%= typeSlug %>Btn')?.addEventListener('click', () => {
+      listContainer.querySelectorAll('.entity-node').forEach(n => {
+        n.classList.remove('expanded');
+        localStorage.setItem(`entity-expanded-${n.dataset.entityId}`, 'false');
+      });
+    });
+
+    // Row click to open/close editor
+    listContainer.addEventListener('click', async (e) => {
+      // Toggle expand
+      if (e.target.closest('[data-action="toggle-expand"]')) {
+        const node = e.target.closest('[data-action="toggle-expand"]').closest('.entity-node');
+        node.classList.toggle('expanded');
+        localStorage.setItem(`entity-expanded-${node.dataset.entityId}`,
+          node.classList.contains('expanded') ? 'true' : 'false');
+        return;
       }
 
-      if (deleteBtn) {
-        const row = deleteBtn.closest('[data-entity-id]');
-        const entityId = row.dataset.entityId;
-        if (confirm('Delete this item?')) {
-          const delResp = await fetch(`/api/entities/<%= typeSlug %>/${entityId}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-          });
-          if (delResp.ok) {
-            location.reload();
+      // Edit/delete buttons
+      const actionBtn = e.target.closest('[data-action="edit"], [data-action="delete"]');
+      if (actionBtn) {
+        if (actionBtn.dataset.action === 'edit') {
+          const entity = entities.find(x => x.id == actionBtn.dataset.entityId);
+          GenericEntity.populate(entity.id, entity, typeSchema);
+        } else if (actionBtn.dataset.action === 'delete') {
+          if (confirm('Delete this item?')) {
+            const response = await fetch(`/api/entities/<%= typeSlug %>/${actionBtn.dataset.entityId}`, {
+              method: 'DELETE',
+              headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+            });
+            if (response.ok) location.reload();
           }
         }
+        return;
       }
 
-      if (toggleBtn) {
-        const row = toggleBtn.closest('[data-entity-id]');
-        const node = row.closest('[data-entity-id]');
-        node.classList.toggle('expanded');
-        const entityId = node.dataset.entityId;
-        const isExpanded = node.classList.contains('expanded');
-        localStorage.setItem(`entity-expanded-${entityId}`, isExpanded ? 'true' : 'false');
+      // Click on row itself to open editor (toggle close on same row)
+      const row = e.target.closest('.entity-row');
+      if (row && !e.target.closest('[data-action]')) {
+        const entityId = row.dataset.entityId;
+        const entity = entities.find(x => x.id == entityId);
+        GenericEntity.populate(entity.id, entity, typeSchema);
       }
     });
 
-    // Wire save button
-    const editorPane = document.getElementById('<%= typeSlug %>EditorPane');
-    editorPane.addEventListener('click', async (e) => {
-      if (e.target.id === 'entity-save-btn') {
-        e.preventDefault();
-        try {
-          const saved = await GenericEntity.save();
-          app.notify('Saved successfully', 'success');
-          GenericEntity.close();
-          // Reload entities list
-          location.reload();
-        } catch (error) {
-          app.notify(error.message, 'danger');
-        }
+    // Drag and drop
+    let draggedEntityId = null;
+    listContainer.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('.entity-row');
+      if (row) {
+        draggedEntityId = row.dataset.entityId;
+        e.dataTransfer.effectAllowed = 'move';
+        row.style.opacity = '0.5';
       }
-      if (e.target.dataset.action === 'cancel') {
+    });
+
+    listContainer.addEventListener('dragend', (e) => {
+      const row = e.target.closest('.entity-row');
+      if (row) row.style.opacity = '1';
+      draggedEntityId = null;
+    });
+
+    listContainer.addEventListener('dragover', (e) => {
+      if (!draggedEntityId) return;
+      e.preventDefault();
+      const row = e.target.closest('.entity-row');
+      if (row) {
+        row.style.borderTop = '2px solid #0d6efd';
+        e.dataTransfer.dropEffect = 'move';
+      }
+    });
+
+    listContainer.addEventListener('dragleave', (e) => {
+      const row = e.target.closest('.entity-row');
+      if (row) row.style.borderTop = '';
+    });
+
+    listContainer.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const targetRow = e.target.closest('.entity-row');
+      if (!targetRow || !draggedEntityId) return;
+
+      targetRow.style.borderTop = '';
+      const targetId = targetRow.dataset.entityId;
+
+      try {
+        const response = await fetch(`/api/entities/<%= typeSlug %>/${draggedEntityId}/parent/${targetId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.body.dataset.csrfToken
+          },
+          body: JSON.stringify({ parent_entity_id: targetId })
+        });
+        if (response.ok) location.reload();
+      } catch (error) {
+        console.error('Error moving entity:', error);
+      }
+    });
+
+    // Editor buttons
+    document.getElementById('<%= typeSlug %>SaveBtn')?.addEventListener('click', async () => {
+      try {
+        const saved = await GenericEntity.save();
+        app.notify('Saved successfully', 'success');
         GenericEntity.close();
+        location.reload();
+      } catch (error) {
+        app.notify(error.message, 'danger');
       }
+    });
+
+    document.getElementById('<%= typeSlug %>CloseBtn')?.addEventListener('click', () => {
+      GenericEntity.close();
+    });
+
+    // Folder creation
+    document.getElementById('add<%= typeSlug %>FolderBtn')?.addEventListener('click', async () => {
+      const folderName = prompt('Folder name:');
+      if (!folderName) return;
+
+      try {
+        const response = await fetch('/api/entities/<%= typeSlug %>', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.body.dataset.csrfToken
+          },
+          body: JSON.stringify({ title: folderName })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          app.notify('Folder created', 'success');
+          location.reload();
+        } else {
+          app.notify('Error: ' + result.message, 'danger');
+        }
+      } catch (error) {
+        console.error('Error creating folder:', error);
+        app.notify('Error creating folder', 'danger');
+      }
+    });
+
+    // Add new entity
+    document.getElementById('add<%= typeSlug %>Btn')?.addEventListener('click', () => {
+      GenericEntity.populate(null, {}, typeSchema);
     });
 
   } catch (error) {
     console.error('Error initializing <%= typeSlug %> tab:', error);
-    document.getElementById('<%= typeSlug %>ListPane').innerHTML =
-      `<div class="alert alert-danger">Error loading <%= typeName %>: ${error.message}</div>`;
+    const container = document.getElementById('<%= typeSlug %>EntityList');
+    if (container) {
+      container.innerHTML = `<div class="alert alert-danger">Error loading <%= typeName %>: ${error.message}</div>`;
+    }
   }
 })();
 </script>
+
+<style>
+.entity-row {
+  padding: 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.entity-row:hover {
+  background-color: #f8f9fa;
+}
+
+.entity-row[draggable="true"] {
+  cursor: move;
+}
+
+.entity-row-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.entity-toggle {
+  cursor: pointer;
+  display: inline-block;
+  width: 18px;
+  transform: rotate(0deg);
+  transition: transform 0.2s;
+}
+
+.entity-node.expanded > .entity-node-children {
+  display: block;
+}
+
+.entity-node-children {
+  display: none;
+  margin-left: 18px;
+}
+
+.entity-title {
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.row-field {
+  color: #6c757d;
+  font-size: 0.875rem;
+  margin-left: 8px;
+}
+</style>
