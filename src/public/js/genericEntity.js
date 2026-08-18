@@ -298,6 +298,11 @@ const GenericEntity = (() => {
 
     close: () => {
       currentEntityId = null;
+      // Clear the editor content
+      const editorPaneId = `${currentTypeSlug}-editor-pane`;
+      const editorPane = document.getElementById(editorPaneId);
+      if (editorPane) editorPane.innerHTML = '';
+      // Hide the pane
       const typeSplitPane = splitPanesByType[currentTypeSlug];
       if (typeSplitPane) typeSplitPane.hideRightPane();
     },
