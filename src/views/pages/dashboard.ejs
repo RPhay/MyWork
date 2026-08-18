@@ -28,7 +28,17 @@
 
     <!-- Tab Navigation (dynamically generated from entity types + special views) -->
     <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
-      <% entityTypes.filter(t => !['daily', 'outlook_calendar'].includes(t.slug)).forEach(type => { %>
+      <%
+        // Sort types: work_item (Dailies) first, then all others
+        const sortedTypes = entityTypes
+          .filter(t => !['daily', 'outlook_calendar'].includes(t.slug))
+          .sort((a, b) => {
+            if (a.slug === 'work_item') return -1;
+            if (b.slug === 'work_item') return 1;
+            return 0;
+          });
+      %>
+      <% sortedTypes.forEach(type => { %>
         <li class="nav-item" role="presentation" <% if (type.slug !== 'work_item') { %>draggable="true"<% } %>>
           <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
             <% if (type.icon) { %>
@@ -72,7 +82,7 @@
         const specialTabs = ['priority-board', 'reporting'];
       %>
 
-      <% entityTypes.filter(t => !['daily', 'outlook_calendar'].includes(t.slug)).forEach(type => { %>
+      <% sortedTypes.forEach(type => { %>
         <div id="tab-<%= type.slug %>" class="tab-content-pane">
           <%
             // Check if there's a type-specific template for backward compatibility
