@@ -650,6 +650,32 @@ function addTicketLink(isEditor = false) {
   document.getElementById(`${prefix}LinkTitle`).value = '';
 }
 
+async function createTicketFolder() {
+  const folderName = prompt('Folder name:');
+  if (!folderName) return;
+
+  try {
+    const response = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.body.dataset.csrfToken
+      },
+      body: JSON.stringify({
+        title: folderName
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      await loadTickets();
+      app.notify('Folder created', 'success');
+    }
+  } catch (error) {
+    console.error('Error creating folder:', error);
+  }
+}
+
 async function saveTicket() {
   const ticketId = document.getElementById('ticketId').value;
   const title = document.getElementById('ticketTitle').value;
@@ -744,6 +770,8 @@ function initTickets() {
     saveTicketFolderState();
     renderTickets();
   });
+
+  document.getElementById('addTicketFolderBtn')?.addEventListener('click', createTicketFolder);
 
   document.getElementById('addTicketBtn')?.addEventListener('click', () => {
     document.getElementById('ticketForm').reset();

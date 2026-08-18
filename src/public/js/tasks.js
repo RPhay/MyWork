@@ -154,6 +154,32 @@ function openTaskForm(taskId = null) {
   openNewTaskForm();
 }
 
+async function createTaskFolder() {
+  const folderName = prompt('Folder name:');
+  if (!folderName) return;
+
+  try {
+    const response = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.body.dataset.csrfToken
+      },
+      body: JSON.stringify({
+        title: folderName
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      await loadTasks();
+      app.notify('Folder created', 'success');
+    }
+  } catch (error) {
+    console.error('Error creating folder:', error);
+  }
+}
+
 function openNewTaskForm() {
   const form = document.getElementById('taskForm');
   document.getElementById('taskId').value = '';
@@ -567,6 +593,11 @@ function initializeTasksTab() {
       getTaskState().expandedTasks.clear();
       renderTasksList();
     });
+  }
+
+  const addFolderBtn = document.getElementById('addTaskFolderBtn');
+  if (addFolderBtn) {
+    addFolderBtn.addEventListener('click', createTaskFolder);
   }
 
   const addBtn = document.getElementById('addTaskBtn');

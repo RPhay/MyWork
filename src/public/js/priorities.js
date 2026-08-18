@@ -907,6 +907,32 @@ function getPriorityDescendantIds(priorityId) {
   return descendants;
 }
 
+async function createPriorityFolder() {
+  const folderName = prompt('Folder name:');
+  if (!folderName) return;
+
+  try {
+    const response = await fetch('/api/priorities', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.body.dataset.csrfToken
+      },
+      body: JSON.stringify({
+        title: folderName
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      await loadPriorities();
+      app.notify('Folder created', 'success');
+    }
+  } catch (error) {
+    console.error('Error creating folder:', error);
+  }
+}
+
 function openNewPriorityForm() {
   document.getElementById('priorityId').value = '';
   document.getElementById('priorityForm').reset();
@@ -1187,6 +1213,7 @@ function initPrioritiesEventListeners() {
     renderPrioritiesList();
   });
 
+  document.getElementById('addPriorityFolderBtn').addEventListener('click', createPriorityFolder);
   document.getElementById('addPriorityBtn').addEventListener('click', openNewPriorityForm);
   document.getElementById('savePriorityBtn').addEventListener('click', savePriority);
 

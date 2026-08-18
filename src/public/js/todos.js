@@ -235,6 +235,32 @@ function collectToDoItemsFromEditor() {
     .filter(item => item.text);
 }
 
+async function createTodoFolder() {
+  const folderName = prompt('Folder name:');
+  if (!folderName) return;
+
+  try {
+    const response = await fetch('/api/to-dos', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.body.dataset.csrfToken
+      },
+      body: JSON.stringify({
+        title: folderName
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      await loadToDos();
+      app.notify('Folder created', 'success');
+    }
+  } catch (error) {
+    console.error('Error creating folder:', error);
+  }
+}
+
 function openNewToDoForm() {
   document.getElementById('toDoId').value = '';
   document.getElementById('toDoForm').reset();
@@ -1010,6 +1036,11 @@ function initializeToDosTab() {
   loadToDos();
 
   // Wire up modal buttons for creating new todos
+  const addFolderBtn = document.getElementById('addTodoFolderBtn');
+  if (addFolderBtn) {
+    addFolderBtn.addEventListener('click', createTodoFolder);
+  }
+
   const addBtn = document.getElementById('addToDoBtn');
   if (addBtn) {
     addBtn.addEventListener('click', openNewToDoForm);
