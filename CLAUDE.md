@@ -45,6 +45,28 @@ npx playwright test                          # Full suite (slower but catches mo
 
 Fix any console errors (CSP violations, unhandled exceptions, etc.) before committing. CSP violations in particular indicate security policy conflicts that need resolution.
 
+## Editable Types Testing (Data Types)
+
+**ALWAYS run these tests in headed mode when modifying any editable type pages** (Areas/Categories, Goals, Todos, Tasks, Tickets, Ideas):
+
+```bash
+npx playwright test tests/e2e/editable-types.spec.js --headed
+```
+
+These tests verify:
+- ✓ UI elements present (add button, folder button, expand/collapse buttons)
+- ✓ Expand/collapse tree navigation works
+- ✓ Folder creation dialog triggers
+- ✓ Tab layout centering (editable types centered between fixed left/right tabs)
+
+**Do NOT commit changes to editable type templates/code without running these tests in headed mode.** The tests catch duplicate IDs, missing event handlers, broken form rendering, and other UI issues that static analysis misses.
+
+Related files requiring this testing:
+- `src/views/tabs/generic-entity-tab.ejs` — Generic template for all editable types
+- `src/public/js/genericEntity.js` — Generic entity renderer and editor
+- `src/services/entityService.js` — Entity CRUD operations
+- `tests/e2e/editable-types.spec.js` — Comprehensive browser tests
+
 ## Credentials
 
 Never paste, print, or otherwise reproduce credential values (`.env.local` contents, `DB_PASSWORD`, API keys, tokens, connection strings, etc.) in conversation or command output. They stay local to the machine/file only, 100% of the time. When verifying or testing credentials, check presence/validity without echoing the value — e.g., attempt the actual connection and report success/failure by exit code, or mask the value if a file's structure needs to be shown.
