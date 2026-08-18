@@ -40,8 +40,14 @@
             return 0;
           });
       %>
-      <% sortedTypes.forEach(type => { %>
-        <li class="nav-item" role="presentation" <% if (type.slug !== 'work_item' && type.slug !== 'priority') { %>draggable="true"<% } %>>
+      <%
+        // Render fixed-position tabs (Dailies, Priorities)
+        const fixedTypes = sortedTypes.filter(t => ['work_item', 'priority'].includes(t.slug));
+        const editableTypes = sortedTypes.filter(t => !['work_item', 'priority'].includes(t.slug));
+      %>
+
+      <% fixedTypes.forEach(type => { %>
+        <li class="nav-item" role="presentation">
           <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
             <% if (type.icon) { %>
               <span class="tab-icon"><%= type.icon %></span>
@@ -51,7 +57,22 @@
         </li>
       <% }); %>
 
-      <!-- Spacer for right-aligned tabs -->
+      <!-- Left spacer for centered editable types -->
+      <li class="nav-item" style="flex: 1;"></li>
+
+      <!-- Centered editable type tabs -->
+      <% editableTypes.forEach(type => { %>
+        <li class="nav-item" role="presentation" draggable="true">
+          <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
+            <% if (type.icon) { %>
+              <span class="tab-icon"><%= type.icon %></span>
+            <% } %>
+            <%= type.label %>
+          </button>
+        </li>
+      <% }); %>
+
+      <!-- Right spacer for centered editable types -->
       <li class="nav-item" style="flex: 1;"></li>
 
       <!-- Special View Tabs (right-aligned) -->
