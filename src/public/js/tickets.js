@@ -109,140 +109,90 @@ function renderTickets() {
   const ticketsList = document.getElementById('ticketsList');
   ticketsList.innerHTML = '';
 
-  const grouped = { 'ServiceNow': [], 'Azure DevOps': [], 'Other': [] };
+  if (allTickets.length === 0) {
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'text-center text-muted mt-4';
+    emptyDiv.textContent = 'No tickets';
+    ticketsList.appendChild(emptyDiv);
+    return;
+  }
+
   allTickets.forEach(ticket => {
-    if (grouped[ticket.ticket_type]) {
-      grouped[ticket.ticket_type].push(ticket);
-    }
-  });
+    const isTicketExpanded = expandedTicketNodes.has(`ticket-${ticket.id}`);
 
-  TICKET_TYPE_ORDER.forEach(type => {
-    const tickets = grouped[type];
-    const isExpanded = expandedTicketTypes.has(type);
+    const ticketNodeDiv = document.createElement('div');
+    ticketNodeDiv.className = 'ticket-node';
+    ticketNodeDiv.dataset.ticketId = ticket.id;
+    ticketNodeDiv.style.borderBottom = '1px solid #eee';
+    ticketNodeDiv.style.paddingBottom = '8px';
+    ticketNodeDiv.style.marginBottom = '8px';
 
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'ticket-group';
-    groupDiv.dataset.ticketType = type;
+    const ticketHeaderDiv = document.createElement('div');
+    ticketHeaderDiv.style.padding = '8px 0';
+    ticketHeaderDiv.style.display = 'flex';
+    ticketHeaderDiv.style.alignItems = 'center';
+    ticketHeaderDiv.style.gap = '8px';
+    ticketHeaderDiv.style.cursor = 'pointer';
+    ticketHeaderDiv.style.fontSize = '0.9rem';
 
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'ticket-group-header';
-    headerDiv.style.cursor = 'pointer';
-    headerDiv.style.padding = '10px';
-    headerDiv.style.background = '#f8f9fa';
-    headerDiv.style.borderRadius = '4px';
-    headerDiv.style.marginBottom = '8px';
-    headerDiv.style.display = 'flex';
-    headerDiv.style.alignItems = 'center';
-    headerDiv.style.gap = '8px';
-    headerDiv.style.fontWeight = '500';
-    headerDiv.innerHTML = `
-      <i class="bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}"></i>
-      <i class="bi bi-folder2"></i>
-      <span>${app.escapeHtml(type)}</span>
-      <span class="badge bg-light text-dark ms-auto">${tickets.length}</span>
+    const associatedTodos = ticketToDos.filter(t => t.ticket_id === ticket.id);
+    const associatedGoals = allGoals.filter(g => g.ticket_id === ticket.id);
+    const hasChildren = associatedTodos.length > 0 || associatedGoals.length > 0;
+
+    ticketHeaderDiv.innerHTML = `
+      <span style="flex: 1; display: flex; align-items: center; gap: 6px;">
+        ${hasChildren
+          ? `<i class="bi ${isTicketExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}" data-action="toggle-expand" style="cursor: pointer;"></i>`
+          : '<span style="width: 16px;"></span>'}
+        <i class="bi bi-ticket text-muted"></i>
+        <strong>${app.escapeHtml(ticket.title)}</strong>
+      </span>
     `;
 
-    headerDiv.addEventListener('click', () => {
-      if (expandedTicketTypes.has(type)) {
-        expandedTicketTypes.delete(type);
+    ticketHeaderDiv.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action="toggle-expand"]')) {
+        e.stopPropagation();
+        if (expandedTicketNodes.has(`ticket-${ticket.id}`)) {
+          expandedTicketNodes.delete(`ticket-${ticket.id}`);
+        } else {
+          expandedTicketNodes.add(`ticket-${ticket.id}`);
+        }
+        saveTicketFolderState();
+        renderTickets();
       } else {
-        expandedTicketTypes.add(type);
+        editTicket(ticket.id);
       }
-      saveTicketFolderState();
-      renderTickets();
     });
 
-    headerDiv.addEventListener('contextmenu', (e) => showTicketContextMenu(e, type, null));
+    ticketHeaderDiv.addEventListener('contextmenu', (e) => {
+      e.stopPropagation();
+      showTicketContextMenu(e, null, ticket.id);
+    });
 
-    groupDiv.appendChild(headerDiv);
+    ticketNodeDiv.appendChild(ticketHeaderDiv);
 
-    if (isExpanded) {
-      if (tickets.length === 0) {
-        const emptyDiv = document.createElement('div');
-        emptyDiv.className = 'text-muted small';
-        emptyDiv.style.padding = '8px';
-        emptyDiv.textContent = 'No tickets';
-        groupDiv.appendChild(emptyDiv);
-      } else {
-        tickets.forEach(ticket => {
-          const isTicketExpanded = expandedTicketNodes.has(`ticket-${ticket.id}`);
+    if (isTicketExpanded && hasChildren) {
+      const childrenDiv = document.createElement('div');
+      childrenDiv.style.marginLeft = '8px';
+      childrenDiv.style.borderLeft = '2px solid #ddd';
+      childrenDiv.style.paddingLeft = '8px';
 
-          const ticketNodeDiv = document.createElement('div');
-          ticketNodeDiv.className = 'ticket-node';
-          ticketNodeDiv.dataset.ticketId = ticket.id;
+      associatedTodos.forEach(todo => {
+        const todoEl = document.createElement('div');
+        todoEl.innerHTML = renderToDoInTree(todo, 0, true);
+        childrenDiv.appendChild(todoEl.firstChild);
+      });
 
-          const ticketHeaderDiv = document.createElement('div');
-          ticketHeaderDiv.style.padding = '8px';
-          ticketHeaderDiv.style.borderBottom = '1px solid #eee';
-          ticketHeaderDiv.style.display = 'flex';
-          ticketHeaderDiv.style.alignItems = 'center';
-          ticketHeaderDiv.style.gap = '8px';
-          ticketHeaderDiv.style.cursor = 'pointer';
-          ticketHeaderDiv.style.fontSize = '0.9rem';
+      associatedGoals.forEach(goal => {
+        const goalEl = document.createElement('div');
+        goalEl.innerHTML = renderGoalInTree(goal, 0, true);
+        childrenDiv.appendChild(goalEl.firstChild);
+      });
 
-          const associatedTodos = ticketToDos.filter(t => t.ticket_id === ticket.id);
-          const associatedGoals = allGoals.filter(g => g.ticket_id === ticket.id);
-          const hasChildren = associatedTodos.length > 0 || associatedGoals.length > 0;
-
-          ticketHeaderDiv.innerHTML = `
-            <span style="flex: 1; display: flex; align-items: center; gap: 6px;">
-              ${hasChildren
-                ? `<i class="bi ${isTicketExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}" data-action="toggle-expand" style="cursor: pointer;"></i>`
-                : '<span style="width: 16px;"></span>'}
-              <i class="bi bi-ticket text-muted"></i>
-              <strong>${app.escapeHtml(ticket.title)}</strong>
-            </span>
-          `;
-
-          ticketHeaderDiv.addEventListener('click', (e) => {
-            if (e.target.closest('[data-action="toggle-expand"]')) {
-              e.stopPropagation();
-              if (expandedTicketNodes.has(`ticket-${ticket.id}`)) {
-                expandedTicketNodes.delete(`ticket-${ticket.id}`);
-              } else {
-                expandedTicketNodes.add(`ticket-${ticket.id}`);
-              }
-              saveTicketFolderState();
-              renderTickets();
-            } else {
-              editTicket(ticket.id);
-            }
-          });
-
-          ticketHeaderDiv.addEventListener('contextmenu', (e) => {
-            e.stopPropagation();
-            showTicketContextMenu(e, type, ticket.id);
-          });
-
-          ticketNodeDiv.appendChild(ticketHeaderDiv);
-
-          if (isTicketExpanded && hasChildren) {
-            const childrenDiv = document.createElement('div');
-            childrenDiv.style.marginLeft = '8px';
-            childrenDiv.style.borderLeft = '2px solid #ddd';
-            childrenDiv.style.paddingLeft = '8px';
-
-            associatedTodos.forEach(todo => {
-              const todoEl = document.createElement('div');
-              todoEl.innerHTML = renderToDoInTree(todo, 0, true);
-              childrenDiv.appendChild(todoEl.firstChild);
-            });
-
-            associatedGoals.forEach(goal => {
-              const goalEl = document.createElement('div');
-              goalEl.innerHTML = renderGoalInTree(goal, 0, true);
-              childrenDiv.appendChild(goalEl.firstChild);
-            });
-
-            ticketNodeDiv.appendChild(childrenDiv);
-          }
-
-          groupDiv.appendChild(ticketNodeDiv);
-        });
-      }
+      ticketNodeDiv.appendChild(childrenDiv);
     }
 
-    ticketsList.appendChild(groupDiv);
+    ticketsList.appendChild(ticketNodeDiv);
   });
 
   attachTicketNodeEventListeners();
