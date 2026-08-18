@@ -1149,10 +1149,11 @@ export async function createMssqlSchema(pool) {
   }
 
   // Seed system entity types if they don't exist (MSSQL)
+  // Note: work_item represents individual items that can be associated with a Daily
   const escapeSQL = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
 
   const systemTypes = [
-    { slug: 'work_item', label: 'Dailies', label_singular: 'Daily', icon: '⭐', supports_hierarchy: 1, primary_date_field: 'date' },
+    { slug: 'work_item', label: 'Work Items', label_singular: 'Work Item', icon: '⭐', supports_hierarchy: 1, primary_date_field: 'date' },
     { slug: 'priority', label: 'Projects', label_singular: 'Project', icon: '📍', supports_hierarchy: 1, primary_date_field: null },
     { slug: 'area', label: 'Categories', label_singular: 'Category', icon: '📁', supports_hierarchy: 1, primary_date_field: null },
     { slug: 'goal', label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: 0, primary_date_field: null },
@@ -1175,7 +1176,8 @@ export async function createMssqlSchema(pool) {
     }
   }
 
-  // Seed special types (Daily and External) if they don't exist (MSSQL)
+  // Seed special types (Daily day container and External integrations) if they don't exist (MSSQL)
+  // Daily = read-only type representing one complete day's work (a tree of all associated items)
   const specialTypes = [
     { slug: 'daily', label: 'Daily', label_singular: 'Daily', icon: '📅', type_category: 'daily' },
     { slug: 'outlook_calendar', label: 'Outlook Calendar', label_singular: 'Outlook Event', icon: '📆', type_category: 'external', external_source: 'outlook' }

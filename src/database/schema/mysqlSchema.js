@@ -1009,8 +1009,9 @@ export async function createMysqlSchema(connection) {
   }
 
   // Seed system entity types if they don't exist
+  // Note: work_item represents individual items that can be associated with a Daily
   const systemTypes = [
-    { slug: 'work_item', label: 'Dailies', label_singular: 'Daily', icon: '⭐', supports_hierarchy: true, primary_date_field: 'date' },
+    { slug: 'work_item', label: 'Work Items', label_singular: 'Work Item', icon: '⭐', supports_hierarchy: true, primary_date_field: 'date' },
     { slug: 'priority', label: 'Projects', label_singular: 'Project', icon: '📍', supports_hierarchy: true, primary_date_field: null },
     { slug: 'area', label: 'Categories', label_singular: 'Category', icon: '📁', supports_hierarchy: true, primary_date_field: null },
     { slug: 'goal', label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: false, primary_date_field: null },
@@ -1034,9 +1035,10 @@ export async function createMysqlSchema(connection) {
     }
   }
 
-  // Seed special types (Daily and External) if they don't exist
+  // Seed special types (Daily day container and External integrations) if they don't exist
+  // Daily = read-only type representing one complete day's work (a tree of all associated items)
   const specialTypes = [
-    { slug: 'daily', label: 'Daily', label_singular: 'Daily', icon: '📅', type_category: 'daily' },
+    { slug: 'daily', label: 'Daily', label_singular: 'Daily', icon: '📅', type_category: 'daily', description: 'One day of work - a container tree of all associated items' },
     { slug: 'outlook_calendar', label: 'Outlook Calendar', label_singular: 'Outlook Event', icon: '📆', type_category: 'external', external_source: 'outlook' }
   ];
 
