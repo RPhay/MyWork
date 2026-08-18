@@ -1237,8 +1237,13 @@ export async function createMssqlSchema(pool) {
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0, field_options: null }
     ],
     'goal': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
+      { field_key: 'year', label: 'Year', field_type: 'number', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: null },
+      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null },
+      { field_key: 'due_date', label: 'Due Date', field_type: 'date', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 3, field_options: null },
+      { field_key: 'measurements', label: 'Measurements', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 4, field_options: null },
+      { field_key: 'goal_updates', label: 'Goal Updates', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 5, field_options: null },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 6, field_options: null }
     ],
     'to_do': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },

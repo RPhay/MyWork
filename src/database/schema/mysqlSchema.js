@@ -1090,8 +1090,13 @@ export async function createMysqlSchema(connection) {
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 }
     ],
     'goal': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
+      { field_key: 'year', label: 'Year', field_type: 'number', required: false, show_in_row: true, is_completion_signal: false, display_order: 0 },
+      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 1, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 },
+      { field_key: 'due_date', label: 'Due Date', field_type: 'date', required: false, show_in_row: true, is_completion_signal: false, display_order: 3 },
+      { field_key: 'measurements', label: 'Measurements', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 4 },
+      { field_key: 'goal_updates', label: 'Goal Updates', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 5 },
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 6 }
     ],
     'to_do': [
       { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
