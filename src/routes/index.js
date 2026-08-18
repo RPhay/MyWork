@@ -124,49 +124,6 @@ router.get("/setup", async (req, res) => {
   res.render("pages/setup", { title: "MyWork Setup", health });
 });
 
-// Generic entity type page route
-router.get("/type/:slug", async (req, res) => {
-  try {
-    const typeSlug = req.params.slug;
-
-    // Prevent access to special types that have their own pages
-    const specialSlugs = ['dailies', 'templates', 'priorities', 'daily', 'outlook_calendar'];
-    if (specialSlugs.includes(typeSlug)) {
-      return res.redirect(`/?tab=${typeSlug}`);
-    }
-
-    // Get the entity type definition
-    const type = await entityTypeService.getEntityTypeWithSchema(typeSlug);
-    if (!type) {
-      return res.status(404).render("pages/error", {
-        title: "Type Not Found",
-        message: `Entity type '${typeSlug}' not found`
-      });
-    }
-
-    // Get the type's fields for the UI
-    const typeFields = type.fields || [];
-
-    res.render("pages/genericEntityType", {
-      title: type.label,
-      typeSlug: type.slug,
-      typeName: type.label,
-      typeSingular: type.label_singular || type.label,
-      typeDescription: `Manage ${type.label.toLowerCase()}`,
-      supportsHierarchy: type.supports_hierarchy,
-      typeFields: typeFields,
-      version: readVersion(),
-      dbHealth: res.locals.dbHealth
-    });
-  } catch (error) {
-    console.error("Entity type page error:", error);
-    res.status(500).render("pages/error", {
-      title: "Error",
-      message: "Error loading entity type page"
-    });
-  }
-});
-
 // Dashboard route
 router.get("/", async (req, res) => {
   try {

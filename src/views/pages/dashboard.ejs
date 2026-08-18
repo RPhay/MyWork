@@ -28,42 +28,21 @@
 
     <!-- Tab Navigation (dynamically generated from entity types + special views) -->
     <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
-      <%
-        // Filter out non-tab types (daily, outlook_calendar, etc.)
-        const tabTypes = entityTypes.filter(type => !['daily', 'outlook_calendar'].includes(type.slug));
-
-        // Types with their own inline tabs
-        const inlineTabSlugs = ['work_item', 'priority', 'template'];
-      %>
-
-      <% tabTypes.forEach(type => { %>
-        <% if (inlineTabSlugs.includes(type.slug)) { %>
-          <!-- Inline Tab (Dailies, Priority Board, Templates) -->
-          <li class="nav-item" role="presentation" <% if (type.slug !== 'work_item') { %>draggable="true"<% } %>>
-            <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
-              <% if (type.icon) { %>
-                <span class="tab-icon"><%= type.icon %></span>
-              <% } %>
-              <%= type.label %>
-            </button>
-          </li>
-        <% } else { %>
-          <!-- External Link Tab (other editable types) -->
-          <li class="nav-item" role="presentation">
-            <a class="nav-link" href="/type/<%= type.slug %>" title="<%= type.label %>">
-              <% if (type.icon) { %>
-                <span class="tab-icon"><%= type.icon %></span>
-              <% } %>
-              <%= type.label %>
-            </a>
-          </li>
-        <% } %>
+      <% entityTypes.forEach(type => { %>
+        <li class="nav-item" role="presentation" <% if (type.slug !== 'work_item') { %>draggable="true"<% } %>>
+          <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
+            <% if (type.icon) { %>
+              <span class="tab-icon"><%= type.icon %></span>
+            <% } %>
+            <%= type.label %>
+          </button>
+        </li>
       <% }); %>
 
       <!-- Special View Tabs -->
       <li class="nav-item" role="presentation" draggable="true">
         <button class="nav-link" id="priority-board-tab" data-tab="priority-board" type="button" role="tab">
-          <span class="tab-icon">📊</span> Priority Board
+          <span class="tab-icon">📊</span> Priorities
         </button>
       </li>
       <li class="nav-item" role="presentation" draggable="true">
@@ -73,20 +52,38 @@
       </li>
     </ul>
 
-    <!-- Tab Content (only for inline tabs) -->
+    <!-- Tab Content (dynamically generated from entity types) -->
     <div class="tab-content" id="mainTabContent">
       <%
-        // Map entity type slugs to template names (only for inline tabs)
+        // Map entity type slugs to template names and special handling
         const templateMap = {
           'work_item': 'dailies.ejs',
           'priority': 'my-priorities.ejs',
+          'area': 'areas.ejs',
+          'goal': 'yearly-goals.ejs',
+          'to_do': 'todos.ejs',
+          'task': 'tasks.ejs',
+          'ticket': 'tickets.ejs',
+          'idea': 'brainstorming.ejs',
           'template': 'templates.ejs'
         };
+
+        // Special view tabs (not entity types, but views)
+        const specialTabs = ['priority-board', 'reporting'];
       %>
 
-      <% inlineTabSlugs.forEach(slug => { %>
-        <div id="tab-<%= slug %>" class="tab-content-pane">
-          <%- include('../tabs/' + templateMap[slug]) %>
+      <% entityTypes.forEach(type => { %>
+        <div id="tab-<%= type.slug %>" class="tab-content-pane">
+          <%
+            // Check if there's a type-specific template for backward compatibility
+            const templateFile = templateMap[type.slug];
+            if (templateFile) {
+          %>
+            <%- include('../tabs/' + templateFile) %>
+          <% } else { %>
+            <!-- Generic entity tab for custom types -->
+            <%- include('../tabs/generic-entity-tab.ejs', { typeSlug: type.slug, typeName: type.label }) %>
+          <% } %>
         </div>
       <% }); %>
 

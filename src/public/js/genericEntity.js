@@ -1,513 +1,261 @@
 /**
- * Generic Entity Type Controller
- * Handles all editable entity types with common UI patterns:
- * - Folder hierarchy (if supported)
- * - Column visibility toggle
- * - Sorting and filtering
- * - Inline and detail editing
+ * Generic Entity Engine - Unified renderer for all entity types
+ * Handles: rows, trees, editors, and field rendering for any entity type
  */
 
-let currentEntities = [];
-let currentType = null;
-let currentFolder = null;
-let columnVisibility = {};
-let sortField = null;
-let sortDirection = 'asc';
-let filterText = '';
-let filterValues = {};
-let currentEditingEntity = null;
+const GenericEntity = (() => {
+  let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges;
 
-async function initializeGenericEntity() {
-  const typeSlug = window.genericEntityTypeSlug;
-  const typeName = window.genericEntityTypeName;
-  const supportsHierarchy = window.genericEntitySupportsHierarchy;
-  const typeFields = window.genericEntityTypeFields || [];
-
-  currentType = {
-    slug: typeSlug,
-    name: typeName,
-    supportsHierarchy: supportsHierarchy,
-    fields: typeFields
+  // ========== FIELD RENDERERS STRATEGY MAP ==========
+  const fieldRenderers = {
+    text: (field, value = '') => `
+      <div class="form-group">
+        <label>${field.label}</label>
+        <input type="text" name="${field.field_key}" value="${value || ''}" class="form-control" data-field-type="text">
+      </div>
+    `,
+    textarea: (field, value = '') => `
+      <div class="form-group">
+        <label>${field.label}</label>
+        <textarea name="${field.field_key}" class="form-control" data-field-type="textarea">${value || ''}</textarea>
+      </div>
+    `,
+    number: (field, value = '') => `
+      <div class="form-group">
+        <label>${field.label}</label>
+        <input type="number" name="${field.field_key}" value="${value || ''}" class="form-control" data-field-type="number">
+      </div>
+    `,
+    date: (field, value = '') => `
+      <div class="form-group">
+        <label>${field.label}</label>
+        <input type="date" name="${field.field_key}" value="${value || ''}" class="form-control" data-field-type="date">
+      </div>
+    `,
+    select: (field, value = '') => `
+      <div class="form-group">
+        <label>${field.label}</label>
+        <select name="${field.field_key}" class="form-control" data-field-type="select">
+          <option value="">-- Select --</option>
+          ${(field.field_options?.choices || []).map(c =>
+            `<option value="${c}" ${c === value ? 'selected' : ''}>${c}</option>`
+          ).join('')}
+        </select>
+      </div>
+    `,
+    status: (field, value = '') => {
+      const statuses = field.field_options?.values || ['incomplete', 'in_progress', 'complete'];
+      return `
+        <div class="form-group">
+          <label>${field.label}</label>
+          <select name="${field.field_key}" class="form-control status-select" data-field-type="status">
+            ${statuses.map(s =>
+              `<option value="${s}" ${s === value ? 'selected' : ''}>${s}</option>`
+            ).join('')}
+          </select>
+        </div>
+      `;
+    },
+    checkbox: (field, value = false) => `
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="${field.field_key}" class="form-check-input" ${value ? 'checked' : ''} data-field-type="checkbox">
+          ${field.label}
+        </label>
+      </div>
+    `,
+    recurrence: (field, value = null) => `
+      <div class="form-group">
+        <label>${field.label}</label>
+        <textarea name="${field.field_key}" class="form-control" data-field-type="recurrence" placeholder="JSON recurrence config">${value ? JSON.stringify(JSON.parse(value), null, 2) : ''}</textarea>
+      </div>
+    `,
   };
 
-  // Initialize column visibility from localStorage
-  const savedColumns = localStorage.getItem(`entityColumns_${typeSlug}`);
-  if (savedColumns) {
-    columnVisibility = JSON.parse(savedColumns);
-  } else {
-    // Default: show all columns except notes
-    typeFields.forEach(field => {
-      columnVisibility[field.field_key] = field.field_key !== 'notes';
-    });
-    saveColumnVisibility();
+  // ========== ROW RENDERING ==========
+  function renderEntityRow(entity, typeSchema, depth = 0) {
+    const fields = (typeSchema.fields || [])
+      .filter(f => f.show_in_row)
+      .map(f => {
+        const value = entity.fields?.[f.field_key] || '';
+        return value ? `<span class="row-field">${value}</span>` : '';
+      })
+      .join(' ');
+
+    const indent = `<span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>`;
+    const hasChildren = entity.has_children || false;
+    const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
+
+    return `
+      <div class="entity-row ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}" data-entity-type="${typeSchema.slug}" data-depth="${depth}">
+        <div class="entity-row-content">
+          ${indent}
+          ${hasChildren ? `<span class="entity-toggle" data-action="toggle-expand">▶</span>` : '<span style="width: 18px; display: inline-block;"></span>'}
+          <span class="entity-title">${entity.title}</span>
+          ${fields}
+          <div class="entity-actions">
+            <button data-action="edit" class="btn-sm">Edit</button>
+            <button data-action="delete" class="btn-sm btn-danger">Delete</button>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
-  // Attach event listeners
-  document.getElementById('createEntityBtn')?.addEventListener('click', () => createNewEntity());
-  document.getElementById('newFolderBtn')?.addEventListener('click', () => createNewFolder());
-  document.getElementById('columnToggleBtn')?.addEventListener('click', () => showColumnModal());
-  document.getElementById('closeDetailBtn')?.addEventListener('click', () => closeDetailPane());
-  document.getElementById('saveEntityBtn')?.addEventListener('click', () => saveCurrentEntity());
-  document.getElementById('deleteEntityBtn')?.addEventListener('click', () => deleteCurrentEntity());
-  document.getElementById('searchInput')?.addEventListener('input', (e) => {
-    filterText = e.target.value.toLowerCase();
-    renderTable();
-  });
+  // ========== TREE RENDERING ==========
+  function renderTree(entities, typeSchema) {
+    // Build a map of id -> entity for quick lookup
+    const entityMap = new Map(entities.map(e => [e.id, e]));
 
-  // Setup column modal
-  setupColumnModal();
+    // Find root entities (those with no parents in this context)
+    const roots = entities.filter(e => !e.parent_entity_id);
 
-  // Load initial data
-  await loadEntities();
-  renderTable();
-  if (supportsHierarchy) {
-    renderFolders();
-  }
-}
+    function renderNode(entity, depth = 0) {
+      const children = entities.filter(e => e.parent_entity_id === entity.id);
+      const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
 
-async function loadEntities() {
-  try {
-    const response = await fetch(`/api/entities/${currentType.slug}`);
-    const result = await response.json();
-    if (result.success) {
-      currentEntities = result.data || [];
-    } else {
-      console.error('Error loading entities:', result.message);
-      currentEntities = [];
-    }
-  } catch (error) {
-    console.error('Error loading entities:', error);
-    currentEntities = [];
-  }
-}
+      const childrenHtml = children.length > 0 ? `
+        <div class="entity-node-children ${isExpanded ? 'visible' : ''}">
+          ${children.map(child => renderNode(child, depth + 1)).join('')}
+        </div>
+      ` : '';
 
-function getVisibleColumns() {
-  return currentType.fields.filter(field => columnVisibility[field.field_key]);
-}
-
-function renderTable() {
-  const tableHeader = document.getElementById('tableHeader');
-  const tableBody = document.getElementById('entityTableBody');
-
-  // Clear and build header
-  tableHeader.innerHTML = '';
-  const visibleColumns = getVisibleColumns();
-
-  const titleHeader = document.createElement('th');
-  titleHeader.textContent = 'Title';
-  titleHeader.style.cursor = 'pointer';
-  titleHeader.addEventListener('click', () => toggleSort('title'));
-  tableHeader.appendChild(titleHeader);
-
-  visibleColumns.forEach(field => {
-    const th = document.createElement('th');
-    th.style.cursor = 'pointer';
-    th.innerHTML = `${field.label}`;
-    if (sortField === field.field_key) {
-      th.innerHTML += ` <span class="column-sort-indicator">${sortDirection === 'asc' ? '↑' : '↓'}</span>`;
-    }
-    th.addEventListener('click', () => toggleSort(field.field_key));
-    tableHeader.appendChild(th);
-  });
-
-  // Filter and render body
-  let filteredEntities = filterEntities(currentEntities);
-  sortEntities(filteredEntities);
-
-  if (filteredEntities.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="100%" class="text-center text-muted p-4">No items</td></tr>';
-    return;
-  }
-
-  tableBody.innerHTML = '';
-  filteredEntities.forEach(entity => {
-    const row = document.createElement('tr');
-    row.dataset.entityId = entity.id;
-    row.addEventListener('click', () => showDetailPane(entity));
-
-    // Title column
-    const titleCell = document.createElement('td');
-    titleCell.innerHTML = `<strong>${app.escapeHtml(entity.title)}</strong>`;
-    row.appendChild(titleCell);
-
-    // Other columns
-    visibleColumns.forEach(field => {
-      const cell = document.createElement('td');
-      const value = getFieldValue(entity, field.field_key);
-      cell.textContent = formatFieldValue(value, field.field_type);
-      row.appendChild(cell);
-    });
-
-    tableBody.appendChild(row);
-  });
-}
-
-function filterEntities(entities) {
-  return entities.filter(entity => {
-    // Text search in title
-    if (filterText && !entity.title.toLowerCase().includes(filterText)) {
-      return false;
+      return `
+        <div class="entity-node ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}">
+          ${renderEntityRow(entity, typeSchema, depth)}
+          ${childrenHtml}
+        </div>
+      `;
     }
 
-    // Field-specific filters
-    for (const [fieldKey, filterValue] of Object.entries(filterValues)) {
-      if (filterValue) {
-        const entityValue = getFieldValue(entity, fieldKey);
-        if (!entityValue || !String(entityValue).toLowerCase().includes(String(filterValue).toLowerCase())) {
-          return false;
-        }
+    return `<div class="entity-tree">${roots.map(r => renderNode(r)).join('')}</div>`;
+  }
+
+  // ========== EDITOR ==========
+  function buildForm(typeSchema, entity = {}) {
+    const fields = typeSchema.fields || [];
+    return `
+      <form id="entity-editor-form" class="entity-editor-form">
+        <div class="form-group">
+          <label>Title *</label>
+          <input type="text" name="title" value="${entity.title || ''}" class="form-control" required>
+        </div>
+        ${fields.map(field => {
+          const renderer = fieldRenderers[field.field_type] || fieldRenderers.text;
+          const value = entity.fields?.[field.field_key];
+          return renderer(field, value);
+        }).join('')}
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="entity-save-btn">Save</button>
+          <button type="button" class="btn btn-secondary" data-action="cancel">Cancel</button>
+        </div>
+      </form>
+    `;
+  }
+
+  function collectFormValues(typeSchema) {
+    const form = document.getElementById('entity-editor-form');
+    const formData = new FormData(form);
+    const data = { title: formData.get('title') };
+
+    for (const field of typeSchema.fields || []) {
+      const value = formData.get(field.field_key);
+      if (field.field_type === 'checkbox') {
+        data[field.field_key] = formData.get(field.field_key) === 'on';
+      } else if (field.field_type === 'number') {
+        data[field.field_key] = value ? parseFloat(value) : null;
+      } else if (field.field_type === 'recurrence') {
+        data[field.field_key] = value ? JSON.parse(value) : null;
+      } else {
+        data[field.field_key] = value || null;
       }
     }
-
-    // Folder filter
-    if (currentFolder && entity.parent_id !== currentFolder) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-function getFieldValue(entity, fieldKey) {
-  if (fieldKey === 'title') return entity.title;
-  return entity[fieldKey] || '';
-}
-
-function formatFieldValue(value, fieldType) {
-  if (!value) return '';
-  if (fieldType === 'date') return new Date(value).toLocaleDateString();
-  if (fieldType === 'number') return Number(value).toLocaleString();
-  return String(value).substring(0, 50);
-}
-
-function toggleSort(fieldKey) {
-  if (sortField === fieldKey) {
-    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-  } else {
-    sortField = fieldKey;
-    sortDirection = 'asc';
+    return data;
   }
-  renderTable();
-}
 
-function sortEntities(entities) {
-  if (!sortField) return;
+  function markChanged() {
+    hasChanges = true;
+    document.getElementById('entity-save-btn').disabled = false;
+  }
 
-  entities.sort((a, b) => {
-    let aVal = getFieldValue(a, sortField);
-    let bVal = getFieldValue(b, sortField);
-
-    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
-}
-
-function setupColumnModal() {
-  const columnCheckboxes = document.getElementById('columnCheckboxes');
-  if (!columnCheckboxes) return;
-
-  columnCheckboxes.innerHTML = '';
-  currentType.fields.forEach(field => {
-    const div = document.createElement('div');
-    div.className = 'form-check';
-    div.innerHTML = `
-      <input class="form-check-input column-checkbox" type="checkbox" id="col_${field.field_key}"
-             value="${field.field_key}" ${columnVisibility[field.field_key] ? 'checked' : ''}>
-      <label class="form-check-label" for="col_${field.field_key}">
-        ${field.label}
-      </label>
-    `;
-    columnCheckboxes.appendChild(div);
-  });
-
-  document.querySelectorAll('.column-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', (e) => {
-      columnVisibility[e.target.value] = e.target.checked;
-      saveColumnVisibility();
-      renderTable();
-    });
-  });
-}
-
-function saveColumnVisibility() {
-  localStorage.setItem(`entityColumns_${currentType.slug}`, JSON.stringify(columnVisibility));
-}
-
-function showColumnModal() {
-  const modal = new bootstrap.Modal(document.getElementById('columnModal'));
-  setupColumnModal();
-  modal.show();
-}
-
-function renderFolders() {
-  const folderTree = document.getElementById('folderTree');
-  if (!folderTree) return;
-
-  folderTree.innerHTML = '';
-  const rootItems = currentEntities.filter(e => !e.parent_id);
-
-  rootItems.forEach(item => {
-    const div = document.createElement('div');
-    div.className = 'tree-item';
-    div.dataset.entityId = item.id;
-    div.textContent = item.title;
-    div.addEventListener('click', () => {
-      currentFolder = item.id;
-      document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
-      div.classList.add('active');
-      renderTable();
-    });
-    div.addEventListener('contextmenu', (e) => showContextMenu(e, item));
-    folderTree.appendChild(div);
-  });
-}
-
-function showDetailPane(entity) {
-  currentEditingEntity = entity;
-  const detailPane = document.getElementById('detailPane');
-  const entityForm = document.getElementById('entityForm');
-
-  entityForm.innerHTML = '';
-
-  const titleGroup = document.createElement('div');
-  titleGroup.className = 'form-group';
-  titleGroup.innerHTML = `
-    <label class="form-label">Title *</label>
-    <input type="text" class="form-control" id="field_title" value="${app.escapeHtml(entity.title)}" required>
-  `;
-  entityForm.appendChild(titleGroup);
-
-  currentType.fields.forEach(field => {
-    const value = getFieldValue(entity, field.field_key) || '';
-    const group = document.createElement('div');
-    group.className = 'form-group';
-
-    let input;
-    if (field.field_type === 'textarea') {
-      input = document.createElement('textarea');
-      input.className = 'form-control';
-      input.rows = 3;
-      input.value = value;
-    } else if (field.field_type === 'number') {
-      input = document.createElement('input');
-      input.type = 'number';
-      input.className = 'form-control';
-      input.value = value;
-    } else if (field.field_type === 'date') {
-      input = document.createElement('input');
-      input.type = 'date';
-      input.className = 'form-control';
-      input.value = value;
-    } else {
-      input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'form-control';
-      input.value = value;
+  function trackFormChanges() {
+    const form = document.getElementById('entity-editor-form');
+    if (form) {
+      form.addEventListener('input', markChanged);
+      form.addEventListener('change', markChanged);
     }
+  }
 
-    input.id = `field_${field.field_key}`;
-    input.name = field.field_key;
+  // ========== PUBLIC API ==========
+  return {
+    init: (typeSlug, typeConfig, splitPaneInstance) => {
+      currentTypeSlug = typeSlug;
+      typeSchema = typeConfig;
+      splitPane = splitPaneInstance;
+    },
 
-    group.innerHTML = `<label class="form-label">${field.label}</label>`;
-    group.appendChild(input);
-    entityForm.appendChild(group);
-  });
+    renderRow: renderEntityRow,
+    renderTree: renderTree,
+    buildForm: buildForm,
+    collectFormValues: collectFormValues,
+    markChanged: markChanged,
+    trackFormChanges: trackFormChanges,
 
-  detailPane.style.display = 'block';
-}
+    populate: (entityId, entity, typeConfig) => {
+      currentEntityId = entityId;
+      hasChanges = false;
+      typeSchema = typeConfig;
 
-function closeDetailPane() {
-  document.getElementById('detailPane').style.display = 'none';
-  currentEditingEntity = null;
-}
+      const formHtml = buildForm(typeConfig, entity);
+      const editorPane = document.getElementById('entity-editor');
+      if (editorPane) {
+        editorPane.innerHTML = formHtml;
+        trackFormChanges();
+        if (splitPane) splitPane.showRightPane();
+      }
+    },
 
-async function saveCurrentEntity() {
-  if (!currentEditingEntity) return;
+    save: async () => {
+      const data = collectFormValues(typeSchema);
+      const url = currentEntityId
+        ? `/api/entities/${currentTypeSlug}/${currentEntityId}`
+        : `/api/entities/${currentTypeSlug}`;
+      const method = currentEntityId ? 'PUT' : 'POST';
 
-  const formData = {
-    title: document.getElementById('field_title').value
-  };
-
-  try {
-    const response = await fetch(
-      `/api/entities/${currentType.slug}/${currentEditingEntity.id}`,
-      {
-        method: 'PUT',
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken || ''
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        hasChanges = false;
+        return result.data;
+      } else {
+        throw new Error(result.message || 'Save failed');
       }
-    );
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Saved', 'success');
-      await loadEntities();
-      renderTable();
-      closeDetailPane();
-    }
-  } catch (error) {
-    console.error('Error saving entity:', error);
-    app.notify('Error saving entity', 'danger');
-  }
-}
-
-async function deleteCurrentEntity() {
-  if (!currentEditingEntity) return;
-  if (!confirm('Delete this item?')) return;
-
-  try {
-    const response = await fetch(
-      `/api/entities/${currentType.slug}/${currentEditingEntity.id}`,
-      {
-        method: 'DELETE',
-        headers: {
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-        }
-      }
-    );
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Deleted', 'success');
-      await loadEntities();
-      renderTable();
-      closeDetailPane();
-    }
-  } catch (error) {
-    console.error('Error deleting entity:', error);
-  }
-}
-
-async function createNewEntity() {
-  try {
-    const response = await fetch(`/api/entities/${currentType.slug}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ title: 'New ' + currentType.name })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      await loadEntities();
-      renderTable();
-      showDetailPane(result.data);
-    }
-  } catch (error) {
-    console.error('Error creating entity:', error);
-  }
-}
-
-async function createNewFolder() {
-  const name = prompt('Folder name:');
-  if (!name) return;
-
-  try {
-    const response = await fetch(`/api/entities/${currentType.slug}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ title: name })
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      await loadEntities();
-      renderFolders();
-    }
-  } catch (error) {
-    console.error('Error creating folder:', error);
-  }
-}
-
-function showContextMenu(e, entity) {
-  e.preventDefault();
-  e.stopPropagation();
-
-  const menu = document.createElement('div');
-  menu.className = 'context-menu';
-  menu.style.cssText = `
-    position: fixed;
-    top: ${e.clientY}px;
-    left: ${e.clientX}px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    z-index: 10000;
-  `;
-
-  menu.innerHTML = `
-    <div style="padding: 4px 0;">
-      <button class="context-menu-item" onclick="editEntity(${entity.id})">Edit</button>
-      <button class="context-menu-item" onclick="deleteEntity(${entity.id})">Delete</button>
-      <hr style="margin: 4px 0;">
-      <button class="context-menu-item" onclick="addChild(${entity.id})">Add Child</button>
-    </div>
-  `;
-
-  // Style items
-  menu.querySelectorAll('.context-menu-item').forEach(btn => {
-    btn.style.cssText = `
-      display: block;
-      width: 100%;
-      padding: 8px 16px;
-      border: none;
-      background: none;
-      text-align: left;
-      cursor: pointer;
-      font-size: 0.9rem;
-    `;
-    btn.addEventListener('mouseenter', (e) => e.target.style.background = '#f0f0f0');
-    btn.addEventListener('mouseleave', (e) => e.target.style.background = 'none');
-  });
-
-  document.body.appendChild(menu);
-  document.addEventListener('click', () => menu.remove(), { once: true });
-}
-
-function editEntity(id) {
-  const entity = currentEntities.find(e => e.id === id);
-  if (entity) showDetailPane(entity);
-}
-
-function deleteEntity(id) {
-  const entity = currentEntities.find(e => e.id === id);
-  if (entity) {
-    currentEditingEntity = entity;
-    deleteCurrentEntity();
-  }
-}
-
-function addChild(parentId) {
-  // Create new child entity under parent
-  const childName = prompt('Item name:');
-  if (!childName) return;
-
-  fetch(`/api/entities/${currentType.slug}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': window.APP_CONFIG?.csrfToken
     },
-    body: JSON.stringify({ title: childName, parent_id: parentId })
-  }).then(res => res.json()).then(result => {
-    if (result.success) {
-      loadEntities().then(() => renderFolders());
-    }
-  });
-}
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeGenericEntity);
-} else {
-  initializeGenericEntity();
+    close: () => {
+      currentEntityId = null;
+      if (splitPane) splitPane.hideRightPane();
+    },
+
+    expandAncestors: (entityId, entities) => {
+      const entity = entities.find(e => e.id === entityId);
+      if (entity?.parent_entity_id) {
+        localStorage.setItem(`entity-expanded-${entity.parent_entity_id}`, 'true');
+        this.expandAncestors(entity.parent_entity_id, entities);
+      }
+    }
+  };
+})();
+
+// Export for use in views
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = GenericEntity;
 }
