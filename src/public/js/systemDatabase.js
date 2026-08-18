@@ -329,66 +329,85 @@ async function analyzeAndMigrate() {
 
     const report = result.data;
     let html = `
-      <div class="alert alert-success">
-        <h6><i class="bi bi-check-circle"></i> Database Analysis & Migration Complete</h6>
+      <div class="alert ${report.success ? 'alert-success' : 'alert-warning'}">
+        <h6><i class="bi ${report.success ? 'bi-check-circle' : 'bi-exclamation-circle'}"></i> Unified Schema Analysis & Migration</h6>
         <div class="small">
-          <p><strong>Database Type:</strong> ${report.databaseType === 'mssql' ? 'MSSQL' : 'MySQL/MariaDB'}</p>
           <p><strong>Timestamp:</strong> ${new Date(report.timestamp).toLocaleString()}</p>
+          <p><strong>Databases Migrated:</strong> ${report.totalDatabasesMigrated}</p>
+          ${report.totalErrors > 0 ? `<p class="text-danger"><strong>Errors:</strong> ${report.totalErrors}</p>` : ''}
+        </div>
+
+        <!-- System Database Report -->
+        ${report.systemDatabase ? `
+          <div class="mt-3 mb-3">
+            <div class="card">
+              <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-server"></i> System Database</h6>
+              </div>
+              <div class="card-body small">
+                <p class="mb-1"><strong>Status:</strong> ${report.systemDatabase.success ? '<span class="text-success">✓ Success</span>' : '<span class="text-danger">✗ Failed</span>'}</p>
+                <p class="mb-2"><strong>Database Type:</strong> ${report.systemDatabase.databaseType === 'mssql' ? 'MSSQL' : 'MySQL/MariaDB'}</p>
+                ${report.systemDatabase.actions?.length > 0 ? `
+                  <strong>Actions:</strong>
+                  <ul class="mb-2">
+                    ${report.systemDatabase.actions.map(a => `<li>${app.escapeHtml(a)}</li>`).join('')}
+                  </ul>
+                ` : ''}
+                ${report.systemDatabase.errors?.length > 0 ? `
+                  <div class="alert alert-danger py-2 px-2 mb-0">
+                    <strong>Errors:</strong>
+                    <ul class="mb-0">
+                      ${report.systemDatabase.errors.map(e => `<li>${app.escapeHtml(e)}</li>`).join('')}
+                    </ul>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Context Databases Report -->
+        ${report.contextDatabases?.length > 0 ? `
+          <div class="mt-3 mb-3">
+            <h6><i class="bi bi-collection"></i> Context Databases (${report.contextDatabases.length})</h6>
+            ${report.contextDatabases.map(ctx => `
+              <div class="card mt-2">
+                <div class="card-header bg-light">
+                  <p class="mb-0"><strong>${app.escapeHtml(ctx.contextName)}</strong> ${ctx.success ? '<span class="badge bg-success">Success</span>' : '<span class="badge bg-danger">Failed</span>'}</p>
+                </div>
+                <div class="card-body small">
+                  ${ctx.actions?.length > 0 ? `
+                    <strong>Actions:</strong>
+                    <ul class="mb-2">
+                      ${ctx.actions.map(a => `<li>${app.escapeHtml(a)}</li>`).join('')}
+                    </ul>
+                  ` : ''}
+                  ${ctx.warnings?.length > 0 ? `
+                    <div class="alert alert-warning py-2 px-2 mb-2">
+                      <strong>Warnings:</strong>
+                      <ul class="mb-0">
+                        ${ctx.warnings.map(w => `<li>${app.escapeHtml(w)}</li>`).join('')}
+                      </ul>
+                    </div>
+                  ` : ''}
+                  ${ctx.errors?.length > 0 ? `
+                    <div class="alert alert-danger py-2 px-2 mb-0">
+                      <strong>Errors:</strong>
+                      <ul class="mb-0">
+                        ${ctx.errors.map(e => `<li>${app.escapeHtml(e)}</li>`).join('')}
+                      </ul>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
     `;
 
-    if (report.analysis) {
-      html += `
-        <div class="mt-3 mb-3">
-          <strong>Analysis Results:</strong>
-          <ul class="mb-2">
-            ${report.analysis.oldTables?.length > 0 ? `<li>Old entity tables found: ${report.analysis.oldTables.join(', ')}</li>` : ''}
-            ${report.analysis.totalOldRows > 0 ? `<li>Old data rows to migrate: ${report.analysis.totalOldRows}</li>` : ''}
-            ${report.analysis.existingGenericTables?.length > 0 ? `<li>Generic entity tables: ${report.analysis.existingGenericTables.length}/${NEW_GENERIC_TABLES?.length || 6}</li>` : ''}
-            ${report.analysis.missingGenericTables?.length > 0 ? `<li>Created missing tables: ${report.analysis.missingGenericTables.join(', ')}</li>` : ''}
-          </ul>
-        </div>
-      `;
-    }
-
-    if (report.actions?.length > 0) {
-      html += `
-        <div class="mt-3 mb-3">
-          <strong>Actions Performed:</strong>
-          <ul class="mb-2">
-            ${report.actions.map(action => `<li>${app.escapeHtml(action)}</li>`).join('')}
-          </ul>
-        </div>
-      `;
-    }
-
-    if (report.warnings?.length > 0) {
-      html += `
-        <div class="mt-3 mb-3 alert alert-warning py-2 px-3">
-          <strong>Warnings:</strong>
-          <ul class="mb-0">
-            ${report.warnings.map(warning => `<li>${app.escapeHtml(warning)}</li>`).join('')}
-          </ul>
-        </div>
-      `;
-    }
-
-    if (report.migratedEntities) {
-      const total = Object.values(report.migratedEntities).reduce((a, b) => a + b, 0);
-      if (total > 0) {
-        html += `
-          <div class="mt-3 mb-3">
-            <strong>Data Migrated:</strong>
-            <ul class="mb-0">
-              ${Object.entries(report.migratedEntities).map(([table, count]) => `<li>${app.escapeHtml(table)}: ${count} rows</li>`).join('')}
-            </ul>
-          </div>
-        `;
-      }
-    }
-
-    html += `</div></div>`;
     statusEl.innerHTML = html;
-    app.notify("Database analysis and migration complete", "success");
+    app.notify(report.success ? "Schema migration complete for all databases" : "Schema migration encountered errors", report.success ? "success" : "warning");
 
   } catch (error) {
     console.error("Error during analysis and migration:", error);

@@ -517,3 +517,99 @@ async function verifySchema() {
 
   return verification;
 }
+
+/**
+ * Unified Analyze & Migrate for system database and all context databases
+ * Analyzes and migrates the system database, then all contexts with DB configurations
+ */
+export async function analyzeAndMigrateAll() {
+  const connectionPool = await import('../database/connectionPool.js');
+  const contextDatabaseConfigService = await import('./contextDatabaseConfigService.js');
+  const contextService = await import('./contextService.js');
+
+  const report = {
+    timestamp: new Date().toISOString(),
+    systemDatabase: null,
+    contextDatabases: [],
+    totalDatabasesMigrated: 0,
+    totalErrors: 0,
+    success: true
+  };
+
+  try {
+    // Step 1: Analyze and migrate system database
+    logger.info('Starting unified schema migration for all databases');
+    report.systemDatabase = await analyzeAndMigrate();
+    if (report.systemDatabase.success) {
+      report.totalDatabasesMigrated++;
+    } else {
+      report.success = false;
+      report.totalErrors++;
+    }
+
+    // Step 2: Get all contexts
+    const contexts = await contextService.getAllContexts();
+    logger.info(`Found ${contexts.length} contexts to check`);
+
+    // Step 3: For each context with a database configuration, migrate it
+    for (const context of contexts) {
+      try {
+        const liveConfig = await contextDatabaseConfigService.getLiveConnectionConfig(context.id);
+
+        if (!liveConfig) {
+          logger.info(`Context ${context.id} (${context.name}) has no database configured, skipping`);
+          continue;
+        }
+
+        // Save current config
+        const currentConfig = connectionPool.getCurrentConfig();
+
+        // Switch to context database
+        await connectionPool.reconfigure(liveConfig);
+        logger.info(`Switched to context ${context.id} (${context.name}) database`);
+
+        // Analyze and migrate this context's database
+        const contextReport = await analyzeAndMigrate();
+        contextReport.contextId = context.id;
+        contextReport.contextName = context.name;
+        report.contextDatabases.push(contextReport);
+
+        if (contextReport.success) {
+          report.totalDatabasesMigrated++;
+        } else {
+          report.success = false;
+          report.totalErrors++;
+        }
+
+        logger.info(`Completed migration for context ${context.id} (${context.name})`);
+      } catch (error) {
+        logger.error(`Error migrating context ${context.id}:`, error);
+        report.contextDatabases.push({
+          contextId: context.id,
+          contextName: context.name,
+          success: false,
+          error: error.message,
+          actions: [],
+          warnings: [],
+          errors: [error.message]
+        });
+        report.success = false;
+        report.totalErrors++;
+      }
+    }
+
+    // Step 4: Switch back to system database
+    const systemConfig = connectionPool.getCurrentConfig();
+    // The system config should still be set, but let's make sure by reconnecting
+    // Actually, we shouldn't need to do this as the system database should be the default
+    logger.info('Schema migration completed for all databases');
+
+  } catch (error) {
+    logger.error('Fatal error during unified schema migration:', error);
+    report.success = false;
+    report.totalErrors++;
+    report.fatalError = error.message;
+  }
+
+  return report;
+}

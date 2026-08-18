@@ -9,6 +9,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"
     integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
   <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/modals.css">
 </head>
 <body
   data-active-tab="<%= activeTab || 'contexts' %>"
@@ -44,6 +45,11 @@
           Contexts
         </button>
       </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="theme-editor-tab" data-tab="theme-editor" type="button" role="tab">
+          <i class="bi bi-palette"></i> Theme Editor
+        </button>
+      </li>
     </ul>
 
     <!-- Tab Content -->
@@ -61,6 +67,10 @@
       <div id="tab-contexts" class="tab-content-pane">
         <%- include('../tabs/contexts.ejs') %>
       </div>
+      <!-- Theme Editor Tab (Customize app appearance) -->
+      <div id="tab-theme-editor" class="tab-content-pane">
+        <%- include('../tabs/theme-editor.ejs') %>
+      </div>
     </div>
   </div>
 
@@ -72,6 +82,9 @@
   <script src="/js/tabs.js"></script>
   <script src="/js/forms.js"></script>
   <script src="/js/systemDatabase.js"></script>
+  <script src="/js/draggable-modal.js"></script>
+  <script src="/js/entity-type-editor.js"></script>
   <script src="/js/settings-entity-types.js"></script>
+  <script src="/js/theme-editor.js"></script>
 </body>
 </html>

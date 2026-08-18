@@ -956,6 +956,102 @@ async function checkAndUpdateSchema() {
   }
 }
 
+async function backupContext() {
+  if (!selectedContextId) {
+    app.notify("Please select a context first", "warning");
+    return;
+  }
+
+  const btn = document.getElementById("backupContextBtn");
+  const statusEl = document.getElementById("backupContextStatus");
+  const context = allContexts.find((c) => String(c.id) === String(selectedContextId));
+
+  if (!context) {
+    app.notify("Context not found", "danger");
+    return;
+  }
+
+  btn.disabled = true;
+  statusEl.textContent = "Creating backup...";
+
+  try {
+    const response = await fetch(`/api/contexts/${selectedContextId}/backup`, {
+      method: "POST",
+      headers: {
+        "X-CSRF-Token": window.APP_CONFIG?.csrfToken
+      }
+    });
+
+    if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.message || `HTTP ${response.status}`);
+    }
+
+    // Get the blob from the response
+    const blob = await response.blob();
+
+    // Create a download link
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const timestamp = new Date().toISOString().slice(0, 10);
+    link.download = `mywork-backup-${context.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${timestamp}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+
+    statusEl.innerHTML = '<i class="bi bi-check-circle text-success"></i> Backup downloaded successfully';
+    app.notify("Backup created and downloaded", "success");
+  } catch (error) {
+    console.error("Error creating backup:", error);
+    statusEl.innerHTML = '<i class="bi bi-exclamation-circle text-danger"></i> Error creating backup';
+    app.notify("Error creating backup: " + error.message, "danger");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function copySystemDatabaseSettings() {
+  if (!selectedContextId) {
+    app.notify("Please select a context first", "warning");
+    return;
+  }
+
+  const btn = document.getElementById("copySystemDbBtn");
+  const statusEl = document.getElementById("contextDbStatus");
+
+  btn.disabled = true;
+  statusEl.innerHTML = '<span class="text-muted">Copying system database settings...</span>';
+
+  try {
+    const response = await fetch(`/api/contexts/${selectedContextId}/use-system-database`, {
+      method: "POST",
+      headers: {
+        "X-CSRF-Token": window.APP_CONFIG?.csrfToken
+      }
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      statusEl.innerHTML = '<i class="bi bi-check-circle text-success"></i> System database settings applied';
+      app.notify("Context configured to use system database", "success");
+      // Reload the database panel to show the new configuration
+      await loadContextDbSubpanel(selectedContextId);
+    } else {
+      statusEl.innerHTML = '<i class="bi bi-exclamation-circle text-danger"></i> Failed to apply settings';
+      app.notify("Error: " + result.message, "danger");
+    }
+  } catch (error) {
+    console.error("Error copying system database settings:", error);
+    statusEl.innerHTML = '<i class="bi bi-exclamation-circle text-danger"></i> Error copying settings';
+    app.notify("Error copying database settings", "danger");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ---- Wiring ----
 
 function initContextsEventListeners() {
@@ -987,6 +1083,17 @@ function initContextsEventListeners() {
         console.error("Error loading config for edit:", error);
       }
     });
+  // Copy system database button (when no config exists)
+  const copySystemDbBtnNoConfig = document.getElementById("copySystemDbBtnNoConfig");
+  if (copySystemDbBtnNoConfig) {
+    copySystemDbBtnNoConfig.addEventListener("click", copySystemDatabaseSettings);
+  }
+
+  // Copy system database button (when config exists)
+  const copySystemDbBtn = document.getElementById("copySystemDbBtn");
+  if (copySystemDbBtn) {
+    copySystemDbBtn.addEventListener("click", copySystemDatabaseSettings);
+  }
   document
     .getElementById("saveContextDbBtn")
     .addEventListener("click", saveContextDbConfig);
@@ -1000,6 +1107,9 @@ function initContextsEventListeners() {
   document
     .getElementById("checkSchemaBtn")
     .addEventListener("click", checkAndUpdateSchema);
+  document
+    .getElementById("backupContextBtn")
+    .addEventListener("click", backupContext);
   document
     .getElementById("addContextFolderBtn")
     .addEventListener("click", openNewFolderModal);

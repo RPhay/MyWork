@@ -90,6 +90,32 @@ export async function getSystemDbConfig() {
   };
 }
 
+export async function getSystemDbConfigForCopy() {
+  const config = loadSystemDbConfig();
+
+  if (!config) {
+    // Return current environment config
+    const current = getCurrentConfig();
+    return {
+      dbType: current.type || 'mysql',
+      host: current.host,
+      port: current.port || (current.type === 'mssql' ? 1433 : 3306),
+      database: current.database,
+      user: current.user,
+      password: current.password || '',
+    };
+  }
+
+  return {
+    dbType: config.dbType,
+    host: config.host,
+    port: config.port || (config.dbType === 'mssql' ? 1433 : 3306),
+    database: config.database,
+    user: config.user,
+    password: config.password_enc ? resolvePassword(config.password_enc, undefined) : '',
+  };
+}
+
 export async function saveSystemDbConfig(data) {
   const dbType = VALID_TYPES.includes(data.dbType) ? data.dbType : null;
 

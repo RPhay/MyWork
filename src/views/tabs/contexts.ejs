@@ -143,7 +143,16 @@
         <div id="contextDbNoConfig" class="card">
           <div class="card-body text-center">
             <p class="card-text">No database connection configured.</p>
-            <div class="d-flex gap-2 justify-content-center">
+            <p class="text-muted small mb-3">Choose an option below:</p>
+            <div class="d-flex gap-2 justify-content-center mb-3">
+              <button
+                type="button"
+                class="btn btn-primary"
+                id="copySystemDbBtnNoConfig"
+                title="Use the same database as the system"
+              >
+                <i class="bi bi-lightning-fill"></i> Use System Database
+              </button>
               <button
                 type="button"
                 class="btn btn-outline-primary"
@@ -202,7 +211,28 @@
           >
             Update Settings
           </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-info"
+            id="copySystemDbBtn"
+            title="Copy system database settings to this context"
+          >
+            <i class="bi bi-lightning-fill"></i> Use System Database
+          </button>
           <span id="contextDbStatus" class="small ms-2"></span>
+
+          <div class="mt-4 pt-3 border-top">
+            <h6 class="mb-2">Backup</h6>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-primary"
+              id="backupContextBtn"
+              title="Create a local backup of this context's database"
+            >
+              <i class="bi bi-download"></i> Create Backup
+            </button>
+            <span id="backupContextStatus" class="small ms-2"></span>
+          </div>
         </div>
 
         <!-- Edit form (hidden by default, shown when updating) -->

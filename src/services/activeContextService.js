@@ -45,35 +45,39 @@ export async function getActiveContextId() {
   return ownedContexts[0].id;
 }
 
-// Switches the live connection pool to whatever context is passed in - its own
-// saved DB config if it has one, otherwise leaves the current connection alone
-// (so a context with no DB config yet doesn't strand the app with no database).
-// Never throws: a bad/unreachable config shouldn't block switching contexts or
-// starting the server, it just logs and keeps the previous connection live.
+// Switches the live connection pool to whatever context is passed in.
+// Requires that the context has a database configuration - throws ValidationError if not.
 // On success, also caches the resolved config (password encrypted) so the next
 // process start can reconnect directly - see applyCachedConnectionAtBoot.
+// Throws on connection failure or if context has no database configured.
 export async function applyContextDatabaseConnection(contextId) {
-  try {
-    const liveConfig = await getLiveConnectionConfig(contextId);
-    if (liveConfig) {
-      await connectionPool.reconfigure(liveConfig);
-      logger.info('Applied context database connection', { contextId, host: liveConfig.host, database: liveConfig.database });
+  const liveConfig = await getLiveConnectionConfig(contextId);
+  if (!liveConfig) {
+    throw new ValidationError(`Context ${contextId} has no database configured. Configure a database in Settings > Contexts first.`);
+  }
 
-      const store = readStore();
-      writeStore({
-        ...store,
-        lastLiveConfig: {
-          type: liveConfig.type || 'mysql',
-          host: liveConfig.host,
-          port: liveConfig.port,
-          database: liveConfig.database,
-          user: liveConfig.user,
-          passwordEnc: liveConfig.password ? encrypt(liveConfig.password) : null,
-        },
-      });
-    }
+  try {
+    await connectionPool.reconfigure(liveConfig);
+    logger.info('Applied context database connection', { contextId, host: liveConfig.host, database: liveConfig.database });
+
+    const store = readStore();
+    writeStore({
+      ...store,
+      lastLiveConfig: {
+        type: liveConfig.type || 'mysql',
+        host: liveConfig.host,
+        port: liveConfig.port,
+        database: liveConfig.database,
+        user: liveConfig.user,
+        passwordEnc: liveConfig.password ? encrypt(liveConfig.password) : null,
+      },
+    });
   } catch (error) {
-    logger.error('Could not apply context database connection, leaving current connection live:', error);
+    if (error.message?.includes('no database configured')) {
+      throw error;
+    }
+    logger.error('Could not apply context database connection:', error);
+    throw new ValidationError(`Failed to connect to context database: ${error.message}`);
   }
 }
 
@@ -110,6 +114,7 @@ export async function applyBootstrapConnection(liveConfig) {
 // to that directly on boot, before ever querying for the active context -
 // .env.local's default is only used the very first time, before any context
 // has ever gone live.
+// On boot, this is lenient: if the cached connection fails, we fall back to env.local.
 export async function applyCachedConnectionAtBoot() {
   const store = readStore();
   if (!store.lastLiveConfig) return;
@@ -125,7 +130,7 @@ export async function applyCachedConnectionAtBoot() {
     });
     logger.info('Reconnected to last active context\'s database', { type: store.lastLiveConfig.type || 'mysql', host: store.lastLiveConfig.host, database: store.lastLiveConfig.database });
   } catch (error) {
-    logger.error('Could not reconnect to last active context\'s database, falling back to .env.local:', error);
+    logger.warn('Could not reconnect to last active context\'s database, falling back to .env.local:', error.message);
   }
 }
 

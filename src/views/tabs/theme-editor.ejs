@@ -1,0 +1,136 @@
+<div class="row mb-3">
+  <div class="col-md-12">
+    <h4>Theme Editor</h4>
+    <p class="text-muted">
+      Customize the appearance of your MyWork application.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Theme Mode Selection -->
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-moon-stars"></i> Theme Mode</h6>
+      </div>
+      <div class="card-body">
+        <div class="btn-group w-100" role="group" id="themeGroup">
+          <input type="radio" class="btn-check" name="theme" id="themeLight" value="light" autocomplete="off">
+          <label class="btn btn-outline-secondary" for="themeLight">
+            <i class="bi bi-sun"></i> Light
+          </label>
+
+          <input type="radio" class="btn-check" name="theme" id="themeDark" value="dark" autocomplete="off">
+          <label class="btn btn-outline-secondary" for="themeDark">
+            <i class="bi bi-moon"></i> Dark
+          </label>
+
+          <input type="radio" class="btn-check" name="theme" id="themeSystem" value="system" autocomplete="off" checked>
+          <label class="btn btn-outline-secondary" for="themeSystem">
+            <i class="bi bi-circle-half"></i> System
+          </label>
+        </div>
+        <small class="text-muted d-block mt-2">
+          System: Follow your device's dark/light preference
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accent Color -->
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-palette"></i> Accent Color</h6>
+      </div>
+      <div class="card-body">
+        <div class="d-flex gap-2 flex-wrap" id="colorPicker">
+          <div class="form-check">
+            <input class="form-check-input accent-color" type="radio" name="accentColor" id="accentBlue" value="blue" checked>
+            <label class="form-check-label" for="accentBlue">
+              <span class="d-inline-block" style="width: 20px; height: 20px; background: #007bff; border-radius: 4px; border: 2px solid #ddd;"></span> Blue
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input accent-color" type="radio" name="accentColor" id="accentPurple" value="purple">
+            <label class="form-check-label" for="accentPurple">
+              <span class="d-inline-block" style="width: 20px; height: 20px; background: #6f42c1; border-radius: 4px; border: 2px solid #ddd;"></span> Purple
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input accent-color" type="radio" name="accentColor" id="accentGreen" value="green">
+            <label class="form-check-label" for="accentGreen">
+              <span class="d-inline-block" style="width: 20px; height: 20px; background: #28a745; border-radius: 4px; border: 2px solid #ddd;"></span> Green
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input accent-color" type="radio" name="accentColor" id="accentRed" value="red">
+            <label class="form-check-label" for="accentRed">
+              <span class="d-inline-block" style="width: 20px; height: 20px; background: #dc3545; border-radius: 4px; border: 2px solid #ddd;"></span> Red
+            </label>
+          </div>
+        </div>
+        <small class="text-muted d-block mt-2">
+          Choose the primary accent color for UI elements
+        </small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mt-1">
+  <!-- Font Size -->
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-type"></i> Font Size</h6>
+      </div>
+      <div class="card-body">
+        <div class="d-flex gap-2 align-items-center">
+          <span class="text-muted small">Smaller</span>
+          <input type="range" class="form-range" id="fontSizeSlider" min="90" max="120" value="100" step="5">
+          <span class="text-muted small">Larger</span>
+          <span id="fontSizeLabel" class="ms-2 badge bg-secondary">100%</span>
+        </div>
+        <small class="text-muted d-block mt-2">
+          Adjust the base font size for the entire application
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compact Mode -->
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-layout-compress"></i> Layout</h6>
+      </div>
+      <div class="card-body">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="compactMode">
+          <label class="form-check-label" for="compactMode">
+            Enable compact mode
+          </label>
+        </div>
+        <small class="text-muted d-block mt-2">
+          Reduce spacing and padding for a more compact interface
+        </small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-3">
+  <div class="col-md-12">
+    <button class="btn btn-primary" id="saveThemeBtn">
+      <i class="bi bi-check-circle"></i> Save Theme Preferences
+    </button>
+    <button class="btn btn-outline-secondary" id="resetThemeBtn">
+      <i class="bi bi-arrow-counterclockwise"></i> Reset to Defaults
+    </button>
+    <span id="themeStatus" class="small ms-2"></span>
+  </div>
+</div>
+
+<script src="/js/theme-editor.js"></script>

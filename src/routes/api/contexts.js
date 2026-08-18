@@ -1,5 +1,6 @@
 import express from 'express';
 import * as contextService from '../../services/contextService.js';
+import * as backupService from '../../services/backupService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
@@ -77,6 +78,50 @@ router.post('/:id/schema/update', async (req, res) => {
     res.json({ success: true, message: 'Schema updated', data: result });
   } catch (error) {
     logger.error('Error updating context schema:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// Create backup of context database
+router.post('/:id/backup', async (req, res) => {
+  try {
+    const context = await contextService.getContextById(req.params.id);
+    const zipBuffer = await backupService.createContextBackup(context.id, context.name);
+
+    // Send zip file as download
+    const fileName = `mywork-backup-${context.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${new Date().getTime()}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(zipBuffer);
+  } catch (error) {
+    logger.error('Error creating backup:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// Copy system database settings to context
+router.post('/:id/use-system-database', async (req, res) => {
+  try {
+    const contextDbConfigService = await import('../../services/contextDatabaseConfigService.js');
+    const systemDatabaseService = await import('../../services/systemDatabaseService.js');
+
+    const systemConfig = await systemDatabaseService.getSystemDbConfigForCopy();
+
+    await contextDbConfigService.saveDbConfig(req.params.id, {
+      dbType: systemConfig.dbType,
+      config: {
+        host: systemConfig.host,
+        port: systemConfig.port,
+        database: systemConfig.database,
+        user: systemConfig.user,
+        password: systemConfig.password,
+      },
+    });
+
+    const updated = await contextDbConfigService.getDbConfig(req.params.id);
+    res.json({ success: true, message: 'Context now uses system database settings', data: updated });
+  } catch (error) {
+    logger.error('Error copying system database settings:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });

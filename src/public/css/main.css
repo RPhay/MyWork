@@ -36,7 +36,7 @@ footer {
 
 /* Tab Styles */
 .nav-tabs .nav-link {
-  color: #6c757d;
+  color: #000;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
@@ -44,15 +44,22 @@ footer {
 }
 
 .nav-tabs .nav-link:hover {
-  color: #007bff;
   border-bottom-color: #dee2e6;
 }
 
 .nav-tabs .nav-link.active {
-  color: #0056b3 !important;
+  color: #000 !important;
   background-color: transparent !important;
-  border-bottom: 2px solid #0056b3 !important;
+  border-bottom: 2px solid #000 !important;
   font-weight: bold !important;
+}
+
+/* Tab icons */
+.tab-icon {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 1.1em;
+  line-height: 1;
 }
 
 /* Tab Content Panes */

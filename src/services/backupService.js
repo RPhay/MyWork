@@ -1,52 +1,105 @@
-import * as db from '../database/connectionPool.js';
-import { ValidationError } from '../config/errors.js';
-import { validateIdentifier } from '../utils/validateIdentifier.js';
+import { query, getCurrentConfig } from '../database/connectionPool.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs';
+import path from 'path';
+import archiver from 'archiver';
+import logger from '../utils/logger.js';
 
-// Every MyWork table, in FK-dependency order (parents before children). Import
-// disables FK checks anyway (so exact ordering isn't load-bearing for inserts),
-// but DELETE still runs in reverse of this order to avoid transient violations.
-const TABLES = [
-  'contexts',
-  'sources',
-  'categories',
-  'areas',
-  'years',
-  'goals',
-  'goal_categories',
-  'priorities',
-  'priority_areas',
-  'priority_goals',
-  'work_items',
-  'work_goal_associations',
-  'work_priority_associations',
-  'work_area_associations',
-  'work_source_associations',
-  'work_item_templates',
-  'template_areas',
-  'template_goals',
-  'template_priorities',
-  'to_do_folders',
-  'to_dos',
-  'to_do_items',
-  'idea_folders',
-  'ideas',
-  'idea_items',
-  'context_tab_settings',
-];
+const execAsync = promisify(exec);
+const writeFile = promisify(fs.writeFile);
 
-export async function exportDatabase() {
-  const tables = {};
+/**
+ * Create a backup of the current context's database
+ * Returns the zip file buffer for download
+ */
+export async function createContextBackup(contextId, contextName) {
+  const tempDir = path.join('/tmp', `mywork-backup-${contextId}-${Date.now()}`);
 
-  for (const table of TABLES) {
-    tables[table] = await db.query(`SELECT * FROM \`${table}\``);
+  try {
+    // Create temp directory
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const config = getCurrentConfig();
+    const dbName = config.database;
+    const dbHost = config.host;
+    const dbPort = config.port;
+    const dbUser = config.user;
+    const dbPassword = config.password;
+
+    // Create SQL dump
+    const sqlFile = path.join(tempDir, 'database.sql');
+
+    // Properly escape the password for shell execution
+    const escapeShell = (str) => {
+      if (!str) return '';
+      return `'${str.replace(/'/g, "'\\''")}'`;
+    };
+
+    const passwordArg = dbPassword ? `-p${escapeShell(dbPassword)}` : '';
+    const dumpCmd = `mysqldump -h ${dbHost} -P ${dbPort} -u ${dbUser} ${passwordArg} --single-transaction --lock-tables=false ${dbName} > "${sqlFile}"`;
+
+    logger.info(`Creating database dump for context ${contextId}...`);
+    await execAsync(dumpCmd);
+
+    // Create metadata file
+    const metadata = {
+      contextId,
+      contextName,
+      databaseName: dbName,
+      databaseType: config.type,
+      createdAt: new Date().toISOString(),
+      backupVersion: '1.0'
+    };
+
+    const metadataFile = path.join(tempDir, 'backup-metadata.json');
+    await writeFile(metadataFile, JSON.stringify(metadata, null, 2));
+
+    logger.info(`Creating backup zip file...`);
+    // Create zip buffer
+    const zipBuffer = await createZipBuffer(tempDir);
+
+    // Clean up temp directory
+    fs.rmSync(tempDir, { recursive: true });
+
+    logger.info(`Backup created successfully`);
+    return zipBuffer;
+
+  } catch (error) {
+    logger.error('Error creating backup:', error);
+    // Clean up on error
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true });
+    }
+    throw new Error(`Failed to create backup: ${error.message}`);
   }
+}
 
-  return {
-    app: 'MyWork',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    tables,
-  };
+/**
+ * Create a zip buffer from directory contents
+ */
+function createZipBuffer(sourceDir) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    archive.on('data', (data) => {
+      chunks.push(data);
+    });
+
+    archive.on('end', () => {
+      resolve(Buffer.concat(chunks));
+    });
+
+    archive.on('error', (err) => {
+      reject(err);
+    });
+
+    archive.directory(sourceDir, false);
+    archive.finalize();
+  });
 }
 
 // Date/datetime columns round-trip through JSON as ISO 8601 strings (e.g.

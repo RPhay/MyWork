@@ -139,6 +139,37 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// Context database configuration gate: ensure active context has a database configured
+app.use(async (req, res, next) => {
+  if (
+    req.method !== "GET" ||
+    req.path.startsWith("/api/") ||
+    req.path.startsWith("/setup") ||
+    req.path === "/health" ||
+    req.path === "/settings"  // Settings page allows configuring databases
+  ) {
+    return next();
+  }
+
+  try {
+    const activeContextService = await import("./services/activeContextService.js");
+    const contextDatabaseConfigService = await import("./services/contextDatabaseConfigService.js");
+
+    const activeContextId = await activeContextService.getActiveContextId();
+    const liveConfig = await contextDatabaseConfigService.getLiveConnectionConfig(activeContextId);
+
+    if (!liveConfig) {
+      // Active context has no database configured - redirect to settings
+      return res.redirect("/settings?tab=contexts&error=no-database");
+    }
+  } catch (error) {
+    logger.warn("Error checking active context database config:", error.message);
+    // Don't block on errors - let the request continue
+  }
+
+  next();
+});
+
 // Routes
 app.use("/", indexRouter);
 

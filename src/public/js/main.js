@@ -418,17 +418,23 @@ async function initContextSwitcher() {
       item.addEventListener('click', async () => {
         if (item.classList.contains('active')) return;
         try {
+          const contextId = item.dataset.contextId;
           const response = await fetch('/api/active-context', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
               'X-CSRF-Token': window.APP_CONFIG?.csrfToken
             },
-            body: JSON.stringify({ id: item.dataset.contextId })
+            body: JSON.stringify({ id: contextId })
           });
           const result = await response.json();
           if (!result.success) {
-            app.notify('Error: ' + result.message, 'danger');
+            // Check if the error is about missing database configuration
+            if (result.message && result.message.includes('no database configured')) {
+              showContextDatabaseConfigModal(contextId);
+            } else {
+              app.notify('Error: ' + result.message, 'danger');
+            }
             return;
           }
           window.location.reload();
@@ -442,6 +448,47 @@ async function initContextSwitcher() {
     console.error('Error loading contexts:', error);
     label.textContent = 'Context';
   }
+}
+
+function showContextDatabaseConfigModal(contextId) {
+  const modal = new bootstrap.Modal(document.getElementById('contextDatabaseConfigModal'));
+
+  const useSystemDbBtn = document.getElementById('useSystemDatabaseBtn');
+  const goToSettingsBtn = document.getElementById('goToSettingsBtn');
+
+  useSystemDbBtn.onclick = async () => {
+    useSystemDbBtn.disabled = true;
+    try {
+      const response = await fetch(`/api/contexts/${contextId}/use-system-database`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
+        }
+      });
+      const result = await response.json();
+      if (result.success) {
+        app.notify('Context configured to use system database. Switching context...', 'success');
+        modal.hide();
+        // Try to switch context again
+        window.location.reload();
+      } else {
+        app.notify('Error: ' + result.message, 'danger');
+      }
+    } catch (error) {
+      console.error('Error using system database:', error);
+      app.notify('Error configuring database', 'danger');
+    } finally {
+      useSystemDbBtn.disabled = false;
+    }
+  };
+
+  goToSettingsBtn.onclick = () => {
+    modal.hide();
+    window.location.href = '/settings?tab=contexts';
+  };
+
+  modal.show();
 }
 
 // Initialize on page load

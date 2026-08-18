@@ -256,15 +256,15 @@ export async function deleteEntityTypeRelationship(ruleId) {
 
 // System type defaults (from phase0-seed-entity-types.js)
 const SYSTEM_TYPE_DEFAULTS = {
-  work_item: { label: 'Dailies', label_singular: 'Work Item', icon: '✓', supports_hierarchy: true, primary_date_field: 'date' },
-  priority: { label: 'Projects', label_singular: 'Priority', icon: '📌', supports_hierarchy: true, primary_date_field: null },
-  area: { label: 'Categories', label_singular: 'Area', icon: '📂', supports_hierarchy: true, primary_date_field: null },
+  work_item: { label: 'Dailies', label_singular: 'Work Item', icon: '⭐', supports_hierarchy: true, primary_date_field: 'date' },
+  priority: { label: 'Projects', label_singular: 'Priority', icon: '📍', supports_hierarchy: true, primary_date_field: null },
+  area: { label: 'Categories', label_singular: 'Area', icon: '📁', supports_hierarchy: true, primary_date_field: null },
   goal: { label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: false, primary_date_field: null },
-  to_do: { label: 'Todos', label_singular: 'Todo', icon: '☑', supports_hierarchy: true, primary_date_field: null },
-  task: { label: 'Tasks', label_singular: 'Task', icon: '📋', supports_hierarchy: true, primary_date_field: null },
-  ticket: { label: 'Tickets', label_singular: 'Ticket', icon: '🎫', supports_hierarchy: true, primary_date_field: null },
+  to_do: { label: 'Todos', label_singular: 'Todo', icon: '✅', supports_hierarchy: true, primary_date_field: null },
+  task: { label: 'Tasks', label_singular: 'Task', icon: '📂', supports_hierarchy: true, primary_date_field: null },
+  ticket: { label: 'Tickets', label_singular: 'Ticket', icon: '🎟️', supports_hierarchy: true, primary_date_field: null },
   idea: { label: 'Brainstorming', label_singular: 'Idea', icon: '💡', supports_hierarchy: true, primary_date_field: null },
-  template: { label: 'Templates', label_singular: 'Template', icon: '📑', supports_hierarchy: false, primary_date_field: null }
+  template: { label: 'Templates', label_singular: 'Template', icon: '📋', supports_hierarchy: false, primary_date_field: null }
 };
 
 // Revert a system type to its default settings

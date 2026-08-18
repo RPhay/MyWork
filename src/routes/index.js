@@ -35,6 +35,52 @@ import * as entityTypeService from "../services/entityTypeService.js";
 
 const router = express.Router();
 
+// Middleware: Ensure active context has a database configured before allowing data operations
+router.use("/api/", async (req, res, next) => {
+  // Skip checks for: setup, configuration, user/context management, and read-only admin operations
+  const skipPaths = [
+    "/api/active-context",
+    "/api/contexts",
+    "/api/context-folders",
+    "/api/users",
+    "/api/context-database-config",
+    "/api/system-database",
+    "/api/context-tab-settings",
+    "/api/setup",
+    "/api/sso",
+    "/api/backup",  // Read-only export
+    "/api/entity-types",  // System types, not context-specific data
+  ];
+
+  // Use originalUrl to get the full path
+  const fullPath = req.originalUrl.split('?')[0];  // Remove query string
+  const isSkipped = skipPaths.some(path => fullPath.startsWith(path));
+  if (isSkipped) {
+    return next();
+  }
+
+  try {
+    const activeContextService = await import("../services/activeContextService.js");
+    const contextDatabaseConfigService = await import("../services/contextDatabaseConfigService.js");
+
+    const activeContextId = await activeContextService.getActiveContextId();
+    const liveConfig = await contextDatabaseConfigService.getLiveConnectionConfig(activeContextId);
+
+    if (!liveConfig) {
+      return res.status(400).json({
+        success: false,
+        message: `Context ${activeContextId} has no database configured. Configure a database in Settings > Contexts first.`,
+      });
+    }
+  } catch (error) {
+    // Don't block on errors - allow the request to proceed
+    // This allows Settings page to load even if something is misconfigured
+    console.warn("Warning checking context database config:", error.message);
+  }
+
+  next();
+});
+
 // API Routes
 router.use("/api/goals", goalsRouter);
 router.use("/api/priorities", prioritiesRouter);

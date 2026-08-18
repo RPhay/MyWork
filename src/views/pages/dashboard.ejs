@@ -30,9 +30,9 @@
     <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
       <% entityTypes.forEach(type => { %>
         <li class="nav-item" role="presentation" <% if (type.slug !== 'work_item') { %>draggable="true"<% } %>>
-          <button class="nav-link" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
+          <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
             <% if (type.icon) { %>
-              <span><%= type.icon %></span>
+              <span class="tab-icon"><%= type.icon %></span>
             <% } %>
             <%= type.label %>
           </button>
@@ -42,12 +42,12 @@
       <!-- Special View Tabs -->
       <li class="nav-item" role="presentation" draggable="true">
         <button class="nav-link" id="priority-board-tab" data-tab="priority-board" type="button" role="tab">
-          <i class="bi bi-kanban"></i> Priorities
+          <span class="tab-icon">📊</span> Priorities
         </button>
       </li>
       <li class="nav-item" role="presentation" draggable="true">
         <button class="nav-link" id="reporting-tab" data-tab="reporting" type="button" role="tab">
-          <i class="bi bi-bar-chart-line"></i> Reporting
+          <span class="tab-icon">📈</span> Reporting
         </button>
       </li>
     </ul>
@@ -101,6 +101,34 @@
   </div>
 
   <%- include('../partials/footer.ejs') %>
+
+  <!-- Context Database Configuration Modal -->
+  <div class="modal fade" id="contextDatabaseConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title">Configure Database</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>This context doesn't have a database configured yet.</p>
+          <p>You can either:</p>
+          <ul>
+            <li><strong>Use the System Database</strong> - quickly configure this context to use the same database as the system</li>
+            <li><strong>Configure Manually</strong> - go to settings and set up a specific database for this context</li>
+          </ul>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-secondary" id="goToSettingsBtn">
+            <i class="bi bi-gear"></i> Go to Settings
+          </button>
+          <button type="button" class="btn btn-primary" id="useSystemDatabaseBtn">
+            <i class="bi bi-lightning-fill"></i> Use System Database
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Confirm Modal -->
   <div class="modal fade" id="confirmModal" tabindex="-1">
