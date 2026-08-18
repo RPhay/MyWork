@@ -31,7 +31,9 @@ A large "Phase 10: Generic Entity Engine" rewrite arrived via `git pull` mid-ses
 
 ## Test status (as of 2026-08-18)
 
-`npx playwright test tests/e2e/generic-entity-crud.spec.js`: **30/33 passing**. The 3 failing tests are drag-drop reparent operations (making an item a child via drag) for Todos, Categories, and Ideas - the relationships array is empty after the drop, suggesting the reparent endpoint isn't working correctly for those types. This doesn't affect create/edit/delete/reorder top-level functionality (all working). Unknown if this is a pre-existing issue in the pull or needs a fix.
+`npx playwright test tests/e2e/generic-entity-crud.spec.js`: **33/33 PASSING** ✅
+
+Fix applied: The seed script (`phase0-seed-entity-types.js`) was run to populate `entity_type_relationships` with the missing hierarchy rules. This table was initialized but empty when `npm run db:init` was run. All self-nesting hierarchy rules (work_item→work_item, priority→priority, area→area, to_do→to_do, task→task, ticket→ticket, idea→idea) are now seeded, allowing all hierarchical types to nest under themselves.
 
 ## Next steps
 
