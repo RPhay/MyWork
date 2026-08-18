@@ -140,6 +140,10 @@ function addFieldRow(field = null) {
   const fieldRow = document.createElement('div');
   fieldRow.className = 'field-row mb-2 p-2 bg-light rounded';
   fieldRow.draggable = true;
+
+  const fieldOptions = field?.field_options ? (typeof field.field_options === 'string' ? JSON.parse(field.field_options) : field.field_options) : null;
+  const optionsStr = fieldOptions?.values ? fieldOptions.values.join(', ') : '';
+
   fieldRow.innerHTML = `
     <div class="row g-2 align-items-center">
       <div class="col-auto">
@@ -163,6 +167,9 @@ function addFieldRow(field = null) {
           <option value="checkbox" ${field?.field_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
         </select>
       </div>
+      <div class="col field-options-col" style="display: ${['select', 'radio', 'checkbox'].includes(field?.field_type) ? 'block' : 'none'};">
+        <input type="text" class="form-control form-control-sm field-options" placeholder="Options (comma-separated)" value="${optionsStr}">
+      </div>
       <div class="col-auto">
         <button type="button" class="btn btn-sm btn-outline-danger remove-field-btn">×</button>
       </div>
@@ -170,6 +177,18 @@ function addFieldRow(field = null) {
   `;
 
   fieldsList.appendChild(fieldRow);
+
+  const fieldTypeSelect = fieldRow.querySelector('.field-type');
+  const optionsCol = fieldRow.querySelector('.field-options-col');
+
+  // Show/hide options input based on field type
+  fieldTypeSelect.addEventListener('change', () => {
+    if (['select', 'radio', 'checkbox'].includes(fieldTypeSelect.value)) {
+      optionsCol.style.display = 'block';
+    } else {
+      optionsCol.style.display = 'none';
+    }
+  });
 
   // Remove button
   fieldRow.querySelector('.remove-field-btn').addEventListener('click', () => {
@@ -260,11 +279,27 @@ async function saveEntityType() {
     label_singular: document.getElementById('typeSingular').value,
     icon: document.getElementById('typeIcon').value || null,
     supports_hierarchy: document.getElementById('typeHierarchy').checked,
-    fields: Array.from(document.querySelectorAll('.field-row')).map(row => ({
-      field_key: row.querySelector('.field-key').value,
-      label: row.querySelector('.field-label').value,
-      field_type: row.querySelector('.field-type').value
-    }))
+    fields: Array.from(document.querySelectorAll('.field-row')).map(row => {
+      const fieldType = row.querySelector('.field-type').value;
+      const fieldData = {
+        field_key: row.querySelector('.field-key').value,
+        label: row.querySelector('.field-label').value,
+        field_type: fieldType
+      };
+
+      // Add field_options for select, radio, checkbox fields
+      if (['select', 'radio', 'checkbox'].includes(fieldType)) {
+        const optionsInput = row.querySelector('.field-options');
+        if (optionsInput && optionsInput.value.trim()) {
+          const values = optionsInput.value.split(',').map(v => v.trim()).filter(v => v);
+          if (values.length > 0) {
+            fieldData.field_options = { values };
+          }
+        }
+      }
+
+      return fieldData;
+    })
   };
 
   try {

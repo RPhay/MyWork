@@ -92,7 +92,18 @@ export async function createEntityType(data) {
       'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, template_structure, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [slug, data.label, data.label_singular, data.icon || null, typeCategory, data.external_source || null, data.template_structure ? JSON.stringify(data.template_structure) : null, data.supports_hierarchy ? 1 : 0, data.is_system ? 1 : 0, data.primary_date_field || null, data.order_index || 0]
     );
-    return getEntityType(result.insertId);
+
+    const typeId = result.insertId;
+
+    // Create fields if provided
+    if (data.fields && Array.isArray(data.fields)) {
+      for (let i = 0; i < data.fields.length; i++) {
+        const fieldData = { ...data.fields[i], display_order: i };
+        await createEntityTypeField(typeId, fieldData);
+      }
+    }
+
+    return getEntityType(typeId);
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') throw new ConflictError(`slug already exists: ${slug}`);
     throw error;
@@ -123,13 +134,26 @@ export async function updateEntityType(id, data) {
     }
   }
 
-  if (updates.length === 0) return type;
+  if (updates.length > 0) {
+    values.push(id);
+    await query(
+      `UPDATE entity_types SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+  }
 
-  values.push(id);
-  await query(
-    `UPDATE entity_types SET ${updates.join(', ')} WHERE id = ?`,
-    values
-  );
+  // Handle fields if provided
+  if (data.fields && Array.isArray(data.fields)) {
+    // Delete all existing fields for this type
+    await query('DELETE FROM entity_type_fields WHERE entity_type_id = ?', [id]);
+
+    // Create new fields
+    for (let i = 0; i < data.fields.length; i++) {
+      const fieldData = { ...data.fields[i], display_order: i };
+      await createEntityTypeField(id, fieldData);
+    }
+  }
+
   return getEntityType(id);
 }
 
@@ -159,7 +183,7 @@ export async function createEntityTypeField(entityTypeId, data) {
   if (!data.label) throw new ValidationError('label is required');
   if (!data.field_type) throw new ValidationError('field_type is required');
 
-  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'select', 'status', 'checkbox', 'recurrence'];
+  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'url', 'select', 'radio', 'checkbox', 'status', 'recurrence'];
   if (!validFieldTypes.includes(data.field_type)) {
     throw new ValidationError(`Invalid field_type. Must be one of: ${validFieldTypes.join(', ')}`);
   }
