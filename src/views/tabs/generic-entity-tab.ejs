@@ -189,17 +189,18 @@
       const targetId = targetRow.dataset.entityId;
 
       try {
-        const response = await fetch(`/api/entities/<%= typeSlug %>/${draggedEntityId}/parent/${targetId}`, {
-          method: 'PATCH',
+        const response = await fetch(`/api/entities/<%= typeSlug %>/${draggedEntityId}`, {
+          method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRF-Token': document.body.dataset.csrfToken
           },
-          body: JSON.stringify({ parent_entity_id: targetId })
+          body: JSON.stringify({ parent_entity_id: parseInt(targetId) })
         });
         if (response.ok) location.reload();
       } catch (error) {
         console.error('Error moving entity:', error);
+        app.notify('Error moving entity', 'danger');
       }
     });
 

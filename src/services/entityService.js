@@ -137,6 +137,10 @@ export async function updateEntity(entityId, data, contextId = null) {
     updates.push('order_index = ?');
     values.push(data.order_index);
   }
+  if (data.parent_entity_id !== undefined) {
+    updates.push('parent_entity_id = ?');
+    values.push(data.parent_entity_id || null);
+  }
 
   if (updates.length > 0) {
     values.push(entityId);
