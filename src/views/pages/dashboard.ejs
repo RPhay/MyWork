@@ -44,7 +44,7 @@
             <% if (type.icon) { %>
               <span class="tab-icon"><%= type.icon %></span>
             <% } %>
-            <%= type.label %>
+            <%= type.slug === 'work_item' ? 'Dailies' : type.label %>
           </button>
         </li>
       <% }); %>
