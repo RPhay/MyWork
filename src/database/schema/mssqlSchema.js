@@ -1117,6 +1117,9 @@ export async function createMssqlSchema(pool) {
       label NVARCHAR(255) NOT NULL,
       label_singular NVARCHAR(255) NOT NULL,
       icon NVARCHAR(50),
+      type_category NVARCHAR(20) DEFAULT 'editable' CHECK (type_category IN ('editable','template','daily','external')),
+      external_source NVARCHAR(100),
+      template_structure NVARCHAR(MAX),
       supports_hierarchy BIT DEFAULT 0,
       is_system BIT DEFAULT 0,
       primary_date_field NVARCHAR(100),
@@ -1128,6 +1131,22 @@ export async function createMssqlSchema(pool) {
   `,
   );
   await createUpdatedAtTrigger(pool, "entity_types");
+
+  // Backfill type_category column for existing records (MSSQL)
+  const typesCategoryExists = await columnExistsAsync(pool, "entity_types", "type_category");
+  if (!typesCategoryExists) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD type_category NVARCHAR(20) DEFAULT 'editable' CHECK (type_category IN ('editable','template','daily','external'))");
+  }
+
+  const typesExternalSourceExists = await columnExistsAsync(pool, "entity_types", "external_source");
+  if (!typesExternalSourceExists) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD external_source NVARCHAR(100)");
+  }
+
+  const typesTemplateStructureExists = await columnExistsAsync(pool, "entity_types", "template_structure");
+  if (!typesTemplateStructureExists) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD template_structure NVARCHAR(MAX)");
+  }
 
   await createTableIfNotExists(
     pool,

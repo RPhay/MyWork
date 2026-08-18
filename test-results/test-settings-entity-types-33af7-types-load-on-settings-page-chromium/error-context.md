@@ -6,33 +6,26 @@
 
 # Test info
 
-- Name: debug-modal.spec.js >> Debug entity type editor
-- Location: tests/e2e/debug-modal.spec.js:3:1
+- Name: test-settings-entity-types.spec.js >> Settings - Entity Types Page >> Entity types load on settings page
+- Location: tests/e2e/test-settings-entity-types.spec.js:4:3
 
 # Error details
 
 ```
-Error: expect(received).toEqual(expected) // deep equality
+Test timeout of 30000ms exceeded.
+```
 
-- Expected  - 1
-+ Received  + 9
+```
+Error: locator.textContent: Test timeout of 30000ms exceeded.
+Call log:
+  - waiting for locator('#systemTypesList')
 
-- Array []
-+ Array [
-+   "Failed to load resource: net::ERR_CONNECTION_REFUSED",
-+   "Error loading types: TypeError: Failed to fetch
-+     at window.fetch (http://localhost:3000/js/forms.js:27:28)
-+     at loadTypeRelationships (http://localhost:3000/js/entity-type-editor.js:214:28)
-+     at showEntityTypeEditorModal (http://localhost:3000/js/entity-type-editor.js:118:3)
-+     at openEntityTypeEditor (http://localhost:3000/js/entity-type-editor.js:26:5)
-+     at HTMLButtonElement.<anonymous> (http://localhost:3000/js/settings-entity-types.js:54:7)",
-+ ]
 ```
 
 # Page snapshot
 
 ```yaml
-- generic [ref=e1]:
+- generic [active] [ref=e1]:
   - navigation [ref=e2]:
     - generic [ref=e3]:
       - link "MyWork - v2026.07.28.0" [ref=e4] [cursor=pointer]:
@@ -69,7 +62,7 @@ Error: expect(received).toEqual(expected) // deep equality
           - generic [ref=e28]:
             - heading "Entity Types" [level=2] [ref=e29]
             - paragraph [ref=e30]: Create and manage entity types to organize your work.
-          - button " New Type" [active] [ref=e31] [cursor=pointer]:
+          - button " New Type" [ref=e31] [cursor=pointer]:
             - generic [ref=e32]: 
             - text: New Type
         - generic [ref=e33]:
@@ -168,38 +161,49 @@ Error: expect(received).toEqual(expected) // deep equality
       - text:                                                      
   - contentinfo [ref=e137]:
     - paragraph [ref=e139]: © 2026 MyWork. Licensed under the MIT License.
-  - generic [ref=e141]:
-    - generic [ref=e142]:
-      - heading "Create New Entity Type" [level=3] [ref=e143]
-      - generic [ref=e144]:
-        - button "" [ref=e145] [cursor=pointer]
-        - button "" [ref=e147] [cursor=pointer]
-    - generic [ref=e151]:
-      - generic [ref=e152]:
-        - generic [ref=e153]:
-          - generic [ref=e154]: Name *
-          - textbox "e.g., Project, Task" [ref=e155]
-        - generic [ref=e156]:
-          - generic [ref=e157]: Singular Form *
-          - textbox "e.g., Project, Task" [ref=e158]
-      - generic [ref=e159]:
-        - generic [ref=e160]:
-          - generic [ref=e161]: Icon (Emoji)
-          - textbox "😊" [ref=e162]
-        - generic [ref=e163]:
-          - generic [ref=e164]: Supports Hierarchy
-          - generic [ref=e165]:
-            - checkbox "Items can have parents/children of the same type" [ref=e166]
-            - generic [ref=e167]: Items can have parents/children of the same type
-      - generic [ref=e169]:
-        - heading "Fields" [level=6] [ref=e170]
-        - button "+ Add Field" [ref=e171] [cursor=pointer]
-      - generic [ref=e173]:
-        - heading "Type Relationships" [level=6] [ref=e174]
-        - generic [ref=e175]:
-          - generic [ref=e176]: "Can have parents:"
-          - generic [ref=e179]: "Can have children:"
-    - generic [ref=e183]:
-      - button "Cancel" [ref=e184] [cursor=pointer]
-      - button "Save" [ref=e185] [cursor=pointer]
+```
+
+# Test source
+
+```ts
+  1  | import { test, expect } from '@playwright/test';
+  2  | 
+  3  | test.describe('Settings - Entity Types Page', () => {
+  4  |   test('Entity types load on settings page', async ({ page }) => {
+  5  |     // Capture all console messages
+  6  |     const consoleLogs = [];
+  7  |     page.on('console', msg => {
+  8  |       consoleLogs.push(`[${msg.type()}] ${msg.text()}`);
+  9  |     });
+  10 | 
+  11 |     // Navigate to settings entity types tab
+  12 |     await page.goto('http://localhost:3000/settings?tab=entity-types', { waitUntil: 'networkidle' });
+  13 | 
+  14 |     // Wait for page to render
+  15 |     await page.waitForTimeout(2000);
+  16 | 
+  17 |     // Check if the system types list exists
+  18 |     const systemTypesList = page.locator('#systemTypesList');
+  19 |     await expect(systemTypesList).toBeTruthy();
+  20 | 
+  21 |     // Get the text content
+> 22 |     const content = await systemTypesList.textContent();
+     |                                           ^ Error: locator.textContent: Test timeout of 30000ms exceeded.
+  23 |     console.log('System Types List Content:');
+  24 |     console.log(content);
+  25 | 
+  26 |     // Print console logs
+  27 |     console.log('\nConsole logs:');
+  28 |     consoleLogs.forEach(log => console.log(log));
+  29 | 
+  30 |     // Check if it has type items
+  31 |     const typeItems = await page.locator('.type-item').count();
+  32 |     console.log(`\nFound ${typeItems} type items`);
+  33 | 
+  34 |     // Take a screenshot for debugging
+  35 |     await page.screenshot({ path: '/tmp/settings-entity-types.png' });
+  36 |     console.log('Screenshot saved to /tmp/settings-entity-types.png');
+  37 |   });
+  38 | });
+  39 | 
 ```

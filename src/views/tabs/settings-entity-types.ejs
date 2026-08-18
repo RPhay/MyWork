@@ -1,27 +1,52 @@
 <!-- Settings: Manage Entity Types -->
-<div style="padding: 20px; max-width: 1000px;">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h2 class="mb-1">Entity Types</h2>
-      <p class="text-muted mb-0">Create and manage entity types to organize your work.</p>
+<div style="padding: 20px; max-width: 1200px;">
+  <h2 class="mb-3">Entity Types</h2>
+  <p class="text-muted mb-4">Manage editable types and templates that organize your work.</p>
+
+  <!-- Editable Types Section -->
+  <div class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-0">Editable Types</h4>
+        <small class="text-muted">Types you can create and manage in your dailies</small>
+      </div>
+      <button class="btn btn-primary" id="createNewTypeBtn">
+        <i class="bi bi-plus"></i> New Type
+      </button>
     </div>
-    <button class="btn btn-primary btn-lg" id="createNewTypeBtn">
-      <i class="bi bi-plus"></i> New Type
-    </button>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div id="editableTypesList" class="list-group list-group-flush">
+          <div class="text-center p-4 text-muted">
+            <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading types...</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Entity Types List -->
-  <div class="card">
-    <div class="card-header">
-      <h5 class="mb-0">All Types</h5>
+  <!-- Read-Only Types Section -->
+  <div class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-0">Read-Only Types</h4>
+        <small class="text-muted">Templates and special types (Dailies, External integrations)</small>
+      </div>
     </div>
-    <div class="card-body p-0">
-      <div id="typesList" class="list-group list-group-flush">
-        <div class="text-center p-4 text-muted">
-          <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
-            <span class="visually-hidden">Loading...</span>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div id="readonlyTypesList" class="list-group list-group-flush">
+          <div class="text-center p-4 text-muted">
+            <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading types...</p>
           </div>
-          <p class="mt-2">Loading types...</p>
         </div>
       </div>
     </div>
@@ -47,6 +72,15 @@
     background-color: #f8f9fa;
   }
 
+  .type-list-item.readonly {
+    cursor: default;
+    opacity: 0.8;
+  }
+
+  .type-list-item.readonly:hover {
+    background-color: #fff;
+  }
+
   .type-list-item-left {
     flex: 1;
     display: flex;
@@ -69,15 +103,34 @@
     color: #6c757d;
   }
 
+  .type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+
+  .type-badge.template {
+    background-color: #e8f4f8;
+    color: #0c5460;
+  }
+
+  .type-badge.daily {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+
+  .type-badge.external {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+
   .type-list-item-right {
     display: flex;
     gap: 8px;
     align-items: center;
-  }
-
-  .type-badges {
-    display: flex;
-    gap: 4px;
   }
 
   .type-list-item:hover .type-edit-btn {
@@ -90,3 +143,98 @@
   }
 </style>
 
+<script>
+// Load and display entity types by category
+async function loadEntityTypesUI() {
+  try {
+    const response = await fetch('/api/entity-types');
+    const result = await response.json();
+
+    if (result.success && result.data && result.data.length > 0) {
+      // Separate types by category
+      const editableTypes = result.data.filter(t => t.type_category === 'editable' || !t.type_category);
+      const readonlyTypes = result.data.filter(t => t.type_category !== 'editable' && t.type_category);
+
+      // Render editable types
+      const editableList = document.getElementById('editableTypesList');
+      if (editableTypes.length > 0) {
+        editableList.innerHTML = '';
+        editableTypes.forEach(type => {
+          editableList.appendChild(createTypeListItem(type, false));
+        });
+      } else {
+        editableList.innerHTML = '<div class="p-4 text-center text-muted">No editable types. Create one to get started.</div>';
+      }
+
+      // Render readonly types
+      const readonlyList = document.getElementById('readonlyTypesList');
+      if (readonlyTypes.length > 0) {
+        readonlyList.innerHTML = '';
+        readonlyTypes.forEach(type => {
+          readonlyList.appendChild(createTypeListItem(type, true));
+        });
+      } else {
+        readonlyList.innerHTML = '<div class="p-4 text-center text-muted">No templates or special types yet.</div>';
+      }
+    }
+  } catch (error) {
+    console.error('Error loading entity types:', error);
+    document.getElementById('editableTypesList').innerHTML = '<div class="p-4 text-center text-danger">Error loading types</div>';
+    document.getElementById('readonlyTypesList').innerHTML = '<div class="p-4 text-center text-danger">Error loading types</div>';
+  }
+}
+
+function createTypeListItem(type, isReadonly) {
+  const item = document.createElement('div');
+  item.className = `type-list-item ${isReadonly ? 'readonly' : ''}`;
+
+  let categoryBadge = '';
+  if (type.type_category && type.type_category !== 'editable') {
+    categoryBadge = `<span class="type-badge ${type.type_category}">${type.type_category}</span>`;
+  }
+
+  item.innerHTML = `
+    <div class="type-list-item-left">
+      <div class="type-icon">${type.icon || '📄'}</div>
+      <div class="type-info">
+        <h6 class="mb-0">${type.label}${categoryBadge}</h6>
+        <small><span class="badge bg-secondary">${type.slug}</span></small>
+        <small class="d-block mt-1">
+          ${type.fields?.length || 0} fields
+          ${type.supports_hierarchy ? ' • Supports hierarchy' : ''}
+        </small>
+      </div>
+    </div>
+    <div class="type-list-item-right">
+      ${!isReadonly ? `
+        <button class="btn btn-sm btn-outline-primary type-edit-btn" title="Edit type">
+          <i class="bi bi-pencil"></i> Edit
+        </button>
+      ` : `
+        <span class="text-muted" style="font-size: 0.9em;">Read-only</span>
+      `}
+    </div>
+  `;
+
+  if (!isReadonly) {
+    item.addEventListener('click', () => window.openEntityTypeEditor(type.id));
+  }
+
+  return item;
+}
+
+function initEntityTypesTab() {
+  const createBtn = document.getElementById('createNewTypeBtn');
+  if (createBtn) {
+    createBtn.addEventListener('click', () => window.openEntityTypeEditor());
+    loadEntityTypesUI();
+  }
+}
+
+// Initialize when ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initEntityTypesTab);
+} else {
+  initEntityTypesTab();
+}
+</script>

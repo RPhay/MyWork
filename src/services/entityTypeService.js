@@ -8,10 +8,17 @@ import { ValidationError, NotFoundError, ConflictError } from '../config/errors.
  */
 
 // Get all active (non-deleted) entity types with their fields
-export async function getAllEntityTypes() {
-  const rows = await query(
-    'SELECT * FROM entity_types WHERE deleted_at IS NULL ORDER BY order_index, id'
-  );
+export async function getAllEntityTypes(category = null) {
+  let sql = 'SELECT * FROM entity_types WHERE deleted_at IS NULL';
+  const params = [];
+
+  if (category) {
+    sql += ' AND type_category = ?';
+    params.push(category);
+  }
+
+  sql += ' ORDER BY order_index, id';
+  const rows = await query(sql, params);
 
   // Load fields for each type
   for (const type of rows) {
@@ -20,6 +27,27 @@ export async function getAllEntityTypes() {
   }
 
   return rows;
+}
+
+// Get entity types by category
+export async function getEntityTypesByCategory(category) {
+  return getAllEntityTypes(category);
+}
+
+// Get all editable types (user-created and system types)
+export async function getEditableEntityTypes() {
+  return getEntityTypesByCategory('editable');
+}
+
+// Get all template types
+export async function getTemplateEntityTypes() {
+  return getEntityTypesByCategory('template');
+}
+
+// Get the special daily type
+export async function getDailyEntityType() {
+  const rows = await getEntityTypesByCategory('daily');
+  return rows.length > 0 ? rows[0] : null;
 }
 
 // Get a single type by ID or slug
@@ -50,13 +78,19 @@ export async function createEntityType(data) {
     throw new ValidationError('primary_date_field is required for non-Work-Item types');
   }
 
+  const validCategories = ['editable', 'template', 'daily', 'external'];
+  const typeCategory = data.type_category || 'editable';
+  if (!validCategories.includes(typeCategory)) {
+    throw new ValidationError(`invalid type_category: ${typeCategory}`);
+  }
+
   // Normalize slug to kebab-case
   const slug = data.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   try {
     const [result] = await query(
-      'INSERT INTO entity_types (slug, label, label_singular, icon, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [slug, data.label, data.label_singular, data.icon || null, data.supports_hierarchy ? 1 : 0, data.is_system ? 1 : 0, data.primary_date_field || null, data.order_index || 0]
+      'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, template_structure, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [slug, data.label, data.label_singular, data.icon || null, typeCategory, data.external_source || null, data.template_structure ? JSON.stringify(data.template_structure) : null, data.supports_hierarchy ? 1 : 0, data.is_system ? 1 : 0, data.primary_date_field || null, data.order_index || 0]
     );
     return getEntityType(result.insertId);
   } catch (error) {
@@ -74,12 +108,18 @@ export async function updateEntityType(id, data) {
 
   const updates = [];
   const values = [];
-  const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'primary_date_field', 'order_index'];
+  const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'primary_date_field', 'order_index', 'type_category', 'external_source', 'template_structure'];
 
   for (const field of allowedFields) {
     if (data[field] !== undefined) {
       updates.push(`${field} = ?`);
-      values.push(field === 'supports_hierarchy' ? (data[field] ? 1 : 0) : data[field]);
+      if (field === 'supports_hierarchy') {
+        values.push(data[field] ? 1 : 0);
+      } else if (field === 'template_structure') {
+        values.push(data[field] ? JSON.stringify(data[field]) : null);
+      } else {
+        values.push(data[field]);
+      }
     }
   }
 

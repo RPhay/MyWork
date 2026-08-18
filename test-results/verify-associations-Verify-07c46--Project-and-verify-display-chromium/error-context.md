@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: debug-errors.spec.js >> Debug: Check console errors during Add->Category
-- Location: tests/e2e/debug-errors.spec.js:4:1
+- Name: verify-associations.spec.js >> Verify Associations Persist and Display >> Add -> Project and verify display
+- Location: tests/e2e/verify-associations.spec.js:74:3
 
 # Error details
 
@@ -163,7 +163,7 @@ Call log:
               - generic [ref=f1e125]: Actions
             - paragraph [ref=f1e127]: Error loading work items
         - text:                    
-      - text: "                            Add notes here... Visit URL: EditRemove                                                                                                                                                     "
+      - text: "                            Add notes here... Visit URL: EditRemove                                                                                                                                                                                                                           "
   - contentinfo [ref=f1e128]:
     - paragraph [ref=f1e130]: © 2026 MyWork. Licensed under the MIT License.
   - text:     
@@ -175,74 +175,114 @@ Call log:
 # Test source
 
 ```ts
-  1  | import { test, expect } from '@playwright/test';
-  2  | import { setupTestData, createTestWorkItem } from './setup-test-data.js';
-  3  | 
-  4  | test('Debug: Check console errors during Add->Category', async ({ page }) => {
-  5  |   // Capture console messages
-  6  |   const consoleLogs = [];
-  7  |   page.on('console', msg => {
-  8  |     console.log(`[${msg.type()}] ${msg.text()}`);
-  9  |     consoleLogs.push({ type: msg.type(), text: msg.text() });
-  10 |   });
-  11 | 
-  12 |   // Capture page errors
-  13 |   page.on('pageerror', error => {
-  14 |     console.error('[PAGE_ERROR]', error.message);
-  15 |     consoleLogs.push({ type: 'error', text: error.message });
-  16 |   });
-  17 | 
-  18 |   await page.goto('http://localhost:3000');
-  19 |   await page.waitForLoadState('networkidle');
-  20 | 
-  21 |   const dailiesTab = page.locator('button:has-text("Dailies")').first();
-  22 |   await dailiesTab.click();
-  23 |   await page.waitForTimeout(1000);
-  24 | 
-  25 |   const testData = await setupTestData(page);
-  26 |   await page.waitForTimeout(500);
-  27 | 
-  28 |   const workItem = await createTestWorkItem(page, 'Debug Errors');
-  29 |   await page.reload();
-  30 |   await page.waitForLoadState('networkidle');
-  31 |   await page.waitForTimeout(1000);
-  32 | 
-  33 |   // Clear logs so we only see what happens during the association
-  34 |   consoleLogs.length = 0;
-  35 | 
-  36 |   const workItemHeader = page.locator('.work-item-header').first();
-> 37 |   await workItemHeader.click({ button: 'right' });
-     |                        ^ Error: locator.click: Test timeout of 30000ms exceeded.
-  38 |   await page.waitForTimeout(500);
-  39 | 
-  40 |   const addSubmenu = page.locator('[data-submenu="add-items"]');
-  41 |   await addSubmenu.click();
-  42 |   await page.waitForTimeout(500);
-  43 | 
-  44 |   // Inject logging into the showAreaSelector function
-  45 |   await page.evaluate(() => {
-  46 |     console.log('[TEST] About to call showAreaSelector');
-  47 |   });
-  48 | 
-  49 |   const areaBtn = page.locator('[data-action="add-area"]');
-  50 |   await areaBtn.click();
-  51 | 
-  52 |   // Wait and collect any errors
-  53 |   await page.waitForTimeout(2000);
-  54 | 
-  55 |   console.log('=== Console logs during Add->Category ===');
-  56 |   consoleLogs.forEach(log => {
-  57 |     console.log(`[${log.type}] ${log.text}`);
-  58 |   });
-  59 | 
-  60 |   // Check if modal was created at all
-  61 |   const allModals = page.locator('.modal');
-  62 |   const count = await allModals.count();
-  63 |   console.log('Total modals:', count);
-  64 | 
-  65 |   const modal = page.locator('.modal.fade').last();
-  66 |   const hasModal = await modal.isVisible({ timeout: 1000 }).catch(() => false);
-  67 |   console.log('Last modal visible:', hasModal);
-  68 | });
-  69 | 
+  1   | import { test, expect } from '@playwright/test';
+  2   | import { setupTestData, createTestWorkItem } from './setup-test-data.js';
+  3   | 
+  4   | test.describe('Verify Associations Persist and Display', () => {
+  5   |   test.beforeEach(async ({ page }) => {
+  6   |     await page.goto('http://localhost:3000');
+  7   |     await page.waitForLoadState('networkidle');
+  8   | 
+  9   |     const dailiesTab = page.locator('button:has-text("Dailies")').first();
+  10  |     await dailiesTab.click();
+  11  |     await page.waitForTimeout(1000);
+  12  | 
+  13  |     await setupTestData(page);
+  14  |     await page.waitForTimeout(500);
+  15  |   });
+  16  | 
+  17  |   async function testAssociation(page, type, actionSelector, expectedDisplayType) {
+  18  |     // Create work item
+  19  |     const workItem = await createTestWorkItem(page, `Test ${type} Association`);
+  20  |     await page.reload();
+  21  |     await page.waitForLoadState('networkidle');
+  22  |     await page.waitForTimeout(1000);
+  23  | 
+  24  |     // Open context menu
+  25  |     const workItemHeader = page.locator('.work-item-header').first();
+> 26  |     await workItemHeader.click({ button: 'right' });
+      |                          ^ Error: locator.click: Test timeout of 30000ms exceeded.
+  27  |     await page.waitForTimeout(500);
+  28  | 
+  29  |     // Click Add submenu
+  30  |     const addSubmenu = page.locator('[data-submenu="add-items"]');
+  31  |     await addSubmenu.click();
+  32  |     await page.waitForTimeout(300);
+  33  | 
+  34  |     // Click the specific action
+  35  |     const btn = page.locator(actionSelector);
+  36  |     await btn.click();
+  37  |     await page.waitForTimeout(1500);
+  38  | 
+  39  |     // Select first item from modal
+  40  |     const modal = page.locator('.modal.show, .modal.fade.show').first();
+  41  |     const itemExists = await modal.isVisible({ timeout: 3000 }).catch(() => false);
+  42  | 
+  43  |     if (!itemExists) {
+  44  |       console.log(`❌ ${type}: Modal did not appear`);
+  45  |       return false;
+  46  |     }
+  47  | 
+  48  |     const item = page.locator('.list-group-item').first();
+  49  |     await item.click();
+  50  |     await page.waitForTimeout(1500);
+  51  | 
+  52  |     // Close any notification
+  53  |     await page.waitForTimeout(500);
+  54  | 
+  55  |     // Now expand the work item to see if association appears
+  56  |     const expandToggle = page.locator('.work-item-toggle').first();
+  57  |     await expandToggle.click();
+  58  |     await page.waitForTimeout(500);
+  59  | 
+  60  |     // Look for the associated child item
+  61  |     const childItem = page.locator(`.child-item-row[data-item-type="${expectedDisplayType}"]`);
+  62  |     const childExists = await childItem.isVisible({ timeout: 2000 }).catch(() => false);
+  63  | 
+  64  |     if (childExists) {
+  65  |       const text = await childItem.textContent();
+  66  |       console.log(`✅ ${type}: Association displayed - ${text?.trim().substring(0, 50)}`);
+  67  |       return true;
+  68  |     } else {
+  69  |       console.log(`❌ ${type}: Association not displayed after expansion`);
+  70  |       return false;
+  71  |     }
+  72  |   }
+  73  | 
+  74  |   test('Add -> Project and verify display', async ({ page }) => {
+  75  |     const result = await testAssociation(page, 'Project', '[data-action="add-project"]', 'priority');
+  76  |     expect(result).toBe(true);
+  77  |   });
+  78  | 
+  79  |   test('Add -> Category and verify display', async ({ page }) => {
+  80  |     const result = await testAssociation(page, 'Category', '[data-action="add-area"]', 'area');
+  81  |     expect(result).toBe(true);
+  82  |   });
+  83  | 
+  84  |   test('Add -> Goal and verify display', async ({ page }) => {
+  85  |     const result = await testAssociation(page, 'Goal', '[data-action="add-goal"]', 'goal');
+  86  |     expect(result).toBe(true);
+  87  |   });
+  88  | 
+  89  |   test('Add -> Todo and verify display', async ({ page }) => {
+  90  |     const result = await testAssociation(page, 'Todo', '[data-action="add-todo"]', 'todo');
+  91  |     expect(result).toBe(true);
+  92  |   });
+  93  | 
+  94  |   test('Add -> Task and verify display', async ({ page }) => {
+  95  |     const result = await testAssociation(page, 'Task', '[data-action="add-task"]', 'task');
+  96  |     expect(result).toBe(true);
+  97  |   });
+  98  | 
+  99  |   test('Add -> Ticket and verify display', async ({ page }) => {
+  100 |     const result = await testAssociation(page, 'Ticket', '[data-action="add-ticket"]', 'ticket');
+  101 |     expect(result).toBe(true);
+  102 |   });
+  103 | 
+  104 |   test('Add -> Idea and verify display', async ({ page }) => {
+  105 |     const result = await testAssociation(page, 'Idea', '[data-action="add-idea"]', 'idea');
+  106 |     expect(result).toBe(true);
+  107 |   });
+  108 | });
+  109 | 
 ```

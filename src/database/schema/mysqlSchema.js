@@ -976,6 +976,9 @@ export async function createMysqlSchema(connection) {
       label VARCHAR(255) NOT NULL,
       label_singular VARCHAR(255) NOT NULL,
       icon VARCHAR(50),
+      type_category ENUM('editable','template','daily','external') DEFAULT 'editable' COMMENT 'editable=user-managed, template=read-only preset tree, daily=one day work container, external=from integrations',
+      external_source VARCHAR(100) COMMENT 'For external types: source system (e.g. outlook_calendar)',
+      template_structure JSON COMMENT 'For templates: tree structure of entity types with preset values',
       supports_hierarchy BOOLEAN DEFAULT FALSE,
       is_system BOOLEAN DEFAULT FALSE,
       primary_date_field VARCHAR(100),
@@ -984,9 +987,26 @@ export async function createMysqlSchema(connection) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_slug (slug),
-      INDEX idx_deleted (deleted_at)
+      INDEX idx_deleted (deleted_at),
+      INDEX idx_type_category (type_category)
     )
   `);
+
+  // Backfill type_category column for existing records
+  if (!(await columnExists(connection, "entity_types", "type_category"))) {
+    await connection.query("ALTER TABLE entity_types ADD COLUMN type_category ENUM('editable','template','daily','external') DEFAULT 'editable'");
+  }
+  if (!(await columnExists(connection, "entity_types", "external_source"))) {
+    await connection.query("ALTER TABLE entity_types ADD COLUMN external_source VARCHAR(100)");
+  }
+  if (!(await columnExists(connection, "entity_types", "template_structure"))) {
+    await connection.query("ALTER TABLE entity_types ADD COLUMN template_structure JSON");
+  }
+
+  // Create index for type_category if it doesn't exist
+  if (!(await indexExists(connection, "entity_types", "idx_type_category"))) {
+    await connection.query("CREATE INDEX idx_type_category ON entity_types(type_category)");
+  }
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS entity_type_fields (
