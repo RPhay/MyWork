@@ -32,8 +32,9 @@
         // Sort types: work_item (Dailies) always first; everything else,
         // including priority (Projects), is an editable type and renders
         // centered with the rest rather than pinned to a fixed position.
+        // Exclude folder (internal type only, not a user-facing tab).
         const sortedTypes = entityTypes
-          .filter(t => !['daily', 'outlook_calendar'].includes(t.slug))
+          .filter(t => !['daily', 'outlook_calendar', 'folder'].includes(t.slug))
           .sort((a, b) => {
             if (a.slug === 'work_item') return -1;
             if (b.slug === 'work_item') return 1;
@@ -43,7 +44,7 @@
       <%
         // Render fixed-position tabs (Dailies only)
         const fixedTypes = sortedTypes.filter(t => t.slug === 'work_item');
-        const editableTypes = sortedTypes.filter(t => t.slug !== 'work_item' && t.slug !== 'folder');
+        const editableTypes = sortedTypes.filter(t => t.slug !== 'work_item');
       %>
 
       <% fixedTypes.forEach(type => { %>
