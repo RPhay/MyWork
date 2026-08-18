@@ -216,7 +216,8 @@ const GenericEntity = (() => {
       typeSchema = typeConfig;
 
       const formHtml = buildForm(typeConfig, entity);
-      const editorPane = document.getElementById('entity-editor-pane');
+      const editorPaneId = `${currentTypeSlug}-editor-pane`;
+      const editorPane = document.getElementById(editorPaneId);
       if (editorPane) {
         editorPane.innerHTML = formHtml;
         trackFormChanges();
