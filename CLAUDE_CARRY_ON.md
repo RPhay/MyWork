@@ -29,9 +29,14 @@ A large "Phase 10: Generic Entity Engine" rewrite arrived via `git pull` mid-ses
 
 `RATE_LIMIT_ENABLED` was `true` in `.env.local`, and this session's heavy automated test traffic repeatedly tripped it ("Too many requests from this IP"), at one point manifesting as a very confusing `window.APP_CONFIG` being undefined (rate-limited page load never got real HTML). Set to `false` locally. If this needs to go back to `true` for some local testing reason, expect that repeated Playwright runs will trip it again - consider raising `RATE_LIMIT_MAX_REQUESTS` instead of just leaving it off, if that matters for reproducing production behavior later.
 
+## Test status (as of 2026-08-18)
+
+`npx playwright test tests/e2e/generic-entity-crud.spec.js`: **30/33 passing**. The 3 failing tests are drag-drop reparent operations (making an item a child via drag) for Todos, Categories, and Ideas - the relationships array is empty after the drop, suggesting the reparent endpoint isn't working correctly for those types. This doesn't affect create/edit/delete/reorder top-level functionality (all working). Unknown if this is a pre-existing issue in the pull or needs a fix.
+
 ## Next steps
 
-1. Nothing currently known-broken. If picking this up cold, first run `npx playwright test tests/e2e/generic-entity-crud.spec.js` to confirm still green before doing anything else.
-2. Continue UI Standards Convergence Phase 3 verification, then Phase 4, per the plan file - was interrupted by this session's detour into the Generic Entity Engine bugs.
-3. Not investigated: whether the *other* ~5 new entity types added by the Phase 10 work beyond what's tested here (if any) have their own instances of bug classes #2-#7 above - the fixes are all in the shared `genericEntity.js`/`generic-entity-init.js` engine, so they should apply uniformly, but this wasn't independently re-verified per-type beyond what the 6 parameterized types in the test file cover.
-4. Dev DB has real user data mixed with test runs from this session - all `ZZZ`-prefixed rows were cleaned up as they were created, confirmed clean as of this write-up, but double check before assuming a clean slate in a future session.
+1. If picking this up cold, run `npx playwright test tests/e2e/generic-entity-crud.spec.js` to get current status (should be 30/33, not all green).
+2. Investigate the 3 failing drag-drop reparent tests - check if the reparent endpoint (`PATCH /api/entities/{type}/relationships/reorder`) is working for those types. The create/edit/delete all work fine.
+3. Continue UI Standards Convergence Phase 3 verification, then Phase 4, per the plan file - was interrupted by this session's detour into the Generic Entity Engine bugs.
+4. Not investigated: whether the *other* ~5 new entity types added by the Phase 10 work beyond what's tested here (if any) have their own instances of bug classes #2-#7 above - the fixes are all in the shared `genericEntity.js`/`generic-entity-init.js` engine, so they should apply uniformly, but this wasn't independently re-verified per-type beyond what the 6 parameterized types in the test file cover.
+5. Dev DB has real user data mixed with test runs from this session - all `ZZZ`-prefixed rows were cleaned up as they were created, confirmed clean as of this write-up, but double check before assuming a clean slate in a future session.
