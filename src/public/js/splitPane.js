@@ -83,14 +83,21 @@ class SplitPane {
   }
 
   showRightPane(savedPercent = 33.34) {
-    this.rightPane.classList.remove('hidden');
+    console.log(`[SplitPane] showRightPane called, rightPane exists: ${!!this.rightPane}`);
+    if (this.rightPane) {
+      this.rightPane.classList.remove('hidden');
+      console.log(`[SplitPane] Removed hidden class, has hidden now: ${this.rightPane.classList.contains('hidden')}`);
+    }
     this.divider.style.display = 'block';
     const leftPercent = 100 - savedPercent;
     this.setLeftWidth(leftPercent);
+    console.log(`[SplitPane] showRightPane complete`);
   }
 
   hideRightPane() {
+    console.log(`[SplitPane] hideRightPane called, adding hidden class to ${this.rightPane?.id}`);
     this.rightPane.classList.add('hidden');
     this.divider.style.display = 'none';
+    console.log(`[SplitPane] hideRightPane complete`);
   }
 }

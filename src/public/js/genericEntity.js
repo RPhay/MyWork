@@ -5,6 +5,8 @@
 
 const GenericEntity = (() => {
   let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges, allEntities = [];
+  const splitPanesByType = {}; // Store splitPane instances per type
+  let currentSaveBtn = null; // Track current save button element
 
   // ========== FIELD RENDERERS STRATEGY MAP ==========
   const fieldRenderers = {
@@ -175,7 +177,9 @@ const GenericEntity = (() => {
 
   function markChanged() {
     hasChanges = true;
-    document.getElementById('entity-save-btn').disabled = false;
+    if (currentSaveBtn) {
+      currentSaveBtn.disabled = false;
+    }
   }
 
   function trackFormChanges() {
@@ -192,6 +196,7 @@ const GenericEntity = (() => {
       currentTypeSlug = typeSlug;
       typeSchema = typeConfig;
       splitPane = splitPaneInstance;
+      splitPanesByType[typeSlug] = splitPaneInstance; // Store per-type reference
     },
 
     renderRow: renderEntityRow,
@@ -201,9 +206,11 @@ const GenericEntity = (() => {
     markChanged: markChanged,
     trackFormChanges: trackFormChanges,
 
-    populate: (entityId, entity, typeConfig) => {
+    populate: (entityId, entity, typeConfig, typeSlugOverride) => {
+      console.log(`[GenericEntity] populate called with typeSlugOverride=${typeSlugOverride}, entityId=${entityId}, currentEntityId=${currentEntityId}`);
       // Toggle close: if clicking same entity with no changes, close the editor
-      if (currentEntityId === entityId) {
+      if (currentEntityId === entityId && entityId !== null) {
+        console.log(`[GenericEntity] Same entity, closing`);
         if (hasChanges) {
           return; // Don't close if there are unsaved changes
         }
@@ -215,13 +222,31 @@ const GenericEntity = (() => {
       hasChanges = false;
       typeSchema = typeConfig;
 
+      // Use provided typeSlug or fall back to currentTypeSlug
+      const typeSlugToUse = typeSlugOverride || currentTypeSlug;
+      // Update currentTypeSlug if we're populating a different type
+      if (typeSlugOverride) {
+        currentTypeSlug = typeSlugOverride;
+      }
+      console.log(`[GenericEntity] typeSlugToUse=${typeSlugToUse}, splitPane exists=${!!splitPane}`);
+
       const formHtml = buildForm(typeConfig, entity);
-      const editorPaneId = `${currentTypeSlug}-editor-pane`;
+      const editorPaneId = `${typeSlugToUse}-editor-pane`;
       const editorPane = document.getElementById(editorPaneId);
-      if (editorPane) {
-        editorPane.innerHTML = formHtml;
-        trackFormChanges();
-        if (splitPane) splitPane.showRightPane();
+      if (!editorPane) {
+        console.error(`[GenericEntity] FATAL: editorPane is null!`);
+        return;
+      }
+      editorPane.innerHTML = formHtml;
+      // Track the save button for this type
+      currentSaveBtn = document.getElementById(`${typeSlugToUse}SaveBtn`);
+      trackFormChanges();
+      // Use the correct SplitPane for this type
+      const typeSplitPane = splitPanesByType[typeSlugToUse];
+      if (typeSplitPane) {
+        typeSplitPane.showRightPane();
+      } else {
+        console.error(`[GenericEntity] No splitPane found for type ${typeSlugToUse}`);
       }
     },
 
@@ -252,7 +277,8 @@ const GenericEntity = (() => {
 
     close: () => {
       currentEntityId = null;
-      if (splitPane) splitPane.hideRightPane();
+      const typeSplitPane = splitPanesByType[currentTypeSlug];
+      if (typeSplitPane) typeSplitPane.hideRightPane();
     },
 
     expandAncestors: (entityId, entities) => {
