@@ -168,10 +168,29 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // all and the drag silently died.
     const dropPane = document.getElementById(`${typeSlug}ListPane`) || listContainer;
 
+    // Columns available on this page. Ordinarily just this type's fields; on a
+    // page that holds other types too (a template holding ideas, tickets and so
+    // on) it is the union across every type actually present, so a dragged-in
+    // row's fields can be shown as columns rather than being invisible.
+    // Deduped by field_key: two types sharing `status` share one column.
+    function mergedColumnSchema() {
+      if (!containsOtherTypes) return typeSchema;
+
+      const byKey = new Map((typeSchema.fields || []).map(f => [f.field_key, f]));
+      const presentTypeIds = new Set(entities.map(e => e.entity_type_id));
+      for (const typeId of presentTypeIds) {
+        if (typeId === typeSchema.id) continue;
+        for (const field of (schemaByTypeId.get(typeId)?.fields || [])) {
+          if (!byKey.has(field.field_key)) byKey.set(field.field_key, field);
+        }
+      }
+      return { ...typeSchema, fields: [...byKey.values()] };
+    }
+
     // Render tree or list from the current `entities`/`relationships` arrays
     function renderList() {
       if (typeSchema.supports_hierarchy) {
-        listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema, relationships, schemaForEntity);
+        listContainer.innerHTML = GenericEntity.renderTree(entities, mergedColumnSchema(), relationships, schemaForEntity);
       } else {
         listContainer.innerHTML = GenericEntity.renderFlatList(entities, typeSchema);
       }
@@ -188,6 +207,21 @@ async function initGenericEntityTab(typeSlug, typeName) {
     }
 
     renderList();
+
+    // Another view saved a record. Redraw if this page shows it - either it is
+    // one of ours, or it is nested here as a reference. Without this, editing an
+    // idea on the Ideas page left the same idea reading its old title inside
+    // every template referencing it until a reload.
+    document.addEventListener('entity-saved', async (e) => {
+      const savedId = e.detail?.id;
+      if (!savedId) return;
+      const showsIt = entities.some(x => String(x.id) === String(savedId));
+      if (!showsIt) return;
+      // Skip the page that did the saving - it refreshes itself already.
+      if (String(GenericEntity.getCurrentEntityId()) === String(savedId)
+          && document.activeElement?.closest(`#${typeSlug}EditorPane`)) return;
+      await refreshEntities();
+    });
 
     // Expand/collapse handlers
     document.getElementById(`expandAll${typeSlug}Btn`)?.addEventListener('click', () => {

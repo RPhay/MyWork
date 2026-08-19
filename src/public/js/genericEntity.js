@@ -803,7 +803,10 @@ const GenericEntity = (() => {
     return `<span class="row-field">${escapeHtml(value)}</span>`;
   }
 
-  function renderEntityRow(entity, typeSchema, depth = 0, childCount = 0, rollups = null) {
+  // `iconSchema` is the row's OWN type, used only for its icon. Columns always
+  // come from `typeSchema`, which on a mixed-type page is the merged set - every
+  // row must lay out on the same grid or the table stops lining up.
+  function renderEntityRow(entity, typeSchema, depth = 0, childCount = 0, rollups = null, iconSchema = null) {
     const hasChildren = childCount > 0;
     const isFolder = !!entity.is_folder;
     // Rows nested from another type carry is_copy: true when they were cloned
@@ -815,7 +818,7 @@ const GenericEntity = (() => {
       : origin === 'reference'
         ? '<i class="bi bi-link-45deg text-muted entity-origin" title="Reference - edits change the original record everywhere it appears"></i>'
         : '';
-    const icon = isFolder ? FOLDER_ICON : typeSchema.icon;
+    const icon = isFolder ? FOLDER_ICON : (iconSchema || typeSchema).icon;
 
 
     const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
@@ -923,7 +926,7 @@ const GenericEntity = (() => {
 
       return `
         <div class="entity-node ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}">
-          ${renderEntityRow(entity, schemaOf(entity), depth, visibleChildren.length, rollups)}
+          ${renderEntityRow(entity, typeSchema, depth, visibleChildren.length, rollups, schemaOf(entity))}
           ${childrenHtml}
         </div>
       `;
@@ -1093,10 +1096,12 @@ const GenericEntity = (() => {
                  data-field-id="${field.id}" data-field-key="${escapeAttr(field.field_key)}">
               <div class="editor-field-gutter">
                 <span class="editor-field-handle" title="Drag to reorder">⋮⋮</span>
-                <div class="form-check form-switch" title="Show this field as a column">
+                <div class="form-check form-switch editor-field-toggle" title="Show this field as a column">
+                  <i class="bi bi-layout-three-columns editor-toggle-icon" aria-hidden="true"></i>
                   <input type="checkbox" class="form-check-input editor-field-col" ${field.show_in_row ? 'checked' : ''}>
                 </div>
-                <div class="form-check form-switch" title="Show this column's name in the header">
+                <div class="form-check form-switch editor-field-toggle" title="Show this column's name in the header">
+                  <i class="bi bi-tag editor-toggle-icon" aria-hidden="true"></i>
                   <input type="checkbox" class="form-check-input editor-field-label" ${field.show_column_label !== 0 && field.show_column_label !== false ? 'checked' : ''}>
                 </div>
               </div>
@@ -1349,6 +1354,13 @@ const GenericEntity = (() => {
       const result = await response.json();
       if (result.success) {
         hasChanges = false;
+        // The same record can be on screen more than once - referenced inside a
+        // template while also listed on its own page. A reference IS the
+        // original, so an edit here has already changed it there; tell the other
+        // views so they redraw instead of showing stale text.
+        document.dispatchEvent(new CustomEvent('entity-saved', {
+          detail: { id: result.data?.id, slug }
+        }));
         return result.data;
       } else {
         throw new Error(result.message || 'Save failed');
