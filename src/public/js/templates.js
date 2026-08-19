@@ -667,6 +667,47 @@ function initTemplatesEventListeners() {
     }
   });
 
+  // Dropping a typed row on empty space (or into an empty list) makes a new
+  // template from it, rather than doing nothing. Without this there was no drop
+  // target at all until at least one template already existed.
+  container.addEventListener('dragover', (e) => {
+    if (e.target.closest('.template-node')) return;      // handled per-node below
+    const type = e.dataTransfer.types;
+    if (!type.includes('type') && !type.includes('text/plain')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    container.classList.add('templates-drop-target');
+  });
+
+  container.addEventListener('dragleave', (e) => {
+    if (!container.contains(e.relatedTarget)) container.classList.remove('templates-drop-target');
+  });
+
+  container.addEventListener('drop', async (e) => {
+    if (e.target.closest('.template-node')) return;      // handled per-node below
+    container.classList.remove('templates-drop-target');
+
+    const type = e.dataTransfer.getData('type');
+    const id = e.dataTransfer.getData('id');
+    const name = e.dataTransfer.getData('name');
+    if (!type || !id || !TEMPLATE_ASSOCIATION_PATHS[type]) return;
+    e.preventDefault();
+
+    try {
+      const response = await fetch('/api/work-item-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+        body: JSON.stringify({ title: name || 'New template' })
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message);
+      await linkTemplateChild(result.data.id, type, id);
+      app.notify(`Template created from ${name || 'item'}`, 'success');
+    } catch (error) {
+      app.notify(`Could not create template: ${error.message}`, 'danger');
+    }
+  });
+
   container.addEventListener('drop', (e) => {
     const nodeEl = e.target.closest('.template-node');
     if (!nodeEl) return;
