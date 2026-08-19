@@ -56,7 +56,10 @@ class TabManager {
   // content, and the left slot goes to whichever rail comes first in that
   // order. Both rails are always in the DOM, so each initialises on page load.
   setupRails() {
-    const RAILS = ['work_item', 'template'];
+    // Three things can sit beside what you are working on. Only two panes show
+    // at once, drawn from these plus the current tab, in this left-to-right
+    // order.
+    const RAILS = ['work_item', 'template', 'priority-board'];
     const KEY = (slug) => `rail:${slug}`;
     const WIDTH_KEY = 'appRailWidth';
 

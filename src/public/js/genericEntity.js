@@ -94,16 +94,23 @@ const GenericEntity = (() => {
       </div>
     `;
     },
+    // A control behaves the same wherever it appears. In a row you click the
+    // status badge to move it on; in the editor you click the same badge, not a
+    // dropdown that happens to hold the same values. The hidden input is what
+    // the form collects, so nothing downstream needs to know.
     status: (field, value = '') => {
       const statuses = field.field_options?.values || ['incomplete', 'in_progress', 'complete'];
+      const current = statuses.includes(value) ? value : statuses[0];
+      const role = statusRole(field, current);
       return `
-        <div class="form-group">
+        <div class="form-group" data-field-type="status" data-cycle-values="${escapeAttr(JSON.stringify(statuses))}">
           <label>${field.label}</label>
-          <select name="${field.field_key}" class="form-select status-select" data-field-type="status">
-            ${statuses.map(s =>
-              `<option value="${s}" ${s === value ? 'selected' : ''}>${s}</option>`
-            ).join('')}
-          </select>
+          <div>
+            <span class="badge bg-${STATUS_BADGE_VARIANT[role]} status-badge editor-cycle"
+                  data-cycle="status" role="button" tabindex="0"
+                  title="Click to change">${escapeHtml(current)}</span>
+          </div>
+          <input type="hidden" name="${field.field_key}" value="${escapeAttr(current)}">
         </div>
       `;
     },
@@ -175,22 +182,18 @@ const GenericEntity = (() => {
         </div>
       `;
     },
-    // The same ladder as the row, and the same icons: one control learned once.
-    // The hidden input is what the form collects, so nothing else needs to know
-    // this is a set of buttons rather than a field.
+    // Same control as the cell: one icon, clicked to move up the ladder.
     priority: (field, value = '') => {
       const current = PRIORITY_LEVELS.includes(value) ? value : '';
       return `
-      <div class="form-group" data-field-type="priority" data-field-key="${escapeAttr(field.field_key)}">
+      <div class="form-group" data-field-type="priority" data-cycle-values="${escapeAttr(JSON.stringify(PRIORITY_LEVELS))}">
         <label>${field.label}</label>
-        <div class="priority-picker" role="group" aria-label="${escapeAttr(field.label)}">
-          ${PRIORITY_LEVELS.map(level => `
-            <button type="button" class="priority-option${level === current ? ' selected' : ''}"
-                    data-priority-value="${escapeAttr(level)}"
-                    title="${escapeAttr(PRIORITY_STYLE[level].label)}">
-              ${priorityGlyph(level)}
-              <span class="priority-option-label">${escapeHtml(PRIORITY_STYLE[level].label)}</span>
-            </button>`).join('')}
+        <div>
+          <span class="priority-cell editor-cycle" data-cycle="priority" role="button" tabindex="0"
+                title="${escapeAttr(PRIORITY_STYLE[current].label)} - click to change">
+            ${priorityGlyph(current)}
+            <span class="editor-cycle-label">${escapeHtml(PRIORITY_STYLE[current].label)}</span>
+          </span>
         </div>
         <input type="hidden" name="${field.field_key}" value="${escapeAttr(current)}">
       </div>
@@ -289,12 +292,17 @@ const GenericEntity = (() => {
   // for low, up for high, doubled for the top - so it reads without a legend.
   // Colour carries the same signal for anyone scanning rather than reading.
   const PRIORITY_LEVELS = ['', 'Low', 'Medium', 'High', 'Critical'];
+
+  // Signal bars, not chevrons. Priority is an INTENSITY, and rising bars read as
+  // intensity at a glance the way reception does - you do not have to decode an
+  // arrow's direction, and four filled bars is obviously more than one. Colour
+  // carries the same signal redundantly, so it survives being skimmed.
   const PRIORITY_STYLE = {
-    '':         { icon: 'bi-dash-lg',              color: '#adb5bd', label: 'No priority' },
-    Low:        { icon: 'bi-chevron-down',         color: '#0d6efd', label: 'Low' },
-    Medium:     { icon: 'bi-chevron-up',           color: '#fd7e14', label: 'Medium' },
-    High:       { icon: 'bi-chevron-double-up',    color: '#dc3545', label: 'High' },
-    Critical:   { icon: 'bi-exclamation-octagon-fill', color: '#a71d2a', label: 'Critical' },
+    '':       { icon: 'bi-reception-0', color: '#ced4da', label: 'No priority' },
+    Low:      { icon: 'bi-reception-1', color: '#0d6efd', label: 'Low' },
+    Medium:   { icon: 'bi-reception-2', color: '#fd7e14', label: 'Medium' },
+    High:     { icon: 'bi-reception-3', color: '#dc3545', label: 'High' },
+    Critical: { icon: 'bi-reception-4', color: '#842029', label: 'Critical' },
   };
 
   function priorityGlyph(value, extraClass = '') {
@@ -1224,21 +1232,42 @@ const GenericEntity = (() => {
     if (revertBtn) revertBtn.disabled = false;
   }
 
-  // The priority picker is a row of buttons over a hidden input: clicking one
-  // selects it and marks the form dirty, exactly as typing in a field would.
-  function wirePriorityPickers() {
+  // One handler for every editor control that cycles. The field group carries
+  // its own ladder in data-cycle-values, so status and priority - and anything
+  // added later - share this without it knowing what they mean.
+  function wireEditorCycles() {
     const form = document.getElementById('entity-editor-form');
     if (!form) return;
+
     form.addEventListener('click', (e) => {
-      const option = e.target.closest('.priority-option');
-      if (!option) return;
-      const group = option.closest('[data-field-type="priority"]');
+      const control = e.target.closest('.editor-cycle');
+      if (!control) return;
+      const group = control.closest('[data-cycle-values]');
       if (!group) return;
       e.preventDefault();
-      group.querySelectorAll('.priority-option').forEach(b => b.classList.remove('selected'));
-      option.classList.add('selected');
+
+      let values;
+      try { values = JSON.parse(group.dataset.cycleValues); } catch { return; }
+      if (!Array.isArray(values) || values.length === 0) return;
+
       const input = group.querySelector('input[type="hidden"]');
-      if (input) input.value = option.dataset.priorityValue || '';
+      const current = input?.value ?? '';
+      const next = values[(values.indexOf(current) + 1) % values.length];
+      if (input) input.value = next;
+
+      // Redraw the control in place so it looks exactly like its cell would.
+      if (control.dataset.cycle === 'priority') {
+        const style = PRIORITY_STYLE[next] || PRIORITY_STYLE[''];
+        control.innerHTML = `${priorityGlyph(next)}<span class="editor-cycle-label">${escapeHtml(style.label)}</span>`;
+        control.title = `${style.label} - click to change`;
+      } else {
+        const fieldKey = group.querySelector('input[type="hidden"]')?.name;
+        const field = (typeSchema.fields || []).find(f => f.field_key === fieldKey) || { field_options: { values } };
+        const role = statusRole(field, next);
+        control.className = `badge bg-${STATUS_BADGE_VARIANT[role]} status-badge editor-cycle`;
+        control.textContent = next;
+      }
+
       markChanged();
     });
   }
@@ -1246,7 +1275,7 @@ const GenericEntity = (() => {
   function trackFormChanges() {
     const form = document.getElementById('entity-editor-form');
     if (form) {
-      wirePriorityPickers();
+      wireEditorCycles();
       form.addEventListener('input', markChanged);
       form.addEventListener('change', markChanged);
 

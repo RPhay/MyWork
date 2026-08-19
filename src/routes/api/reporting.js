@@ -128,6 +128,17 @@ router.get('/needs-attention', async (req, res) => {
   }
 });
 
+router.get('/board', async (req, res) => {
+  try {
+    const contextId = await activeContextService.getActiveContextId();
+    const data = await portfolioReportService.getBoardItems(contextId);
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('Error loading board items:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // ===== Exports =====
 // Downloads, so these are GETs: a browser can point straight at them.
 

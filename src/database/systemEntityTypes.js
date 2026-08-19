@@ -58,6 +58,9 @@ export const SYSTEM_ENTITY_TYPES = [
       // lives. Rendered as a click-to-cycle icon in the row, an ordered choice
       // in the editor.
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+      // Membership of the priorities board. Not a column: it is why the row
+      // is on the board at all, not something to show beside its title.
+      { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'date', label: 'Date', field_type: 'date', required: true, show_in_row: true },
       { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false },
       { field_key: 'emoji', label: 'Emoji', field_type: 'text', required: false, show_in_row: true },
@@ -80,6 +83,9 @@ export const SYSTEM_ENTITY_TYPES = [
       // lives. Rendered as a click-to-cycle icon in the row, an ordered choice
       // in the editor.
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+      // Membership of the priorities board. Not a column: it is why the row
+      // is on the board at all, not something to show beside its title.
+      { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, rollup: 'status' },
       // Backs the Priority Board's Weekly Priorities list. It was the legacy
       // `priorities.is_weekly` column before Projects moved onto entities.
@@ -103,6 +109,9 @@ export const SYSTEM_ENTITY_TYPES = [
       // lives. Rendered as a click-to-cycle icon in the row, an ordered choice
       // in the editor.
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+      // Membership of the priorities board. Not a column: it is why the row
+      // is on the board at all, not something to show beside its title.
+      { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ],
@@ -120,6 +129,9 @@ export const SYSTEM_ENTITY_TYPES = [
       // lives. Rendered as a click-to-cycle icon in the row, an ordered choice
       // in the editor.
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+      // Membership of the priorities board. Not a column: it is why the row
+      // is on the board at all, not something to show beside its title.
+      { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       // A plain number input gave a spinner, which is wrong for a year: it
       // implies arithmetic and offers 1 and 999999. A declared list makes it a
       // picker, and 'currentYear' resolves when the form renders rather than
@@ -146,6 +158,9 @@ export const SYSTEM_ENTITY_TYPES = [
       // lives. Rendered as a click-to-cycle icon in the row, an ordered choice
       // in the editor.
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+      // Membership of the priorities board. Not a column: it is why the row
+      // is on the board at all, not something to show beside its title.
+      { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
       { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
       { field_key: 'target_date', label: 'Target Date', field_type: 'date', required: false, show_in_row: true, rollup: 'min' },
@@ -169,6 +184,9 @@ export const SYSTEM_ENTITY_TYPES = [
       // lives. Rendered as a click-to-cycle icon in the row, an ordered choice
       // in the editor.
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+      // Membership of the priorities board. Not a column: it is why the row
+      // is on the board at all, not something to show beside its title.
+      { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
       { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
@@ -187,6 +205,9 @@ export const SYSTEM_ENTITY_TYPES = [
       // lives. Rendered as a click-to-cycle icon in the row, an ordered choice
       // in the editor.
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+      // Membership of the priorities board. Not a column: it is why the row
+      // is on the board at all, not something to show beside its title.
+      { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, rollup: 'status' },
       { field_key: 'ticket_type', label: 'Ticket Type', field_type: 'text', required: false, show_in_row: true },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
@@ -205,6 +226,9 @@ export const SYSTEM_ENTITY_TYPES = [
       // lives. Rendered as a click-to-cycle icon in the row, an ordered choice
       // in the editor.
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+      // Membership of the priorities board. Not a column: it is why the row
+      // is on the board at all, not something to show beside its title.
+      { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: IDEA_STATUS, required: false, show_in_row: true, rollup: 'status' },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ],

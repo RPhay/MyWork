@@ -97,7 +97,7 @@
 
       <!-- Special View Tabs (right-aligned) -->
       <li class="nav-item" role="presentation" draggable="true">
-        <button class="nav-link" id="priority-board-tab" data-tab="priority-board" type="button" role="tab" title="Projects as a board, grouped by status, with a Weekly Priorities list you drag into">
+        <button class="nav-link" id="priority-board-tab" data-rail-toggle="priority-board" type="button" title="Priorities beside whatever you are working on. Drag rows in from a type tab or Dailies to place a reference to them.">
           <span class="tab-icon">📊</span> Priority Board
         </button>
       </li>
@@ -145,6 +145,10 @@
         <% } %>
       </aside>
       <div class="app-rail-divider" id="railDivider-template"></div>
+      <aside class="app-rail" id="rail-priority-board" data-rail="priority-board">
+        <%- include('../tabs/priority-board.ejs') %>
+      </aside>
+      <div class="app-rail-divider" id="railDivider-priority-board"></div>
 
     <!-- Tab Content (dynamically generated from entity types) -->
     <div class="tab-content" id="mainTabContent">
@@ -178,10 +182,7 @@
       <% }); %>
 
       <!-- Special view tabs (not entity types) -->
-      <!-- Priority Board - Kanban view of priorities -->
-      <div id="tab-priority-board" class="tab-content-pane">
-        <%- include('../tabs/priority-board.ejs') %>
-      </div>
+
 
       <!-- Reporting - Cross-type aggregation -->
       <div id="tab-reporting" class="tab-content-pane">
