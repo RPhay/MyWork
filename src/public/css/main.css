@@ -126,19 +126,22 @@
   min-width: 0;
 }
 
-.dailies-rail {
+/* One rail slot, two possible occupants (Dailies and Templates). Both are
+   always in the DOM so each initialises on page load; only the one carrying
+   .active is shown, which is what makes them mutually exclusive. */
+.app-rail {
   /* Half the screen, so the calendar and the day's work sit side by side
      exactly as they did on the old full-width page. */
   flex: 0 0 50%;
   min-width: 0;
-  display: none;             /* shown by body.dailies-rail-open */
+  display: none;             /* shown by body.rail-open .app-rail.active */
   overflow: hidden;
 }
 
 /* A solid line between the rail and the tab content, wide enough to grab. The
    line itself is drawn with a border so the hit area can be larger than the
    1px rule people actually see. */
-.dailies-rail-divider {
+.app-rail-divider {
   display: none;
   flex: 0 0 11px;
   margin: 0 4px;
@@ -147,18 +150,26 @@
   user-select: none;
 }
 
-.dailies-rail-divider:hover,
-.dailies-rail-divider.dragging {
+.app-rail-divider:hover,
+.app-rail-divider.dragging {
   border-left-color: #0d6efd;
 }
 
-body.dailies-rail-open .dailies-rail-divider {
+/* Dividers and rails are driven by .active, set in setupRails(). A divider is
+   active only when another pane follows the rail it sits after, so the last
+   pane never has a trailing rule. */
+.app-rail-divider.active {
   display: block;
 }
 
-body.dailies-rail-open .dailies-rail {
+.app-rail.active {
   display: flex;
   flex-direction: column;
+}
+
+/* Both rails on means they are the two panes, so the type tab stands down. */
+#mainTabContent.rail-hidden {
+  display: none;
 }
 
 /* Inside the rail Dailies keeps its own layout - calendar on the left, the

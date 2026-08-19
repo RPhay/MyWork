@@ -12,6 +12,13 @@
  * button that Todos did not have; see the Folders section of UI_STANDARDS.md.
  */
 
+// Dailies names the things it can hold in the singular, and those names are not
+// always the type slug. Anything absent falls through to the slug itself, so a
+// user-defined type works without being listed here.
+const DAILIES_DROP_TYPE = {
+  to_do: 'todo',
+};
+
 // Track which types have been initialized to avoid re-initialization
 const initializedTypes = new Set();
 
@@ -1149,6 +1156,20 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (row) {
         draggedEntityId = row.dataset.entityId;
         e.dataTransfer.effectAllowed = 'move';
+
+        // Publish what the Dailies rail reads on drop (`type`, `id`, `name`).
+        // Without these the row dragged fine within its own list but arrived at
+        // Dailies carrying nothing, so dropping it silently did nothing.
+        // Dailies keys off its own singular names, which are not always the
+        // type slug - `to_do` is `todo` there.
+        const dropType = DAILIES_DROP_TYPE[typeSlug] || typeSlug;
+        const entity = entities.find(x => String(x.id) === String(draggedEntityId));
+        e.dataTransfer.setData('type', dropType);
+        e.dataTransfer.setData('id', String(draggedEntityId));
+        e.dataTransfer.setData('name', entity?.title || '');
+        // Firefox refuses to start a drag without a text/plain payload.
+        e.dataTransfer.setData('text/plain', entity?.title || String(draggedEntityId));
+
         row.style.opacity = '0.5';
       }
     });

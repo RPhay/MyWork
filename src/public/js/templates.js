@@ -622,6 +622,12 @@ function initTemplatesEventListeners() {
     const nodeEl = header.closest('.template-node');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('template-id', nodeEl.dataset.templateId);
+    // The Dailies rail reads `type`/`id`; `template-id` alone meant a template
+    // dropped on a day did nothing at all.
+    e.dataTransfer.setData('type', 'template');
+    e.dataTransfer.setData('id', nodeEl.dataset.templateId);
+    e.dataTransfer.setData('name', header.textContent.trim());
+    e.dataTransfer.setData('text/plain', header.textContent.trim());
     header.classList.add('dragging-item');
   });
 

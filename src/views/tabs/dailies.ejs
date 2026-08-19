@@ -176,6 +176,12 @@
 
 
 <style>
+  /* `display: grid` beats the hidden attribute's UA rule, so hiding the header
+     on an empty day needs saying explicitly. */
+  .work-item-tree-header[hidden] {
+    display: none;
+  }
+
   .work-item-tree-header {
     display: grid;
     grid-template-columns: 1fr 40px 50px 100px 70px 40px 40px 84px;

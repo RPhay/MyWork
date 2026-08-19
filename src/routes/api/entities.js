@@ -59,6 +59,20 @@ router.post('/:typeSlug', async (req, res) => {
   }
 });
 
+// POST /api/entities/:typeSlug/:id/clone - deep copy of an entity and its
+// subtree, linked back to the source with an instantiated_from edge. Backs
+// "Copy" when a typed row is dropped onto Dailies or a template.
+router.post('/:typeSlug/:id/clone', async (req, res) => {
+  try {
+    const contextId = await getActiveContextId();
+    const copy = await entityService.cloneEntity(parseInt(req.params.id), contextId);
+    res.status(201).json({ success: true, data: copy });
+  } catch (error) {
+    logger.error('Error cloning entity:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // PUT /api/entities/:typeSlug/:id - Update an entity
 router.put('/:typeSlug/:id', async (req, res) => {
   try {

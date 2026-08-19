@@ -349,6 +349,82 @@ export async function deleteEntity(entityId, contextId = null) {
   return entity;
 }
 
+// Deep-clones an entity: the row, its field values, and everything nested under
+// it, preserving the shape of the subtree. The clone is linked back to what it
+// came from with an `instantiated_from` edge - the same relationship Templates
+// already use to record "this was spawned from that" - which is how the UI
+// later tells a copy from a reference.
+//
+// A copy is deliberately a real entity of the same type, not data smuggled onto
+// the work item: it shows up on its own typed page and can be reopened, edited
+// and nested like anything else. Editing it cannot affect the original, because
+// they are separate rows.
+export async function cloneEntity(entityId, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const source = await getEntityById(entityId, contextId);
+  const type = await entityTypeService.getEntityType(source.entity_type_id);
+
+  // Whole subtree, parents before children, so a clone's parent always exists
+  // by the time the child is created.
+  const hierarchy = await queryPool(
+    "SELECT parent_entity_id, child_entity_id, order_index FROM entity_relationships WHERE context_id = ? AND relationship_kind = 'hierarchy'",
+    [contextId]
+  );
+  const childrenOf = new Map();
+  for (const rel of hierarchy) {
+    if (!childrenOf.has(rel.parent_entity_id)) childrenOf.set(rel.parent_entity_id, []);
+    childrenOf.get(rel.parent_entity_id).push(rel);
+  }
+
+  const idMap = new Map();
+
+  async function copyOne(originalId) {
+    const original = await getEntityById(originalId, contextId);
+    const copy = await createEntity(type.slug, {
+      title: original.title,
+      is_folder: original.is_folder,
+      fields: original.fields || {},
+    }, contextId);
+    idMap.set(originalId, copy.id);
+
+    for (const rel of (childrenOf.get(originalId) || [])) {
+      const childCopyId = await copyOne(rel.child_entity_id);
+      await queryPool(
+        "INSERT IGNORE INTO entity_relationships (context_id, parent_entity_id, child_entity_id, relationship_kind, is_generated, order_index) VALUES (?, ?, ?, 'hierarchy', 0, ?)",
+        [contextId, copy.id, childCopyId, rel.order_index ?? 0]
+      );
+    }
+    return copy.id;
+  }
+
+  const rootCopyId = await copyOne(entityId);
+
+  // is_generated marks it as machine-made rather than a link the user drew.
+  await queryPool(
+    "INSERT IGNORE INTO entity_relationships (context_id, parent_entity_id, child_entity_id, relationship_kind, is_generated, order_index) VALUES (?, ?, ?, 'instantiated_from', 1, 0)",
+    [contextId, entityId, rootCopyId]
+  );
+
+  return getEntityById(rootCopyId, contextId);
+}
+
+// The ids among `entityIds` that are copies - i.e. that were cloned from
+// something. Used to badge a work item's children as copy vs reference.
+export async function findClonedEntityIds(entityIds, contextId = null) {
+  if (!entityIds || entityIds.length === 0) return new Set();
+  if (!contextId) contextId = await getActiveContextId();
+
+  const placeholders = entityIds.map(() => '?').join(', ');
+  const rows = await queryPool(
+    `SELECT child_entity_id FROM entity_relationships
+     WHERE relationship_kind = 'instantiated_from' AND context_id = ?
+       AND child_entity_id IN (${placeholders})`,
+    [contextId, ...entityIds]
+  );
+  return new Set(rows.map(r => r.child_entity_id));
+}
+
 // Reorder siblings (same parent)
 export async function reorderEntitiesBySiblings(orderedIds, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();

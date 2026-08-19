@@ -48,8 +48,13 @@
       %>
       <%
         // Render fixed-position tabs (Dailies only)
-        const fixedTypes = sortedTypes.filter(t => t.slug === 'work_item');
-        const editableTypes = sortedTypes.filter(t => t.slug !== 'work_item');
+        // Rail types are shown beside whichever tab is open rather than as a
+        // page of their own: Dailies (the day's work) and Templates (the
+        // presets you drag from). Only one rail is ever open, so opening one
+        // closes the other - see setupRails() in tabs.js.
+        const RAIL_SLUGS = ['work_item', 'template'];
+        const fixedTypes = sortedTypes.filter(t => RAIL_SLUGS.includes(t.slug));
+        const editableTypes = sortedTypes.filter(t => !RAIL_SLUGS.includes(t.slug));
       %>
 
       <%# Dailies is not a page any more - it is a rail down the left of
@@ -105,10 +110,22 @@
          tab content itself. Dailies is no longer one of the tab panes - its
          button in the bar toggles this rail. -->
     <div class="app-shell" id="appShell">
-      <aside class="dailies-rail" id="dailiesRail">
+      <%# Two panes are shown at a time, drawn from three participants in this
+          fixed left-to-right order: Dailies, Templates, the current type tab.
+          Whichever two are on take the left and right slots -
+            Dailies + type      -> Dailies  | type
+            Templates + type    -> Templates| type
+            Dailies + Templates -> Dailies  | Templates   (the type is hidden)
+          Both rails are always rendered so each initialises on page load;
+          setupRails() in tabs.js decides what is shown. %>
+      <aside class="app-rail" id="rail-work_item" data-rail="work_item">
         <%- include('../tabs/dailies.ejs') %>
       </aside>
-      <div class="dailies-rail-divider" id="dailiesRailDivider"></div>
+      <div class="app-rail-divider" id="railDivider-work_item"></div>
+      <aside class="app-rail" id="rail-template" data-rail="template">
+        <%- include('../tabs/templates.ejs') %>
+      </aside>
+      <div class="app-rail-divider" id="railDivider-template"></div>
 
     <!-- Tab Content (dynamically generated from entity types) -->
     <div class="tab-content" id="mainTabContent">
@@ -118,10 +135,9 @@
         // Projects (priority) is NOT here: it runs on the generic entity tab
         // like every other typed page. Only Dailies (calendar/recurrence) and
         // Templates (instantiate-to-work-item) still have bespoke tabs.
-        const customTemplateMap = {
-          'work_item': 'dailies.ejs',
-          'template': 'templates.ejs'
-        };
+        // Dailies and Templates are rails, rendered above - neither is a pane.
+        // Every remaining type uses the generic tab.
+        const customTemplateMap = {};
 
         // Special view tabs (not entity types, but views)
         const specialTabs = ['priority-board', 'reporting'];
@@ -188,6 +204,36 @@
 
   <!-- #confirmModal is built on demand by app._dialog in main.js, so confirm
        and prompt work identically on the dashboard and on Settings. -->
+
+  <!-- Copy or reference: asked when a typed row is dropped onto a day. A
+       reference points at the original record, so editing it edits the
+       original; a copy is independent. Templates never ask - they are always
+       copies. -->
+  <div class="modal fade" id="copyOrReferenceModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title">Add <span id="copyOrReferenceName"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">How should this be added to the day?</p>
+          <ul class="mb-0">
+            <li><strong>Reference</strong> - points at the original. Editing it here changes the original record.</li>
+            <li><strong>Copy</strong> - an independent duplicate, including anything nested inside it. Edits stay here.</li>
+          </ul>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-outline-secondary" id="copyOrReferenceCopyBtn">
+            <i class="bi bi-files"></i> Copy
+          </button>
+          <button type="button" class="btn btn-primary" id="copyOrReferenceRefBtn">
+            <i class="bi bi-link-45deg"></i> Reference
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>

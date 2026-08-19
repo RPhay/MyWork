@@ -12,11 +12,14 @@ import {
  * Intelligently analyzes and migrates database schema without destructive operations
  */
 
+// Tables the generic engine replaced. The work_*_associations and priority_*
+// junctions are deliberately NOT here: they were rebuilt as the legacy<->entity
+// bridge (their right-hand column now points at `entities`), so they are live
+// schema, not leftovers to migrate away from. See the "Legacy <-> entity
+// association bridge" block in mysqlSchema.js.
 const OLD_ENTITY_TABLES = [
   'priorities', 'areas', 'goals', 'to_dos', 'tasks', 'tickets', 'ideas', 'templates',
-  'idea_folders', 'priority_areas', 'priority_goals', 'work_priority_associations',
-  'work_area_associations', 'work_goal_associations', 'work_to_do_associations',
-  'work_task_associations', 'work_ticket_associations'
+  'idea_folders'
 ];
 
 const NEW_GENERIC_TABLES = [
@@ -185,6 +188,7 @@ async function ensureGenericSchema() {
         is_system BOOLEAN DEFAULT FALSE,
         primary_date_field VARCHAR(100),
         order_index INT DEFAULT 0,
+        is_visible BOOLEAN DEFAULT TRUE,
         deleted_at TIMESTAMP NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -196,7 +200,7 @@ async function ensureGenericSchema() {
         entity_type_id INT NOT NULL,
         field_key VARCHAR(100) NOT NULL,
         label VARCHAR(255) NOT NULL,
-        field_type ENUM('text','textarea','number','date','select','status','checkbox','recurrence') NOT NULL,
+        field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence') NOT NULL,
         field_options JSON,
         required BOOLEAN DEFAULT FALSE,
         display_order INT DEFAULT 0,
@@ -261,7 +265,7 @@ async function ensureGenericSchema() {
         parent_entity_id INT NOT NULL,
         child_entity_id INT NOT NULL,
         relationship_kind ENUM('hierarchy','association','recurrence','instantiated_from') NOT NULL,
-        generated BOOLEAN DEFAULT FALSE,
+        is_generated BOOLEAN DEFAULT FALSE,
         order_index INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
@@ -276,6 +280,34 @@ async function ensureGenericSchema() {
 
     for (const statement of createTableStatements) {
       await query(statement);
+    }
+
+    // CREATE TABLE IF NOT EXISTS does nothing to a table that already exists,
+    // so anything added to these tables after their first release has to be
+    // reconciled explicitly here too - otherwise a database migrated through
+    // this path silently lacks it. Each statement is idempotent.
+    //
+    // Canonical definitions live in src/database/schema/mysqlSchema.js; this
+    // path exists to bring an older database forward, so it must not drift
+    // from that file.
+    const reconcileStatements = [
+      // Settings > Entity Types can hide a type's tab.
+      "ALTER TABLE entity_types ADD COLUMN IF NOT EXISTS is_visible BOOLEAN DEFAULT TRUE",
+      // Every field type the generic renderer supports. Missing values make
+      // saving such a field fail with "Data truncated for column 'field_type'".
+      "ALTER TABLE entity_type_fields MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence') NOT NULL",
+      // A folder is a row of its own type carrying this flag.
+      "ALTER TABLE entities ADD COLUMN IF NOT EXISTS is_folder BOOLEAN DEFAULT FALSE",
+    ];
+
+    for (const statement of reconcileStatements) {
+      try {
+        await query(statement);
+      } catch (error) {
+        // MySQL before 8.0.29 has no ADD COLUMN IF NOT EXISTS; a duplicate
+        // column there means the reconcile has already happened.
+        if (!/duplicate column|check that column/i.test(error.message || '')) throw error;
+      }
     }
 
   } catch (error) {

@@ -29,10 +29,22 @@ const resetWorkItemEditorTracking = () => {
   if (saveBtn) saveBtn.disabled = true;
 };
 
+// What a work item can hold, mapped to its route segment under /api/work/:id/.
+//
+// idea was missing even though its junction and route already existed, so
+// dragging an Idea onto a day was silently ignored.
+//
+// todo, task and ticket are deliberately absent: their junctions
+// (work_todo_associations.todo_id and friends) still reference the legacy
+// to_dos/tasks/tickets tables, while those tabs now produce `entities` ids.
+// Listing them here creates the work item and then loses the link without an
+// error. They can be added the moment those three junctions are bridged to
+// `entities` the way area/goal/idea/priority already are.
 const ASSOCIATION_PATHS = {
   priority: "priorities",
   goal: "goals",
   area: "areas",
+  idea: "ideas",
 };
 const STATUS_CYCLE = ["Not Started", "In Progress", "Complete"];
 
@@ -405,9 +417,17 @@ function updateDailyTimeTotal() {
 
 function renderWorkItemsList(items) {
   const container = document.getElementById("workItemsList");
+  const isEmpty = !items || items.length === 0;
 
-  if (!items || items.length === 0) {
-    container.innerHTML = '<p class="text-center text-muted">No work items</p>';
+  // Column headings label columns; with nothing on the day there are no columns
+  // to label, so the header only appears once work has been dragged in.
+  document
+    .querySelector(".work-item-tree-header")
+    ?.toggleAttribute("hidden", isEmpty);
+
+  if (isEmpty) {
+    container.innerHTML =
+      '<p class="text-center text-muted">Nothing on this day yet - drag a type or a template in to get started.</p>';
     return;
   }
 
@@ -449,17 +469,17 @@ function renderWorkItemsList(items) {
       let childrenHtml = '';
       if (item.priorities?.length > 0) {
         item.priorities.forEach((p) => {
-          childrenHtml += renderChildItem('priority', p.id, p.path || p.title, APP_ICONS.project, item.id);
+          childrenHtml += renderChildItem('priority', p.id, p.path || p.title, APP_ICONS.project, item.id, p.isCopy);
         });
       }
       if (item.goals?.length > 0) {
         item.goals.forEach((g) => {
-          childrenHtml += renderChildItem('goal', g.id, g.name, APP_ICONS.goal, item.id);
+          childrenHtml += renderChildItem('goal', g.id, g.name, APP_ICONS.goal, item.id, g.isCopy);
         });
       }
       if (item.areas?.length > 0) {
         item.areas.forEach((a) => {
-          childrenHtml += renderChildItem('area', a.id, a.path || a.name, APP_ICONS.area, item.id);
+          childrenHtml += renderChildItem('area', a.id, a.path || a.name, APP_ICONS.area, item.id, a.isCopy);
         });
       }
       if (item.todos?.length > 0) {
@@ -479,7 +499,7 @@ function renderWorkItemsList(items) {
       }
       if (item.ideas?.length > 0) {
         item.ideas.forEach((i) => {
-          childrenHtml += renderChildItem('idea', i.id, i.title, APP_ICONS.idea, item.id);
+          childrenHtml += renderChildItem('idea', i.id, i.title, APP_ICONS.idea, item.id, i.isCopy);
         });
       }
       html += `<div class="work-item-children">${childrenHtml}</div>`;
@@ -492,13 +512,19 @@ function renderWorkItemsList(items) {
   syncDailiesRowSelection();
 }
 
-function renderChildItem(type, id, label, icon, parentWorkItemId) {
+function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false) {
   const iconClass = icon || (APP_ICONS[type] || 'bi-circle');
+  // Copy vs reference is invisible otherwise, and the difference matters: edit
+  // a reference and you edit the original record; edit a copy and you don't.
+  const originBadge = isCopy
+    ? '<i class="bi bi-files text-muted child-origin" title="Copy - edits stay here and do not change the original"></i>'
+    : '<i class="bi bi-link-45deg text-muted child-origin" title="Reference - edits change the original record"></i>';
   return `
-    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" style="margin-left: 30px;" data-child-id="${id}">
+    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" style="margin-left: 30px;" data-child-id="${id}" data-origin="${isCopy ? 'copy' : 'reference'}">
       <div class="work-item-header" style="cursor: pointer;" title="Click to edit, right-click for menu">
         <span class="work-item-title-cell">
           <i class="bi ${iconClass} text-muted"></i>
+          ${originBadge}
           <span class="work-item-title">${app.escapeHtml(label)}</span>
         </span>
         <span style="flex: 1;"></span>
@@ -1703,7 +1729,60 @@ async function linkChild(workId, type, id) {
 
 // Dropping a project/goal/area on empty space in the work items list creates a new
 // work item (titled after the dragged item) with that item linked as a child.
-async function createWorkItemFromChild(type, id, name, date) {
+// Copy or reference? Asked on every drop of a typed row, because the two behave
+// very differently afterwards and the choice cannot be inferred. Uses the app's
+// own modal - browser dialogs are against this project's UX standards.
+// Resolves 'copy', 'reference', or null if dismissed.
+function askCopyOrReference(name) {
+  return new Promise((resolve) => {
+    const modalEl = document.getElementById("copyOrReferenceModal");
+    if (!modalEl) return resolve("reference");   // no modal: keep the old behaviour
+
+    document.getElementById("copyOrReferenceName").textContent = name || "this item";
+    const modal = new bootstrap.Modal(modalEl);
+
+    let answered = null;
+    const pick = (choice) => () => { answered = choice; modal.hide(); };
+    const copyBtn = document.getElementById("copyOrReferenceCopyBtn");
+    const refBtn = document.getElementById("copyOrReferenceRefBtn");
+    const onCopy = pick("copy");
+    const onRef = pick("reference");
+
+    copyBtn.addEventListener("click", onCopy);
+    refBtn.addEventListener("click", onRef);
+    modalEl.addEventListener("hidden.bs.modal", () => {
+      copyBtn.removeEventListener("click", onCopy);
+      refBtn.removeEventListener("click", onRef);
+      resolve(answered);
+    }, { once: true });
+
+    modal.show();
+  });
+}
+
+// Type slug for the clone endpoint. Dailies names things in the singular and
+// those names are not always the type slug (`todo` vs `to_do`).
+const DROP_TYPE_SLUG = { todo: "to_do" };
+
+// Makes an independent copy of a dropped record - the row plus everything
+// nested under it - and returns the new id to link instead of the original.
+async function cloneForDrop(type, id) {
+  const slug = DROP_TYPE_SLUG[type] || type;
+  try {
+    const response = await fetch(`/api/entities/${slug}/${id}/clone`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken },
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.message);
+    return result.data.id;
+  } catch (error) {
+    app.notify(`Could not copy: ${error.message}`, "danger");
+    return null;
+  }
+}
+
+async function createWorkItemFromChild(type, id, name, date, asCopy = false) {
   try {
     const response = await fetch("/api/work", {
       method: "POST",
@@ -1720,7 +1799,8 @@ async function createWorkItemFromChild(type, id, name, date) {
       return;
     }
 
-    await linkChild(result.data.id, type, id);
+    const linkId = asCopy ? await cloneForDrop(type, id) : id;
+    if (linkId) await linkChild(result.data.id, type, linkId);
   } catch (error) {
     console.error("Error creating work item:", error);
     app.notify("Error creating work item", "danger");
@@ -2005,7 +2085,14 @@ function initWorkItemsListEventListeners() {
           "drop-indicator-before",
           "drop-indicator-after",
         );
-        linkChild(workItemEl.dataset.workId, type, id);
+        if (type === "template") {
+          linkChild(workItemEl.dataset.workId, type, id);
+          return;
+        }
+        const choice = await askCopyOrReference(e.dataTransfer.getData("name"));
+        if (!choice) return;
+        const linkId = choice === "copy" ? await cloneForDrop(type, id) : id;
+        if (linkId) linkChild(workItemEl.dataset.workId, type, linkId);
         return;
       }
 
@@ -2014,10 +2101,15 @@ function initWorkItemsListEventListeners() {
       const date = dateInput?.value || new Date().toISOString().split("T")[0];
 
       if (type === "template") {
+        // A template dropped on a day is always a full copy, including its
+        // children - that is what a template is for. Nothing done to the copy
+        // reaches back into the template.
         instantiateTemplateOnDate(id, date);
-      } else if (type === "priority" || type === "goal" || type === "area") {
+      } else if (ASSOCIATION_PATHS[type]) {
         const name = e.dataTransfer.getData("name");
-        createWorkItemFromChild(type, id, name, date);
+        const choice = await askCopyOrReference(name);
+        if (!choice) return;                       // cancelled
+        createWorkItemFromChild(type, id, name, date, choice === "copy");
       }
       return;
     }

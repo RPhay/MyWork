@@ -54,7 +54,9 @@ test('a type with a links field holds 0-n named links', async ({ page }) => {
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1400);
   const row2 = page.locator('.entity-row', { hasText: 'ZZZ linked project' }).first();
   await expect(row2.locator('a.entity-row-link')).toHaveCount(2);
-  await row2.click();
+  // The row is a grid of columns now, so its centre can land in the gap
+  // between cells - click the title cell, which is what opens the editor.
+  await row2.locator('.entity-cell-title').click();
   await expect(page.locator('.entity-link-row')).toHaveCount(2);
   expect(await page.locator('.entity-link-row').nth(1).locator('.entity-link-title').inputValue()).toBe('Repo');
 

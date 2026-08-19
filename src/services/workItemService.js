@@ -92,17 +92,29 @@ async function attachAssociations(items) {
   const priorityPaths = buildPathMap(allPriorities, 'title');
   const areaPaths = buildPathMap(allAreas);
 
+  // Which associated records are copies rather than references. A copy was
+  // cloned from something (an instantiated_from edge); a reference points at
+  // the original, so editing it edits the original. Dailies badges the two
+  // differently, since that difference is invisible otherwise.
+  const associatedEntityIds = [
+    ...priorityRows.map(r => r.id),
+    ...goalRows.map(r => r.id),
+    ...areaRows.map(r => r.id),
+    ...ideaRows.map(r => r.id),
+  ];
+  const copies = await entityService.findClonedEntityIds(associatedEntityIds).catch(() => new Set());
+
   return items.map(item => ({
     ...item,
     priorities: priorityRows
       .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, title: r.title, path: priorityPaths.get(r.id) || r.title })),
+      .map(r => ({ id: r.id, title: r.title, path: priorityPaths.get(r.id) || r.title, isCopy: copies.has(r.id) })),
     goals: goalRows
       .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, name: r.name })),
+      .map(r => ({ id: r.id, name: r.name, isCopy: copies.has(r.id) })),
     areas: areaRows
       .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, name: r.name, path: areaPaths.get(r.id) || r.name })),
+      .map(r => ({ id: r.id, name: r.name, path: areaPaths.get(r.id) || r.name, isCopy: copies.has(r.id) })),
     templates: templateRows
       .filter(r => r.work_item_id === item.id)
       .map(r => ({ id: r.id, title: r.title })),
@@ -117,7 +129,7 @@ async function attachAssociations(items) {
       .map(r => ({ id: r.id, title: r.title })),
     ideas: ideaRows
       .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, title: r.title })),
+      .map(r => ({ id: r.id, title: r.title, isCopy: copies.has(r.id) })),
   }));
 }
 

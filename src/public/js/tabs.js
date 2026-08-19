@@ -43,34 +43,85 @@ class TabManager {
     this.init();
   }
 
-  // Dailies rail: its button in the tab bar shows and hides the rail beside
-  // whichever tab is open, instead of switching to a page of its own. The
-  // choice is remembered, and the rail starts open.
-  setupDailiesRail() {
-    const KEY = 'dailiesRailOpen';
-    const apply = (open) => {
-      document.body.classList.toggle('dailies-rail-open', open);
-      document.querySelectorAll('[data-rail-toggle]').forEach(el => {
-        if (el.tagName === 'BUTTON') el.classList.toggle('active', open);
-      });
-    };
-    apply(localStorage.getItem(KEY) !== 'false');
+  // Rails: Dailies and Templates are panes that sit beside the current type
+  // tab rather than being pages of their own. Two panes show at a time, drawn
+  // from three participants in a fixed left-to-right order - Dailies,
+  // Templates, the type tab:
+  //
+  //   Dailies + type      -> Dailies   | type
+  //   Templates + type    -> Templates | type
+  //   Dailies + Templates -> Dailies   | Templates   (the type is hidden)
+  //
+  // So each rail toggles independently; turning both on is what hides the type
+  // content, and the left slot goes to whichever rail comes first in that
+  // order. Both rails are always in the DOM, so each initialises on page load.
+  setupRails() {
+    const RAILS = ['work_item', 'template'];
+    const KEY = (slug) => `rail:${slug}`;
+    const WIDTH_KEY = 'appRailWidth';
 
-    // The rail is resizable, and its width outlives closing and reopening it -
-    // and page loads. Stored as a percentage so it still makes sense if the
-    // window is a different size next time.
-    const WIDTH_KEY = 'dailiesRailWidth';
-    const rail = document.getElementById('dailiesRail');
-    const divider = document.getElementById('dailiesRailDivider');
+    const isOn = (slug) => localStorage.getItem(KEY(slug)) === 'true';
+    // Dailies starts on, matching how the rail behaved when it was the only
+    // one; Templates starts off.
+    if (localStorage.getItem(KEY('work_item')) === null) {
+      localStorage.setItem(KEY('work_item'), 'true');
+    }
+
     const shell = document.getElementById('appShell');
+    const content = document.getElementById('mainTabContent');
+
+    const apply = () => {
+      const on = RAILS.filter(isOn);
+      // Both rails on means they are the two panes and the type stands down.
+      const showContent = on.length < 2;
+      const panes = showContent ? [...on, 'content'] : on;
+
+      RAILS.forEach((slug) => {
+        document.getElementById(`rail-${slug}`)?.classList.toggle('active', on.includes(slug));
+        document.querySelectorAll(`button[data-rail-toggle="${slug}"]`)
+          .forEach((btn) => btn.classList.toggle('active', on.includes(slug)));
+      });
+      content?.classList.toggle('rail-hidden', !showContent);
+      // With both rails up the type stands down, so no type tab is selected -
+      // nothing of that type is on screen to be "current".
+      this.contentHidden = !showContent;
+      this.syncTabHighlight();
+
+      // A divider belongs after a rail only when another pane follows it.
+      RAILS.forEach((slug) => {
+        const idx = panes.indexOf(slug);
+        const divider = document.getElementById(`railDivider-${slug}`);
+        divider?.classList.toggle('active', idx !== -1 && idx < panes.length - 1);
+      });
+
+      document.body.dataset.activeRails = on.join(',');
+      document.body.classList.toggle('rail-open', on.length > 0);
+      applyWidth(storedWidth());
+    };
+
+    // One stored width, applied to whichever pane is currently leftmost - the
+    // rails share a slot, so one setting is the honest model. Stored as a
+    // percentage so it still makes sense at a different window size; falls back
+    // to the old Dailies-only key so an existing preference carries over.
+    const storedWidth = () => {
+      const pct = parseFloat(
+        localStorage.getItem(WIDTH_KEY) ?? localStorage.getItem('dailiesRailWidth')
+      );
+      return Number.isFinite(pct) ? pct : 50;
+    };
 
     const applyWidth = (pct) => {
-      if (rail) rail.style.flex = `0 0 ${pct}%`;
+      const first = RAILS.filter(isOn)[0];
+      RAILS.forEach((slug) => {
+        const el = document.getElementById(`rail-${slug}`);
+        if (el) el.style.flex = slug === first ? `0 0 ${pct}%` : '1 1 auto';
+      });
     };
-    const storedWidth = parseFloat(localStorage.getItem(WIDTH_KEY));
-    applyWidth(Number.isFinite(storedWidth) ? storedWidth : 50);
 
-    if (divider && rail && shell) {
+    // Dragging any visible divider resizes the leftmost pane.
+    RAILS.forEach((slug) => {
+      const divider = document.getElementById(`railDivider-${slug}`);
+      if (!divider || !shell) return;
       let dragging = false;
       divider.addEventListener('mousedown', (e) => {
         dragging = true;
@@ -88,14 +139,16 @@ class TabManager {
         if (!dragging) return;
         dragging = false;
         divider.classList.remove('dragging');
+        const first = document.getElementById(`rail-${RAILS.filter(isOn)[0]}`);
+        if (!first) return;
         const box = shell.getBoundingClientRect();
-        const pct = (rail.getBoundingClientRect().width / box.width) * 100;
+        const pct = (first.getBoundingClientRect().width / box.width) * 100;
         localStorage.setItem(WIDTH_KEY, String(Math.round(pct * 10) / 10));
       });
-    }
+    });
 
-    // The calendar inside the rail has its own toggle, since the Work Picker
-    // tab it used to share space with is gone.
+    // The calendar inside the Dailies rail has its own toggle, since the Work
+    // Picker tab it used to share space with is gone.
     const CAL_KEY = 'dailiesCalendarOpen';
     const applyCal = (open) => {
       document.body.classList.toggle('dailies-calendar-open', open);
@@ -108,17 +161,34 @@ class TabManager {
       applyCal(open);
     });
 
-    document.querySelectorAll('button[data-rail-toggle]').forEach(btn => {
+    document.querySelectorAll('button[data-rail-toggle]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const open = !document.body.classList.contains('dailies-rail-open');
-        localStorage.setItem(KEY, String(open));
-        apply(open);
+        const slug = btn.dataset.railToggle;
+        localStorage.setItem(KEY(slug), String(!isOn(slug)));
+        apply();
       });
+    });
+
+    this.closeRail = (slug) => {
+      if (!isOn(slug)) return;
+      localStorage.setItem(KEY(slug), 'false');
+      apply();
+    };
+
+    apply();
+  }
+
+  // The one place a type tab is marked selected. showTab() and setupRails()
+  // both route through it so they cannot disagree about whether a type is
+  // current - it is only current when its content is actually showing.
+  syncTabHighlight() {
+    document.querySelectorAll('button[data-tab]').forEach((btn) => {
+      btn.classList.toggle('active', !this.contentHidden && btn.dataset.tab === this.currentTab);
     });
   }
 
   init() {
-    this.setupDailiesRail();
+    this.setupRails();
     this.setupTabButtons();
     this.showTab(this.currentTab);
     this.setupUrlSync();
@@ -193,6 +263,10 @@ class TabManager {
       button.addEventListener('click', (e) => {
         e.preventDefault();
         const tab = button.dataset.tab;
+        // Both rails up means the type has nowhere to render. Asking for a type
+        // is a request to see it, so the right-hand rail (Templates) stands
+        // down and the type takes that slot.
+        if (this.contentHidden) this.closeRail?.('template');
         this.switchTab(tab);
       });
     });
@@ -232,13 +306,10 @@ class TabManager {
       selectedPane.classList.add('active');
     }
 
-    // Add active class to button
-    const selectedButton = document.querySelector(`button[data-tab="${tabName}"]`);
-    if (selectedButton) {
-      selectedButton.classList.add('active');
-    }
-
     this.currentTab = tabName;
+    // Highlighting goes through the shared rule, which refuses to mark a type
+    // current while both rails are up and its content is hidden.
+    this.syncTabHighlight();
 
     // Load tab-specific data
     this.loadTabData(tabName);

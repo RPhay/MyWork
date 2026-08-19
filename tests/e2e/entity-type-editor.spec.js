@@ -24,7 +24,11 @@ test('type editor opens and shows all fields with correct types', async ({ page 
 
   expect(errs).toEqual([]);
   expect(rows).toBe(4);
-  expect(types).toEqual(['status','checkbox','textarea','links']);
+  // Compared as a set: field order is user-editable (fields are drag-sortable
+  // in this very editor), so asserting a sequence makes the test fail on a
+  // legitimate reorder rather than on a real problem.
+  expect(new Set(keys)).toEqual(new Set(['status','is_weekly','notes','links']));
+  expect(new Set(types)).toEqual(new Set(['status','checkbox','textarea','links']));
 });
 
 // A daily is never a child of anything and is implicitly a parent of
