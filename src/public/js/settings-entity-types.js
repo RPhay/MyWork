@@ -84,7 +84,7 @@ function createTypeListItem(type, isReadonly) {
 
   item.innerHTML = `
     <div class="type-list-item-left">
-      ${!isReadonly ? '<span class="type-drag-handle" title="Drag to reorder tabs">⋮⋮</span>' : ''}
+      ${!isReadonly ? '<span class="type-drag-handle" title="Drag to reorder. This is the order the tabs appear in on the main page.">⋮⋮</span>' : ''}
       <div class="type-icon">${type.icon || '📄'}</div>
       <div class="type-info">
         <h6 class="mb-0">${type.label}${categoryBadge}</h6>
@@ -97,7 +97,7 @@ function createTypeListItem(type, isReadonly) {
     </div>
     <div class="type-list-item-right">
       ${!isReadonly ? `
-        <div class="form-check form-switch me-3" title="Show this type as a tab on the dashboard">
+        <div class="form-check form-switch me-3" title="Show or hide this type&apos;s tab on the main page. Hiding a type keeps its records - it just stops showing the tab.">
           <input class="form-check-input type-visible-toggle" type="checkbox" ${isVisible ? 'checked' : ''}>
           <label class="form-check-label small text-muted">${isVisible ? 'Enabled' : 'Disabled'}</label>
         </div>

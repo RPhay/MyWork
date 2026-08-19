@@ -10,10 +10,10 @@
       <div class="row mb-2">
         <div class="col-md-6">
           <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="expandAll<%= typeSlug %>Btn" title="Expand all">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="expandAll<%= typeSlug %>Btn" title="Open every folder and nested row">
               <i class="bi bi-chevron-double-down"></i> Expand All
             </button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="collapseAll<%= typeSlug %>Btn" title="Collapse all">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="collapseAll<%= typeSlug %>Btn" title="Close every folder so only top-level rows show">
               <i class="bi bi-chevron-double-up"></i> Collapse All
             </button>
           </div>
@@ -23,10 +23,10 @@
                removes it for flat types. A folder is an is_folder row of this
                same type, not a type of its own. -->
           <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="Create a folder to organize <%= typeName %>">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="A folder groups rows of this type. It holds no fields of its own - drag rows into it to organise them.">
               <i class="bi bi-folder-plus"></i> + Folder
             </button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>Btn">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>Btn" title="Create a new <%= typeNameSingular %>. The editor stays open on it so you can keep filling it in.">
               + New <%= typeNameSingular %>
             </button>
           </div>
@@ -36,10 +36,10 @@
 
       <div id="<%= typeSlug %>SelectionBar" class="entity-selection-bar" hidden>
         <span class="selection-count">0 selected</span>
-        <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-selected">
+        <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-selected" title="Delete every selected row, and anything nested inside them">
           <i class="bi bi-trash"></i> Delete selected
         </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="clear-selection">Clear</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="clear-selection" title="Deselect everything">Clear</button>
       </div>
 
       <div id="<%= typeSlug %>EntityList" style="overflow-y: auto;">
@@ -57,8 +57,8 @@
           <div class="split-pane-editor-title">Edit <%= typeNameSingular %></div>
           <div class="editor-actions-bar">
             <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>SaveBtn" disabled>Save</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>CloseBtn">Revert</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>SaveBtn" disabled title="Save your changes. Stays disabled until you change something.">Save</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>CloseBtn" title="Discard your changes and close the editor">Revert</button>
             </div>
           </div>
         </div>

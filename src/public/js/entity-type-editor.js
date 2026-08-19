@@ -77,7 +77,7 @@ function showEntityTypeEditorModal(type) {
     <form id="entityTypeForm">
       <div class="row mb-3 align-items-end">
         <div class="col-auto">
-          <label class="form-label">Icon</label>
+          <label class="form-label" title="Shown on the tab and beside every row. Avoid folder-like emoji - folders already use one.">Icon</label>
           <div>
             <button type="button" class="btn btn-outline-secondary type-icon-btn" id="typeIconBtn"
                     title="Click to choose an icon">${type?.icon || '❓'}</button>
@@ -98,7 +98,7 @@ function showEntityTypeEditorModal(type) {
       <div class="mb-3">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <h6 class="mb-0">Fields</h6>
-          <button type="button" class="btn btn-sm btn-outline-primary" id="addFieldBtn">+ Add Field</button>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="addFieldBtn" title="Add a field to this type. It appears in the editor for every row, and can be shown as a column.">+ Add Field</button>
         </div>
         <div id="fieldsList" style="border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
           <!-- Fields will be added here -->
@@ -121,13 +121,13 @@ function showEntityTypeEditorModal(type) {
         <h6>Type Relationships</h6>
         <div class="row">
           <div class="col-md-6">
-            <label class="form-label">Can have parents:</label>
+            <label class="form-label" title="Types a row of this type may sit inside. Dailies is never listed - it is always implicitly a parent.">Can have parents:</label>
             <div id="parentTypesList" style="border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
               <!-- Parent types will be listed here -->
             </div>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Can have children:</label>
+            <label class="form-label" title="Types that may sit inside a row of this type.">Can have children:</label>
             <div id="childTypesList" style="border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
               <!-- Child types will be listed here -->
             </div>
