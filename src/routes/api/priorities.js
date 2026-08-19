@@ -88,27 +88,6 @@ router.patch('/reorder-siblings', async (req, res) => {
   }
 });
 
-// Get links for a priority
-router.get('/:id/links', async (req, res) => {
-  try {
-    const links = await priorityService.getLinksForPriority(req.params.id);
-    res.json({ success: true, data: links });
-  } catch (error) {
-    logger.error('Error fetching priority links:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Add a link to a priority
-router.post('/:id/links', async (req, res) => {
-  try {
-    const link = await priorityService.addLinkToPriority(req.params.id, req.body.url, req.body.title);
-    res.status(201).json({ success: true, data: link });
-  } catch (error) {
-    logger.error('Error adding link to priority:', error);
-    res.status(error.statusCode || 500).json({ success: false, message: error.message });
-  }
-});
 
 // Link/unlink a category (area)
 router.post('/:id/areas/:areaId', async (req, res) => {

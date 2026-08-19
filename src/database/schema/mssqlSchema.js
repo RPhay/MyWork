@@ -263,9 +263,9 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  // priority_areas junction table removed in Phase 2 (areas migrated to generic entities)
+  // priority_areas: recreated as a legacy<->entity bridge at the end of this file
 
-  // priority_goals junction table removed in Phase 3 (goals migrated to generic entities)
+  // priority_goals: recreated as a legacy<->entity bridge at the end of this file
 
   await createTableIfNotExists(
     pool,
@@ -343,7 +343,7 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  // work_goal_associations junction table removed in Phase 3 (goals migrated to generic entities)
+  // work_goal_associations: recreated as a legacy<->entity bridge at the end of this file
 
   await createTableIfNotExists(
     pool,
@@ -360,7 +360,7 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  // work_area_associations junction table removed in Phase 2 (areas migrated to generic entities)
+  // work_area_associations: recreated as a legacy<->entity bridge at the end of this file
 
   await createTableIfNotExists(
     pool,
@@ -382,7 +382,7 @@ export async function createMssqlSchema(pool) {
   // work_task_associations moved to after tasks is created (see below)
   // work_ticket_associations moved to after tickets is created (see below)
 
-  // work_idea_associations table removed in Phase 1 (ideas migrated to generic entities)
+  // work_idea_associations: recreated as a legacy<->entity bridge at the end of this file
 
   await createTableIfNotExists(
     pool,
@@ -444,9 +444,9 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  // template_areas junction table removed in Phase 2 (areas migrated to generic entities)
+  // template_areas: recreated as a legacy<->entity bridge at the end of this file
 
-  // template_goals junction table removed in Phase 3 (goals migrated to generic entities)
+  // template_goals: recreated as a legacy<->entity bridge at the end of this file
 
   await createTableIfNotExists(
     pool,
@@ -1124,6 +1124,7 @@ export async function createMssqlSchema(pool) {
       is_system BIT DEFAULT 0,
       primary_date_field NVARCHAR(100),
       order_index INT DEFAULT 0,
+      is_visible BIT DEFAULT 1,
       deleted_at DATETIME2 NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
@@ -1136,6 +1137,11 @@ export async function createMssqlSchema(pool) {
   const typesCategoryExists = await columnExistsAsync(pool, "entity_types", "type_category");
   if (!typesCategoryExists) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD type_category NVARCHAR(20) DEFAULT 'editable' CHECK (type_category IN ('editable','template','daily','external'))");
+  }
+
+  // Backfill for entity_types created before is_visible existed - see mysqlSchema.js
+  if (!(await columnExists(pool, "entity_types", "is_visible"))) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD is_visible BIT DEFAULT 1");
   }
 
   const typesExternalSourceExists = await columnExistsAsync(pool, "entity_types", "external_source");
@@ -1388,4 +1394,56 @@ export async function createMssqlSchema(pool) {
     )
   `,
   );
+
+  // ===== Legacy <-> entity association bridge =====
+  //
+  // Mirrors the block of the same name in mysqlSchema.js - see there for the
+  // full rationale. Short version: areas/goals/ideas are entities, but work
+  // items, projects and templates are still legacy tables, so their edges
+  // cannot live in entity_relationships (whose FKs are entities on both
+  // sides). These junctions bridge the two id spaces and are retired once
+  // work_items and priorities themselves become entities.
+  //
+  // BEHAVIORAL DIFFERENCE FROM MYSQL: MySQL cascades the delete on both FKs.
+  // Here the entity side is ON DELETE NO ACTION, because `work_items` and
+  // `entities` both cascade from `contexts`, so two cascading FKs into one
+  // junction give SQL Server "may cause cycles or multiple cascade paths" (the
+  // same restriction that forces NO ACTION on the parent_id self-references
+  // and the to_dos/tickets/areas cross-references elsewhere in this file).
+  // Deleting an entity therefore does NOT clean these rows up automatically on
+  // MSSQL - entityService.js#deleteEntity removes them explicitly, which is
+  // what makes the two engines behave the same from the app's point of view.
+  const bridgeJunctions = [
+    // [table, legacy column, legacy table, entity column]
+    ["work_area_associations", "work_item_id", "work_items", "area_id"],
+    ["work_goal_associations", "work_item_id", "work_items", "goal_id"],
+    ["work_idea_associations", "work_item_id", "work_items", "idea_id"],
+    ["priority_areas", "priority_id", "priorities", "area_id"],
+    ["priority_goals", "priority_id", "priorities", "goal_id"],
+    ["template_areas", "template_id", "work_item_templates", "area_id"],
+    ["template_goals", "template_id", "work_item_templates", "goal_id"],
+  ];
+
+  for (const [table, legacyCol, legacyTable, entityCol] of bridgeJunctions) {
+    await createTableIfNotExists(
+      pool,
+      table,
+      `
+      CREATE TABLE [MyWork].[${table}] (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        ${legacyCol} INT NOT NULL,
+        ${entityCol} INT NOT NULL,
+        FOREIGN KEY (${legacyCol}) REFERENCES [MyWork].[${legacyTable}](id) ON DELETE CASCADE,
+        FOREIGN KEY (${entityCol}) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
+        UNIQUE (${legacyCol}, ${entityCol})
+      )
+    `,
+    );
+    await createIndexIfNotExists(
+      pool,
+      `idx_${table}_entity`,
+      table,
+      `CREATE INDEX idx_${table}_entity ON [MyWork].[${table}] (${entityCol})`,
+    );
+  }
 }

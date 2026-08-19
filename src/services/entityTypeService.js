@@ -88,7 +88,7 @@ export async function createEntityType(data) {
   const slug = data.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   try {
-    const [result] = await query(
+    const result = await query(
       'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, template_structure, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [slug, data.label, data.label_singular, data.icon || null, typeCategory, data.external_source || null, data.template_structure ? JSON.stringify(data.template_structure) : null, data.supports_hierarchy ? 1 : 0, data.is_system ? 1 : 0, data.primary_date_field || null, data.order_index || 0]
     );
@@ -119,12 +119,12 @@ export async function updateEntityType(id, data) {
 
   const updates = [];
   const values = [];
-  const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'primary_date_field', 'order_index', 'type_category', 'external_source', 'template_structure'];
+  const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'primary_date_field', 'order_index', 'is_visible', 'type_category', 'external_source', 'template_structure'];
 
   for (const field of allowedFields) {
     if (data[field] !== undefined) {
       updates.push(`${field} = ?`);
-      if (field === 'supports_hierarchy') {
+      if (field === 'supports_hierarchy' || field === 'is_visible') {
         values.push(data[field] ? 1 : 0);
       } else if (field === 'template_structure') {
         values.push(data[field] ? JSON.stringify(data[field]) : null);
@@ -142,15 +142,52 @@ export async function updateEntityType(id, data) {
     );
   }
 
-  // Handle fields if provided
+  // Handle fields if provided.
+  //
+  // Reconciled by field_key rather than dropped and recreated. The wipe-then-
+  // recreate version destroyed anything the caller didn't send back verbatim:
+  // the Settings form had no <option> for `status`/`recurrence`, so saving a
+  // type rewrote those fields to `text` and dropped every field the form
+  // couldn't render. Metadata the caller omits (field_options,
+  // is_completion_signal) is now carried over from the existing field instead
+  // of being reset.
   if (data.fields && Array.isArray(data.fields)) {
-    // Delete all existing fields for this type
-    await query('DELETE FROM entity_type_fields WHERE entity_type_id = ?', [id]);
+    const existing = await getEntityTypeFields(id);
+    const existingByKey = new Map(existing.map(f => [f.field_key, f]));
+    const keptKeys = new Set();
 
-    // Create new fields
     for (let i = 0; i < data.fields.length; i++) {
-      const fieldData = { ...data.fields[i], display_order: i };
-      await createEntityTypeField(id, fieldData);
+      const incoming = { ...data.fields[i], display_order: i };
+      const normalizedKey = String(incoming.field_key || '')
+        .toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
+      const prior = existingByKey.get(normalizedKey);
+
+      if (!prior) {
+        await createEntityTypeField(id, incoming);
+        keptKeys.add(normalizedKey);
+        continue;
+      }
+
+      keptKeys.add(normalizedKey);
+      await updateEntityTypeField(prior.id, {
+        label: incoming.label ?? prior.label,
+        field_type: incoming.field_type ?? prior.field_type,
+        field_options: incoming.field_options !== undefined
+          ? incoming.field_options
+          : (typeof prior.field_options === 'string' ? JSON.parse(prior.field_options) : prior.field_options),
+        required: incoming.required !== undefined ? incoming.required : prior.required,
+        display_order: i,
+        show_in_row: incoming.show_in_row !== undefined ? incoming.show_in_row : prior.show_in_row,
+        is_completion_signal: incoming.is_completion_signal !== undefined
+          ? incoming.is_completion_signal
+          : prior.is_completion_signal,
+      });
+    }
+
+    for (const field of existing) {
+      if (!keptKeys.has(field.field_key)) {
+        await query('DELETE FROM entity_type_fields WHERE id = ?', [field.id]);
+      }
     }
   }
 
@@ -183,7 +220,11 @@ export async function createEntityTypeField(entityTypeId, data) {
   if (!data.label) throw new ValidationError('label is required');
   if (!data.field_type) throw new ValidationError('field_type is required');
 
-  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'url', 'select', 'radio', 'checkbox', 'status', 'recurrence'];
+  // 'url' is one named link; 'links' is 0-n named links stored as a JSON
+  // array of {url, title} - it replaces the per-type priority_links /
+  // task_links / ticket_links / to_do_links tables, which existed only because
+  // there was no generic way to say "this type has links".
+  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio', 'checkbox', 'status', 'recurrence'];
   if (!validFieldTypes.includes(data.field_type)) {
     throw new ValidationError(`Invalid field_type. Must be one of: ${validFieldTypes.join(', ')}`);
   }
@@ -191,7 +232,7 @@ export async function createEntityTypeField(entityTypeId, data) {
   const fieldKey = data.field_key.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
 
   try {
-    const [result] = await query(
+    const result = await query(
       'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         entityTypeId,
@@ -205,8 +246,8 @@ export async function createEntityTypeField(entityTypeId, data) {
         data.is_completion_signal ? 1 : 0
       ]
     );
-    const [field] = await query('SELECT * FROM entity_type_fields WHERE id = ?', [result.insertId]);
-    return field[0];
+    const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [result.insertId]);
+    return rows[0];
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') throw new ConflictError(`Field already exists: ${fieldKey}`);
     throw error;
@@ -217,7 +258,7 @@ export async function createEntityTypeField(entityTypeId, data) {
 export async function updateEntityTypeField(fieldId, data) {
   const updates = [];
   const values = [];
-  const allowedFields = ['label', 'field_options', 'required', 'display_order', 'show_in_row', 'is_completion_signal'];
+  const allowedFields = ['label', 'field_type', 'field_options', 'required', 'display_order', 'show_in_row', 'is_completion_signal'];
 
   for (const field of allowedFields) {
     if (data[field] !== undefined) {
@@ -233,8 +274,8 @@ export async function updateEntityTypeField(fieldId, data) {
   }
 
   if (updates.length === 0) {
-    const [field] = await query('SELECT * FROM entity_type_fields WHERE id = ?', [fieldId]);
-    return field[0];
+    const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [fieldId]);
+    return rows[0];
   }
 
   values.push(fieldId);
@@ -242,8 +283,8 @@ export async function updateEntityTypeField(fieldId, data) {
     `UPDATE entity_type_fields SET ${updates.join(', ')} WHERE id = ?`,
     values
   );
-  const [field] = await query('SELECT * FROM entity_type_fields WHERE id = ?', [fieldId]);
-  return field[0];
+  const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [fieldId]);
+  return rows[0];
 }
 
 // Delete a field
@@ -272,12 +313,12 @@ export async function createEntityTypeRelationship(data) {
   }
 
   try {
-    const [result] = await query(
+    const result = await query(
       'INSERT INTO entity_type_relationships (parent_type_id, child_type_id, relationship_kind, max_children_per_parent, max_parents_per_child) VALUES (?, ?, ?, ?, ?)',
       [data.parent_type_id, data.child_type_id, data.relationship_kind, data.max_children_per_parent || null, data.max_parents_per_child || null]
     );
-    const [rule] = await query('SELECT * FROM entity_type_relationships WHERE id = ?', [result.insertId]);
-    return rule[0];
+    const rows = await query('SELECT * FROM entity_type_relationships WHERE id = ?', [result.insertId]);
+    return rows[0];
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
       throw new ConflictError('This relationship rule already exists');
@@ -300,8 +341,8 @@ export async function updateEntityTypeRelationship(ruleId, data) {
   }
 
   if (updates.length === 0) {
-    const [rule] = await query('SELECT * FROM entity_type_relationships WHERE id = ?', [ruleId]);
-    return rule[0];
+    const rows = await query('SELECT * FROM entity_type_relationships WHERE id = ?', [ruleId]);
+    return rows[0];
   }
 
   values.push(ruleId);
@@ -309,8 +350,8 @@ export async function updateEntityTypeRelationship(ruleId, data) {
     `UPDATE entity_type_relationships SET ${updates.join(', ')} WHERE id = ?`,
     values
   );
-  const [rule] = await query('SELECT * FROM entity_type_relationships WHERE id = ?', [ruleId]);
-  return rule[0];
+  const rows = await query('SELECT * FROM entity_type_relationships WHERE id = ?', [ruleId]);
+  return rows[0];
 }
 
 // Delete a relationship rule
@@ -322,10 +363,10 @@ export async function deleteEntityTypeRelationship(ruleId) {
 const SYSTEM_TYPE_DEFAULTS = {
   work_item: { label: 'Dailies', label_singular: 'Work Item', icon: '⭐', supports_hierarchy: true, primary_date_field: 'date' },
   priority: { label: 'Projects', label_singular: 'Priority', icon: '📍', supports_hierarchy: true, primary_date_field: null },
-  area: { label: 'Categories', label_singular: 'Area', icon: '📁', supports_hierarchy: true, primary_date_field: null },
-  goal: { label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: false, primary_date_field: null },
+  area: { label: 'Categories', label_singular: 'Area', icon: '🏷️', supports_hierarchy: true, primary_date_field: null },
+  goal: { label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: true, primary_date_field: null },
   to_do: { label: 'Todos', label_singular: 'Todo', icon: '✅', supports_hierarchy: true, primary_date_field: null },
-  task: { label: 'Tasks', label_singular: 'Task', icon: '📂', supports_hierarchy: true, primary_date_field: null },
+  task: { label: 'Tasks', label_singular: 'Task', icon: '📝', supports_hierarchy: true, primary_date_field: null },
   ticket: { label: 'Tickets', label_singular: 'Ticket', icon: '🎟️', supports_hierarchy: true, primary_date_field: null },
   idea: { label: 'Brainstorming', label_singular: 'Idea', icon: '💡', supports_hierarchy: true, primary_date_field: null },
   template: { label: 'Templates', label_singular: 'Template', icon: '📋', supports_hierarchy: false, primary_date_field: null }
@@ -346,4 +387,13 @@ export async function revertSystemType(id) {
   );
 
   return getEntityType(id);
+}
+
+// Rewrites order_index across types (0..n in the given order). This is the same
+// ordering the dashboard renders its tabs in, so dragging types in Settings and
+// the tab order on the main page are two views of one value.
+export async function reorderEntityTypes(orderedIds) {
+  for (let i = 0; i < orderedIds.length; i++) {
+    await query('UPDATE entity_types SET order_index = ? WHERE id = ?', [i, orderedIds[i]]);
+  }
 }

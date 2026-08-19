@@ -74,6 +74,28 @@ export async function getEntityParents(childEntityId, contextId = null, kind = '
   return relationships;
 }
 
+// Every entity below `entityId` in the hierarchy. Breadth-first, and tolerant
+// of a pre-existing cycle in the data (the `seen` set doubles as the guard).
+async function getDescendantIds(entityId, contextId) {
+  const seen = new Set();
+  const queue = [Number(entityId)];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift();
+    const children = await queryPool(
+      "SELECT child_entity_id FROM entity_relationships WHERE parent_entity_id = ? AND context_id = ? AND relationship_kind = 'hierarchy'",
+      [currentId, contextId]
+    );
+    for (const child of children) {
+      if (seen.has(child.child_entity_id)) continue;
+      seen.add(child.child_entity_id);
+      queue.push(child.child_entity_id);
+    }
+  }
+
+  return seen;
+}
+
 // Validate a relationship against the type rules
 async function validateRelationship(parentEntityId, childEntityId, relationshipKind, contextId) {
   // Get entity type IDs
@@ -93,6 +115,22 @@ async function validateRelationship(parentEntityId, childEntityId, relationshipK
 
   if (rules.length === 0) {
     throw new ValidationError(`Relationship not allowed: ${relationshipKind} from parent type ${parentTypeId} to child type ${childTypeId}`);
+  }
+
+  // Nothing stopped an item being dragged into its own descendant, which made
+  // a node its own ancestor. Nothing detected it either - the cycle only
+  // surfaced later, as "Maximum call stack size exceeded" out of
+  // hierarchyPath.js#buildPathMap, taking Dailies, Projects and Reporting down
+  // together. Reject the edge at the source. (priorityService.js#updatePriority
+  // has the same guard for the legacy parent_id column.)
+  if (relationshipKind === 'hierarchy') {
+    if (Number(parentEntityId) === Number(childEntityId)) {
+      throw new ValidationError('An item cannot be its own parent');
+    }
+    const descendants = await getDescendantIds(childEntityId, contextId);
+    if (descendants.has(Number(parentEntityId))) {
+      throw new ValidationError('Cannot move an item inside one of its own descendants');
+    }
   }
 
   const rule = rules[0];

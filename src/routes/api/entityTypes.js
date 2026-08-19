@@ -44,6 +44,20 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/entity-types/:id - Update a type
+// PATCH /api/entity-types/reorder - persist tab order. Declared before the
+// /:id routes so "reorder" is not captured as an id.
+router.patch('/reorder', async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) throw new Error('orderedIds must be an array');
+    await entityTypeService.reorderEntityTypes(orderedIds.map(Number));
+    res.json({ success: true, message: 'Entity types reordered' });
+  } catch (error) {
+    logger.error('Error reordering entity types:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 router.put('/:id', async (req, res) => {
   try {
     const type = await entityTypeService.updateEntityType(parseInt(req.params.id), req.body);

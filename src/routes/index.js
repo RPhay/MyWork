@@ -16,7 +16,6 @@ import activeContextRouter from "./api/activeContext.js";
 import usersRouter from "./api/users.js";
 import contextDatabaseConfigRouter from "./api/contextDatabaseConfig.js";
 import systemDatabaseRouter from "./api/systemDatabase.js";
-import contextTabSettingsRouter from "./api/contextTabSettings.js";
 import contextFoldersRouter from "./api/contextFolders.js";
 import backupRouter from "./api/backup.js";
 import setupRouter from "./api/setup.js";
@@ -25,7 +24,6 @@ import dayHighlightsRouter from "./api/dayHighlights.js";
 import ssoRouter from "./api/sso.js";
 import contextSsoRouter from "./api/contextSso.js";
 import dataSourceAuthRouter from "./api/dataSourceAuth.js";
-import linksRouter from "./api/links.js";
 import quotesRouter from "./api/quotes.js";
 import entityTypesRouter from "./api/entityTypes.js";
 import entitiesRouter from "./api/entities.js";
@@ -45,7 +43,6 @@ router.use("/api/", async (req, res, next) => {
     "/api/users",
     "/api/context-database-config",
     "/api/system-database",
-    "/api/context-tab-settings",
     "/api/setup",
     "/api/sso",
     "/api/backup",  // Read-only export
@@ -99,7 +96,6 @@ router.use("/api/active-context", activeContextRouter);
 router.use("/api/users", usersRouter);
 router.use("/api/context-database-config", contextDatabaseConfigRouter);
 router.use("/api/system-database", systemDatabaseRouter);
-router.use("/api/context-tab-settings", contextTabSettingsRouter);
 router.use("/api/context-folders", contextFoldersRouter);
 router.use("/api/backup", backupRouter);
 router.use("/api/setup", setupRouter);
@@ -108,7 +104,6 @@ router.use("/api/day-highlights", dayHighlightsRouter);
 router.use("/api/sso", ssoRouter);
 router.use("/api", contextSsoRouter);
 router.use("/api", dataSourceAuthRouter);
-router.use("/api", linksRouter);
 router.use("/api/quotes", quotesRouter);
 router.use("/api/entity-types", entityTypesRouter);
 router.use("/api/entities", entitiesRouter);
@@ -163,7 +158,9 @@ router.get("/dashboard", (req, res) => {
 // Settings page
 router.get("/settings", (req, res) => {
   const currentYear = new Date().getFullYear();
-  const tab = req.query.tab || "contexts";
+  // Entity Types is the landing tab for Settings - it's the one that shapes
+  // the rest of the app (which tabs exist, in what order, with which fields).
+  const tab = req.query.tab || "entity-types";
   const version = readVersion();
 
   res.render("pages/settings", {

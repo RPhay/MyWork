@@ -4,9 +4,18 @@
  */
 
 const GenericEntity = (() => {
-  let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges, allEntities = [];
+  let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges, currentIsFolder = false, allEntities = [];
   const splitPanesByType = {}; // Store splitPane instances per type
   let currentSaveBtn = null; // Track current save button element
+
+  // Field values are user text and land inside HTML attributes and markup, so
+  // they're escaped rather than interpolated raw.
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+  const escapeAttr = escapeHtml;
 
   // ========== FIELD RENDERERS STRATEGY MAP ==========
   const fieldRenderers = {
@@ -66,6 +75,53 @@ const GenericEntity = (() => {
         </label>
       </div>
     `,
+    // A single named URL. The field's own label names it ("Repo", "Spec"...),
+    // so one type can carry several distinct url fields.
+    url: (field, value = '') => `
+      <div class="form-group">
+        <label>${field.label}</label>
+        <input type="url" name="${field.field_key}" value="${escapeAttr(value)}" class="form-control" placeholder="https://example.com" data-field-type="url">
+      </div>
+    `,
+    radio: (field, value = '') => {
+      const choices = field.field_options?.choices || [];
+      return `
+        <div class="form-group">
+          <label>${field.label}</label>
+          <div data-field-type="radio" data-field-key="${field.field_key}">
+            ${choices.map((c, i) => `
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="${field.field_key}" id="${field.field_key}-${i}" value="${escapeAttr(c)}" ${c === value ? 'checked' : ''}>
+                <label class="form-check-label" for="${field.field_key}-${i}">${escapeHtml(c)}</label>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    },
+    // 0-n named URLs. Stored as a JSON array of {url, title} in value_json, so
+    // it needs no table of its own - the per-type *_links tables this replaces
+    // (priority_links, task_links, ticket_links, to_do_links) each existed only
+    // because there was no generic way to express "this type has links".
+    links: (field, value = null) => {
+      const links = Array.isArray(value) ? value : [];
+      const row = (link = { url: '', title: '' }) => `
+        <div class="entity-link-row" style="display:flex; gap:4px; margin-bottom:4px;">
+          <input type="url" class="form-control entity-link-url" value="${escapeAttr(link.url || '')}" placeholder="https://example.com" style="flex:2;">
+          <input type="text" class="form-control entity-link-title" value="${escapeAttr(link.title || '')}" placeholder="Name (optional)" style="flex:1;">
+          <button type="button" class="btn btn-outline-danger btn-sm" data-action="remove-link" title="Remove link" aria-label="Remove link">&times;</button>
+        </div>
+      `;
+      return `
+        <div class="form-group" data-field-type="links" data-field-key="${field.field_key}">
+          <label>${field.label}</label>
+          <div class="entity-links-list">${links.map(row).join('')}</div>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="add-link">
+            <i class="bi bi-plus-lg"></i> Add link
+          </button>
+        </div>
+      `;
+    },
     recurrence: (field, value = null) => `
       <div class="form-group">
         <label>${field.label}</label>
@@ -74,25 +130,51 @@ const GenericEntity = (() => {
     `,
   };
 
+  // A folder is not a separate entity type - it's a row of the page's own type
+  // carrying entities.is_folder = 1. That's what keeps every typed page on one
+  // code path: folders are page-scoped for free, and the type's existing
+  // self-nesting hierarchy rule already permits types under types, types under
+  // folders, and folders under folders with no extra rules. The icon swap and
+  // the title-only form below are the only two places anything is folder-aware.
+  const FOLDER_ICON = '📁';
+
   // ========== ROW RENDERING ==========
   function renderEntityRow(entity, typeSchema, depth = 0, hasChildren = false) {
-    const fields = (typeSchema.fields || [])
+    const isFolder = !!entity.is_folder;
+    const icon = isFolder ? FOLDER_ICON : typeSchema.icon;
+    // Folders carry no field values, so a folder row is just its name.
+    const fields = isFolder ? '' : (typeSchema.fields || [])
       .filter(f => f.show_in_row)
       .map(f => {
-        const value = entity.fields?.[f.field_key] || '';
-        return value ? `<span class="row-field">${value}</span>` : '';
+        const value = entity.fields?.[f.field_key];
+        if (value === null || value === undefined || value === '') return '';
+
+        // Links are an array of {url, title}; anything else stringifies fine.
+        if (f.field_type === 'links' && Array.isArray(value)) {
+          return value.map(l => `
+            <a class="row-field entity-row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(l.url)}">
+              <i class="bi bi-link-45deg"></i>${escapeHtml(l.title || l.url)}
+            </a>
+          `).join('');
+        }
+        if (f.field_type === 'url') {
+          return `<a class="row-field entity-row-link" href="${escapeAttr(value)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-link-45deg"></i>${escapeHtml(value)}</a>`;
+        }
+        return `<span class="row-field">${escapeHtml(value)}</span>`;
       })
       .join(' ');
 
     const indent = `<span style="display:inline-block; width: ${depth * 18}px; flex: none;"></span>`;
     const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
+    // Whatever the editor currently has open is the selected row.
+    const isSelected = currentEntityId != null && String(currentEntityId) === String(entity.id);
 
     return `
-      <div class="entity-row ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}" data-entity-type="${typeSchema.slug}" data-depth="${depth}" draggable="true">
+      <div class="entity-row ${isExpanded ? 'expanded' : ''} ${isFolder ? 'entity-row-folder' : ''} ${isSelected ? 'selected' : ''}" data-entity-id="${entity.id}" data-entity-type="${typeSchema.slug}" data-is-folder="${isFolder ? '1' : '0'}" data-depth="${depth}" draggable="true">
         <div class="entity-row-content">
           ${indent}
           ${hasChildren ? `<span class="entity-toggle" data-action="toggle-expand">▶</span>` : '<span style="width: 18px; display: inline-block;"></span>'}
-          ${typeSchema.icon ? `<span class="entity-row-icon">${typeSchema.icon}</span>` : ''}
+          ${icon ? `<span class="entity-row-icon">${icon}</span>` : ''}
           <span class="entity-title">${entity.title}</span>
           ${fields}
           <div class="entity-actions">
@@ -108,7 +190,7 @@ const GenericEntity = (() => {
   // no such column. Hierarchy lives entirely in entity_relationships
   // (kind='hierarchy'), fetched separately and passed in as `relationships`
   // ([{parent_entity_id, child_entity_id, order_index}, ...]).
-  function renderTree(entities, typeSchema, relationships = [], getSchemaForEntity = null) {
+  function renderTree(entities, typeSchema, relationships = []) {
     const entityMap = new Map(entities.map(e => [e.id, e]));
 
     const childrenByParent = new Map();
@@ -126,7 +208,6 @@ const GenericEntity = (() => {
     function renderNode(entity, depth = 0) {
       const children = childrenByParent.get(entity.id) || [];
       const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
-      const entitySchema = getSchemaForEntity ? getSchemaForEntity(entity) : typeSchema;
 
       const childrenHtml = children.length > 0 ? `
         <div class="entity-node-children ${isExpanded ? 'visible' : ''}">
@@ -136,7 +217,7 @@ const GenericEntity = (() => {
 
       return `
         <div class="entity-node ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}">
-          ${renderEntityRow(entity, entitySchema, depth, children.length > 0)}
+          ${renderEntityRow(entity, typeSchema, depth, children.length > 0)}
           ${childrenHtml}
         </div>
       `;
@@ -147,11 +228,13 @@ const GenericEntity = (() => {
 
   // ========== EDITOR ==========
   function buildForm(typeSchema, entity = {}) {
-    const fields = typeSchema.fields || [];
+    // A folder only organizes - it has no field values of its own, so its
+    // editor is the name and nothing else, for every type alike.
+    const fields = entity.is_folder ? [] : (typeSchema.fields || []);
     return `
       <form id="entity-editor-form" class="entity-editor-form" onsubmit="return false;">
         <div class="form-group">
-          <label>Title *</label>
+          <label>${entity.is_folder ? 'Folder Name' : 'Title'} *</label>
           <input type="text" name="title" value="${entity.title || ''}" class="form-control" required>
         </div>
         ${fields.map(field => {
@@ -163,21 +246,38 @@ const GenericEntity = (() => {
     `;
   }
 
-  function collectFormValues(typeSchema) {
+  // Field values go under `fields`, not alongside `title` - that's the shape
+  // entityService.js#createEntity/updateEntity reads. They used to be returned
+  // flat, which meant every field value (notes, status, recurrence) was
+  // silently dropped on save for every type.
+  function collectFormValues(typeSchema, isFolder = false) {
     const form = document.getElementById('entity-editor-form');
     const formData = new FormData(form);
-    const data = { title: formData.get('title') };
+    const data = { title: formData.get('title'), is_folder: isFolder, fields: {} };
+
+    if (isFolder) return data;
 
     for (const field of typeSchema.fields || []) {
       const value = formData.get(field.field_key);
-      if (field.field_type === 'checkbox') {
-        data[field.field_key] = formData.get(field.field_key) === 'on';
+      if (field.field_type === 'links') {
+        // Not a FormData field - the rows are built by the links renderer.
+        const container = form.querySelector(`[data-field-type="links"][data-field-key="${field.field_key}"]`);
+        const links = Array.from(container?.querySelectorAll('.entity-link-row') || [])
+          .map(r => ({
+            url: r.querySelector('.entity-link-url')?.value.trim() || '',
+            title: r.querySelector('.entity-link-title')?.value.trim() || '',
+          }))
+          .filter(l => l.url);
+        // An empty list clears the field rather than storing [].
+        data.fields[field.field_key] = links.length > 0 ? links : null;
+      } else if (field.field_type === 'checkbox') {
+        data.fields[field.field_key] = formData.get(field.field_key) === 'on';
       } else if (field.field_type === 'number') {
-        data[field.field_key] = value ? parseFloat(value) : null;
+        data.fields[field.field_key] = value ? parseFloat(value) : null;
       } else if (field.field_type === 'recurrence') {
-        data[field.field_key] = value ? JSON.parse(value) : null;
+        data.fields[field.field_key] = value ? JSON.parse(value) : null;
       } else {
-        data[field.field_key] = value || null;
+        data.fields[field.field_key] = value || null;
       }
     }
     return data;
@@ -195,6 +295,32 @@ const GenericEntity = (() => {
     if (form) {
       form.addEventListener('input', markChanged);
       form.addEventListener('change', markChanged);
+
+      // Add/remove rows for `links` fields. Delegated, so it covers every
+      // links field on the form without per-field wiring.
+      form.addEventListener('click', (e) => {
+        const addBtn = e.target.closest('[data-action="add-link"]');
+        if (addBtn) {
+          const list = addBtn.closest('[data-field-type="links"]')?.querySelector('.entity-links-list');
+          if (!list) return;
+          list.insertAdjacentHTML('beforeend', `
+            <div class="entity-link-row" style="display:flex; gap:4px; margin-bottom:4px;">
+              <input type="url" class="form-control entity-link-url" placeholder="https://example.com" style="flex:2;">
+              <input type="text" class="form-control entity-link-title" placeholder="Name (optional)" style="flex:1;">
+              <button type="button" class="btn btn-outline-danger btn-sm" data-action="remove-link" title="Remove link" aria-label="Remove link">&times;</button>
+            </div>
+          `);
+          list.querySelector('.entity-link-row:last-child .entity-link-url')?.focus();
+          markChanged();
+          return;
+        }
+
+        const removeBtn = e.target.closest('[data-action="remove-link"]');
+        if (removeBtn) {
+          removeBtn.closest('.entity-link-row')?.remove();
+          markChanged();
+        }
+      });
       // Pressing Enter in a form field can submit the form natively
       // (navigating to the current URL with every field as a query param,
       // losing the tab/editor state) - the onsubmit="return false" on the
@@ -228,10 +354,8 @@ const GenericEntity = (() => {
     trackFormChanges: trackFormChanges,
 
     populate: (entityId, entity, typeConfig, typeSlugOverride) => {
-      console.log(`[GenericEntity] populate called with typeSlugOverride=${typeSlugOverride}, entityId=${entityId}, currentEntityId=${currentEntityId}`);
       // Toggle close: if clicking same entity with no changes, close the editor
       if (currentEntityId === entityId && entityId !== null) {
-        console.log(`[GenericEntity] Same entity, closing`);
         if (hasChanges) {
           return; // Don't close if there are unsaved changes
         }
@@ -241,6 +365,7 @@ const GenericEntity = (() => {
 
       currentEntityId = entityId;
       hasChanges = false;
+      currentIsFolder = !!entity.is_folder;
       typeSchema = typeConfig;
 
       // Use provided typeSlug or fall back to currentTypeSlug
@@ -249,18 +374,21 @@ const GenericEntity = (() => {
       if (typeSlugOverride) {
         currentTypeSlug = typeSlugOverride;
       }
-      console.log(`[GenericEntity] typeSlugToUse=${typeSlugToUse}, splitPane exists=${!!splitPane}`);
 
       const formHtml = buildForm(typeConfig, entity);
       const editorPaneId = `${typeSlugToUse}-editor-pane`;
       const editorPane = document.getElementById(editorPaneId);
       if (!editorPane) {
-        console.error(`[GenericEntity] FATAL: editorPane is null!`);
+        console.error(`[GenericEntity] editor pane not found: #${editorPaneId}`);
         return;
       }
       editorPane.innerHTML = formHtml;
       // Track the save button for this type
       currentSaveBtn = document.getElementById(`${typeSlugToUse}SaveBtn`);
+      // Nothing has been edited yet, so there is nothing to save. Without this
+      // the button kept whatever state it was left in - once any edit enabled
+      // it, it stayed enabled for every item opened afterwards.
+      if (currentSaveBtn) currentSaveBtn.disabled = true;
       trackFormChanges();
       // Use the correct SplitPane for this type
       const typeSplitPane = splitPanesByType[typeSlugToUse];
@@ -272,7 +400,7 @@ const GenericEntity = (() => {
     },
 
     save: async () => {
-      const data = collectFormValues(typeSchema);
+      const data = collectFormValues(typeSchema, currentIsFolder);
       const url = currentEntityId
         ? `/api/entities/${currentTypeSlug}/${currentEntityId}`
         : `/api/entities/${currentTypeSlug}`;
@@ -298,6 +426,7 @@ const GenericEntity = (() => {
 
     close: () => {
       currentEntityId = null;
+      currentIsFolder = false;
       // Clear the editor content
       const editorPaneId = `${currentTypeSlug}-editor-pane`;
       const editorPane = document.getElementById(editorPaneId);
@@ -305,14 +434,6 @@ const GenericEntity = (() => {
       // Hide the pane
       const typeSplitPane = splitPanesByType[currentTypeSlug];
       if (typeSplitPane) typeSplitPane.hideRightPane();
-    },
-
-    expandAncestors: (entityId, entities) => {
-      const entity = entities.find(e => e.id === entityId);
-      if (entity?.parent_entity_id) {
-        localStorage.setItem(`entity-expanded-${entity.parent_entity_id}`, 'true');
-        this.expandAncestors(entity.parent_entity_id, entities);
-      }
     },
 
     setEntities: (entities) => {

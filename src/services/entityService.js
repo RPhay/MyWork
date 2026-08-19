@@ -15,9 +15,15 @@ import { getNextOccurrenceDate, generateWorkItemsForDate } from './recurrenceSer
 async function attachFieldValues(entityIds) {
   if (entityIds.length === 0) return new Map();
 
+  // One placeholder per id, not `IN (?)` with an array: connectionPool.js runs
+  // statements through mysql2's execute() (prepared statements), which does not
+  // expand an array into an IN list the way query() does. `IN (?)` silently
+  // matched nothing, so every entity came back with empty `fields` no matter
+  // what was stored.
+  const placeholders = entityIds.map(() => '?').join(', ');
   const values = await queryPool(
-    'SELECT * FROM entity_field_values WHERE entity_id IN (?)',
-    [entityIds]
+    `SELECT * FROM entity_field_values WHERE entity_id IN (${placeholders})`,
+    entityIds
   );
 
   const map = new Map();
@@ -31,10 +37,53 @@ async function attachFieldValues(entityIds) {
     else if (row.value_number !== null) entity[row.field_key] = row.value_number;
     else if (row.value_date !== null) entity[row.field_key] = row.value_date;
     else if (row.value_bool !== null) entity[row.field_key] = row.value_bool === 1;
-    else if (row.value_json !== null) entity[row.field_key] = JSON.parse(row.value_json);
+    // mysql2 already parses JSON columns into objects/arrays, so only parse
+    // when the driver handed back a raw string (as MSSQL's NVARCHAR does).
+    // Blindly parsing threw "Unexpected token 'o', \"[object Obj\"..." on every
+    // JSON-valued field - which is every `links` and `recurrence` value.
+    else if (row.value_json !== null) {
+      entity[row.field_key] = typeof row.value_json === 'string'
+        ? JSON.parse(row.value_json)
+        : row.value_json;
+    }
   }
 
   return map;
+}
+
+// The junction tables that point at entities.id, and the column that does so.
+// Kept in sync with the "Legacy <-> entity association bridge" block in
+// mysqlSchema.js / mssqlSchema.js.
+const BRIDGE_JUNCTION_COLUMNS = [
+  ['work_area_associations', 'area_id'],
+  ['work_goal_associations', 'goal_id'],
+  ['work_idea_associations', 'idea_id'],
+  ['priority_areas', 'area_id'],
+  ['priority_goals', 'goal_id'],
+  ['template_areas', 'area_id'],
+  ['template_goals', 'goal_id'],
+];
+
+// Legacy bridge: areas, goals and ideas are entities now, but workItemService,
+// priorityService and workItemTemplateService still reach them through legacy
+// junction tables and hand the result to hierarchyPath.js#buildPathMap, which
+// wants the old self-referencing row shape ({id, <label>, parent_id}).
+// `entities` has no parent column - hierarchy lives in entity_relationships -
+// so the parent is joined back in here and aliased to match.
+//
+// Deliberately not context-filtered, matching the `SELECT id, name, parent_id
+// FROM areas` it replaces: entity ids are globally unique, and a path only
+// needs to resolve, not to be scoped.
+export async function getEntityPathLookup(entityTypeSlug) {
+  return queryPool(
+    `SELECT e.id, e.title AS name, er.parent_entity_id AS parent_id
+     FROM entities e
+     JOIN entity_types et ON et.id = e.entity_type_id
+     LEFT JOIN entity_relationships er
+       ON er.child_entity_id = e.id AND er.relationship_kind = 'hierarchy'
+     WHERE et.slug = ? AND et.deleted_at IS NULL`,
+    [entityTypeSlug]
+  );
 }
 
 // Get all entities of a type in the current context
@@ -137,9 +186,9 @@ export async function updateEntity(entityId, data, contextId = null) {
     updates.push('order_index = ?');
     values.push(data.order_index);
   }
-  if (data.parent_entity_id !== undefined) {
-    updates.push('parent_entity_id = ?');
-    values.push(data.parent_entity_id || null);
+  if (data.is_folder !== undefined) {
+    updates.push('is_folder = ?');
+    values.push(data.is_folder ? 1 : 0);
   }
 
   if (updates.length > 0) {
@@ -283,6 +332,16 @@ export async function deleteEntity(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
   const entity = await getEntityById(entityId, contextId);
+
+  // Clear the legacy<->entity association bridge first. MySQL would cascade
+  // these, but the MSSQL schema has to declare the entity side ON DELETE NO
+  // ACTION (two cascading FKs into one junction hit "multiple cascade paths"),
+  // so the delete would fail there. Doing it explicitly keeps both engines
+  // behaving identically. Retire this alongside the bridge tables themselves.
+  for (const [table, column] of BRIDGE_JUNCTION_COLUMNS) {
+    await queryPool(`DELETE FROM ${table} WHERE ${column} = ?`, [entityId]);
+  }
+
   await queryPool('DELETE FROM entities WHERE id = ?', [entityId]);
   return entity;
 }

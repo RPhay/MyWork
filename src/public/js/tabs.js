@@ -1,7 +1,29 @@
 // Tab Management
+// The remembered tab is stored per page: the dashboard and Settings both have
+// tab strips with entirely different keys, so one shared entry meant visiting
+// Settings clobbered the dashboard's tab (and vice versa) with a name the other
+// page has no tab for.
+function rememberedTabKey() {
+  return `currentTab:${window.location.pathname}`;
+}
+
 class TabManager {
   constructor() {
-    this.currentTab = window.APP_CONFIG?.activeTab || 'dailies';
+    // Precedence: an explicit ?tab= in the URL, then the tab this page was last
+    // left on, then the server's default. That is what makes leaving for
+    // Settings and coming back land on the tab you were working in.
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    const remembered = sessionStorage.getItem(rememberedTabKey());
+    const fallback = window.APP_CONFIG?.activeTab || 'dailies';
+
+    this.currentTab = urlTab || remembered || fallback;
+
+    // Only honour a remembered tab that still exists - a type can be disabled
+    // or deleted while its name is still sitting in sessionStorage.
+    if (!document.querySelector(`button[data-tab="${CSS.escape(this.currentTab)}"]`)) {
+      this.currentTab = fallback;
+    }
+
     this.init();
   }
 
@@ -31,64 +53,43 @@ class TabManager {
     }
   }
 
-  // Per-context tab visibility/order - dashboard.ejs only (Dailies is always
-  // shown first regardless, so it's excluded from both the fetched settings
-  // and the drag-reorder target). Settings' own top-level tabs are a separate,
-  // fixed-order tab strip and never go through this.
+  // Tab order is global, not per context: it is entity_types.order_index, the
+  // same value Settings > Entity Types writes when you drag types there. This
+  // list and that one are two views of one value, in both directions.
+  //
+  // Visibility is entity_types.is_visible and is applied server-side in
+  // dashboard.ejs, so a hidden type never reaches the DOM - there is nothing to
+  // hide here. This replaced a per-context layer (context_tab_settings) that
+  // fetched settings after render and reordered on top of the global order;
+  // with two mechanisms owning one property they disagreed as soon as either
+  // was used.
   applyContextTabConfig() {
-    this._applyContextTabConfig();
-  }
-
-  async _applyContextTabConfig() {
     const nav = document.getElementById('mainTabs');
-    const dailiesTab = document.getElementById('dailies-tab');
-    if (!nav || !dailiesTab) return;
+    if (!nav || !window.app?.bindTabDragReorder) return;
 
-    try {
-      const activeResponse = await fetch('/api/active-context');
-      const activeResult = await activeResponse.json();
-      if (!activeResult.success) return;
-      const contextId = activeResult.data.id;
-
-      const settingsResponse = await fetch(`/api/context-tab-settings/${contextId}`);
-      const settingsResult = await settingsResponse.json();
-      if (!settingsResult.success) return;
-
-      const byKey = new Map(settingsResult.data.map(s => [s.key, s]));
-
-      Array.from(nav.querySelectorAll('li[data-tab]')).forEach(li => {
-        const setting = byKey.get(li.dataset.tab);
-        li.classList.toggle('d-none', !!setting && setting.visible === false);
-      });
-
-      // Reorder to match saved order_index, keeping Dailies first no matter what.
-      const ordered = settingsResult.data
-        .slice()
-        .sort((a, b) => a.order_index - b.order_index)
-        .map(s => nav.querySelector(`li[data-tab="${s.key}"]`))
-        .filter(Boolean);
-      ordered.forEach(li => nav.appendChild(li));
-
-      app.bindTabDragReorder(nav, 'li[data-tab]', async (orderedKeys) => {
-        try {
-          const settings = orderedKeys.map(key => ({ key, visible: byKey.get(key)?.visible !== false }));
-          await fetch(`/api/context-tab-settings/${contextId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-            },
-            body: JSON.stringify({ settings })
-          });
-        } catch (error) {
-          console.error('Error saving tab order:', error);
-        }
-      });
-    } catch (error) {
-      console.error('Error applying context tab config:', error);
-    }
+    app.bindTabDragReorder(nav, 'li[data-type-id]', async () => {
+      // Every type tab in DOM order, Dailies included - reorderEntityTypes
+      // assigns 0..n to exactly the ids it is given, so sending a partial list
+      // would leave the omitted types sharing stale indices.
+      const orderedIds = Array.from(nav.querySelectorAll('li[data-type-id]'))
+        .map(li => Number(li.dataset.typeId));
+      try {
+        const response = await fetch('/api/entity-types/reorder', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.body.dataset.csrfToken || window.APP_CONFIG?.csrfToken,
+          },
+          body: JSON.stringify({ orderedIds }),
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.message);
+      } catch (error) {
+        console.error('Error saving tab order:', error);
+        app.notify?.('Could not save the new tab order', 'danger');
+      }
+    });
   }
-
 
   setupTabButtons() {
     // button[data-tab] specifically - some tab <li> wrappers also carry a
@@ -115,8 +116,8 @@ class TabManager {
     // Show the tab
     this.showTab(tabName);
 
-    // Store in sessionStorage
-    sessionStorage.setItem('currentTab', tabName);
+    // Remembered per page - see rememberedTabKey().
+    sessionStorage.setItem(rememberedTabKey(), tabName);
   }
 
   showTab(tabName) {

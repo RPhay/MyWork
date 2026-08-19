@@ -1,7 +1,12 @@
-<!-- Settings: Manage Entity Types -->
-<div style="padding: 20px; max-width: 1200px;">
+<!-- Settings: Manage Entity Types
+     Split-pane, matching the typed pages: list on the left, editor on the
+     right. The editor used to be a floating modal, which made this page the
+     odd one out among every other place you edit something in this app. -->
+<div style="display: flex; gap: 0; height: 78vh; position: relative;">
+  <div class="split-pane-container" id="entityTypeSplitPane" style="flex: 1; display: flex; gap: 0; overflow: hidden;">
+    <div class="split-pane-left" id="entityTypeListPane" style="padding: 20px; overflow-y: auto;">
   <h2 class="mb-3">Entity Types</h2>
-  <p class="text-muted mb-4">Manage editable types and templates that organize your work.</p>
+  <p class="text-muted mb-4">Manage editable types and templates that organize your work. Drag to reorder tabs; use the switch to show or hide a type on the dashboard.</p>
 
   <!-- Editable Types Section -->
   <div class="mb-5">
@@ -51,6 +56,20 @@
       </div>
     </div>
   </div>
+    </div>
+
+    <div class="split-pane-divider" id="entityTypeDivider"></div>
+
+    <div class="split-pane-right hidden" id="entityTypeEditorPane">
+      <div class="split-pane-editor">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div class="split-pane-editor-title" id="entityTypeEditorTitle">Edit Type</div>
+          <div style="gap: 0.5rem; display: flex;" id="entityTypeEditorActions"></div>
+        </div>
+        <div id="entityType-editor-pane" style="overflow-y: auto;"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -70,6 +89,24 @@
 
   .type-list-item:hover {
     background-color: #f8f9fa;
+  }
+
+  .type-drag-handle {
+    cursor: grab;
+    user-select: none;
+    color: #adb5bd;
+    font-size: 0.9em;
+    margin-right: 4px;
+  }
+
+  .type-list-item-right {
+    display: flex;
+    align-items: center;
+  }
+
+  /* A disabled type has no tab on the dashboard - fade it so that reads at a glance. */
+  .type-list-item:has(.type-visible-toggle:not(:checked)) .type-info {
+    opacity: 0.55;
   }
 
   .type-list-item.readonly {

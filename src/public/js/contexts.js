@@ -403,7 +403,6 @@ function showContextPanel(context) {
 
   populateContextOwnerSelect(context);
   applySubtabOrder(context);
-  loadContextTabsSubpanel(context.id);
   loadContextDbSubpanel(context.id);
 }
 
@@ -576,57 +575,6 @@ function applySubtabOrder(context) {
     .forEach((li) => nav.appendChild(li));
 }
 
-// ---- Tabs sub-panel: main-app tab visibility for the selected context ----
-
-async function loadContextTabsSubpanel(contextId) {
-  const container = document.getElementById("contextTabsList");
-  container.innerHTML = '<p class="text-muted small">Loading...</p>';
-
-  try {
-    const response = await fetch(`/api/context-tab-settings/${contextId}`);
-    const result = await response.json();
-    if (!result.success) return;
-
-    container.innerHTML = result.data
-      .map(
-        (tab) => `
-      <div class="context-tab-visibility-row">
-        <input type="checkbox" class="form-check-input" data-tab-key="${tab.key}" ${tab.visible ? "checked" : ""}>
-        <span>${tab.label}</span>
-      </div>
-    `,
-      )
-      .join("");
-
-    container.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
-      checkbox.addEventListener("change", async () => {
-        const settings = result.data.map((tab) => ({
-          key: tab.key,
-          visible:
-            tab.key === checkbox.dataset.tabKey
-              ? checkbox.checked
-              : tab.visible,
-        }));
-        try {
-          await fetch(`/api/context-tab-settings/${contextId}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-            },
-            body: JSON.stringify({ settings }),
-          });
-        } catch (error) {
-          console.error("Error saving tab visibility:", error);
-        }
-      });
-    });
-  } catch (error) {
-    console.error("Error loading tab settings:", error);
-    container.innerHTML =
-      '<p class="text-danger small">Error loading tab settings</p>';
-  }
-}
 
 // ---- Database sub-panel: the selected context's own DB connection(s) ----
 // A context can save both a MySQL/MariaDB and an MSSQL profile side by side

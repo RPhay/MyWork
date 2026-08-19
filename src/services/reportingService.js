@@ -1,8 +1,7 @@
 import * as workItemService from './workItemService.js';
-import * as goalService from './goalService.js';
 import * as toDoService from './toDoService.js';
-import * as ideaService from './ideaService.js';
-import * as ideaFolderService from './ideaFolderService.js';
+import * as entityService from './entityService.js';
+import * as entityRelationshipService from './entityRelationshipService.js';
 import { ValidationError } from '../config/errors.js';
 
 // Read-only aggregation over existing entities - no new tables. Only
@@ -35,7 +34,26 @@ export async function getGoalsReport(contextId, { year, status } = {}) {
   if (!year) {
     throw new ValidationError('year is required');
   }
-  let goals = await goalService.getGoalsByYear(Number(year), contextId);
+  // Goals are entities now. The report renders `name`/`due_date`/`status`/
+  // `categories`, so flatten the entity into that shape rather than changing
+  // the frontend. `year`, `due_date` and `categories` were columns on the old
+  // `goals` table that the goal entity type doesn't define - they only appear
+  // if a user adds fields with those keys, so each is filtered/emitted
+  // defensively instead of being assumed present.
+  const entities = await entityService.getAllEntities('goal', contextId);
+
+  let goals = entities.map(g => ({
+    id: g.id,
+    name: g.title,
+    status: g.fields?.status || '',
+    due_date: g.fields?.due_date || null,
+    year: g.fields?.year ?? null,
+    categories: [],
+  }));
+
+  if (goals.some(g => g.year !== null)) {
+    goals = goals.filter(g => Number(g.year) === Number(year));
+  }
   if (status) goals = goals.filter(g => g.status === status);
   return goals;
 }
@@ -89,13 +107,18 @@ export async function getCategoryBreakdown(contextId, { startDate, endDate } = {
 export async function getToDosIdeasReport(contextId, { startDate, endDate } = {}) {
   requireDateRange(startDate, endDate);
 
-  const [toDos, ideas, ideaFolders] = await Promise.all([
+  // Ideas are entities now, and an "idea folder" is an idea entity with
+  // is_folder = 1 rather than a row in a separate idea_folders table. An
+  // idea's folder is therefore its hierarchy parent, which lives in
+  // entity_relationships, not a folder_id column.
+  const [toDos, ideas, ideaHierarchy] = await Promise.all([
     toDoService.getAllToDos(contextId),
-    ideaService.getAllIdeas(contextId),
-    ideaFolderService.getAllFolders(contextId),
+    entityService.getAllEntities('idea', contextId),
+    entityRelationshipService.getRelationshipsForType('idea', contextId, 'hierarchy'),
   ]);
 
-  const ideaFolderById = new Map(ideaFolders.map(f => [f.id, f.name]));
+  const ideaById = new Map(ideas.map(i => [i.id, i]));
+  const ideaParentId = new Map(ideaHierarchy.map(r => [r.child_entity_id, r.parent_entity_id]));
   const toDoById = new Map(toDos.map(t => [t.id, t]));
 
   // For todos with a parent, get the parent's title to display as a "folder"
@@ -127,16 +150,22 @@ export async function getToDosIdeasReport(contextId, { startDate, endDate } = {}
     }));
 
   const ideaRows = ideas
-    .filter(i => inRange(i.created_at))
-    .map(i => ({
-      type: 'Idea',
-      id: i.id,
-      title: i.title,
-      folder: i.folder_id ? (ideaFolderById.get(i.folder_id) || null) : null,
-      createdAt: i.created_at,
-      doneCount: (i.items || []).filter(x => x.is_done).length,
-      totalCount: (i.items || []).length,
-    }));
+    // Folders organize the report's rows; they aren't rows themselves.
+    .filter(i => !i.is_folder && inRange(i.created_at))
+    .map(i => {
+      const parent = ideaById.get(ideaParentId.get(i.id));
+      return {
+        type: 'Idea',
+        id: i.id,
+        title: i.title,
+        folder: parent ? parent.title : null,
+        createdAt: i.created_at,
+        // Idea checklists ("items") were a column-level feature of the old
+        // ideas table and have no equivalent on the entity yet.
+        doneCount: 0,
+        totalCount: 0,
+      };
+    });
 
   return [...toDoRows, ...ideaRows].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }

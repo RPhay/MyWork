@@ -1,5 +1,17 @@
 # UI Standards: Generic Entity Engine & Dynamic Views
 
+## 0. The one rule
+
+**Every typed page runs the same code.** `generic-entity-tab.ejs` + `genericEntity.js` + `generic-entity-init.js` render Categories, Projects, Goals, Todos, Tasks, Tickets and Ideas, and will render any type a user invents. What differs between them comes from the type's row in `entity_types` and its fields in `entity_type_fields` — never from a branch on its slug.
+
+> **If you are about to write `if (typeSlug === '...')` in the generic engine, stop.** That branch is the bug this architecture exists to prevent: it is what once gave Categories a "+ Folder" button that Todos did not have.
+
+Only **Dailies** (calendar, recurrence, time boxes) and **Templates** (instantiate-to-work-item) still have bespoke tabs. Everything else was converged, Projects most recently — which required migrating `priorities` into `entities` first, because a template swap alone would have rendered an empty list.
+
+### Settings → Entity Types is the control surface
+
+`entity_types.is_visible` decides whether a type gets a dashboard tab; `entity_types.order_index` decides the tab order. Both are **global, single sources of truth** — the Settings list and the dashboard tab bar are two views of the same values, editable from either end. A per-context layer (`context_tab_settings`) used to reorder tabs after render; it was removed, because two mechanisms owning one property disagree the moment either is used.
+
 **UPDATED (Phase 10):** This document describes the unified generic entity rendering system, fully implemented as of Phase 10. All entity types (work items, priorities, todos, tasks, goals, areas, tickets, ideas, templates) now use the same generic engine instead of type-specific implementations.
 
 The architecture relies on:
@@ -20,6 +32,20 @@ The generic renderer now handles all entity types with a single row template:
 **Migrating from type-specific renderers:**
 If you find yourself adding a type-specific render function, stop and add the field to the type's schema instead. The generic engine should handle it.
 
+### Field types are the extension point
+
+A type gains a capability by declaring a **field**, never by growing its own tab, its own editor, or its own table. Adding a capability means adding one entry to `fieldRenderers` in `genericEntity.js`, one value to `validFieldTypes` in `entityTypeService.js`, one `<option>` in `entity-type-editor.js`, and — because MySQL stores `field_type` as an ENUM — one value in **both** schema files.
+
+Current types: `text`, `textarea`, `number`, `date`, `url`, `links`, `select`, `radio`, `checkbox`, `status`, `recurrence`.
+
+- **`url`** — one named link; the field's own label names it, so a type can carry several distinct URL fields ("Repo", "Spec").
+- **`links`** — 0-n named links, stored as a JSON array of `{url, title}` in `entity_field_values.value_json`. This replaced four per-type tables (`priority_links`, `task_links`, `ticket_links`, `to_do_links`) that existed only because there was no generic way to express "this type has links". **Do not add a fifth.**
+
+Two traps this surfaced, both worth remembering:
+
+1. **`url` and `radio` were offered by the type editor and accepted by the service, but had no renderer and were missing from the MySQL ENUM.** Saving one failed with `Data truncated for column 'field_type'`, and any that existed rendered as a plain text box. When adding a field type, walk all four layers — renderer, service validation, editor option, schema ENUM — or it half-exists.
+2. **mysql2 auto-parses JSON columns.** `attachFieldValues` called `JSON.parse()` unconditionally and threw `Unexpected token 'o', "[object Obj"...` on every JSON-valued field, which silently broke `links` and `recurrence` alike. Parse only when the driver hands back a string (MSSQL's `NVARCHAR` does; MySQL's `JSON` does not).
+
 ## 2. Tree Rendering (Hierarchy & Relationships)
 
 **Standard: CSS-only expand/collapse** — applies uniformly to all hierarchical types via the generic renderer.
@@ -36,11 +62,31 @@ If you find yourself adding a type-specific render function, stop and add the fi
   .entity-node-children { display: none; }
   .entity-node.expanded > .entity-node-children { display: block; }
   ```
-- **Indentation**: `${depth * 18}px` inline-style spacer span — computed by `genericEntity.js#buildPathMap()` 
+- **Indentation**: `${depth * 18}px` inline-style spacer span, emitted directly by `genericEntity.js#renderEntityRow()`
 - **Event delegation**: toggle click binding via `.closest('[data-action="toggle-expand"]')`, not direct element checks
-- **Auto-expand parents**: when an item is selected or edited, `genericEntity.js#expandAncestors()` recursively opens the path to the root
+
+**Hierarchy is stored in `entity_relationships`, not on the entity.** The `entities` table has no parent column; parent/child links are `relationship_kind = 'hierarchy'` rows fetched in bulk via `GET /api/entities/:typeSlug/relationships?kind=hierarchy` and passed into `renderTree()`. Never add a `parent_entity_id` column or read one.
 
 **Type configuration**: A type's `supports_hierarchy` flag in `entity_types` determines whether the tree render is invoked (true) or flat list (false).
+
+### Folders
+
+**A folder is a row of the page's own type with `entities.is_folder = 1` — never a separate entity type.** A folder on the Todos tab is a `to_do` row; a folder on Categories is an `area` row.
+
+This is what keeps every typed page on one code path:
+
+- **Page-scoped for free** — a Todos folder cannot leak onto Categories, because it *is* a todo.
+- **No extra relationship rules** — the type's existing self-nesting rule (`to_do → to_do`) already permits items under items, items under folders, and folders under folders. A separate folder type would need a `folder → X` rule per type, and `entityRelationshipService.js#getRelationshipsForType` joins on `child_e.entity_type_id = parent_e.entity_type_id`, so cross-type folder edges would be silently dropped from the tree.
+- **Drag-and-drop, delete-cascade, and reorder need no folder-aware code at all** — every edge is an ordinary same-type hierarchy edge.
+
+Exactly two places in the renderer are folder-aware, both driven by `is_folder` and never by type slug:
+
+1. `renderEntityRow()` swaps the type's icon for 📁.
+2. `buildForm()` emits a title-only form (folders hold no field values).
+
+The "+ Folder" button is rendered for every type by `generic-entity-tab.ejs` and removed at init time for types where `supports_hierarchy` is false. It opens the standard editor pane — **no `prompt()`, no modal**. Creating and renaming a folder use the same editor and the same save path as any other item.
+
+**If you are about to write `if (typeSlug === '...')` in the generic engine, stop.** That branch is the bug this architecture exists to prevent — it is what previously gave Categories a folder button that Todos did not have. Drive the difference from `entity_types` / `entity_type_fields` instead.
 
 ## 3. Generic Editor (Unified for All Types)
 
@@ -71,7 +117,7 @@ const EntityEditor = (() => {
 
 - **Source of truth**: `entity_type_fields` table — defines which fields belong to which type, their display order, label, and control type
 - **At render time**: `genericEntity.js#buildForm(typeSchema)` queries the type's fields and generates form controls dynamically
-- **At save time**: `genericEntity.js#collectFormValues(typeSchema)` reads all fields defined for that type and sends them in the POST/PUT body
+- **At save time**: `genericEntity.js#collectFormValues(typeSchema, isFolder)` reads all fields defined for that type and returns `{ title, is_folder, fields: { ... } }`. **Field values must be nested under `fields`** — that is the shape `entityService.js#createEntity`/`updateEntity` read. Returning them flat alongside `title` makes the service silently ignore every one of them, which is exactly how `entity_field_values` stayed empty while saves reported success.
 - **Future custom types**: when a user creates a new type in Settings with custom fields, the generic editor automatically handles them — no code changes
 
 **Consistency guaranteed by single source of truth:** Because all types use the same generic editor + dynamic schema, there's no risk of two "interpretations" of which fields a type has (the problem that spawned the `ff2b943` fix). The schema is consulted once at render time and is authoritative.
@@ -86,6 +132,23 @@ const EntityEditor = (() => {
   .entity-node.expanded > .entity-node-children { display: block; }
   ```
 - **Dynamic theming**: field-type-specific styling (e.g. `.field-status { ... }`, `.field-date { ... }`) lets the generic renderer match visual conventions per control type, not per entity type
+
+## 5b. Context menus
+
+Right-clicking a row (or empty space) in a typed page opens a menu built from the type definition, in `generic-entity-init.js`:
+
+- `supports_hierarchy` gates every "New … inside" entry and folders;
+- the type's `hierarchy` rules in `entity_type_relationships` decide which types may be children.
+
+"New … inside" records the row, opens the standard editor, and writes the nesting edge once the child exists. Cross-type children are deliberately **not** offered — a tab only has an editor for its own type, so creating a Goal inside a Project would have nowhere to render; that is an association, not a creation.
+
+The menu carries `entity-context-menu` alongside the shared `.context-menu` class, because the hand-written Dailies menu is always in the DOM under the latter.
+
+## 5c. Editor behaviour
+
+- **Creating** an item or a folder leaves the editor open on the new record, with its row marked `.selected`, so you can keep working. Editing an existing item closes on save.
+- **Save starts disabled** and enables on the first change. `populate()` must reset `disabled = true`; it previously only reset `hasChanges`, so once any edit enabled the button it stayed enabled for every item opened afterwards.
+- **No browser dialogs.** Use `app.confirm` (`main.js`) and the editor pane — never `prompt()`/`confirm()`.
 
 ## 6. Generic API Calls
 

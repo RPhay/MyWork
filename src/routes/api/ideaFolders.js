@@ -10,8 +10,10 @@ router.get('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
     const allIdeas = await entityService.getAllEntities('idea', contextId);
-    // Filter to only ideas that have children (are folders)
-    const folders = allIdeas.filter(idea => idea.parent_id === null || idea.parent_id === undefined);
+    // A folder is an idea carrying is_folder = 1 (see the Folders section of
+    // UI_STANDARDS.md). This previously filtered on `parent_id`, a column
+    // `entities` doesn't have, so it returned every idea as a "folder".
+    const folders = allIdeas.filter(idea => idea.is_folder);
     res.json({ success: true, data: folders });
   } catch (error) {
     logger.error('Error fetching idea folders:', error);

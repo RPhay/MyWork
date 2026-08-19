@@ -18,6 +18,7 @@ async function loadEntityTypesUI() {
           editableTypes.forEach(type => {
             editableList.appendChild(createTypeListItem(type, false));
           });
+          initTypeReordering(editableList);
         } else {
           editableList.innerHTML = '<div class="p-4 text-center text-muted">No editable types. Create one to get started.</div>';
         }
@@ -58,8 +59,18 @@ function createTypeListItem(type, isReadonly) {
     categoryBadge = `<span class="type-badge ${type.type_category}">${type.type_category}</span>`;
   }
 
+  // Editable types are draggable: their order here is entity_types.order_index,
+  // which is also the dashboard's tab order.
+  if (!isReadonly) {
+    item.draggable = true;
+    item.dataset.typeId = type.id;
+  }
+
+  const isVisible = type.is_visible === undefined || !!type.is_visible;
+
   item.innerHTML = `
     <div class="type-list-item-left">
+      ${!isReadonly ? '<span class="type-drag-handle" title="Drag to reorder tabs">⋮⋮</span>' : ''}
       <div class="type-icon">${type.icon || '📄'}</div>
       <div class="type-info">
         <h6 class="mb-0">${type.label}${categoryBadge}</h6>
@@ -72,6 +83,10 @@ function createTypeListItem(type, isReadonly) {
     </div>
     <div class="type-list-item-right">
       ${!isReadonly ? `
+        <div class="form-check form-switch me-3" title="Show this type as a tab on the dashboard">
+          <input class="form-check-input type-visible-toggle" type="checkbox" ${isVisible ? 'checked' : ''}>
+          <label class="form-check-label small text-muted">${isVisible ? 'Enabled' : 'Disabled'}</label>
+        </div>
         <button class="btn btn-sm btn-outline-primary type-edit-btn" title="Edit type">
           <i class="bi bi-pencil"></i> Edit
         </button>
@@ -82,13 +97,90 @@ function createTypeListItem(type, isReadonly) {
   `;
 
   if (!isReadonly) {
-    item.addEventListener('click', () => window.openEntityTypeEditor(type.id));
+    // The toggle and the drag handle must not also open the editor.
+    item.querySelector('.type-visible-toggle')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const enabled = e.target.checked;
+      const label = e.target.parentElement.querySelector('.form-check-label');
+      if (label) label.textContent = enabled ? 'Enabled' : 'Disabled';
+      try {
+        const response = await fetch(`/api/entity-types/${type.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
+          body: JSON.stringify({ is_visible: enabled }),
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.message);
+        app.notify(`${type.label} ${enabled ? 'enabled' : 'disabled'}`, 'success');
+      } catch (error) {
+        e.target.checked = !enabled;
+        if (label) label.textContent = !enabled ? 'Enabled' : 'Disabled';
+        app.notify(error.message || 'Could not change visibility', 'danger');
+      }
+    });
+
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.type-visible-toggle, .type-drag-handle')) return;
+      window.openEntityTypeEditor(type.id);
+    });
   }
 
   return item;
 }
 
+// Drag to reorder editable types. Persists entity_types.order_index, which the
+// dashboard reads to order its tabs - so this list and the tab bar stay in sync
+// in both directions.
+function initTypeReordering(listEl) {
+  let dragged = null;
+
+  listEl.addEventListener('dragstart', (e) => {
+    dragged = e.target.closest('.type-list-item[draggable="true"]');
+    if (dragged) {
+      e.dataTransfer.effectAllowed = 'move';
+      dragged.style.opacity = '0.5';
+    }
+  });
+
+  listEl.addEventListener('dragend', () => {
+    if (dragged) dragged.style.opacity = '1';
+    dragged = null;
+  });
+
+  listEl.addEventListener('dragover', (e) => {
+    if (!dragged) return;
+    e.preventDefault();
+    const target = e.target.closest('.type-list-item[draggable="true"]');
+    if (!target || target === dragged) return;
+    const box = target.getBoundingClientRect();
+    const after = (e.clientY - box.top) > box.height / 2;
+    listEl.insertBefore(dragged, after ? target.nextSibling : target);
+  });
+
+  listEl.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const orderedIds = [...listEl.querySelectorAll('.type-list-item[draggable="true"]')]
+      .map(el => Number(el.dataset.typeId));
+    try {
+      const response = await fetch('/api/entity-types/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
+        body: JSON.stringify({ orderedIds }),
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message);
+      app.notify('Tab order updated', 'success');
+    } catch (error) {
+      app.notify(error.message || 'Could not save the new order', 'danger');
+      loadEntityTypesUI();
+    }
+  });
+}
+
 function initEntityTypesTab() {
+  // The editor lives in the right-hand pane of this tab's split view.
+  if (typeof initEntityTypeSplitPane === 'function') initEntityTypeSplitPane();
+
   const createBtn = document.getElementById('createNewTypeBtn');
   if (createBtn) {
     createBtn.addEventListener('click', () => window.openEntityTypeEditor());

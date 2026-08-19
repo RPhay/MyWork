@@ -19,11 +19,14 @@
           </div>
         </div>
         <div class="col-md-6 text-end">
-          <button class="btn btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="Create a folder to organize items">
+          <!-- Available on every type that supports nesting; generic-entity-init.js
+               removes it for flat types. A folder is an is_folder row of this
+               same type, not a type of its own. -->
+          <button class="btn btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="Create a folder to organize <%= typeName %>">
             <i class="bi bi-folder-plus"></i> + Folder
           </button>
           <button class="btn btn-primary" id="add<%= typeSlug %>Btn">
-            + New <%= typeName %>
+            + New <%= typeNameSingular %>
           </button>
         </div>
       </div>
@@ -42,7 +45,7 @@
     <div class="split-pane-right hidden" id="<%= typeSlug %>EditorPane">
       <div class="split-pane-editor">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <div class="split-pane-editor-title">Edit <%= typeName %></div>
+          <div class="split-pane-editor-title">Edit <%= typeNameSingular %></div>
           <div style="gap: 0.5rem; display: flex;">
             <button type="button" class="btn btn-primary btn-sm" id="<%= typeSlug %>SaveBtn" disabled>Save</button>
             <button type="button" class="btn btn-secondary btn-sm" id="<%= typeSlug %>CloseBtn">Cancel</button>
@@ -66,6 +69,12 @@
 
 .entity-row:hover {
   background-color: #f8f9fa;
+}
+
+/* The row whose item the editor currently has open. */
+.entity-row.selected {
+  border-color: #0d6efd;
+  background-color: #e7f1ff;
 }
 
 .entity-row[draggable="true"] {
@@ -107,6 +116,12 @@
   font-size: 1.1em;
 }
 
+/* Folders are organizational, so they read a little heavier than the items
+   they hold. The 📁 icon itself comes from genericEntity.js#renderEntityRow. */
+.entity-row-folder .entity-title {
+  font-weight: 600;
+}
+
 .entity-title {
   font-weight: 500;
   flex: 1;
@@ -126,5 +141,19 @@
   color: #6c757d;
   font-size: 0.875rem;
   margin-left: 8px;
+}
+
+.entity-row-link {
+  text-decoration: none;
+  white-space: nowrap;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.entity-row-link:hover {
+  text-decoration: underline;
 }
 </style>

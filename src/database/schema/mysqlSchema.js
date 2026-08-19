@@ -174,9 +174,10 @@ export async function createMysqlSchema(connection) {
     await connection.query("ALTER TABLE priorities DROP COLUMN category_id");
   }
 
-  // priority_areas junction table removed in Phase 2 (areas migrated to generic entities)
+  // priority_areas: recreated as a legacy<->entity bridge at the end of this
+  // file, after `entities` exists (see "Legacy <-> entity association bridge")
 
-  // priority_goals junction table removed in Phase 3 (goals migrated to generic entities)
+  // priority_goals: recreated as a legacy<->entity bridge at the end of this file
 
   // A prior revision linked a priority to a single area via area_id. Migrate any
   // existing values into the new many-to-many priority_areas table, then drop it.
@@ -254,7 +255,7 @@ export async function createMysqlSchema(connection) {
   // Note: This FK creation is moved to after to_dos and tasks tables are created
   // to avoid "Failed to open the referenced table" errors
 
-  // work_goal_associations junction table removed in Phase 3 (goals migrated to generic entities)
+  // work_goal_associations: recreated as a legacy<->entity bridge at the end of this file
 
   // Create work_priority_associations junction table
   await connection.query(`
@@ -268,7 +269,7 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // work_area_associations junction table removed in Phase 2 (areas migrated to generic entities)
+  // work_area_associations: recreated as a legacy<->entity bridge at the end of this file
 
   // Create work_source_associations junction table
   await connection.query(`
@@ -287,7 +288,7 @@ export async function createMysqlSchema(connection) {
   // work_task_associations moved to after tasks is created (see below)
   // work_ticket_associations moved to after tickets is created (see below)
 
-  // work_idea_associations junction table removed in Phase 1 (ideas migrated to generic entities)
+  // work_idea_associations: recreated as a legacy<->entity bridge at the end of this file
 
   // Create work_item_templates table (reusable work item presets with pre-associated areas/goals/priorities)
   await connection.query(`
@@ -348,9 +349,9 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // template_areas junction table removed in Phase 2 (areas migrated to generic entities)
+  // template_areas: recreated as a legacy<->entity bridge at the end of this file
 
-  // template_goals junction table removed in Phase 3 (goals migrated to generic entities)
+  // template_goals: recreated as a legacy<->entity bridge at the end of this file
 
   // Create template_priorities junction table
   await connection.query(`
@@ -983,6 +984,7 @@ export async function createMysqlSchema(connection) {
       is_system BOOLEAN DEFAULT FALSE,
       primary_date_field VARCHAR(100),
       order_index INT DEFAULT 0,
+      is_visible BOOLEAN DEFAULT TRUE COMMENT 'Whether this type gets a tab on the dashboard; toggled from Settings > Entity Types',
       deleted_at TIMESTAMP NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -991,6 +993,14 @@ export async function createMysqlSchema(connection) {
       INDEX idx_type_category (type_category)
     )
   `);
+
+  // Backfill is_visible for entity_types created before the Settings page could
+  // hide a type's tab. Defaults to visible so existing installs are unchanged.
+  if (!(await columnExists(connection, "entity_types", "is_visible"))) {
+    await connection.query(
+      "ALTER TABLE entity_types ADD COLUMN is_visible BOOLEAN DEFAULT TRUE",
+    );
+  }
 
   // Backfill type_category column for existing records
   if (!(await columnExists(connection, "entity_types", "type_category"))) {
@@ -1061,7 +1071,7 @@ export async function createMysqlSchema(connection) {
       entity_type_id INT NOT NULL,
       field_key VARCHAR(100) NOT NULL,
       label VARCHAR(255) NOT NULL,
-      field_type ENUM('text','textarea','number','date','select','status','checkbox','recurrence') NOT NULL,
+      field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence') NOT NULL,
       field_options JSON,
       required BOOLEAN DEFAULT FALSE,
       display_order INT DEFAULT 0,
@@ -1073,6 +1083,18 @@ export async function createMysqlSchema(connection) {
       UNIQUE KEY unique_type_field (entity_type_id, field_key),
       INDEX idx_type (entity_type_id)
     )
+  `);
+
+  // Widen field_type for tables created before url/links/radio existed. The
+  // type editor and entityTypeService already offered 'url' and 'radio' while
+  // the ENUM did not list them, so saving such a field silently truncated
+  // ("Data truncated for column 'field_type'"). MODIFY COLUMN is idempotent -
+  // re-applying the same definition is a no-op.
+  // Note: mssqlSchema.js stores this as NVARCHAR(50) with no constraint, so it
+  // accepts any value and needs no matching change.
+  await connection.query(`
+    ALTER TABLE entity_type_fields
+    MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence') NOT NULL
   `);
 
   // Seed default fields for system entity types (restored from original schema)
@@ -1241,4 +1263,52 @@ export async function createMysqlSchema(connection) {
       INDEX idx_kind (relationship_kind)
     )
   `);
+
+  // ===== Legacy <-> entity association bridge =====
+  //
+  // Areas, goals and ideas live in `entities` (migrated in Phases 1-3), but
+  // work items, projects and templates are still their own legacy tables. The
+  // edges between them can't live in `entity_relationships`, whose foreign
+  // keys point at `entities` on both sides - so these junctions bridge the two
+  // id spaces: the left column is a legacy row id, the right column is an
+  // `entities.id`.
+  //
+  // Phases 1-3 dropped these tables outright without updating their consumers
+  // (workItemService/priorityService/workItemTemplateService), which is what
+  // left Dailies, Projects and Reporting throwing "a required database table is
+  // missing" on every load. They are back deliberately and temporarily.
+  //
+  // RETIRE THESE when work_items and priorities themselves become entities -
+  // at that point every edge collapses into entity_relationships and these
+  // seven tables can be dropped for good. Until then, do not "re-remove" them.
+  //
+  // They must be created here, after `entities` exists, rather than beside the
+  // legacy tables they also reference, or MySQL raises "Failed to open the
+  // referenced table" - the same ordering constraint noted for the other
+  // junctions earlier in this file.
+  const bridgeJunctions = [
+    // [table, legacy column, legacy table, entity column]
+    ["work_area_associations", "work_item_id", "work_items", "area_id"],
+    ["work_goal_associations", "work_item_id", "work_items", "goal_id"],
+    ["work_idea_associations", "work_item_id", "work_items", "idea_id"],
+    ["priority_areas", "priority_id", "priorities", "area_id"],
+    ["priority_goals", "priority_id", "priorities", "goal_id"],
+    ["template_areas", "template_id", "work_item_templates", "area_id"],
+    ["template_goals", "template_id", "work_item_templates", "goal_id"],
+  ];
+
+  for (const [table, legacyCol, legacyTable, entityCol] of bridgeJunctions) {
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS ${table} (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ${legacyCol} INT NOT NULL,
+        ${entityCol} INT NOT NULL,
+        FOREIGN KEY (${legacyCol}) REFERENCES ${legacyTable}(id) ON DELETE CASCADE,
+        FOREIGN KEY (${entityCol}) REFERENCES entities(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_${table} (${legacyCol}, ${entityCol}),
+        INDEX idx_${table}_legacy (${legacyCol}),
+        INDEX idx_${table}_entity (${entityCol})
+      )
+    `);
+  }
 }

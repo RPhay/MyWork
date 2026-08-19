@@ -4,6 +4,31 @@
  */
 
 let currentEntityTypeModal = null;
+let entityTypeSplitPane = null;
+
+// Collapses the right-hand editor pane and clears it, mirroring
+// GenericEntity.close() on the typed pages.
+function closeEntityTypeEditor() {
+  const pane = document.getElementById('entityType-editor-pane');
+  const actionsEl = document.getElementById('entityTypeEditorActions');
+  if (pane) pane.innerHTML = '';
+  if (actionsEl) actionsEl.innerHTML = '';
+  currentEditingType = null;
+  entityTypeSplitPane?.hideRightPane();
+}
+
+// Built once, when the Entity Types tab first renders.
+function initEntityTypeSplitPane() {
+  if (entityTypeSplitPane || !document.getElementById('entityTypeSplitPane')) return;
+  entityTypeSplitPane = new SplitPane(
+    'entityTypeSplitPane',
+    'entityTypeListPane',
+    'entityTypeDivider',
+    'entityTypeEditorPane'
+  );
+}
+window.initEntityTypeSplitPane = initEntityTypeSplitPane;
+window.closeEntityTypeEditor = closeEntityTypeEditor;
 let currentEditingType = null;
 
 async function openEntityTypeEditor(typeId = null) {
@@ -100,25 +125,29 @@ function showEntityTypeEditorModal(type) {
     <button type="button" class="btn btn-primary" id="entityTypeSaveBtn">Save</button>
   `;
 
-  currentEntityTypeModal = new DraggableModal({
-    title,
-    width: 700,
-    height: 600,
-    content,
-    footer,
-    onClose: () => {
-      currentEntityTypeModal = null;
-      currentEditingType = null;
-    }
-  });
+  // Rendered into the split-pane on the right rather than a floating modal, so
+  // editing a type looks and behaves like editing anything else in this app.
+  const pane = document.getElementById('entityType-editor-pane');
+  const titleEl = document.getElementById('entityTypeEditorTitle');
+  const actionsEl = document.getElementById('entityTypeEditorActions');
+  if (!pane || !titleEl || !actionsEl) {
+    console.error('[EntityTypeEditor] editor pane not found');
+    return;
+  }
 
-  currentEntityTypeModal.open();
+  titleEl.textContent = title;
+  pane.innerHTML = '';
+  pane.appendChild(content);
+  actionsEl.innerHTML = '';
+  while (footer.firstChild) actionsEl.appendChild(footer.firstChild);
+
+  entityTypeSplitPane?.showRightPane();
 
   // Load types for relationships
   loadTypeRelationships(type);
 
   // Setup event handlers
-  document.getElementById('entityTypeCancelBtn').addEventListener('click', () => currentEntityTypeModal.close());
+  document.getElementById('entityTypeCancelBtn').addEventListener('click', closeEntityTypeEditor);
   document.getElementById('entityTypeSaveBtn').addEventListener('click', saveEntityType);
 
   if (!isNew) {
@@ -144,6 +173,16 @@ function addFieldRow(field = null) {
   const fieldOptions = field?.field_options ? (typeof field.field_options === 'string' ? JSON.parse(field.field_options) : field.field_options) : null;
   const optionsStr = fieldOptions?.values ? fieldOptions.values.join(', ') : '';
 
+  // Every field type the generic renderer supports must appear in the
+  // field-type select below. A select element falls back to its first option
+  // when the current value is not listed, so a missing option silently
+  // rewrites the field's type on save - status and recurrence were both
+  // missing, which downgraded them to text and dropped the rest of the type's
+  // fields. Keep this list in sync with fieldRenderers in genericEntity.js.
+  //
+  // The markup below is a template literal: never use backticks inside it or
+  // in comments placed within it.
+
   fieldRow.innerHTML = `
     <div class="row g-2 align-items-center">
       <div class="col-auto">
@@ -161,10 +200,13 @@ function addFieldRow(field = null) {
           <option value="textarea" ${field?.field_type === 'textarea' ? 'selected' : ''}>Long Text</option>
           <option value="number" ${field?.field_type === 'number' ? 'selected' : ''}>Number</option>
           <option value="date" ${field?.field_type === 'date' ? 'selected' : ''}>Date</option>
-          <option value="url" ${field?.field_type === 'url' ? 'selected' : ''}>URL</option>
+          <option value="url" ${field?.field_type === 'url' ? 'selected' : ''}>URL (single link)</option>
+          <option value="links" ${field?.field_type === 'links' ? 'selected' : ''}>Links (multiple, named)</option>
           <option value="select" ${field?.field_type === 'select' ? 'selected' : ''}>Dropdown</option>
           <option value="radio" ${field?.field_type === 'radio' ? 'selected' : ''}>Radio Buttons</option>
           <option value="checkbox" ${field?.field_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
+          <option value="status" ${field?.field_type === 'status' ? 'selected' : ''}>Status</option>
+          <option value="recurrence" ${field?.field_type === 'recurrence' ? 'selected' : ''}>Recurrence</option>
         </select>
       </div>
       <div class="col field-options-col" style="display: ${['select', 'radio', 'checkbox'].includes(field?.field_type) ? 'block' : 'none'};">
@@ -228,13 +270,28 @@ function addFieldRow(field = null) {
   });
 }
 
+// Which types can appear in the "Can have parents" / "Can have children" lists.
+//
+// Excluded, and why:
+//  - Dailies (work_item) and the daily type: a daily is never a child of
+//    anything, and it is implicitly a parent of everything, so offering it in
+//    either list is either wrong or a no-op the user has to keep re-ticking.
+//  - Outlook Calendar (type_category 'external'): an import source, not a
+//    regular type - it has no place in hand-authored relationship rules.
+function canBeRelated(t) {
+  if (t.type_category === 'external') return false;
+  if (t.type_category === 'daily') return false;
+  if (t.slug === 'work_item') return false;
+  return true;
+}
+
 async function loadTypeRelationships(type) {
   try {
     const response = await fetch('/api/entity-types');
     const result = await response.json();
     if (result.success) {
       const types = result.data || [];
-      const otherTypes = types.filter(t => !type || t.id !== type.id);
+      const otherTypes = types.filter(t => (!type || t.id !== type.id) && canBeRelated(t));
 
       const parentList = document.getElementById('parentTypesList');
       const childList = document.getElementById('childTypesList');
@@ -318,7 +375,7 @@ async function saveEntityType() {
     const result = await response.json();
     if (result.success) {
       app.notify('Entity type saved', 'success');
-      currentEntityTypeModal.close();
+      closeEntityTypeEditor();
       // Reload entity types
       location.reload();
     } else {
@@ -345,7 +402,7 @@ async function deleteEntityType() {
     const result = await response.json();
     if (result.success) {
       app.notify('Entity type deleted', 'success');
-      currentEntityTypeModal.close();
+      closeEntityTypeEditor();
       location.reload();
     } else {
       app.notify('Error: ' + result.message, 'danger');

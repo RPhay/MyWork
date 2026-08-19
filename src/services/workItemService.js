@@ -2,6 +2,7 @@ import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
 import * as recurrenceService from './recurrenceService.js';
+import * as entityService from './entityService.js';
 
 // No time box is represented as NULL; anything else must be a positive whole number of minutes.
 export function normalizeTimeBox(value) {
@@ -23,21 +24,24 @@ async function attachAssociations(items) {
     db.query(
       `SELECT wpa.work_item_id, p.id, p.title
        FROM work_priority_associations wpa
-       JOIN priorities p ON wpa.priority_id = p.id
+       JOIN entities p ON wpa.priority_id = p.id
        WHERE wpa.work_item_id IN (${placeholders})`,
       ids
     ),
+    // Goals, areas and ideas are entities now (Phases 1-3); the junction
+    // tables bridge work_items to them. `title` is aliased to `name` because
+    // that's the shape the Dailies frontend still reads.
     db.query(
-      `SELECT wga.work_item_id, g.id, g.name
+      `SELECT wga.work_item_id, g.id, g.title AS name
        FROM work_goal_associations wga
-       JOIN goals g ON wga.goal_id = g.id
+       JOIN entities g ON wga.goal_id = g.id
        WHERE wga.work_item_id IN (${placeholders})`,
       ids
     ),
     db.query(
-      `SELECT waa.work_item_id, a.id, a.name
+      `SELECT waa.work_item_id, a.id, a.title AS name
        FROM work_area_associations waa
-       JOIN areas a ON waa.area_id = a.id
+       JOIN entities a ON waa.area_id = a.id
        WHERE waa.work_item_id IN (${placeholders})`,
       ids
     ),
@@ -72,12 +76,17 @@ async function attachAssociations(items) {
     db.query(
       `SELECT wid.work_item_id, i.id, i.title
        FROM work_idea_associations wid
-       JOIN ideas i ON wid.idea_id = i.id
+       JOIN entities i ON wid.idea_id = i.id
        WHERE wid.work_item_id IN (${placeholders})`,
       ids
     ),
-    db.query('SELECT id, title, parent_id FROM priorities'),
-    db.query('SELECT id, name, parent_id FROM areas'),
+    // Projects are entities now (Phase 4); like areas, their hierarchy is in
+    // entity_relationships rather than a parent_id column.
+    entityService.getEntityPathLookup('priority'),
+    // Areas moved to `entities`, whose hierarchy lives in entity_relationships
+    // rather than a parent_id column - the lookup reshapes it so buildPathMap
+    // below still works unchanged.
+    entityService.getEntityPathLookup('area'),
   ]);
 
   const priorityPaths = buildPathMap(allPriorities, 'title');

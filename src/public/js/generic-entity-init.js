@@ -1,6 +1,15 @@
 /**
  * Generic Entity Tab Initialization
- * Handles initialization for all editable type tabs (Areas, Goals, Todos, Tasks, Tickets, Ideas)
+ *
+ * Drives every editable type tab (Categories, Goals, Todos, Tasks, Tickets,
+ * Ideas, and any type a user defines later) through one identical code path.
+ *
+ * There must be no branching on `typeSlug` anywhere in this file. Everything a
+ * type does differently comes from its own row in `entity_types` and its fields
+ * in `entity_type_fields` - `supports_hierarchy` decides tree vs flat list and
+ * whether folders are offered, `fields` decides what the editor renders.
+ * Special-casing a slug here is what previously gave Categories a "+ Folder"
+ * button that Todos did not have; see the Folders section of UI_STANDARDS.md.
  */
 
 // Track which types have been initialized to avoid re-initialization
@@ -9,14 +18,12 @@ const initializedTypes = new Set();
 // Wait for GenericEntity to be defined, then initialize
 function waitForGenericEntity() {
   if (typeof GenericEntity !== 'undefined') {
-    console.log('[GenericEntity-Init] GenericEntity is defined, initializing tabs');
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initAllGenericTabs);
     } else {
       setTimeout(initAllGenericTabs, 100);
     }
   } else {
-    console.log('[GenericEntity-Init] GenericEntity not yet defined, waiting...');
     setTimeout(waitForGenericEntity, 100);
   }
 }
@@ -25,26 +32,24 @@ function waitForGenericEntity() {
 waitForGenericEntity();
 
 async function initAllGenericTabs() {
-  console.log('[GenericEntity-Init] initAllGenericTabs called');
   // Find all elements with data-entity-type attribute
   const tabElements = document.querySelectorAll('[data-entity-type]');
-  console.log('[GenericEntity-Init] Found', tabElements.length, 'tab elements');
   for (const el of tabElements) {
     const typeSlug = el.dataset.entityType;
     const typeName = el.dataset.typeName;
     // Only initialize each type once
     if (typeSlug && typeName && !initializedTypes.has(typeSlug)) {
-      console.log('[GenericEntity-Init] Initializing', typeSlug);
       initializedTypes.add(typeSlug);
       await initGenericEntityTab(typeSlug, typeName);
     }
   }
-  console.log('[GenericEntity-Init] initAllGenericTabs complete');
 }
 
 async function initGenericEntityTab(typeSlug, typeName) {
   try {
-    // Fetch type schema and additional schemas for mixed-type tabs (like area with folders)
+    // One schema, one fetch, one code path - for every type. Folders are rows
+    // of this same type carrying is_folder = 1, so there is no second type to
+    // look up and nothing here keys off which type slug it happens to be.
     const typeResponse = await fetch(`/api/entity-types/${typeSlug}`, {
       headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
     });
@@ -53,26 +58,6 @@ async function initGenericEntityTab(typeSlug, typeName) {
     if (!typeData.success) throw new Error(typeData.message);
     const typeSchema = typeData.data;
 
-    // For area tab, also fetch folder schema
-    let typeSchemas = { [typeSchema.id]: typeSchema };
-    if (typeSlug === 'area') {
-      const folderResponse = await fetch('/api/entity-types/folder', {
-        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-      });
-      if (folderResponse.ok) {
-        const folderData = await folderResponse.json();
-        if (folderData.success) {
-          typeSchemas[folderData.data.id] = folderData.data;
-        }
-      }
-    }
-
-    // Helper to get correct schema for an entity based on its type
-    function getSchemaForEntity(entity) {
-      return typeSchemas[entity.entity_type_id] || typeSchema;
-    }
-
-    // Fetch entities (special case: area also fetches folders)
     async function fetchAllEntities() {
       const response = await fetch(`/api/entities/${typeSlug}`, {
         headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
@@ -80,21 +65,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (!response.ok) throw new Error('Failed to fetch entities');
       const data = await response.json();
       if (!data.success) throw new Error(data.message);
-      let allEntities = data.data || [];
-
-      // For area (categories), also fetch folders
-      if (typeSlug === 'area') {
-        const folderResponse = await fetch('/api/entities/folder', {
-          headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-        });
-        if (folderResponse.ok) {
-          const folderData = await folderResponse.json();
-          if (folderData.success) {
-            allEntities = [...allEntities, ...(folderData.data || [])];
-          }
-        }
-      }
-      return allEntities;
+      return data.data || [];
     }
     let entities = await fetchAllEntities();
 
@@ -108,19 +79,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
         headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
       });
       const result = await r.json();
-      let rels = result.success ? result.data : [];
-
-      // For area, also fetch folder relationships
-      if (typeSlug === 'area') {
-        const folderRels = await fetch('/api/entities/folder/relationships?kind=hierarchy', {
-          headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-        });
-        const folderResult = await folderRels.json();
-        if (folderResult.success) {
-          rels = [...rels, ...(folderResult.data || [])];
-        }
-      }
-      return rels;
+      return result.success ? result.data : [];
     }
     relationships = await fetchRelationships();
 
@@ -141,8 +100,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // Render tree or list from the current `entities`/`relationships` arrays
     function renderList() {
       if (typeSchema.supports_hierarchy) {
-        // For mixed-type tabs, use the schema from typeSchemas map
-        listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema, relationships, getSchemaForEntity);
+        listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema, relationships);
       } else {
         listContainer.innerHTML = entities.map(e => GenericEntity.renderRow(e, typeSchema, 0)).join('');
       }
@@ -189,7 +147,15 @@ async function initGenericEntityTab(typeSlug, typeName) {
       // Delete button (editing happens by clicking the row itself, below)
       const actionBtn = e.target.closest('[data-action="delete"]');
       if (actionBtn) {
-        if (confirm('Delete this item?')) {
+        const row = actionBtn.closest('.entity-row');
+        const isFolder = row?.dataset.isFolder === '1';
+        const confirmed = await app.confirm(
+          isFolder
+            ? 'Delete this folder? Everything inside it will be deleted too.'
+            : 'Delete this item? Anything nested under it will be deleted too.',
+          'Confirm Delete'
+        );
+        if (confirmed) {
           const response = await fetch(`/api/entities/${typeSlug}/${actionBtn.dataset.entityId}`, {
             method: 'DELETE',
             headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
@@ -209,10 +175,144 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (row && !e.target.closest('[data-action]')) {
         const entityId = row.dataset.entityId;
         const entity = entities.find(x => x.id == entityId);
-        const entitySchema = getSchemaForEntity(entity);
-        GenericEntity.populate(entity.id, entity, entitySchema, typeSlug);
+        if (entity) GenericEntity.populate(entity.id, entity, typeSchema, typeSlug);
       }
     });
+
+    // ===== Context menu =====
+    //
+    // Built from the type's own definition, never from its slug:
+    //   - `supports_hierarchy` decides whether anything can go *inside* a row
+    //     at all, which is what gates every "New ... inside" entry and folders.
+    //   - the type's `hierarchy` relationship rules decide which types may be
+    //     children, so a type that can't nest under itself won't offer it.
+    // A type gains or loses menu entries by editing it in Settings.
+    //
+    // Cross-type children are deliberately not offered: this tab only has an
+    // editor for its own type, so creating, say, a Goal inside a Project would
+    // have nowhere to render. Those are association operations (drag from the
+    // associate panel), not creations.
+    const hierarchyChildTypeIds = (typeSchema.relationships || [])
+      .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id === typeSchema.id)
+      .map(r => r.child_type_id);
+    const canNestOwnType = typeSchema.supports_hierarchy && hierarchyChildTypeIds.includes(typeSchema.id);
+    const singular = typeSchema.label_singular || typeName;
+
+    let pendingParentId = null; // set when creating something "inside" a row
+    let menuEl = null;
+
+    function closeContextMenu() {
+      menuEl?.remove();
+      menuEl = null;
+    }
+
+    function openContextMenu(x, y, items) {
+      closeContextMenu();
+      if (items.length === 0) return;
+
+      menuEl = document.createElement('div');
+      // `entity-context-menu` distinguishes this from the hand-written Dailies
+      // menu, which is always present in the DOM and also uses `context-menu`.
+      menuEl.className = 'context-menu entity-context-menu';
+      for (const item of items) {
+        if (item.separator) {
+          menuEl.insertAdjacentHTML('beforeend', '<hr style="margin:4px 0;">');
+          continue;
+        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'context-menu-item';
+        btn.innerHTML = `<span>${item.icon || ''}</span><span>${item.label}</span>`;
+        btn.addEventListener('click', async () => {
+          closeContextMenu();
+          await item.action();
+        });
+        menuEl.appendChild(btn);
+      }
+      document.body.appendChild(menuEl);
+
+      // Keep it on screen when right-clicking near an edge.
+      const rect = menuEl.getBoundingClientRect();
+      menuEl.style.left = `${Math.min(x, window.innerWidth - rect.width - 8)}px`;
+      menuEl.style.top = `${Math.min(y, window.innerHeight - rect.height - 8)}px`;
+    }
+
+    function startCreate({ parentId = null, isFolder = false } = {}) {
+      pendingParentId = parentId;
+      GenericEntity.close();
+      GenericEntity.populate(null, isFolder ? { is_folder: true } : {}, typeSchema, typeSlug);
+    }
+
+    async function deleteEntity(entityId, isFolder) {
+      const confirmed = await app.confirm(
+        isFolder
+          ? 'Delete this folder? Everything inside it will be deleted too.'
+          : 'Delete this item? Anything nested under it will be deleted too.',
+        'Confirm Delete'
+      );
+      if (!confirmed) return;
+      const response = await fetch(`/api/entities/${typeSlug}/${entityId}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+      });
+      if (response.ok) {
+        if (String(GenericEntity.getCurrentEntityId()) === String(entityId)) GenericEntity.close();
+        app.notify('Deleted', 'success');
+        await refreshEntities();
+      } else {
+        app.notify('Error deleting item', 'danger');
+      }
+    }
+
+    listContainer.addEventListener('contextmenu', (e) => {
+      const row = e.target.closest('.entity-row');
+      e.preventDefault();
+
+      if (!row) {
+        // Empty space: create at the top level.
+        const items = [{ icon: '➕', label: `New ${singular}`, action: () => startCreate() }];
+        if (typeSchema.supports_hierarchy) {
+          items.push({ icon: '📁', label: 'New Folder', action: () => startCreate({ isFolder: true }) });
+        }
+        openContextMenu(e.clientX, e.clientY, items);
+        return;
+      }
+
+      const entityId = Number(row.dataset.entityId);
+      const isFolder = row.dataset.isFolder === '1';
+      const entity = entities.find(x => x.id === entityId);
+      const items = [];
+
+      if (canNestOwnType) {
+        items.push({ icon: '➕', label: `New ${singular} inside`, action: () => startCreate({ parentId: entityId }) });
+      }
+      if (typeSchema.supports_hierarchy) {
+        items.push({ icon: '📁', label: 'New Folder inside', action: () => startCreate({ parentId: entityId, isFolder: true }) });
+      }
+      if (items.length > 0) items.push({ separator: true });
+
+      items.push({ icon: '✏️', label: isFolder ? 'Rename Folder' : `Edit ${singular}`, action: () => {
+        if (entity) {
+          GenericEntity.close();
+          GenericEntity.populate(entity.id, entity, typeSchema, typeSlug);
+          renderList();
+        }
+      } });
+      items.push({ icon: '🗑️', label: isFolder ? 'Delete Folder' : `Delete ${singular}`, action: () => deleteEntity(entityId, isFolder) });
+
+      openContextMenu(e.clientX, e.clientY, items);
+    });
+
+    // Dismiss on an outside press. Right-button presses are ignored because
+    // the very gesture that opens the menu would otherwise close it again in
+    // the same tick, and presses inside the menu are left to the item handlers.
+    document.addEventListener('mousedown', (e) => {
+      if (!menuEl || e.button === 2) return;
+      if (menuEl.contains(e.target)) return;
+      closeContextMenu();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContextMenu(); });
+    window.addEventListener('scroll', closeContextMenu, true);
 
     // Drag and drop
     let draggedEntityId = null;
@@ -378,10 +478,42 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // Editor buttons
     document.getElementById(`${typeSlug}SaveBtn`)?.addEventListener('click', async () => {
       try {
-        await GenericEntity.save();
+        // Null before the save means this was a create, not an edit.
+        const wasCreate = GenericEntity.getCurrentEntityId() === null;
+        const saved = await GenericEntity.save();
         app.notify('Saved successfully', 'success');
-        GenericEntity.close();
-        await refreshEntities();
+
+        // "New ... inside" from the context menu records the row it was
+        // launched from; the nesting edge can only be written once the child
+        // exists, so it happens here rather than at menu-click time.
+        if (wasCreate && saved?.id && pendingParentId) {
+          const response = await fetch(`/api/entities/${typeSlug}/${saved.id}/relationships`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
+            body: JSON.stringify({ parentEntityId: pendingParentId, childEntityId: saved.id, relationshipKind: 'hierarchy' })
+          });
+          if (!response.ok) {
+            const message = (await response.json().catch(() => ({}))).message;
+            app.notify(message || 'Created, but could not nest it', 'warning');
+          } else {
+            localStorage.setItem(`entity-expanded-${pendingParentId}`, 'true');
+          }
+        }
+        pendingParentId = null;
+
+        if (wasCreate && saved?.id) {
+          // Creating a new item or folder leaves the editor open on it, so you
+          // can keep filling it in rather than having to find and reopen what
+          // you just made. Reset first: populate() treats being handed the id
+          // it already holds as a request to toggle the editor shut.
+          GenericEntity.close();
+          await refreshEntities();
+          GenericEntity.populate(saved.id, saved, typeSchema, typeSlug);
+          renderList(); // re-render so the new row paints as selected
+        } else {
+          GenericEntity.close();
+          await refreshEntities();
+        }
       } catch (error) {
         app.notify(error.message, 'danger');
       }
@@ -391,47 +523,25 @@ async function initGenericEntityTab(typeSlug, typeName) {
       GenericEntity.close();
     });
 
-    // Folder creation (only for categories)
-    if (typeSlug === 'area') {
-      document.getElementById(`add${typeSlug}FolderBtn`)?.addEventListener('click', async () => {
-        const folderName = prompt('Folder name:');
-        if (!folderName) return;
-
-        try {
-          const response = await fetch('/api/entities/folder', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': document.body.dataset.csrfToken
-            },
-            body: JSON.stringify({ title: folderName })
-          });
-
-          const result = await response.json();
-          if (result.success) {
-            app.notify('Folder created', 'success');
-            await refreshEntities();
-          } else {
-            app.notify('Error: ' + result.message, 'danger');
-          }
-        } catch (error) {
-          console.error('Error creating folder:', error);
-          app.notify('Error creating folder', 'danger');
-        }
-      });
+    // Folder creation, available on every type that can nest - gated on the
+    // type's own supports_hierarchy flag, never on which type it is. A folder
+    // is just an is_folder row of this type, so it goes through the same
+    // editor and the same save path as any other new item.
+    const folderBtn = document.getElementById(`add${typeSlug}FolderBtn`);
+    if (folderBtn) {
+      if (typeSchema.supports_hierarchy) {
+        folderBtn.addEventListener('click', () => {
+          GenericEntity.populate(null, { is_folder: true }, typeSchema, typeSlug);
+        });
+      } else {
+        folderBtn.remove();
+      }
     }
 
     // Add new entity
-    const addBtn = document.getElementById(`add${typeSlug}Btn`);
-    if (addBtn) {
-      console.log('[GenericEntity-Init] Registering add button for', typeSlug);
-      addBtn.addEventListener('click', () => {
-        console.log('[GenericEntity-Init] Add button clicked for', typeSlug);
-        GenericEntity.populate(null, {}, typeSchema, typeSlug);
-      });
-    } else {
-      console.error('[GenericEntity-Init] Add button not found:', `add${typeSlug}Btn`);
-    }
+    document.getElementById(`add${typeSlug}Btn`)?.addEventListener('click', () => {
+      GenericEntity.populate(null, {}, typeSchema, typeSlug);
+    });
 
   } catch (error) {
     console.error(`Error initializing ${typeSlug} tab:`, error);

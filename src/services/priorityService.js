@@ -1,6 +1,9 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError, ConflictError } from '../config/errors.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
+import * as entityService from './entityService.js';
+import * as entityRelationshipService from './entityRelationshipService.js';
+import { getActiveContextId } from './activeContextService.js';
 
 async function attachAssociations(priorities) {
   if (priorities.length === 0) return priorities;
@@ -9,21 +12,24 @@ async function attachAssociations(priorities) {
   const placeholders = ids.map(() => '?').join(',');
 
   const [areaRows, goalRows, allAreas] = await Promise.all([
+    // Areas and goals are entities now (Phases 2-3); priority_areas /
+    // priority_goals bridge the legacy priorities table to them. `title` is
+    // aliased to `name` to keep the response shape the frontend expects.
     db.query(
-      `SELECT pa.priority_id, a.id, a.name
+      `SELECT pa.priority_id, a.id, a.title AS name
        FROM priority_areas pa
-       JOIN areas a ON pa.area_id = a.id
+       JOIN entities a ON pa.area_id = a.id
        WHERE pa.priority_id IN (${placeholders})`,
       ids
     ),
     db.query(
-      `SELECT pg.priority_id, g.id, g.name
+      `SELECT pg.priority_id, g.id, g.title AS name
        FROM priority_goals pg
-       JOIN goals g ON pg.goal_id = g.id
+       JOIN entities g ON pg.goal_id = g.id
        WHERE pg.priority_id IN (${placeholders})`,
       ids
     ),
-    db.query('SELECT id, name, parent_id FROM areas'),
+    entityService.getEntityPathLookup('area'),
   ]);
 
   const areaPaths = buildPathMap(allAreas);
@@ -39,36 +45,65 @@ async function attachAssociations(priorities) {
   }));
 }
 
+// Projects moved onto the generic entity engine (Phase 4), so the storage is
+// `entities` + `entity_field_values` + `entity_relationships`. Everything below
+// keeps the old row shape - flat `notes`/`status`/`is_weekly` fields and a
+// synthesized `parent_id` - because eight frontend files still read priorities
+// that way (Priority Board, Weekly Priorities, Dailies, Reporting, Templates,
+// Brainstorming and two editors). Nothing about /api/priorities changed for
+// them.
+async function toPriorityRows(entities, contextId) {
+  if (entities.length === 0) return [];
+
+  const hierarchy = await db.query(
+    `SELECT er.parent_entity_id, er.child_entity_id
+     FROM entity_relationships er
+     JOIN entities c ON c.id = er.child_entity_id
+     JOIN entity_types t ON t.id = c.entity_type_id
+     WHERE t.slug = 'priority' AND er.relationship_kind = 'hierarchy' AND er.context_id = ?`,
+    [contextId]
+  );
+  const parentOf = new Map(hierarchy.map(r => [r.child_entity_id, r.parent_entity_id]));
+
+  return entities.map(e => ({
+    id: e.id,
+    title: e.title,
+    parent_id: parentOf.get(e.id) ?? null,
+    order_index: e.order_index,
+    context_id: e.context_id,
+    notes: e.fields?.notes ?? null,
+    status: e.fields?.status ?? 'Not Started',
+    is_weekly: !!e.fields?.is_weekly,
+    source_id: e.fields?.source_id ?? null,
+    created_at: e.created_at,
+    updated_at: e.updated_at,
+  }));
+}
+
 export async function getAllPriorities(contextId) {
-  const priorities = await db.query('SELECT * FROM priorities WHERE context_id = ? ORDER BY order_index ASC', [contextId]);
-  return attachAssociations(priorities);
+  if (!contextId) contextId = await getActiveContextId();
+  const entities = await entityService.getAllEntities('priority', contextId);
+  const rows = await toPriorityRows(entities, contextId);
+  rows.sort((a, b) => a.order_index - b.order_index);
+  return attachAssociations(rows);
 }
 
 export async function getPriorityById(id) {
-  const priority = await db.queryOne('SELECT * FROM priorities WHERE id = ?', [id]);
-  if (!priority) {
+  const contextId = await getActiveContextId();
+  let entity;
+  try {
+    entity = await entityService.getEntityById(Number(id), contextId);
+  } catch {
     throw new NotFoundError('Priority not found');
   }
-  const [withAssociations] = await attachAssociations([priority]);
+  const [row] = await toPriorityRows([entity], contextId);
+  const [withAssociations] = await attachAssociations([row]);
   return withAssociations;
 }
 
 async function getDescendantIds(id) {
-  const all = await db.query('SELECT id, parent_id FROM priorities');
-  const descendants = new Set();
-  const queue = [Number(id)];
-
-  while (queue.length > 0) {
-    const current = queue.pop();
-    for (const row of all) {
-      if (row.parent_id === current && !descendants.has(row.id)) {
-        descendants.add(row.id);
-        queue.push(row.id);
-      }
-    }
-  }
-
-  return descendants;
+  const contextId = await getActiveContextId();
+  return entityService.getDescendantIds(Number(id), contextId);
 }
 
 async function setAreaAssociations(priorityId, areaIds) {
@@ -86,27 +121,29 @@ async function setGoalAssociations(priorityId, goalIds) {
 }
 
 export async function createPriority(data, contextId) {
-  const { title, source_id, parent_id, notes, area_ids, goal_ids, status } = data;
+  const { title, source_id, parent_id, notes, area_ids, goal_ids, status, is_weekly } = data;
 
   if (!title) {
     throw new ValidationError('Priority title is required');
   }
+  if (!contextId) contextId = await getActiveContextId();
 
-  // Get the max order index
-  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM priorities WHERE context_id = ?', [contextId]);
-  const nextOrder = (result?.maxOrder || 0) + 1;
+  const entity = await entityService.createEntity('priority', {
+    title,
+    fields: {
+      notes: notes ?? null,
+      status: status || 'Not Started',
+      is_weekly: is_weekly ? true : null,
+      source_id: source_id || null,
+    },
+  }, contextId);
 
-  let priorityId;
-  try {
-    priorityId = await db.insert(
-      'INSERT INTO priorities (title, source_id, parent_id, notes, status, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [title, source_id || null, parent_id || null, notes ?? null, status || 'Not Started', nextOrder, contextId]
-    );
-  } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
-      throw new ConflictError('A priority with that title already exists');
-    }
-    throw error;
+  const priorityId = entity.id;
+
+  // Hierarchy is an edge, not a column. addRelationship validates it against
+  // the type rules and rejects cycles.
+  if (parent_id) {
+    await entityRelationshipService.addRelationship(Number(parent_id), priorityId, 'hierarchy', contextId);
   }
 
   if (Array.isArray(area_ids) && area_ids.length > 0) {
@@ -123,32 +160,31 @@ export async function updatePriority(id, data) {
   // Every field below is only touched when the caller explicitly provided it, so
   // partial updates (like drag-to-reparent sending only parent_id) never clobber
   // fields they didn't mean to change.
-  const setClauses = [];
-  const values = [];
+  const contextId = await getActiveContextId();
+  const update = {};
+  const fields = {};
 
   if (data.title !== undefined) {
     if (!data.title) {
       throw new ValidationError('Priority title is required');
     }
-    setClauses.push('title = ?');
-    values.push(data.title);
+    update.title = data.title;
   }
 
-  if (data.source_id !== undefined) {
-    setClauses.push('source_id = ?');
-    values.push(data.source_id || null);
+  if (data.source_id !== undefined) fields.source_id = data.source_id || null;
+  if (data.notes !== undefined) fields.notes = data.notes ?? null;
+  if (data.status !== undefined) fields.status = data.status || 'Not Started';
+  // Field values are deleted when set to null, so `false` has to become null
+  // rather than 0 - an absent is_weekly row reads back as false either way.
+  if (data.is_weekly !== undefined) fields.is_weekly = data.is_weekly ? true : null;
+
+  if (Object.keys(fields).length > 0) update.fields = fields;
+  if (Object.keys(update).length > 0) {
+    await entityService.updateEntity(Number(id), update, contextId);
   }
 
-  if (data.notes !== undefined) {
-    setClauses.push('notes = ?');
-    values.push(data.notes ?? null);
-  }
-
-  if (data.status !== undefined) {
-    setClauses.push('status = ?');
-    values.push(data.status || 'Not Started');
-  }
-
+  // Reparenting is an edge swap. The cycle checks live in
+  // entityRelationshipService now, but keep the project-specific wording.
   if (data.parent_id !== undefined) {
     const parentId = data.parent_id || null;
 
@@ -162,24 +198,12 @@ export async function updatePriority(id, data) {
       }
     }
 
-    setClauses.push('parent_id = ?');
-    values.push(parentId);
-  }
-
-  if (data.is_weekly !== undefined) {
-    setClauses.push('is_weekly = ?');
-    values.push(!!data.is_weekly);
-  }
-
-  if (setClauses.length > 0) {
-    values.push(id);
-    try {
-      await db.update(`UPDATE priorities SET ${setClauses.join(', ')} WHERE id = ?`, values);
-    } catch (error) {
-      if (error.code === 'ER_DUP_ENTRY') {
-        throw new ConflictError('A priority with that title already exists');
-      }
-      throw error;
+    const currentParents = await entityRelationshipService.getEntityParents(Number(id), contextId, 'hierarchy');
+    for (const rel of currentParents) {
+      await entityRelationshipService.removeRelationship(rel.parent_entity_id, Number(id), 'hierarchy', contextId);
+    }
+    if (parentId) {
+      await entityRelationshipService.addRelationship(Number(parentId), Number(id), 'hierarchy', contextId);
     }
   }
 
@@ -194,8 +218,15 @@ export async function updatePriority(id, data) {
 }
 
 export async function deletePriority(id) {
-  const affectedRows = await db.deleteRecord('DELETE FROM priorities WHERE id = ?', [id]);
-  return affectedRows > 0;
+  const contextId = await getActiveContextId();
+  // Cascade the subtree first: entity_relationships FKs are NO ACTION, so the
+  // descendants and their edges have to go explicitly (same pattern the
+  // generic entity delete route uses).
+  const descendants = await entityRelationshipService.cascadeDeleteEntity(Number(id), contextId);
+  for (const entityId of descendants) {
+    await entityService.deleteEntity(entityId, contextId).catch(() => {});
+  }
+  return true;
 }
 
 const VALID_STATUSES = ['Not Started', 'In Progress', 'Complete'];
@@ -205,7 +236,7 @@ export async function updatePriorityStatus(id, status) {
     throw new ValidationError('Invalid status value');
   }
 
-  await db.update('UPDATE priorities SET status = ? WHERE id = ?', [status, id]);
+  await entityService.updateEntity(Number(id), { fields: { status } }, await getActiveContextId());
   return getPriorityById(id);
 }
 
@@ -217,34 +248,30 @@ export async function updatePriorityStatus(id, status) {
 // or weekly membership (adding/removing from Weekly Priorities), those fields are
 // set on just that one item in the same pass.
 export async function reorderPrioritiesAmongSiblings(orderedIds, draggedId, updates) {
+  const contextId = await getActiveContextId();
+
   if (draggedId && updates && Object.keys(updates).length > 0) {
-    const setClauses = [];
-    const values = [];
+    const fields = {};
 
     if (updates.status !== undefined) {
       if (!VALID_STATUSES.includes(updates.status)) {
         throw new ValidationError('Invalid status value');
       }
-      setClauses.push('status = ?');
-      values.push(updates.status);
+      fields.status = updates.status;
     }
+    // null clears the field row; absent reads back as false.
+    if (updates.is_weekly !== undefined) fields.is_weekly = updates.is_weekly ? true : null;
 
-    if (updates.is_weekly !== undefined) {
-      setClauses.push('is_weekly = ?');
-      values.push(!!updates.is_weekly);
-    }
-
-    if (setClauses.length > 0) {
-      values.push(draggedId);
-      await db.update(`UPDATE priorities SET ${setClauses.join(', ')} WHERE id = ?`, values);
+    if (Object.keys(fields).length > 0) {
+      await entityService.updateEntity(Number(draggedId), { fields }, contextId);
     }
   }
 
-  for (let i = 0; i < orderedIds.length; i++) {
-    await db.update('UPDATE priorities SET order_index = ? WHERE id = ?', [i, orderedIds[i]]);
-  }
+  // order_index stays a single global ranking across top-level projects, shared
+  // by the Projects tree, the Priority Board and Weekly Priorities.
+  await entityService.reorderEntitiesBySiblings(orderedIds.map(Number), contextId);
 
-  return getAllPriorities();
+  return getAllPriorities(contextId);
 }
 
 // Single add/remove association endpoints, used by dragging a category or goal
@@ -281,16 +308,6 @@ export async function removeGoalAssociation(priorityId, goalId) {
   );
 }
 
-export async function getLinksForPriority(priorityId) {
-  const links = await db.query('SELECT id, url, title, created_at FROM priority_links WHERE priority_id = ? ORDER BY created_at ASC', [priorityId]);
-  return links;
-}
-
-export async function addLinkToPriority(priorityId, url, title) {
-  if (!url || !url.trim()) {
-    throw new ValidationError('URL is required');
-  }
-  await db.insert('INSERT INTO priority_links (priority_id, url, title) VALUES (?, ?, ?)', [priorityId, url.trim(), title?.trim() || null]);
-  const links = await getLinksForPriority(priorityId);
-  return links[links.length - 1];
-}
+// getLinksForPriority / addLinkToPriority removed: Projects carries links as a
+// generic `links` field on the type now (see UI_STANDARDS.md), so the
+// priority_links table and its endpoints are no longer read by anything.

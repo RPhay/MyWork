@@ -9,12 +9,18 @@
 
 import { query, getCurrentConfig } from '../src/database/connectionPool.js';
 
+// Keep these icons in sync with SYSTEM_TYPE_DEFAULTS in entityTypeService.js,
+// which is what "revert to defaults" restores.
+//
+// No type may use a folder-like icon (📁/📂). Every hierarchical type can now
+// hold folders (is_folder rows rendered with 📁), so a folder-ish type icon
+// makes items and the folders containing them indistinguishable on the page.
 const types = [
   {
     slug: 'work_item',
     label: 'Dailies',
     label_singular: 'Work Item',
-    icon: '✓',
+    icon: '⭐',
     supports_hierarchy: true,
     is_system: true,
     primary_date_field: 'date',
@@ -28,12 +34,15 @@ const types = [
     slug: 'priority',
     label: 'Projects',
     label_singular: 'Priority',
-    icon: '📌',
+    icon: '📍',
     supports_hierarchy: true,
     is_system: true,
     primary_date_field: null,
     fields: [
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true },
+      // Drives the Weekly Priorities list on the Priority Board; was the
+      // `priorities.is_weekly` column before Projects moved onto entities.
+      { field_key: 'is_weekly', label: 'Weekly Priority', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ]
   },
@@ -41,7 +50,7 @@ const types = [
     slug: 'area',
     label: 'Categories',
     label_singular: 'Area',
-    icon: '📂',
+    icon: '🏷️',
     supports_hierarchy: true,
     is_system: true,
     primary_date_field: null,
@@ -54,7 +63,7 @@ const types = [
     label: 'Goals',
     label_singular: 'Goal',
     icon: '🎯',
-    supports_hierarchy: false,
+    supports_hierarchy: true,
     is_system: true,
     primary_date_field: null,
     fields: [
@@ -66,7 +75,7 @@ const types = [
     slug: 'to_do',
     label: 'Todos',
     label_singular: 'Todo',
-    icon: '☑',
+    icon: '✅',
     supports_hierarchy: true,
     is_system: true,
     primary_date_field: null,
@@ -80,7 +89,7 @@ const types = [
     slug: 'task',
     label: 'Tasks',
     label_singular: 'Task',
-    icon: '📋',
+    icon: '📝',
     supports_hierarchy: true,
     is_system: true,
     primary_date_field: null,
@@ -94,7 +103,7 @@ const types = [
     slug: 'ticket',
     label: 'Tickets',
     label_singular: 'Ticket',
-    icon: '🎫',
+    icon: '🎟️',
     supports_hierarchy: true,
     is_system: true,
     primary_date_field: null,
@@ -120,7 +129,7 @@ const types = [
     slug: 'template',
     label: 'Templates',
     label_singular: 'Template',
-    icon: '📑',
+    icon: '📋',
     supports_hierarchy: false,
     is_system: true,
     primary_date_field: null,
@@ -128,24 +137,16 @@ const types = [
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ]
   },
-  {
-    slug: 'folder',
-    label: 'Folders',
-    label_singular: 'Folder',
-    icon: '📁',
-    supports_hierarchy: true,
-    is_system: true,
-    primary_date_field: null,
-    fields: []
-  },
 ];
 
 // Type-to-type relationships defining which types can parent/child which types
 const relationships = [
-  // Hierarchy: types can have children of the same type
-  { parent_type_id: null, child_type_id: null, type_slugs: ['work_item', 'priority', 'to_do', 'task', 'ticket', 'idea', 'folder'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
-  // Areas (categories) can be children of folders
-  { parent_type_id: null, child_type_id: null, type_slugs_parent: 'folder', type_slugs_child: 'area', relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+  // Hierarchy: types can have children of the same type. There is deliberately
+  // no separate "folder" type here - a folder is a row of the page's own type
+  // with entities.is_folder = 1, so these self-nesting rules are all that's
+  // needed for types under types, types under folders, and folders under
+  // folders alike.
+  { parent_type_id: null, child_type_id: null, type_slugs: ['work_item', 'priority', 'area', 'goal', 'to_do', 'task', 'ticket', 'idea'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
   // Associations: work items link to priorities, areas, goals
   { parent_type_id: null, child_type_id: null, type_slugs_parent: 'work_item', type_slugs_child: ['priority', 'area', 'goal'], relationship_kind: 'association', max_children_per_parent: null, max_parents_per_child: null },

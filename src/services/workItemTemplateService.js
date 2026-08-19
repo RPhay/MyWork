@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '../config/errors.js';
 import * as workItemService from './workItemService.js';
 import { normalizeTimeBox } from './workItemService.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
+import * as entityService from './entityService.js';
 
 async function attachAssociations(templates) {
   if (templates.length === 0) return templates;
@@ -11,29 +12,31 @@ async function attachAssociations(templates) {
   const placeholders = ids.map(() => '?').join(',');
 
   const [areaRows, goalRows, priorityRows, allAreas, allPriorities] = await Promise.all([
+    // Areas and goals are entities now (Phases 2-3); template_areas /
+    // template_goals bridge the legacy templates table to them.
     db.query(
-      `SELECT ta.template_id, a.id, a.name
+      `SELECT ta.template_id, a.id, a.title AS name
        FROM template_areas ta
-       JOIN areas a ON ta.area_id = a.id
+       JOIN entities a ON ta.area_id = a.id
        WHERE ta.template_id IN (${placeholders})`,
       ids
     ),
     db.query(
-      `SELECT tg.template_id, g.id, g.name
+      `SELECT tg.template_id, g.id, g.title AS name
        FROM template_goals tg
-       JOIN goals g ON tg.goal_id = g.id
+       JOIN entities g ON tg.goal_id = g.id
        WHERE tg.template_id IN (${placeholders})`,
       ids
     ),
     db.query(
       `SELECT tp.template_id, p.id, p.title
        FROM template_priorities tp
-       JOIN priorities p ON tp.priority_id = p.id
+       JOIN entities p ON tp.priority_id = p.id
        WHERE tp.template_id IN (${placeholders})`,
       ids
     ),
-    db.query('SELECT id, name, parent_id FROM areas'),
-    db.query('SELECT id, title, parent_id FROM priorities'),
+    entityService.getEntityPathLookup('area'),
+    entityService.getEntityPathLookup('priority'),
   ]);
 
   const areaPaths = buildPathMap(allAreas);

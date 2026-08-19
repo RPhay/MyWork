@@ -33,7 +33,12 @@
         // including priority (Projects), is an editable type and renders
         // centered with the rest rather than pinned to a fixed position.
         // Exclude folder (internal type only, not a user-facing tab).
+        // `is_visible` is the Settings > Entity Types enable/disable toggle, and
+        // entityTypes already arrives ordered by order_index - the same value the
+        // drag-to-reorder there writes - so tab order and Settings order are one
+        // value seen two ways.
         const sortedTypes = entityTypes
+          .filter(t => t.is_visible === undefined || t.is_visible)
           .filter(t => !['daily', 'outlook_calendar', 'folder'].includes(t.slug))
           .sort((a, b) => {
             if (a.slug === 'work_item') return -1;
@@ -48,7 +53,7 @@
       %>
 
       <% fixedTypes.forEach(type => { %>
-        <li class="nav-item" role="presentation">
+        <li class="nav-item" role="presentation" data-tab="<%= type.slug %>" data-type-id="<%= type.id %>">
           <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
             <% if (type.icon) { %>
               <span class="tab-icon"><%= type.icon %></span>
@@ -63,7 +68,7 @@
 
       <!-- Centered editable type tabs -->
       <% editableTypes.forEach(type => { %>
-        <li class="nav-item" role="presentation" draggable="true">
+        <li class="nav-item" role="presentation" draggable="true" data-tab="<%= type.slug %>" data-type-id="<%= type.id %>">
           <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
             <% if (type.icon) { %>
               <span class="tab-icon"><%= type.icon %></span>
@@ -94,9 +99,11 @@
       <%
         // Map entity type slugs to custom templates (only Dailies, Templates, Priorities have custom implementations)
         // All other types use the generic entity template
+        // Projects (priority) is NOT here: it runs on the generic entity tab
+        // like every other typed page. Only Dailies (calendar/recurrence) and
+        // Templates (instantiate-to-work-item) still have bespoke tabs.
         const customTemplateMap = {
           'work_item': 'dailies.ejs',
-          'priority': 'my-priorities.ejs',
           'template': 'templates.ejs'
         };
 
@@ -114,7 +121,7 @@
             <%- include('../tabs/' + templateFile) %>
           <% } else { %>
             <!-- Generic entity tab for all other types -->
-            <%- include('../tabs/generic-entity-tab.ejs', { typeSlug: type.slug, typeName: type.label }) %>
+            <%- include('../tabs/generic-entity-tab.ejs', { typeSlug: type.slug, typeName: type.label, typeNameSingular: type.label_singular || type.label }) %>
           <% } %>
         </div>
       <% }); %>

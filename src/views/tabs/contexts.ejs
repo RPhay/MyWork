@@ -90,13 +90,8 @@
       </div>
 
       <ul class="nav nav-tabs mb-3" id="contextSubTabs">
-        <li class="nav-item" data-subtab="tabs" draggable="true">
-          <button class="nav-link active" data-subtab="tabs" type="button">
-            Tabs
-          </button>
-        </li>
         <li class="nav-item" data-subtab="database" draggable="true">
-          <button class="nav-link" data-subtab="database" type="button">
+          <button class="nav-link active" data-subtab="database" type="button">
             Database
           </button>
         </li>
@@ -122,18 +117,8 @@
         </li>
       </ul>
 
-      <!-- Tabs sub-panel: which main-app tabs show for this context -->
-      <div class="context-subtab-pane" data-subtab-pane="tabs">
-        <p class="text-muted small">
-          Dailies always shows first and can't be hidden. Reorder the rest by
-          dragging them directly on the main tab bar - this just controls which
-          ones show for this context.
-        </p>
-        <div id="contextTabsList"></div>
-      </div>
-
       <!-- Database sub-panel: this context's single database connection -->
-      <div class="context-subtab-pane d-none" data-subtab-pane="database">
+      <div class="context-subtab-pane" data-subtab-pane="database">
         <p class="text-muted small">
           Each context has exactly one database connection (MySQL/MariaDB OR MSSQL).
           Switching to this context in the navbar activates its connection.
