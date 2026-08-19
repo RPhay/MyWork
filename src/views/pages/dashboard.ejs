@@ -102,7 +102,11 @@
         </button>
       </li>
       <li class="nav-item" role="presentation" draggable="true">
-        <button class="nav-link" id="reporting-tab" data-tab="reporting" type="button" role="tab" title="Summaries of your work across a date range">
+        <%# data-fullwidth: this view wants the whole screen. Reporting is dense -
+            tables, charts and a portfolio breakdown - and reading it beside a
+            rail leaves neither pane usable. Opening it stands the rails down and
+            restores them when you leave. %>
+        <button class="nav-link" id="reporting-tab" data-tab="reporting" data-fullwidth="true" type="button" role="tab" title="Summaries of your work across a date range. Opens on its own - the Dailies and Templates panes step aside.">
           <span class="tab-icon">📈</span> Reporting
         </button>
       </li>

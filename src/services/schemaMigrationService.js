@@ -200,7 +200,7 @@ async function ensureGenericSchema() {
         entity_type_id INT NOT NULL,
         field_key VARCHAR(100) NOT NULL,
         label VARCHAR(255) NOT NULL,
-        field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence') NOT NULL,
+        field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence') NOT NULL,
         field_options JSON,
         required BOOLEAN DEFAULT FALSE,
         display_order INT DEFAULT 0,
@@ -295,7 +295,7 @@ async function ensureGenericSchema() {
       "ALTER TABLE entity_types ADD COLUMN IF NOT EXISTS is_visible BOOLEAN DEFAULT TRUE",
       // Every field type the generic renderer supports. Missing values make
       // saving such a field fail with "Data truncated for column 'field_type'".
-      "ALTER TABLE entity_type_fields MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence') NOT NULL",
+      "ALTER TABLE entity_type_fields MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence') NOT NULL",
       // A folder is a row of its own type carrying this flag.
       "ALTER TABLE entities ADD COLUMN IF NOT EXISTS is_folder BOOLEAN DEFAULT FALSE",
     ];

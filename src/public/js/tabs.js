@@ -71,7 +71,9 @@ class TabManager {
     const content = document.getElementById('mainTabContent');
 
     const apply = () => {
-      const on = RAILS.filter(isOn);
+      // A full-width view owns the screen: no rails, no dividers, and the tab
+      // content takes everything.
+      const on = this.fullWidthTab ? [] : RAILS.filter(isOn);
       // Both rails on means they are the two panes and the type stands down.
       const showContent = on.length < 2;
       const panes = showContent ? [...on, 'content'] : on;
@@ -168,6 +170,10 @@ class TabManager {
         apply();
       });
     });
+
+    // showTab re-runs this when moving between a full-width view and a normal
+    // tab, so the rails hide and come back without touching the stored toggles.
+    this.applyRails = apply;
 
     this.closeRail = (slug) => {
       if (!isOn(slug)) return;
@@ -307,6 +313,16 @@ class TabManager {
     }
 
     this.currentTab = tabName;
+
+    // Some views want the whole screen (Reporting: tables, charts and a
+    // portfolio breakdown, unreadable beside a rail). The rails stand down
+    // while such a tab is open and come back exactly as they were on leaving -
+    // the toggles are untouched, so nothing is forgotten.
+    const button = document.querySelector(`button[data-tab="${tabName}"]`);
+    this.fullWidthTab = button?.dataset.fullwidth === 'true';
+    document.body.classList.toggle('fullwidth-tab', !!this.fullWidthTab);
+    this.applyRails?.();
+
     // Highlighting goes through the shared rule, which refuses to mark a type
     // current while both rails are up and its content is hidden.
     this.syncTabHighlight();

@@ -175,6 +175,27 @@ const GenericEntity = (() => {
         </div>
       `;
     },
+    // The same ladder as the row, and the same icons: one control learned once.
+    // The hidden input is what the form collects, so nothing else needs to know
+    // this is a set of buttons rather than a field.
+    priority: (field, value = '') => {
+      const current = PRIORITY_LEVELS.includes(value) ? value : '';
+      return `
+      <div class="form-group" data-field-type="priority" data-field-key="${escapeAttr(field.field_key)}">
+        <label>${field.label}</label>
+        <div class="priority-picker" role="group" aria-label="${escapeAttr(field.label)}">
+          ${PRIORITY_LEVELS.map(level => `
+            <button type="button" class="priority-option${level === current ? ' selected' : ''}"
+                    data-priority-value="${escapeAttr(level)}"
+                    title="${escapeAttr(PRIORITY_STYLE[level].label)}">
+              ${priorityGlyph(level)}
+              <span class="priority-option-label">${escapeHtml(PRIORITY_STYLE[level].label)}</span>
+            </button>`).join('')}
+        </div>
+        <input type="hidden" name="${field.field_key}" value="${escapeAttr(current)}">
+      </div>
+      `;
+    },
     recurrence: (field, value = null) => `
       <div class="form-group">
         <label>${field.label}</label>
@@ -256,6 +277,43 @@ const GenericEntity = (() => {
             data-status="${escapeAttr(current)}"
             role="button" tabindex="0"
             title="Click to change status">${escapeHtml(current)}</span>`;
+  }
+
+  // ===== Priority =====
+  //
+  // An ordered ladder rather than a free choice, so it sorts meaningfully and
+  // reads at a glance. Blank is a real rung: most things have no priority, and
+  // forcing one on every record would make the column meaningless.
+  //
+  // The iconography is the escalating chevron every issue tracker uses - down
+  // for low, up for high, doubled for the top - so it reads without a legend.
+  // Colour carries the same signal for anyone scanning rather than reading.
+  const PRIORITY_LEVELS = ['', 'Low', 'Medium', 'High', 'Critical'];
+  const PRIORITY_STYLE = {
+    '':         { icon: 'bi-dash-lg',              color: '#adb5bd', label: 'No priority' },
+    Low:        { icon: 'bi-chevron-down',         color: '#0d6efd', label: 'Low' },
+    Medium:     { icon: 'bi-chevron-up',           color: '#fd7e14', label: 'Medium' },
+    High:       { icon: 'bi-chevron-double-up',    color: '#dc3545', label: 'High' },
+    Critical:   { icon: 'bi-exclamation-octagon-fill', color: '#a71d2a', label: 'Critical' },
+  };
+
+  function priorityGlyph(value, extraClass = '') {
+    const style = PRIORITY_STYLE[value] || PRIORITY_STYLE[''];
+    return `<i class="bi ${style.icon} ${extraClass}" style="color:${style.color}"></i>`;
+  }
+
+  function priorityCell(entity, field, rawValue) {
+    const current = PRIORITY_LEVELS.includes(rawValue) ? rawValue : '';
+    const next = PRIORITY_LEVELS[(PRIORITY_LEVELS.indexOf(current) + 1) % PRIORITY_LEVELS.length];
+    const style = PRIORITY_STYLE[current];
+    return `<span class="row-field priority-cell"
+            data-action="cycle-priority"
+            data-entity-id="${entity.id}"
+            data-field-key="${escapeAttr(field.field_key)}"
+            data-priority="${escapeAttr(current)}"
+            role="button" tabindex="0"
+            title="${escapeAttr(style.label)} - click for ${next ? PRIORITY_STYLE[next].label : 'none'}"
+            >${priorityGlyph(current)}</span>`;
   }
 
   // ========== COLUMNS, SORTING, FILTERING ==========
@@ -775,6 +833,13 @@ const GenericEntity = (() => {
         : `<span class="row-field emoji-cell emoji-cell-empty" ${attrs} title="Click to set an emoji">＋</span>`;
     }
 
+    // Priority renders even when unset - the empty circle IS the control you
+    // click to set one. It has to come before the blank-value guard below, or
+    // an unprioritised row shows nothing to click.
+    if (f.field_type === 'priority' && !derived) {
+      return priorityCell(entity, f, value);
+    }
+
     if (value === null || value === undefined || value === '') return '';
 
     if (derived) {
@@ -1159,9 +1224,29 @@ const GenericEntity = (() => {
     if (revertBtn) revertBtn.disabled = false;
   }
 
+  // The priority picker is a row of buttons over a hidden input: clicking one
+  // selects it and marks the form dirty, exactly as typing in a field would.
+  function wirePriorityPickers() {
+    const form = document.getElementById('entity-editor-form');
+    if (!form) return;
+    form.addEventListener('click', (e) => {
+      const option = e.target.closest('.priority-option');
+      if (!option) return;
+      const group = option.closest('[data-field-type="priority"]');
+      if (!group) return;
+      e.preventDefault();
+      group.querySelectorAll('.priority-option').forEach(b => b.classList.remove('selected'));
+      option.classList.add('selected');
+      const input = group.querySelector('input[type="hidden"]');
+      if (input) input.value = option.dataset.priorityValue || '';
+      markChanged();
+    });
+  }
+
   function trackFormChanges() {
     const form = document.getElementById('entity-editor-form');
     if (form) {
+      wirePriorityPickers();
       form.addEventListener('input', markChanged);
       form.addEventListener('change', markChanged);
 

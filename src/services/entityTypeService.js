@@ -259,7 +259,7 @@ export async function createEntityTypeField(entityTypeId, data) {
   // array of {url, title} - it replaces the per-type priority_links /
   // task_links / ticket_links / to_do_links tables, which existed only because
   // there was no generic way to say "this type has links".
-  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio', 'checkbox', 'status', 'recurrence', 'emoji', 'emojis'];
+  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio', 'checkbox', 'status', 'priority', 'recurrence', 'emoji', 'emojis'];
   if (!validFieldTypes.includes(data.field_type)) {
     throw new ValidationError(`Invalid field_type. Must be one of: ${validFieldTypes.join(', ')}`);
   }

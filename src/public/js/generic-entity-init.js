@@ -509,6 +509,32 @@ async function initGenericEntityTab(typeSlug, typeName) {
       // Status icon: cycle to the next value in the type's own list. Placed
       // before the row-click handler below, which opens the editor - the row
       // handler already ignores anything inside a [data-action] element.
+      // Priority cycles through its ladder on click, like the status badge.
+      // Only this field is sent, so nothing else on the row is disturbed.
+      const priorityBtn = e.target.closest('[data-action="cycle-priority"]');
+      if (priorityBtn) {
+        const LEVELS = ['', 'Low', 'Medium', 'High', 'Critical'];
+        const current = priorityBtn.dataset.priority || '';
+        const next = LEVELS[(LEVELS.indexOf(current) + 1) % LEVELS.length];
+        const fieldKey = priorityBtn.dataset.fieldKey;
+        const changedId = priorityBtn.dataset.entityId;
+
+        const response = await fetch(`/api/entities/${typeSlug}/${changedId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
+          body: JSON.stringify({ fields: { [fieldKey]: next || null } })
+        });
+        if (response.ok) {
+          await refreshEntities();
+          if (String(GenericEntity.getCurrentEntityId()) === String(changedId)) {
+            GenericEntity.syncEditorFromRow(changedId, fieldKey, next);
+          }
+        } else {
+          app.notify('Could not change priority', 'danger');
+        }
+        return;
+      }
+
       const statusBtn = e.target.closest('[data-action="cycle-status"]');
       if (statusBtn) {
         const field = (typeSchema.fields || []).find(
