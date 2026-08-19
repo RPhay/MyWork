@@ -2,39 +2,8 @@
   <h6 class="mb-0"><i class="bi bi-kanban"></i> Priorities</h6>
 </div>
 
-<ul class="nav nav-tabs mb-3" id="priorityViewTabs">
-  <li class="nav-item">
-    <button class="nav-link active" data-view-tab="weekly" type="button">Weekly Priorities</button>
-  </li>
-  <li class="nav-item">
-    <button class="nav-link" data-view-tab="all" type="button">All Priorities</button>
-  </li>
-</ul>
-
-<!-- Weekly Priorities -->
-<div class="priority-view-pane" data-view="weekly">
-  <p class="text-muted small mb-2">
-    Drag a project from the right to add it to this week's priorities. Drop between two
-    projects (here or on All Priorities) to reorder - order stays in sync across both tabs.
-  </p>
-
-  <div class="row" style="min-height: 55vh;">
-    <div class="col-md-9" style="overflow-y: auto;">
-      <div id="weeklyPrioritiesList">
-        <p class="text-center text-muted">No weekly priorities yet - drag projects in from the right.</p>
-      </div>
-    </div>
-    <div class="col-md-3" style="overflow-y: auto; border-left: 1px solid #dee2e6; padding-left: 15px;">
-      <h6 class="small text-muted text-uppercase mb-2">All Projects</h6>
-      <div id="allProjectsListRight">
-        <small class="text-muted">No projects</small>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- All Priorities -->
-<div class="priority-view-pane d-none" data-view="all">
+<div class="priority-view-pane" data-view="all">
   <p class="text-muted small mb-3">
     Drag a strip between bays to change its status, or within a bay to resequence it.
     Click the chevron to reveal sub-projects. Double-click a strip to edit it.
@@ -221,52 +190,6 @@
     background: #f8f9fa;
   }
 
-  .weekly-priority-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    margin-bottom: 6px;
-    cursor: move;
-  }
-
-  .weekly-priority-row:hover {
-    background: #f8f9fa;
-  }
-
-  .weekly-priority-row.dragging-item {
-    opacity: 0.5;
-  }
-
-  .weekly-priority-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
-
-  .weekly-priority-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  #weeklyPrioritiesList {
-    min-height: 50vh;
-  }
-
-  #weeklyPrioritiesList.weekly-drop-target-root {
-    outline: 2px dashed #007bff;
-    outline-offset: -2px;
-    border-radius: 4px;
-  }
 </style>
 
 <script src="/js/priority-board.js"></script>

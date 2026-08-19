@@ -87,9 +87,6 @@ export const SYSTEM_ENTITY_TYPES = [
       // is on the board at all, not something to show beside its title.
       { field_key: 'on_board', label: 'On the priorities board', field_type: 'checkbox', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, rollup: 'status' },
-      // Backs the Priority Board's Weekly Priorities list. It was the legacy
-      // `priorities.is_weekly` column before Projects moved onto entities.
-      { field_key: 'is_weekly', label: 'Weekly Priority', field_type: 'checkbox', required: false, show_in_row: false },
       // Projects carry links as a generic `links` field rather than through a
       // priority_links table - that is the whole point of the field type.
       { field_key: 'links', label: 'Links', field_type: 'links', required: false, show_in_row: true },

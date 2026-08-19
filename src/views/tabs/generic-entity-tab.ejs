@@ -654,37 +654,116 @@
 /* Two switches side by side look identical, so each carries an icon above it:
    a column glyph for "show as a column", a tag for "show that column's name".
    Hover help alone only pays off once you already suspect they differ. */
-.editor-field-toggle {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  padding-left: 0;
+/* The two icons sit ONCE, above the switch columns they label - repeating them
+   on every field turned a legend into noise. The legend uses the same gutter
+   as the rows, so each icon lands directly over its own switch. */
+.editor-field-legend .editor-toggle-icon {
+  color: #adb5bd;
+  line-height: 1;
+  text-align: center;
 }
 
-.editor-field-toggle .editor-toggle-icon {
-  font-size: 0.75rem;
-  color: #adb5bd;
+.editor-field-legend {
+  margin-bottom: 2px;
+}
+
+/* The legend has to sit directly over the switches it labels, so it copies
+   their box exactly: the same 2.2em gutter padding, with the icon floated back
+   out of that padding the way Bootstrap floats .form-check-input. Both are em,
+   so the legend must also match the switches' font-size - inheriting the
+   smaller legend size resolved 2.2em to 26.4px against the rows' 35.2px, which
+   is precisely the drift that made every earlier centring attempt miss. */
+.editor-field-legend .editor-toggle-icon {
+  display: block;
+  font-size: 1rem;
+  padding-left: 2.2em;
+}
+
+.editor-field-legend .editor-toggle-icon i {
+  float: left;
+  width: 2em;
+  margin-left: -2.5em;
+  text-align: center;
   line-height: 1;
 }
 
-.editor-field-toggle .form-check-input {
-  margin-left: 0;
-  float: none;
+/* The glyph is scaled on the pseudo-element, not the <i>: the <i>'s own width
+   and margin are in em, so shrinking its font-size shrinks the box it is being
+   positioned by, and the icon lands right of its switch again. */
+.editor-field-legend .editor-toggle-icon i::before {
+  font-size: 0.75rem;
 }
 
-/* The priority icon is a control, so it reads as one: bigger than body text,
-   and it responds to the pointer. */
+.editor-field-legend .editor-field-handle {
+  visibility: hidden;
+}
+
+/* The priority icon is a control, so it responds to the pointer. Its size is
+   not its own business - see --cell-icon-size below. */
 .priority-cell {
   cursor: pointer;
-  font-size: 1.1em;
   line-height: 1;
   user-select: none;
 }
 
-.priority-cell:hover {
-  transform: scale(1.15);
+/* Signal bars in a rounded box. Everything here is in whole pixels rather than
+   em: the bars are 2px wide with a 1px gap, and at that scale a fractional
+   width is the difference between four crisp bars and a grey smear. The box is
+   what makes the control findable in a row - the bars alone are 11px of thin
+   verticals that the eye slides straight past.
+   The glyph is rendered by genericEntity.js#priorityGlyph, which sets
+   --priority-color and data-level; the cell and the editor use the same one. */
+.priority-glyph {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  /* Exactly the delete button's box. Fallbacks matter: the editor renders this
+     same control outside a row, where the tokens are not in scope. */
+  width: var(--row-control-w, 32px);
+  height: var(--row-control-h, 24px);
+  padding: 4px 6px;
+  border: 1px solid var(--priority-color);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--priority-color) 10%, transparent);
+  vertical-align: middle;
 }
+
+.priority-glyph i {
+  width: 3px;
+  border-radius: 1px;
+  /* Unlit bars are a track, not invisible: the reader can see how many steps
+     the scale has, so "two of four" is legible without a legend. */
+  background: color-mix(in srgb, var(--priority-color) 28%, transparent);
+}
+
+/* Whole pixels, not fractions of the box: a 1px-wide bar at a fractional
+   height renders as two grey half-pixels instead of one crisp mark. */
+.priority-glyph i:nth-child(1) { height: 5px; }
+.priority-glyph i:nth-child(2) { height: 8px; }
+.priority-glyph i:nth-child(3) { height: 11px; }
+.priority-glyph i:nth-child(4) { height: 14px; }
+
+.priority-glyph[data-level="1"] i:nth-child(-n+1),
+.priority-glyph[data-level="2"] i:nth-child(-n+2),
+.priority-glyph[data-level="3"] i:nth-child(-n+3),
+.priority-glyph[data-level="4"] i:nth-child(-n+4) {
+  background: var(--priority-color);
+}
+
+/* No priority reads as an empty meter, not as a fifth colour: dashed box, no
+   bar lit. It has to be visibly the same control, or a row with nothing set
+   looks like a row with the control missing. */
+.priority-glyph[data-level="0"] {
+  border-style: dashed;
+  background: transparent;
+}
+
+.priority-cell:hover .priority-glyph {
+  border-color: var(--priority-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--priority-color) 22%, transparent);
+}
+
 
 /* An editor control that cycles looks and behaves like its cell: same icon,
    same click. The label beside it is the one concession to a form, where you
@@ -721,11 +800,56 @@ span.badge.editor-cycle {
 .entity-row-icon {
   display: inline-block;
   margin-right: 4px;
-  font-size: 1.1em;
 }
 
+/* The delete button is the row's size reference, and everything else is built
+   to it. Bootstrap's .btn-sm renders it 32x24px, so that is the box every
+   control in the row occupies, and icons are sized to fill it rather than to
+   whatever their own glyph happened to be.
+   These are px on purpose. They were 0.875rem, and a rem value here is what
+   made three separate attempts to enlarge these icons do nothing at all: the
+   edits looked for a px value, matched nothing, and reported success. */
+.entity-row {
+  --row-control-w: 32px;
+  --row-control-h: 24px;
+  --cell-icon-size: 20px;
+}
+
+.entity-cell i:not(.priority-glyph i),
+.entity-cell .entity-row-icon,
+.entity-cell .entity-toggle,
+.entity-cell .priority-cell,
+.entity-actions .btn i {
+  font-size: var(--cell-icon-size);
+  line-height: 1;
+}
+
+.entity-cell .entity-row-icon,
+.entity-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.entity-cell .entity-row-icon {
+  width: var(--row-control-h);
+  height: var(--row-control-h);
+}
+
+/* The reference box is declared, not inherited from Bootstrap. It used to be
+   whatever .btn-sm computed to, which made it a moving target: enlarging the
+   row icons enlarged the trash glyph, which enlarged the button, which moved
+   the very reference the other controls were being matched to. */
+.entity-actions .btn {
+  width: var(--row-control-w);
+  height: var(--row-control-h);
+  padding: 0;
+  line-height: 1;
+}
+
+
 /* Folders are organizational, so they read a little heavier than the items
-   they hold. The 📁 icon itself comes from genericEntity.js#renderEntityRow. */
+   they hold. The folder icon itself comes from genericEntity.js#FOLDER_ICON. */
 .entity-row-folder .entity-title {
   font-weight: 600;
 }

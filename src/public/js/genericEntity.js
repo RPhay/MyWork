@@ -213,7 +213,19 @@ const GenericEntity = (() => {
   // self-nesting hierarchy rule already permits types under types, types under
   // folders, and folders under folders with no extra rules. The icon swap and
   // the title-only form below are the only two places anything is folder-aware.
+  // A row shows its type's OWN icon - the same emoji the tab bar shows, from
+  // entity_types.icon. They have to match: a Project is a pushpin in the tab
+  // strip, so it is a pushpin in the row.
+  //
+  // Emoji do vary in width at one font-size (a pushpin inks 7px against a
+  // folder's 13.3px, measured on canvas), which no CSS can equalise. Matching
+  // the tab bar is worth more than shaving that difference, so the size below
+  // is set once for every icon in the row and the variance is left alone.
   const FOLDER_ICON = '📁';
+
+  function rowIcon(slug, isFolder, typeIcon) {
+    return isFolder ? FOLDER_ICON : (typeIcon || '');
+  }
 
   // A status field renders as a clickable icon that cycles through the type's
   // OWN values, never a hardcoded list - Ideas run Raw/Developing/Ready while
@@ -297,17 +309,27 @@ const GenericEntity = (() => {
   // intensity at a glance the way reception does - you do not have to decode an
   // arrow's direction, and four filled bars is obviously more than one. Colour
   // carries the same signal redundantly, so it survives being skimmed.
+  //
+  // The bars are drawn in CSS rather than taken from bootstrap-icons'
+  // bi-reception-* set. Those glyphs are designed for a status bar at 16px and
+  // up; at the 14px a row icon is standardised to, their steps merge into a
+  // smudge and Medium/High/Critical stop being tellable apart - which is why
+  // this control has never read right. Four spans with explicit pixel widths
+  // land on whole pixels at any size. The rounded box around them gives the
+  // control a footprint, so a row's priority is findable before it is read.
   const PRIORITY_STYLE = {
-    '':       { icon: 'bi-reception-0', color: '#ced4da', label: 'No priority' },
-    Low:      { icon: 'bi-reception-1', color: '#0d6efd', label: 'Low' },
-    Medium:   { icon: 'bi-reception-2', color: '#fd7e14', label: 'Medium' },
-    High:     { icon: 'bi-reception-3', color: '#dc3545', label: 'High' },
-    Critical: { icon: 'bi-reception-4', color: '#842029', label: 'Critical' },
+    '':       { level: 0, color: '#adb5bd', label: 'No priority' },
+    Low:      { level: 1, color: '#0d6efd', label: 'Low' },
+    Medium:   { level: 2, color: '#fd7e14', label: 'Medium' },
+    High:     { level: 3, color: '#dc3545', label: 'High' },
+    Critical: { level: 4, color: '#a51d2d', label: 'Critical' },
   };
 
   function priorityGlyph(value, extraClass = '') {
     const style = PRIORITY_STYLE[value] || PRIORITY_STYLE[''];
-    return `<i class="bi ${style.icon} ${extraClass}" style="color:${style.color}"></i>`;
+    return `<span class="priority-glyph ${extraClass}" data-level="${style.level}"`
+      + ` style="--priority-color:${style.color}" aria-hidden="true">`
+      + '<i></i><i></i><i></i><i></i></span>';
   }
 
   function priorityCell(entity, field, rawValue) {
@@ -891,7 +913,8 @@ const GenericEntity = (() => {
       : origin === 'reference'
         ? '<i class="bi bi-link-45deg text-muted entity-origin" title="Reference - edits change the original record everywhere it appears"></i>'
         : '';
-    const icon = isFolder ? FOLDER_ICON : (iconSchema || typeSchema).icon;
+    const schemaForIcon = iconSchema || typeSchema;
+    const icon = rowIcon(schemaForIcon.slug, isFolder, schemaForIcon.icon);
 
 
     const isExpanded = localStorage.getItem(`entity-expanded-${entity.id}`) !== 'false';
@@ -1157,6 +1180,18 @@ const GenericEntity = (() => {
           <label>${entity.is_folder ? 'Folder Name' : 'Title'} *</label>
           <input type="text" name="title" value="${entity.title || ''}" class="form-control" required>
         </div>
+        ${fields.length ? `
+          <div class="editor-field-legend">
+            <div class="editor-field-gutter">
+              <span class="editor-field-handle" aria-hidden="true">⋮⋮</span>
+              <div class="form-check form-switch editor-field-toggle editor-toggle-icon" title="Show this field as a column">
+                <i class="bi bi-layout-three-columns"></i>
+              </div>
+              <div class="form-check form-switch editor-field-toggle editor-toggle-icon" title="Show this column's name in the header">
+                <i class="bi bi-tag"></i>
+              </div>
+            </div>
+          </div>` : ''}
         ${fields.map(field => {
           const renderer = fieldRenderers[field.field_type] || fieldRenderers.text;
           const value = entity.fields?.[field.field_key];
@@ -1170,11 +1205,9 @@ const GenericEntity = (() => {
               <div class="editor-field-gutter">
                 <span class="editor-field-handle" title="Drag to reorder">⋮⋮</span>
                 <div class="form-check form-switch editor-field-toggle" title="Show this field as a column">
-                  <i class="bi bi-layout-three-columns editor-toggle-icon" aria-hidden="true"></i>
                   <input type="checkbox" class="form-check-input editor-field-col" ${field.show_in_row ? 'checked' : ''}>
                 </div>
                 <div class="form-check form-switch editor-field-toggle" title="Show this column's name in the header">
-                  <i class="bi bi-tag editor-toggle-icon" aria-hidden="true"></i>
                   <input type="checkbox" class="form-check-input editor-field-label" ${field.show_column_label !== 0 && field.show_column_label !== false ? 'checked' : ''}>
                 </div>
               </div>

@@ -73,12 +73,11 @@ function getTopLevelForStatus(status) {
 }
 
 // The project the strip editor currently has open. One project can be on
-// screen twice - as a board strip (or a strip's child row) and as a Weekly
-// Priorities row - so every row carrying its id is marked.
+// screen twice - as a board strip and as a strip's child row - so every row
+// carrying its id is marked.
 let selectedStripId = null;
 
-const STRIP_ROW_SELECTOR =
-  '.priority-strip, .priority-strip-child, .weekly-priority-row';
+const STRIP_ROW_SELECTOR = '.priority-strip, .priority-strip-child';
 
 function syncStripRowSelection() {
   const rows =
@@ -111,9 +110,9 @@ function renderBoard() {
 
 // Splices draggedId into the full top-level list (every status, every project),
 // positioned immediately before/after targetId - or, if dropped on empty space,
-// right after the last item matching `fallbackMatch` (e.g. the same bay/weekly
-// subset). order_index is a single global ranking, so this is shared by the
-// Priority Board, Weekly Priorities, and the Projects tree.
+// right after the last item matching `fallbackMatch` (e.g. the same bay).
+// order_index is a single global ranking, so this is shared by the Priority
+// Board and the Projects tree.
 function computeGlobalOrder(draggedId, targetId, position, fallbackMatch) {
   const topLevel = getTopLevel();
   const ids = topLevel.map(p => String(p.id)).filter(id => id !== String(draggedId));
@@ -172,7 +171,6 @@ async function loadBoard() {
     if (result.success) {
       currentPriorities = result.data;
       renderBoard();
-      renderWeeklyPriorities();
     } else {
       BOARD_STATUSES.forEach(status => {
         document.getElementById(`bay-${status}`).innerHTML = '<p class="text-center text-danger small">Error loading</p>';
@@ -337,167 +335,8 @@ function initPriorityBoardEventListeners() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Weekly Priorities: a left list of hand-picked top-level projects (is_weekly),
-// with a right panel listing every top-level project (tree-indented, like the
-// Projects page) to drag from. Reordering on either side, or on the Priority
-// Board, all share the same order_index ranking.
-// ---------------------------------------------------------------------------
-
-function renderWeeklyPriorities() {
-  const container = document.getElementById('weeklyPrioritiesList');
-  const weekly = getTopLevel().filter(p => p.is_weekly);
-  // Grouped from every priority, not just top-level ones - the `byParent`
-  // declared further down for the right-hand panel groups getTopLevel() only,
-  // so it holds no children to count.
-  const childrenByParent = app.groupByParent(currentPriorities);
-
-  if (weekly.length === 0) {
-    container.innerHTML = '<p class="text-center text-muted">No weekly priorities yet - drag projects in from the right.</p>';
-  } else {
-    container.innerHTML = weekly.map(p => `
-      <div class="weekly-priority-row" draggable="true" data-priority-id="${p.id}">
-        <span class="weekly-priority-title">
-          <i class="bi ${APP_ICONS.priorityBoard} text-muted"></i>
-          <span class="weekly-priority-text">${app.escapeHtml(p.title)}</span>${app.childCountBadge((childrenByParent.get(p.id) || []).length)}
-        </span>
-        <span class="badge bg-${statusBadgeColor(p.status)}">${p.status}</span>
-        <button class="btn btn-sm btn-danger" data-action="remove-weekly" data-id="${p.id}" title="Remove from Weekly Priorities" aria-label="Remove">
-          <i class="bi bi-trash"></i>
-        </button>
-      </div>
-    `).join('');
-  }
-
-  const rightPanel = document.getElementById('allProjectsListRight');
-  const byParent = app.groupByParent(getTopLevel());
-  const topLevel = getTopLevel();
-
-  if (topLevel.length === 0) {
-    rightPanel.innerHTML = '<small class="text-muted">No projects</small>';
-  } else {
-    rightPanel.innerHTML = app.flattenTree(topLevel).map(p => `
-      <div class="priority-item" draggable="true" data-type="priority" data-id="${p.id}" data-name="${app.escapeHtml(p.title)}" style="margin-left: ${p.depth * 14}px;">
-        <span><i class="bi ${APP_ICONS.project}"></i> ${app.escapeHtml(p.title)}</span>
-        <small class="text-muted">→</small>
-      </div>
-    `).join('');
-    setupDragListeners();
-  }
-
-  syncStripRowSelection();
-}
-
-async function removeFromWeekly(priorityId) {
-  try {
-    const response = await fetch(`/api/priorities/${priorityId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ is_weekly: false })
-    });
-    const result = await response.json();
-    if (result.success) {
-      loadBoard();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error removing from weekly priorities:', error);
-    app.notify('Error removing from weekly priorities', 'danger');
-  }
-}
-
-function clearWeeklyDropIndicators(container) {
-  container.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
-    el.classList.remove('drop-indicator-before', 'drop-indicator-after');
-  });
-  container.classList.remove('weekly-drop-target-root');
-}
-
-function initWeeklyPrioritiesEventListeners() {
-  const container = document.getElementById('weeklyPrioritiesList');
-
-  container.addEventListener('dragstart', (e) => {
-    const row = e.target.closest('.weekly-priority-row');
-    if (!row) return;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('type', 'priority');
-    e.dataTransfer.setData('id', row.dataset.priorityId);
-    row.classList.add('dragging-item');
-  });
-
-  container.addEventListener('dragend', (e) => {
-    const row = e.target.closest('.weekly-priority-row');
-    if (row) row.classList.remove('dragging-item');
-    clearWeeklyDropIndicators(container);
-  });
-
-  container.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    const row = e.target.closest('.weekly-priority-row');
-    clearWeeklyDropIndicators(container);
-    if (row) {
-      const zone = app.getVerticalDropZone(e, row);
-      row.classList.add(zone === 'before' ? 'drop-indicator-before' : 'drop-indicator-after');
-    } else {
-      container.classList.add('weekly-drop-target-root');
-    }
-  });
-
-  container.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const type = e.dataTransfer.getData('type');
-    const draggedId = e.dataTransfer.getData('id');
-    const row = e.target.closest('.weekly-priority-row');
-    if (type !== 'priority' || !draggedId) {
-      clearWeeklyDropIndicators(container);
-      return;
-    }
-
-    const targetId = row && row.dataset.priorityId !== draggedId ? row.dataset.priorityId : null;
-    const position = row ? app.getVerticalDropZone(e, row) : 'after';
-    clearWeeklyDropIndicators(container);
-
-    const orderedIds = computeGlobalOrder(draggedId, targetId, position, p => p.is_weekly);
-    const dragged = currentPriorities.find(p => String(p.id) === String(draggedId));
-    const updates = dragged && !dragged.is_weekly ? { is_weekly: true } : undefined;
-    persistReorder(orderedIds, draggedId, updates);
-  });
-
-  container.addEventListener('click', (e) => {
-    const removeBtn = e.target.closest('[data-action="remove-weekly"]');
-    if (removeBtn) removeFromWeekly(removeBtn.dataset.id);
-  });
-
-  container.addEventListener('dblclick', (e) => {
-    if (e.target.closest('[data-action]')) return;
-    const row = e.target.closest('.weekly-priority-row');
-    if (row) openStripEditForm(row.dataset.priorityId);
-  });
-}
-
-function initPriorityViewTabs() {
-  document.getElementById('priorityViewTabs').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-view-tab]');
-    if (!btn) return;
-
-    document.querySelectorAll('#priorityViewTabs [data-view-tab]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    const target = btn.dataset.viewTab;
-    document.querySelectorAll('.priority-view-pane').forEach(pane => {
-      pane.classList.toggle('d-none', pane.dataset.view !== target);
-    });
-  });
-}
-
 function initPriorityBoard() {
-  initPriorityViewTabs();
   initPriorityBoardEventListeners();
-  initWeeklyPrioritiesEventListeners();
   loadBoard();
 }
 

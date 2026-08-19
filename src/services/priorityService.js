@@ -47,11 +47,10 @@ async function attachAssociations(priorities) {
 
 // Projects moved onto the generic entity engine (Phase 4), so the storage is
 // `entities` + `entity_field_values` + `entity_relationships`. Everything below
-// keeps the old row shape - flat `notes`/`status`/`is_weekly` fields and a
-// synthesized `parent_id` - because eight frontend files still read priorities
-// that way (Priority Board, Weekly Priorities, Dailies, Reporting, Templates,
-// Brainstorming and two editors). Nothing about /api/priorities changed for
-// them.
+// keeps the old row shape - flat `notes`/`status` fields and a synthesized
+// `parent_id` - because several frontend files still read priorities that way
+// (Priority Board, Dailies, Reporting, Templates, Brainstorming and two
+// editors). Nothing about /api/priorities changed for them.
 async function toPriorityRows(entities, contextId) {
   if (entities.length === 0) return [];
 
@@ -73,7 +72,6 @@ async function toPriorityRows(entities, contextId) {
     context_id: e.context_id,
     notes: e.fields?.notes ?? null,
     status: e.fields?.status ?? 'Not Started',
-    is_weekly: !!e.fields?.is_weekly,
     source_id: e.fields?.source_id ?? null,
     created_at: e.created_at,
     updated_at: e.updated_at,
@@ -121,7 +119,7 @@ async function setGoalAssociations(priorityId, goalIds) {
 }
 
 export async function createPriority(data, contextId) {
-  const { title, source_id, parent_id, notes, area_ids, goal_ids, status, is_weekly } = data;
+  const { title, source_id, parent_id, notes, area_ids, goal_ids, status } = data;
 
   if (!title) {
     throw new ValidationError('Priority title is required');
@@ -133,7 +131,6 @@ export async function createPriority(data, contextId) {
     fields: {
       notes: notes ?? null,
       status: status || 'Not Started',
-      is_weekly: is_weekly ? true : null,
       source_id: source_id || null,
     },
   }, contextId);
@@ -174,9 +171,6 @@ export async function updatePriority(id, data) {
   if (data.source_id !== undefined) fields.source_id = data.source_id || null;
   if (data.notes !== undefined) fields.notes = data.notes ?? null;
   if (data.status !== undefined) fields.status = data.status || 'Not Started';
-  // Field values are deleted when set to null, so `false` has to become null
-  // rather than 0 - an absent is_weekly row reads back as false either way.
-  if (data.is_weekly !== undefined) fields.is_weekly = data.is_weekly ? true : null;
 
   if (Object.keys(fields).length > 0) update.fields = fields;
   if (Object.keys(update).length > 0) {
@@ -259,8 +253,6 @@ export async function reorderPrioritiesAmongSiblings(orderedIds, draggedId, upda
       }
       fields.status = updates.status;
     }
-    // null clears the field row; absent reads back as false.
-    if (updates.is_weekly !== undefined) fields.is_weekly = updates.is_weekly ? true : null;
 
     if (Object.keys(fields).length > 0) {
       await entityService.updateEntity(Number(draggedId), { fields }, contextId);

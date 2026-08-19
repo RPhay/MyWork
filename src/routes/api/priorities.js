@@ -73,10 +73,10 @@ router.patch('/:id/status', async (req, res) => {
   }
 });
 
-// Reorder priorities (shared by the Projects tree, Priority Board, and Weekly
-// Priorities - order_index is one global ranking, so all three stay in sync).
-// orderedIds is required; draggedId/updates are optional extra field changes
-// (status for a Priority Board bay move, is_weekly for Weekly Priorities).
+// Reorder priorities (shared by the Projects tree and the Priority Board -
+// order_index is one global ranking, so both stay in sync). orderedIds is
+// required; draggedId/updates are optional extra field changes (status, for a
+// Priority Board bay move).
 router.patch('/reorder-siblings', async (req, res) => {
   try {
     const { orderedIds, draggedId, updates } = req.body;

@@ -44,7 +44,9 @@ test('save stays disabled across reopening different items', async ({ page }) =>
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1400);
 
-  const rows = page.locator('.entity-row');
+  // Every tab's rows are in the DOM at once (dashboard.ejs renders all panes
+  // upfront), so an unscoped .entity-row can pick a row from a hidden tab.
+  const rows = page.locator('#tab-priority .entity-row:visible');
   await rows.first().click();
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
   // make a change -> enabled
@@ -54,4 +56,30 @@ test('save stays disabled across reopening different items', async ({ page }) =>
   // open a different item without saving -> must be disabled again
   await rows.nth(1).click();
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
+});
+
+// The two column toggles are labelled once, by a legend above the switch
+// columns rather than a pair of icons repeated on every field. A legend only
+// works if each icon sits over the switch it labels, and that alignment is
+// pure CSS - it silently broke three times while being changed by eye, because
+// the legend and the field rows resolve their em units against different
+// font-sizes. Measured, it cannot drift unnoticed again.
+test('the column-toggle legend appears once and lines up with its switches', async ({ page }) => {
+  await page.goto('/?tab=idea');
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1500);
+
+  await page.locator('#ideaEntityList .entity-row').first().locator('.entity-cell-title').click();
+  await expect(page.locator('.editor-field-legend')).toHaveCount(1);
+  await expect(page.locator('.editor-field .editor-toggle-icon')).toHaveCount(0);
+
+  const drift = await page.evaluate(() => {
+    const centre = (el) => { const r = el.getBoundingClientRect(); return r.x + r.width / 2; };
+    const icons = [...document.querySelectorAll('.editor-field-legend .editor-toggle-icon i')].map(centre);
+    const switches = [...document.querySelector('.editor-field').querySelectorAll('.form-check-input')].map(centre);
+    return icons.map((x, i) => Math.abs(x - (switches[i] ?? 0)));
+  });
+
+  expect(drift).toHaveLength(2);
+  for (const d of drift) expect(d, 'legend icon sits over its switch').toBeLessThanOrEqual(4);
 });
