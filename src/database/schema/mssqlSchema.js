@@ -595,21 +595,8 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  // Now that to_dos table is created, create work_todo_associations junction table
-  await createTableIfNotExists(
-    pool,
-    "work_todo_associations",
-    `
-    CREATE TABLE [MyWork].[work_todo_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      todo_id INT NOT NULL,
-      CONSTRAINT fk_wtd_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wtd_todo FOREIGN KEY (todo_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_todo UNIQUE (work_item_id, todo_id)
-    )
-  `,
-  );
+  // work_todo_associations is created with the legacy <-> entity bridge at the end of
+  // this file: its todo_id points at [entities], not [to_dos].
 
   // idea_links table removed in Phase 1 (ideas migrated to generic entities)
 
@@ -724,21 +711,8 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  // Now that tasks table is created, create work_task_associations junction table
-  await createTableIfNotExists(
-    pool,
-    "work_task_associations",
-    `
-    CREATE TABLE [MyWork].[work_task_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      task_id INT NOT NULL,
-      CONSTRAINT fk_wtk_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wtk_task FOREIGN KEY (task_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_task UNIQUE (work_item_id, task_id)
-    )
-  `,
-  );
+  // work_task_associations is created with the legacy <-> entity bridge at the end of
+  // this file: its task_id points at [entities], not [tasks].
 
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
   // distinct from the "areas" table, which backs the unrelated Categories tab)
@@ -822,21 +796,8 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  // Now that tickets table is created, create work_ticket_associations junction table
-  await createTableIfNotExists(
-    pool,
-    "work_ticket_associations",
-    `
-    CREATE TABLE [MyWork].[work_ticket_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      ticket_id INT NOT NULL,
-      CONSTRAINT fk_wti_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wti_ticket FOREIGN KEY (ticket_id) REFERENCES [MyWork].[tickets](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_ticket UNIQUE (work_item_id, ticket_id)
-    )
-  `,
-  );
+  // work_ticket_associations is created with the legacy <-> entity bridge at the end of
+  // this file: its ticket_id points at [entities], not [tickets].
 
   await createTableIfNotExists(
     pool,
@@ -1430,6 +1391,14 @@ export async function createMssqlSchema(pool) {
     ["priority_goals", "priority_id", "priorities", "goal_id"],
     ["template_areas", "template_id", "work_item_templates", "area_id"],
     ["template_goals", "template_id", "work_item_templates", "goal_id"],
+    // Todos, tasks and tickets are entities now too, so these three join a
+    // work item to an `entities` row like the rest. They previously still
+    // referenced the legacy to_dos/tasks/tickets tables while those tabs
+    // produced entity ids, so dragging one onto a day created the work item
+    // and silently lost the link.
+    ["work_todo_associations", "work_item_id", "work_items", "todo_id"],
+    ["work_task_associations", "work_item_id", "work_items", "task_id"],
+    ["work_ticket_associations", "work_item_id", "work_items", "ticket_id"],
   ];
 
   for (const [table, legacyCol, legacyTable, entityCol] of bridgeJunctions) {

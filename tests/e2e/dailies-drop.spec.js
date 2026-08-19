@@ -18,9 +18,11 @@ const TYPES = [
   { slug: 'area', dropType: 'area', key: 'areas' },
   { slug: 'goal', dropType: 'goal', key: 'goals' },
   { slug: 'idea', dropType: 'idea', key: 'ideas' },
-  // to_do/task/ticket are NOT here: their junctions still point at the legacy
-  // to_dos/tasks/tickets tables while those tabs produce entity ids, so a drop
-  // would create the work item and lose the link. See ASSOCIATION_PATHS.
+  // to_do/task/ticket were unlinkable until their junctions were bridged to
+  // `entities` - the drop created the work item and lost the link, silently.
+  { slug: 'to_do', dropType: 'todo', key: 'todos' },
+  { slug: 'task', dropType: 'task', key: 'tasks' },
+  { slug: 'ticket', dropType: 'ticket', key: 'tickets' },
 ];
 
 async function api(page, path, options = {}) {

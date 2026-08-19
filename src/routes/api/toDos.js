@@ -1,63 +1,66 @@
 import express from 'express';
-import * as toDoService from '../../services/toDoService.js';
+import * as entityService from '../../services/entityService.js';
 import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
 
-// Get all to-dos
+// to_dos are generic entities now (their tab has been for a while, and their
+// rows moved across with phase6-7-migrate-todos-tasks-tickets.js). This router
+// stays because Dailies' associate panel and a few helpers still call it; it is
+// a thin shim over entityService, exactly like routes/api/areas.js.
+
 router.get('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const toDos = await toDoService.getAllToDos(contextId);
-    res.json({ success: true, data: toDos });
+    const rows = await entityService.getAllEntities('to_do', contextId);
+    res.json({ success: true, data: rows });
   } catch (error) {
-    logger.error('Error fetching to-dos:', error);
+    logger.error('Error fetching to_dos:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Get single to-do
 router.get('/:id', async (req, res) => {
   try {
-    const toDo = await toDoService.getToDoById(req.params.id);
-    res.json({ success: true, data: toDo });
+    const contextId = await activeContextService.getActiveContextId();
+    const row = await entityService.getEntityById(Number(req.params.id), contextId);
+    res.json({ success: true, data: row });
   } catch (error) {
-    logger.error('Error fetching to-do:', error);
+    logger.error('Error fetching to_do:', error);
     res.status(error.statusCode || 404).json({ success: false, message: error.message });
   }
 });
 
-// Create to-do
 router.post('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const toDo = await toDoService.createToDo(req.body, contextId);
-    res.status(201).json({ success: true, message: 'To do created', data: toDo });
+    const row = await entityService.createEntity('to_do', req.body, contextId);
+    res.status(201).json({ success: true, data: row });
   } catch (error) {
-    logger.error('Error creating to-do:', error);
+    logger.error('Error creating to_do:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
-// Update to-do
 router.put('/:id', async (req, res) => {
   try {
-    const toDo = await toDoService.updateToDo(req.params.id, req.body);
-    res.json({ success: true, message: 'To do updated', data: toDo });
+    const contextId = await activeContextService.getActiveContextId();
+    const row = await entityService.updateEntity(Number(req.params.id), req.body, contextId);
+    res.json({ success: true, data: row });
   } catch (error) {
-    logger.error('Error updating to-do:', error);
+    logger.error('Error updating to_do:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
-// Delete to-do
 router.delete('/:id', async (req, res) => {
   try {
-    await toDoService.deleteToDo(req.params.id);
-    res.json({ success: true, message: 'To do deleted' });
+    const contextId = await activeContextService.getActiveContextId();
+    await entityService.deleteEntity(Number(req.params.id), contextId);
+    res.json({ success: true, message: 'Deleted' });
   } catch (error) {
-    logger.error('Error deleting to-do:', error);
+    logger.error('Error deleting to_do:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });

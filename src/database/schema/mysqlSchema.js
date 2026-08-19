@@ -480,17 +480,8 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Now that to_dos table is created, create work_todo_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_todo_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      todo_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (todo_id) REFERENCES to_dos(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_todo (work_item_id, todo_id)
-    )
-  `);
+  // work_todo_associations is created with the legacy <-> entity bridge at the end of
+  // this file: its todo_id points at `entities`, not `to_dos`.
 
   // Backfill target_date for pre-existing to_dos tables
   if (!(await columnExists(connection, "to_dos", "target_date"))) {
@@ -605,17 +596,8 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Now that tasks table is created, create work_task_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_task_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      task_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_task (work_item_id, task_id)
-    )
-  `);
+  // work_task_associations is created with the legacy <-> entity bridge at the end of
+  // this file: its task_id points at `entities`, not `tasks`.
 
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
   // distinct from the "areas" table, which backs the unrelated Categories tab)
@@ -685,17 +667,8 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Now that tickets table is created, create work_ticket_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_ticket_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      ticket_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_ticket (work_item_id, ticket_id)
-    )
-  `);
+  // work_ticket_associations is created with the legacy <-> entity bridge at the end of
+  // this file: its ticket_id points at `entities`, not `tickets`.
 
   // Create users table - identity is deliberately minimal (name only, no
   // password): logging in with a name that doesn't exist yet creates it.
@@ -1326,6 +1299,14 @@ export async function createMysqlSchema(connection) {
     ["priority_goals", "priority_id", "priorities", "goal_id"],
     ["template_areas", "template_id", "work_item_templates", "area_id"],
     ["template_goals", "template_id", "work_item_templates", "goal_id"],
+    // Todos, tasks and tickets are entities now too, so these three join a
+    // work item to an `entities` row like the rest. They previously still
+    // referenced the legacy to_dos/tasks/tickets tables while those tabs
+    // produced entity ids, so dragging one onto a day created the work item
+    // and silently lost the link.
+    ["work_todo_associations", "work_item_id", "work_items", "todo_id"],
+    ["work_task_associations", "work_item_id", "work_items", "task_id"],
+    ["work_ticket_associations", "work_item_id", "work_items", "ticket_id"],
   ];
 
   for (const [table, legacyCol, legacyTable, entityCol] of bridgeJunctions) {

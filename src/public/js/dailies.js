@@ -29,22 +29,17 @@ const resetWorkItemEditorTracking = () => {
   if (saveBtn) saveBtn.disabled = true;
 };
 
-// What a work item can hold, mapped to its route segment under /api/work/:id/.
-//
-// idea was missing even though its junction and route already existed, so
-// dragging an Idea onto a day was silently ignored.
-//
-// todo, task and ticket are deliberately absent: their junctions
-// (work_todo_associations.todo_id and friends) still reference the legacy
-// to_dos/tasks/tickets tables, while those tabs now produce `entities` ids.
-// Listing them here creates the work item and then loses the link without an
-// error. They can be added the moment those three junctions are bridged to
-// `entities` the way area/goal/idea/priority already are.
+// Everything a work item can hold, mapped to its route segment under
+// /api/work/:id/. Every one of these junctions now points at `entities`, so a
+// row dragged from any typed page links correctly.
 const ASSOCIATION_PATHS = {
   priority: "priorities",
   goal: "goals",
   area: "areas",
   idea: "ideas",
+  todo: "todos",
+  task: "tasks",
+  ticket: "tickets",
 };
 const STATUS_CYCLE = ["Not Started", "In Progress", "Complete"];
 

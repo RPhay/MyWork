@@ -52,24 +52,27 @@ async function attachAssociations(items) {
        WHERE wta.work_item_id IN (${placeholders})`,
       ids
     ),
+    // Todos, tasks and tickets are entities now too (phase 6-7), so these join
+    // `entities` like the rest. Leaving them on the legacy tables made the join
+    // match nothing: the junction held an entity id, the legacy table did not.
     db.query(
       `SELECT wtd.work_item_id, td.id, td.title
        FROM work_todo_associations wtd
-       JOIN to_dos td ON wtd.todo_id = td.id
+       JOIN entities td ON wtd.todo_id = td.id
        WHERE wtd.work_item_id IN (${placeholders})`,
       ids
     ),
     db.query(
       `SELECT wtk.work_item_id, tk.id, tk.title
        FROM work_task_associations wtk
-       JOIN tasks tk ON wtk.task_id = tk.id
+       JOIN entities tk ON wtk.task_id = tk.id
        WHERE wtk.work_item_id IN (${placeholders})`,
       ids
     ),
     db.query(
       `SELECT wti.work_item_id, ti.id, ti.title
        FROM work_ticket_associations wti
-       JOIN tickets ti ON wti.ticket_id = ti.id
+       JOIN entities ti ON wti.ticket_id = ti.id
        WHERE wti.work_item_id IN (${placeholders})`,
       ids
     ),

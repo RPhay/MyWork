@@ -1,92 +1,67 @@
 import express from 'express';
-import * as ticketService from '../../services/ticketService.js';
+import * as entityService from '../../services/entityService.js';
 import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
-import { AppError } from '../../config/errors.js';
 
 const router = express.Router();
 
-// Get all tickets for current context
-router.get('/', async (req, res, next) => {
+// tickets are generic entities now (their tab has been for a while, and their
+// rows moved across with phase6-7-migrate-todos-tasks-tickets.js). This router
+// stays because Dailies' associate panel and a few helpers still call it; it is
+// a thin shim over entityService, exactly like routes/api/areas.js.
+
+router.get('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const tickets = await ticketService.getTickets(contextId);
-    res.json({ success: true, data: tickets });
+    const rows = await entityService.getAllEntities('ticket', contextId);
+    res.json({ success: true, data: rows });
   } catch (error) {
-    next(error);
+    logger.error('Error fetching tickets:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Get single ticket
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const ticket = await ticketService.getTicket(parseInt(req.params.id), contextId);
-    res.json({ success: true, data: ticket });
+    const row = await entityService.getEntityById(Number(req.params.id), contextId);
+    res.json({ success: true, data: row });
   } catch (error) {
-    next(error);
+    logger.error('Error fetching ticket:', error);
+    res.status(error.statusCode || 404).json({ success: false, message: error.message });
   }
 });
 
-// Create ticket
-router.post('/', async (req, res, next) => {
+router.post('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const ticket = await ticketService.createTicket(req.body, contextId);
-    res.json({ success: true, data: ticket });
+    const row = await entityService.createEntity('ticket', req.body, contextId);
+    res.status(201).json({ success: true, data: row });
   } catch (error) {
-    next(error);
+    logger.error('Error creating ticket:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
-// Update ticket
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const ticket = await ticketService.updateTicket(parseInt(req.params.id), req.body, contextId);
-    res.json({ success: true, data: ticket });
+    const row = await entityService.updateEntity(Number(req.params.id), req.body, contextId);
+    res.json({ success: true, data: row });
   } catch (error) {
-    next(error);
+    logger.error('Error updating ticket:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
-// Delete ticket
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    await ticketService.deleteTicket(parseInt(req.params.id), contextId);
-    res.json({ success: true, message: 'Ticket deleted' });
+    await entityService.deleteEntity(Number(req.params.id), contextId);
+    res.json({ success: true, message: 'Deleted' });
   } catch (error) {
-    next(error);
-  }
-});
-
-// Get ticket types
-router.get('/types/list', (req, res) => {
-  const types = ticketService.getTicketTypes();
-  res.json({ success: true, data: types });
-});
-
-// Add link to ticket
-router.post('/:id/links', async (req, res, next) => {
-  try {
-    const contextId = await activeContextService.getActiveContextId();
-    const { url, title } = req.body;
-    const link = await ticketService.addTicketLink(parseInt(req.params.id), url, title, contextId);
-    res.json({ success: true, data: link });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Remove link from ticket
-router.delete('/:id/links/:linkId', async (req, res, next) => {
-  try {
-    const contextId = await activeContextService.getActiveContextId();
-    await ticketService.removeTicketLink(parseInt(req.params.linkId), parseInt(req.params.id), contextId);
-    res.json({ success: true, message: 'Link removed' });
-  } catch (error) {
-    next(error);
+    logger.error('Error deleting ticket:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
