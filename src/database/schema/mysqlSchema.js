@@ -150,7 +150,6 @@ export async function createMysqlSchema(connection) {
       notes LONGTEXT,
       status VARCHAR(50) NOT NULL DEFAULT 'Not Started',
       order_index INT DEFAULT 0,
-      is_weekly BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL,
@@ -158,13 +157,6 @@ export async function createMysqlSchema(connection) {
       INDEX idx_order (order_index)
     )
   `);
-
-  // Backfill is_weekly for pre-existing priorities tables
-  if (!(await columnExists(connection, "priorities", "is_weekly"))) {
-    await connection.query(
-      "ALTER TABLE priorities ADD COLUMN is_weekly BOOLEAN DEFAULT FALSE",
-    );
-  }
 
   // Backfill status for pre-existing priorities tables
   if (!(await columnExists(connection, "priorities", "status"))) {

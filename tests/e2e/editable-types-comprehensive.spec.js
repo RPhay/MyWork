@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+// dashboard.ejs renders EVERY tab's rows into the DOM at once, so a bare
+// .entity-row matches rows in hidden panes - 342 of them against 36 on
+// screen in one measured case. Scope to the active tab, or the test
+// clicks something the user cannot see.
 test.describe('Editable Types - Comprehensive Functionality', () => {
   // Test all editable types: areas, goals, todos, tasks, tickets, ideas
   const editableTypes = [
@@ -59,7 +63,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await page.waitForLoadState('networkidle');
 
         // Now click on the item to edit it
-        const itemRow = page.locator('.entity-row').first();
+        const itemRow = page.locator(`#tab-${type.slug} .entity-row:visible`).first();
         await itemRow.click();
         const editForm = page.locator('#entity-editor-form');
         await expect(editForm).toBeVisible();
@@ -75,7 +79,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await page.waitForLoadState('networkidle');
 
         // Verify title changed
-        const updatedItemRow = page.locator('.entity-row').first();
+        const updatedItemRow = page.locator(`#tab-${type.slug} .entity-row:visible`).first();
         await expect(updatedItemRow).toContainText('(edited)');
       });
 
@@ -92,7 +96,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await page.waitForLoadState('networkidle');
 
         // Click row to open editor
-        const itemRow = page.locator('.entity-row').first();
+        const itemRow = page.locator(`#tab-${type.slug} .entity-row:visible`).first();
         await itemRow.click();
         const editForm = page.locator('#entity-editor-form');
         await expect(editForm).toBeVisible();
@@ -119,7 +123,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await page.waitForLoadState('networkidle');
 
         // Get initial count
-        const initialRows = await page.locator('.entity-row').count();
+        const initialRows = await page.locator(`#tab-${type.slug} .entity-row:visible`).count();
 
         // Click delete button
         const deleteBtn = page.locator('[data-action="delete"]').first();
@@ -130,7 +134,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await page.waitForLoadState('networkidle');
 
         // Verify count decreased
-        const finalRows = await page.locator('.entity-row').count();
+        const finalRows = await page.locator(`#tab-${type.slug} .entity-row:visible`).count();
         expect(finalRows).toBeLessThan(initialRows);
       });
 
@@ -145,7 +149,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await page.waitForLoadState('networkidle');
 
         // Verify folder appears
-        const folderRow = page.locator('.entity-row').first();
+        const folderRow = page.locator(`#tab-${type.slug} .entity-row:visible`).first();
         await expect(folderRow).toContainText('Test Folder');
       });
 

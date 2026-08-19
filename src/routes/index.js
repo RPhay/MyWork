@@ -28,6 +28,7 @@ import quotesRouter from "./api/quotes.js";
 import entityTypesRouter from "./api/entityTypes.js";
 import linkTitleRouter from "./api/linkTitle.js";
 import entitiesRouter from "./api/entities.js";
+import priorityBoardRouter from "./api/priorityBoard.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
 import * as entityTypeService from "../services/entityTypeService.js";
@@ -110,6 +111,7 @@ router.use("/api/entity-types", entityTypesRouter);
 // Resolves a dropped URL's page title. Not context-specific.
 router.use("/api/link-title", linkTitleRouter);
 router.use("/api/entities", entitiesRouter);
+router.use("/api/priority-board", priorityBoardRouter);
 
 // First-run bootstrap page: gets the app pointed at a working database and
 // schema before contexts (or anything else) can exist. Redirects itself back

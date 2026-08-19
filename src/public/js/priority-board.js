@@ -1,342 +1,218 @@
-const BOARD_STATUSES = ['Not Started', 'In Progress', 'Complete'];
-let currentPriorities = [];
-let expandedStrips = new Set();
+// The priorities board.
+//
+// A column holds rows of ANY type, dragged in from a typed tab or from Dailies.
+// What lands here is a reference to the original record - never a copy - so the
+// board is a view onto rows that still belong to their own pages. Everything
+// this module can write is therefore deliberately narrow: which column a row is
+// in, what order it is in, and whether it is on the board at all. Titles,
+// fields and status are edited where the row lives.
+//
+// The bay is NOT the record's status. See priorityBoardService.js for why: the
+// types do not share a status vocabulary, so a bay cannot be one.
 
-function statusBadgeColor(status) {
-  if (status === 'Complete') return 'success';
-  if (status === 'In Progress') return 'warning';
-  return 'secondary';
+const BOARD_BAYS = ['Not Started', 'In Progress', 'Complete'];
+
+let boardItems = [];
+
+// A row on a typed page publishes its type under one of these names when a drag
+// starts (genericEntity.js sets `type` and `id` on the dataTransfer). Dailies
+// publishes the same shape, which is what makes one drop handler enough.
+const ACCEPTS_DROP = (type) => typeof type === 'string' && type.length > 0 && type !== 'priority-strip';
+
+function bayOf(item) {
+  return BOARD_BAYS.includes(item.bay) ? item.bay : BOARD_BAYS[0];
 }
 
-function getDescendants(priorityId, byParent) {
-  const result = [];
-  function walk(id, depth) {
-    (byParent.get(id) || []).forEach(child => {
-      result.push({ ...child, depth });
-      walk(child.id, depth + 1);
-    });
-  }
-  walk(priorityId, 1);
-  return result;
+function itemsInBay(bay) {
+  return boardItems.filter(i => bayOf(i) === bay);
 }
 
-function renderChildRow(child, byParent) {
-  const childCount = (byParent?.get(child.id) || []).length;
+function renderCard(item) {
+  // The type is named on every card. On a mixed board "Renew the certificate"
+  // means something different as a Ticket than as an Idea, and the icon alone
+  // does not say which.
   return `
-    <div class="priority-strip-child" data-priority-id="${child.id}" style="padding-left: ${20 + (child.depth - 1) * 16}px;">
-      <span class="badge bg-${statusBadgeColor(child.status)}" style="font-size: 0.65rem;">${child.status}</span>
-      <span>${app.escapeHtml(child.title)}${app.childCountBadge(childCount)}</span>
-      <button class="btn btn-sm btn-link p-0 ms-auto" data-action="edit" data-id="${child.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
-    </div>
-  `;
-}
-
-function renderStrip(priority, byParent) {
-  const descendants = getDescendants(priority.id, byParent);
-  const hasChildren = descendants.length > 0;
-  // The badge counts direct children; the expanded list below is still every
-  // descendant, flattened and indented.
-  const childCount = (byParent.get(priority.id) || []).length;
-  const isExpanded = expandedStrips.has(String(priority.id));
-
-  const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.path || a.name)}</span>`).join('');
-
-  const childrenHtml = hasChildren
-    ? `<div class="priority-strip-children">${descendants.map(c => renderChildRow(c, byParent)).join('')}</div>`
-    : '';
-
-  return `
-    <div class="priority-strip ${isExpanded ? 'expanded' : ''}" data-priority-id="${priority.id}" data-status="${priority.status}" draggable="true">
-      <div class="priority-strip-header">
-        ${hasChildren
-          ? '<i class="bi bi-chevron-right priority-strip-toggle" data-action="toggle-expand"></i>'
-          : '<span class="priority-strip-toggle"></span>'}
-        <i class="bi ${APP_ICONS.priorityBoard} text-muted"></i>
-        <span class="priority-strip-title-cell"><span class="priority-strip-title">${app.escapeHtml(priority.title)}</span>${app.childCountBadge(childCount)}</span>
-        <span class="priority-strip-badges">${areaBadges}</span>
-        <span class="priority-strip-actions">
-          <button class="btn btn-sm btn-link p-0" data-action="edit" data-id="${priority.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
+    <div class="board-card" data-entity-id="${item.id}" data-type-slug="${app.escapeHtml(item.typeSlug)}" draggable="true">
+      <span class="board-card-icon">${item.icon || ''}</span>
+      <span class="board-card-body">
+        <span class="board-card-title">${app.escapeHtml(item.title)}</span>
+        <span class="board-card-meta">
+          <span class="board-card-type">${app.escapeHtml(item.typeLabel)}</span>
+          ${item.status ? `<span class="board-card-status">${app.escapeHtml(item.status)}</span>` : ''}
         </span>
-      </div>
-      ${childrenHtml}
+      </span>
+      <button class="btn btn-sm btn-link board-card-remove" data-action="remove"
+              data-entity-id="${item.id}" title="Take off the board" aria-label="Take off the board">
+        <i class="bi bi-x-lg"></i>
+      </button>
     </div>
   `;
-}
-
-function getTopLevel() {
-  const byParent = app.groupByParent(currentPriorities);
-  return (byParent.get(null) || []).slice().sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-}
-
-function getTopLevelForStatus(status) {
-  return getTopLevel().filter(p => (p.status || 'Not Started') === status);
-}
-
-// The project the strip editor currently has open. One project can be on
-// screen twice - as a board strip and as a strip's child row - so every row
-// carrying its id is marked.
-let selectedStripId = null;
-
-const STRIP_ROW_SELECTOR = '.priority-strip, .priority-strip-child';
-
-function syncStripRowSelection() {
-  const rows =
-    selectedStripId != null
-      ? document.querySelectorAll(
-          STRIP_ROW_SELECTOR.split(', ')
-            .map((sel) => `${sel}[data-priority-id="${selectedStripId}"]`)
-            .join(', ')
-        )
-      : null;
-  app.selectRow(rows, STRIP_ROW_SELECTOR);
 }
 
 function renderBoard() {
-  const byParent = app.groupByParent(currentPriorities);
-
-  BOARD_STATUSES.forEach(status => {
-    const bay = document.getElementById(`bay-${status}`);
-    const strips = getTopLevelForStatus(status);
-
-    if (strips.length === 0) {
-      bay.innerHTML = '<p class="text-center text-muted small">No projects</p>';
-    } else {
-      bay.innerHTML = strips.map(p => renderStrip(p, byParent)).join('');
-    }
+  BOARD_BAYS.forEach(bay => {
+    const el = document.getElementById(`bay-${bay}`);
+    if (!el) return;
+    const items = itemsInBay(bay);
+    el.innerHTML = items.length
+      ? items.map(renderCard).join('')
+      : '<p class="text-center text-muted small board-empty">Drop anything here</p>';
   });
-
-  syncStripRowSelection();
-}
-
-// Splices draggedId into the full top-level list (every status, every project),
-// positioned immediately before/after targetId - or, if dropped on empty space,
-// right after the last item matching `fallbackMatch` (e.g. the same bay).
-// order_index is a single global ranking, so this is shared by the Priority
-// Board and the Projects tree.
-function computeGlobalOrder(draggedId, targetId, position, fallbackMatch) {
-  const topLevel = getTopLevel();
-  const ids = topLevel.map(p => String(p.id)).filter(id => id !== String(draggedId));
-
-  let insertIndex;
-  if (targetId) {
-    insertIndex = ids.indexOf(String(targetId));
-    if (insertIndex === -1) {
-      insertIndex = ids.length;
-    } else if (position === 'after') {
-      insertIndex += 1;
-    }
-  } else if (fallbackMatch) {
-    let lastMatch = -1;
-    ids.forEach((id, idx) => {
-      const p = topLevel.find(x => String(x.id) === id);
-      if (p && fallbackMatch(p)) lastMatch = idx;
-    });
-    insertIndex = lastMatch === -1 ? ids.length : lastMatch + 1;
-  } else {
-    insertIndex = ids.length;
-  }
-
-  ids.splice(insertIndex, 0, String(draggedId));
-  return ids;
-}
-
-async function persistReorder(orderedIds, draggedId, updates) {
-  try {
-    const response = await fetch('/api/priorities/reorder-siblings', {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify({ orderedIds, draggedId, updates })
-    });
-    const result = await response.json();
-    if (result.success) {
-      loadBoard();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error reordering:', error);
-    app.notify('Error reordering', 'danger');
-  }
 }
 
 async function loadBoard() {
   try {
-    const response = await fetch('/api/priorities');
+    const response = await fetch('/api/priority-board');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
-
-    if (result.success) {
-      currentPriorities = result.data;
-      renderBoard();
-    } else {
-      BOARD_STATUSES.forEach(status => {
-        document.getElementById(`bay-${status}`).innerHTML = '<p class="text-center text-danger small">Error loading</p>';
-      });
-    }
+    if (!result.success) throw new Error(result.message || 'Unknown error');
+    boardItems = result.data || [];
+    renderBoard();
   } catch (error) {
-    console.error('Error loading priority board:', error);
-    BOARD_STATUSES.forEach(status => {
-      document.getElementById(`bay-${status}`).innerHTML = '<p class="text-center text-danger small">Error loading</p>';
+    console.error('Error loading the priorities board:', error);
+    BOARD_BAYS.forEach(bay => {
+      const el = document.getElementById(`bay-${bay}`);
+      if (el) el.innerHTML = '<p class="text-center text-danger small">Error loading</p>';
     });
   }
 }
 
-function moveStripInBoard(draggedId, targetStatus, targetId, position) {
-  const orderedIds = computeGlobalOrder(draggedId, targetId, position, p => (p.status || 'Not Started') === targetStatus);
-  const dragged = currentPriorities.find(p => String(p.id) === String(draggedId));
-  const updates = dragged && (dragged.status || 'Not Started') !== targetStatus ? { status: targetStatus } : undefined;
-  persistReorder(orderedIds, draggedId, updates);
+async function post(url, method, body) {
+  const response = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const result = await response.json();
+  if (!result.success) throw new Error(result.message || `HTTP ${response.status}`);
+  return result.data;
 }
 
-function toggleStrip(stripEl) {
-  const id = String(stripEl.dataset.priorityId);
-  if (expandedStrips.has(id)) {
-    expandedStrips.delete(id);
-    stripEl.classList.remove('expanded');
-  } else {
-    expandedStrips.add(id);
-    stripEl.classList.add('expanded');
+/**
+ * Splice `movedId` into the board at `targetId`, then persist the whole board's
+ * order in one call. The ranking is global across columns, so a row keeps its
+ * place relative to everything else when it moves between them.
+ */
+function orderWith(movedId, bay, targetId, position) {
+  const ids = boardItems.map(i => String(i.id)).filter(id => id !== String(movedId));
+  if (targetId) {
+    const at = ids.indexOf(String(targetId));
+    if (at !== -1) {
+      ids.splice(position === 'before' ? at : at + 1, 0, String(movedId));
+      return ids;
+    }
   }
+  // Dropped on empty space in a column: sit after whatever is already there.
+  const last = itemsInBay(bay).map(i => String(i.id)).filter(id => id !== String(movedId)).pop();
+  const at = last ? ids.indexOf(last) : -1;
+  ids.splice(at === -1 ? ids.length : at + 1, 0, String(movedId));
+  return ids;
 }
 
-function openStripEditForm(priorityId) {
-  const priority = currentPriorities.find(p => String(p.id) === String(priorityId));
-  if (!priority) return;
-
-  document.getElementById('stripId').value = priority.id;
-  document.getElementById('stripTitle').value = priority.title;
-  document.getElementById('stripNotes').value = priority.notes || '';
-  document.getElementById('stripStatus').value = priority.status || 'Not Started';
-
-  selectedStripId = priority.id;
-  syncStripRowSelection();
-
-  const modal = new bootstrap.Modal(document.getElementById('stripModal'));
-  modal.show();
-}
-
-async function saveStrip() {
-  const id = document.getElementById('stripId').value;
-
-  const data = {
-    title: document.getElementById('stripTitle').value,
-    notes: document.getElementById('stripNotes').value,
-    status: document.getElementById('stripStatus').value
-  };
-
+async function placeAndOrder(entityId, bay, targetId, position) {
   try {
-    const response = await fetch(`/api/priorities/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify('Project saved!', 'success');
-      bootstrap.Modal.getInstance(document.getElementById('stripModal')).hide();
-      loadBoard();
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
+    const known = boardItems.some(i => String(i.id) === String(entityId));
+    if (!known) {
+      // New to the board: place it first so the reorder has something to rank.
+      boardItems = await post('/api/priority-board/items', 'POST', { entityId, bay });
     }
+    boardItems = await post('/api/priority-board/reorder', 'PATCH', {
+      orderedIds: orderWith(entityId, bay, targetId, position), movedId: entityId, bay,
+    });
+    renderBoard();
+    if (!known) app.notify('Added to priorities', 'success');
   } catch (error) {
-    console.error('Error:', error);
-    app.notify('Error saving project', 'danger');
+    console.error('Error updating the board:', error);
+    app.notify(error.message || 'Could not update the board', 'danger');
+    loadBoard();
   }
 }
 
-function clearBoardDropTargets() {
+async function removeFromBoard(entityId) {
+  try {
+    boardItems = await post(`/api/priority-board/items/${entityId}`, 'DELETE');
+    renderBoard();
+    app.notify('Taken off the board', 'success');
+  } catch (error) {
+    console.error('Error removing from the board:', error);
+    app.notify(error.message || 'Could not remove that', 'danger');
+  }
+}
+
+function clearDropTargets() {
   document.querySelectorAll('.bay-drop-target').forEach(el => el.classList.remove('bay-drop-target'));
   document.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
     el.classList.remove('drop-indicator-before', 'drop-indicator-after');
   });
 }
 
-function initPriorityBoardEventListeners() {
-  document.getElementById('saveStripBtn').addEventListener('click', saveStrip);
-
-  // Nothing is being edited once the editor is gone, however it was dismissed.
-  document.getElementById('stripModal').addEventListener('hidden.bs.modal', () => {
-    selectedStripId = null;
-    syncStripRowSelection();
-  });
-
+function initBoardListeners() {
   document.querySelectorAll('.priority-bay').forEach(bay => {
     bay.addEventListener('dragstart', (e) => {
-      const stripEl = e.target.closest('.priority-strip');
-      if (!stripEl) return;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('type', 'priority-strip');
-      e.dataTransfer.setData('id', stripEl.dataset.priorityId);
-      stripEl.classList.add('dragging-item');
+      const card = e.target.closest('.board-card');
+      if (!card) return;
+      // copyMove, not move: a source whose effectAllowed does not overlap the
+      // target's dropEffect is refused silently by Chromium.
+      e.dataTransfer.effectAllowed = 'copyMove';
+      e.dataTransfer.setData('type', 'board-card');
+      e.dataTransfer.setData('id', card.dataset.entityId);
+      card.classList.add('dragging-item');
     });
 
     bay.addEventListener('dragend', (e) => {
-      const stripEl = e.target.closest('.priority-strip');
-      if (stripEl) stripEl.classList.remove('dragging-item');
-      clearBoardDropTargets();
+      const card = e.target.closest('.board-card');
+      if (card) card.classList.remove('dragging-item');
+      clearDropTargets();
     });
 
     bay.addEventListener('dragover', (e) => {
       e.preventDefault();
-      const stripEl = e.target.closest('.priority-strip');
-      clearBoardDropTargets();
-      if (stripEl) {
-        const zone = app.getVerticalDropZone(e, stripEl);
-        stripEl.classList.add(zone === 'before' ? 'drop-indicator-before' : 'drop-indicator-after');
+      e.dataTransfer.dropEffect = 'copy';
+      clearDropTargets();
+      const card = e.target.closest('.board-card');
+      if (card) {
+        card.classList.add(app.getVerticalDropZone(e, card) === 'before'
+          ? 'drop-indicator-before' : 'drop-indicator-after');
       } else {
         bay.classList.add('bay-drop-target');
       }
     });
 
+    bay.addEventListener('dragleave', (e) => {
+      if (!bay.contains(e.relatedTarget)) clearDropTargets();
+    });
+
     bay.addEventListener('drop', (e) => {
       e.preventDefault();
-
       const type = e.dataTransfer.getData('type');
       const draggedId = e.dataTransfer.getData('id');
-      if (type !== 'priority-strip' || !draggedId) {
-        clearBoardDropTargets();
-        return;
-      }
+      clearDropTargets();
 
-      const stripEl = e.target.closest('.priority-strip');
-      const targetId = stripEl && stripEl.dataset.priorityId !== draggedId ? stripEl.dataset.priorityId : null;
-      const position = stripEl ? app.getVerticalDropZone(e, stripEl) : 'after';
-      clearBoardDropTargets();
+      // Anything with a type and an id is welcome: a card already on the board
+      // being rearranged, or a row arriving from a typed tab or Dailies.
+      if (!draggedId || !(type === 'board-card' || ACCEPTS_DROP(type))) return;
 
-      moveStripInBoard(draggedId, bay.dataset.status, targetId, position);
+      const card = e.target.closest('.board-card');
+      const targetId = card && card.dataset.entityId !== draggedId ? card.dataset.entityId : null;
+      const position = card ? app.getVerticalDropZone(e, card) : 'after';
+
+      placeAndOrder(draggedId, bay.dataset.status, targetId, position);
     });
 
     bay.addEventListener('click', (e) => {
-      const actionBtn = e.target.closest('[data-action="edit"]');
-      if (actionBtn) {
-        openStripEditForm(actionBtn.dataset.id);
-        return;
-      }
-
-      const toggleIcon = e.target.closest('[data-action="toggle-expand"]');
-      if (toggleIcon) {
-        toggleStrip(toggleIcon.closest('.priority-strip'));
-      }
-    });
-
-    bay.addEventListener('dblclick', (e) => {
-      if (e.target.closest('[data-action]')) return;
-      const header = e.target.closest('.priority-strip-header');
-      if (!header) return;
-      openStripEditForm(header.closest('.priority-strip').dataset.priorityId);
+      const removeBtn = e.target.closest('[data-action="remove"]');
+      if (removeBtn) removeFromBoard(removeBtn.dataset.entityId);
     });
   });
+
+  // A row edited anywhere else is the same record as the card here, so the
+  // board has to reflect it immediately - that is what makes these references
+  // rather than copies.
+  document.addEventListener('entity-saved', () => loadBoard());
 }
 
 function initPriorityBoard() {
-  initPriorityBoardEventListeners();
+  initBoardListeners();
   loadBoard();
 }
 

@@ -237,7 +237,6 @@ export async function createMssqlSchema(pool) {
       notes NVARCHAR(MAX),
       status NVARCHAR(50) NOT NULL DEFAULT 'Not Started',
       order_index INT DEFAULT 0,
-      is_weekly BIT DEFAULT 0,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       CONSTRAINT fk_priorities_source FOREIGN KEY (source_id) REFERENCES [MyWork].[sources](id) ON DELETE SET NULL,
@@ -255,11 +254,6 @@ export async function createMssqlSchema(pool) {
   );
 
   // Backfill for priorities created before these existed - see mysqlSchema.js
-  if (!(await columnExists(pool, "priorities", "is_weekly"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[priorities] ADD is_weekly BIT DEFAULT 0
-    `);
-  }
   if (!(await columnExists(pool, "priorities", "status"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[priorities] ADD status NVARCHAR(50) NOT NULL DEFAULT 'Not Started'

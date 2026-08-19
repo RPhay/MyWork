@@ -1,4 +1,5 @@
 import express from 'express';
+import * as priorityBoardService from '../../services/priorityBoardService.js';
 import * as portfolioReportService from '../../services/portfolioReportService.js';
 import * as reportExportService from '../../services/reportExportService.js';
 import * as reportingService from '../../services/reportingService.js';
@@ -131,7 +132,7 @@ router.get('/needs-attention', async (req, res) => {
 router.get('/board', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const data = await portfolioReportService.getBoardItems(contextId);
+    const data = await priorityBoardService.getBoardItems(contextId);
     res.json({ success: true, data });
   } catch (error) {
     logger.error('Error loading board items:', error);

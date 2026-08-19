@@ -5,74 +5,89 @@
 <!-- All Priorities -->
 <div class="priority-view-pane" data-view="all">
   <p class="text-muted small mb-3">
-    Drag a strip between bays to change its status, or within a bay to resequence it.
-    Click the chevron to reveal sub-projects. Double-click a strip to edit it.
+    Drag anything in from a typed tab or from Dailies. What lands here is a
+    reference to the original, not a copy - edit it on its own page and it
+    changes here too. On the board you can only move a row between columns,
+    reorder it, or take it off.
   </p>
 
   <div class="row g-3 priority-board-row">
     <div class="col-md-4">
       <div class="priority-bay-header">Not Started</div>
       <div class="priority-bay" data-status="Not Started" id="bay-Not Started">
-        <p class="text-center text-muted small">No projects</p>
+        <p class="text-center text-muted small board-empty">Drop anything here</p>
       </div>
     </div>
     <div class="col-md-4">
       <div class="priority-bay-header">In Progress</div>
       <div class="priority-bay" data-status="In Progress" id="bay-In Progress">
-        <p class="text-center text-muted small">No projects</p>
+        <p class="text-center text-muted small board-empty">Drop anything here</p>
       </div>
     </div>
     <div class="col-md-4">
       <div class="priority-bay-header">Complete</div>
       <div class="priority-bay" data-status="Complete" id="bay-Complete">
-        <p class="text-center text-muted small">No projects</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Strip Edit Modal -->
-<div class="modal fade" id="stripModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Edit Project</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form id="stripForm">
-          <input type="hidden" id="stripId" name="stripId">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-          <div class="mb-3">
-            <label for="stripTitle" class="form-label">Title *</label>
-            <input type="text" class="form-control" id="stripTitle" name="title" required>
-          </div>
-
-          <div class="mb-3">
-            <label for="stripNotes" class="form-label">Notes</label>
-            <textarea class="form-control" id="stripNotes" name="notes" rows="4"></textarea>
-          </div>
-
-          <div class="mb-3">
-            <label for="stripStatus" class="form-label">Status</label>
-            <select class="form-select" id="stripStatus" name="status">
-              <option value="Not Started">Not Started</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Complete">Complete</option>
-            </select>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveStripBtn" title="Save the current arrangement of the board">Save</button>
+        <p class="text-center text-muted small board-empty">Drop anything here</p>
       </div>
     </div>
   </div>
 </div>
 
 <style>
+  /* A board card is a reference to a record that lives elsewhere, so it shows
+     what the row IS - icon, title, type - and nothing that could be mistaken
+     for an editable field. */
+  .board-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: grab;
+  }
+
+  .board-card:hover { border-color: #adb5bd; }
+  .board-card.dragging-item { opacity: 0.5; }
+
+  .board-card-icon { font-size: 20px; line-height: 1; flex: none; }
+
+  .board-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+  /* Wraps rather than truncating: nothing in this app cuts a value off with an
+     ellipsis, the row grows instead. The board sits in a narrow rail, which is
+     exactly where an ellipsis would hide the most. */
+  .board-card-title {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  .board-card-meta { display: flex; align-items: center; gap: 6px; }
+
+  .board-card-type {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6c757d;
+  }
+
+  /* The record's own status, shown because it is worth knowing and greyed
+     because it is not what the column means. */
+  .board-card-status {
+    font-size: 0.7rem;
+    color: #868e96;
+    padding: 1px 5px;
+    border: 1px solid #e9ecef;
+    border-radius: 3px;
+  }
+
+  .board-card-remove { padding: 0; color: #adb5bd; flex: none; line-height: 1; }
+  .board-card-remove:hover { color: #dc3545; }
+
+  .board-empty { padding: 18px 0; }
+
   .priority-bay-header {
     font-weight: 600;
     font-size: 0.85rem;

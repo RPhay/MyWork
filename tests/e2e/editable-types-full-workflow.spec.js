@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// dashboard.ejs renders EVERY tab's rows into the DOM at once, so a bare
+// .entity-row matches rows in hidden panes. Scope to the active tab, or the
+// test drives something the user cannot see.
 test('Categories: Full workflow - create, edit, delete', async ({ page }) => {
   await page.goto('http://localhost:3000');
   
@@ -44,7 +47,7 @@ test('Categories: Full workflow - create, edit, delete', async ({ page }) => {
           console.log('✓ Save clicked');
           
           // Check if item appears in list
-          const rows = await page.locator('.entity-row').count();
+          const rows = await page.locator('#tab-area .entity-row:visible').count();
           console.log(`Entity rows after save: ${rows}`);
         }
       }
@@ -92,11 +95,11 @@ test('Todos: Test toggle close - click same row twice', async ({ page }) => {
   console.log('✓ Navigated to Todos tab');
   
   // Get first row if exists
-  const rows = await page.locator('.entity-row').count();
+  const rows = await page.locator('#tab-to_do .entity-row:visible').count();
   console.log(`Entity rows found: ${rows}`);
   
   if (rows > 0) {
-    const firstRow = page.locator('.entity-row').first();
+    const firstRow = page.locator('#tab-to_do .entity-row:visible').first();
     
     // Click to open
     await firstRow.click();
@@ -125,12 +128,12 @@ test('Drag and drop: Create parent-child relationship', async ({ page }) => {
   await page.locator('.type-area').click();
   await page.waitForTimeout(500);
   
-  const rows = await page.locator('.entity-row').count();
+  const rows = await page.locator('#tab-area .entity-row:visible').count();
   console.log(`Category rows found: ${rows}`);
   
   if (rows >= 2) {
-    const firstRow = page.locator('.entity-row').nth(0);
-    const secondRow = page.locator('.entity-row').nth(1);
+    const firstRow = page.locator('#tab-area .entity-row:visible').nth(0);
+    const secondRow = page.locator('#tab-area .entity-row:visible').nth(1);
     
     // Drag first to second
     await firstRow.dragTo(secondRow);
