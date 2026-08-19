@@ -389,3 +389,165 @@ if (document.readyState === 'loading') {
 } else {
   initReporting();
 }
+
+// ===== Status Report =====
+//
+// One page answering what a status report is conventionally expected to answer:
+// where things stand, what got done, what is next, and what needs a decision.
+// The older sub-tabs report work items in a range; this one reports the whole
+// portfolio, which is what most of the app now holds.
+
+const RAG_LABEL = { green: 'On track', amber: 'Needs watching', red: 'Needs attention', grey: 'No data' };
+const RAG_CLASS = { green: 'success', amber: 'warning', red: 'danger', grey: 'secondary' };
+
+function ragBadge(rag) {
+  return `<span class="badge bg-${RAG_CLASS[rag] || 'secondary'}">${RAG_LABEL[rag] || rag}</span>`;
+}
+
+function statusTile(label, value, hint) {
+  return `
+    <div class="col-6 col-md">
+      <div class="card h-100"><div class="card-body py-2">
+        <div class="text-muted small">${app.escapeHtml(label)}</div>
+        <div class="fs-4">${app.escapeHtml(String(value))}</div>
+        ${hint ? `<div class="text-muted" style="font-size:.75rem">${app.escapeHtml(hint)}</div>` : ''}
+      </div></div>
+    </div>`;
+}
+
+function emptyNote(text) {
+  return `<p class="text-muted mb-0">${app.escapeHtml(text)}</p>`;
+}
+
+async function loadStatusReport() {
+  const startDate = document.getElementById('rptStatusStart')?.value;
+  const endDate = document.getElementById('rptStatusEnd')?.value;
+  if (!startDate || !endDate) return;
+
+  try {
+    const response = await fetch(`/api/reporting/executive-summary?startDate=${startDate}&endDate=${endDate}`);
+    const result = await response.json();
+    if (!result.success) throw new Error(result.message);
+    const report = result.data;
+
+    const h = report.headline;
+    document.getElementById('rptStatusHeadline').innerHTML = `
+      <div class="col-12 col-md-auto">
+        <div class="card h-100"><div class="card-body py-2">
+          <div class="text-muted small">Overall</div>
+          <div class="fs-5">${ragBadge(h.rag)}</div>
+        </div></div>
+      </div>
+      ${statusTile('Finished this period', h.completedInRange)}
+      ${statusTile('Complete', `${h.done} / ${h.total}`, 'of everything tracked')}
+      ${statusTile('Past their date', h.overdue)}
+      ${statusTile('Time logged', `${Math.round((h.minutesLogged / 60) * 10) / 10}h`)}`;
+
+    // Done vs outstanding per type, so one bar reads as "how much of this is finished".
+    renderChart('rptPortfolioChart', {
+      type: 'bar',
+      data: {
+        labels: report.portfolio.map(r => r.label),
+        datasets: [
+          { label: 'Complete', data: report.portfolio.map(r => r.done), backgroundColor: '#198754' },
+          { label: 'Outstanding', data: report.portfolio.map(r => r.total - r.done), backgroundColor: '#adb5bd' },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+        plugins: { legend: { position: 'bottom' } },
+      },
+    });
+
+    document.getElementById('rptPortfolioTable').innerHTML = report.portfolio.map(r => `
+      <tr>
+        <td>${r.icon ? app.escapeHtml(r.icon) + ' ' : ''}${app.escapeHtml(r.label)}</td>
+        <td class="text-end">${r.done}</td>
+        <td class="text-end">${r.total}</td>
+        <td title="${app.escapeHtml(r.why)}">${ragBadge(r.rag)}</td>
+      </tr>`).join('');
+
+    document.getElementById('rptAccomplishments').innerHTML = report.accomplishments.length
+      ? `<ul class="list-unstyled mb-0">${report.accomplishments.slice(0, 12).map(a => `
+          <li class="mb-1"><span class="text-muted">${app.escapeHtml(a.date)}</span> ${app.escapeHtml(a.title)}
+          ${a.projects.length ? `<span class="text-muted">· ${app.escapeHtml(a.projects.join(', '))}</span>` : ''}</li>`).join('')}</ul>`
+      : emptyNote('Nothing recorded as complete in this period.');
+
+    document.getElementById('rptUpcoming').innerHTML = report.upcoming.length
+      ? `<ul class="list-unstyled mb-0">${report.upcoming.slice(0, 12).map(u => `
+          <li class="mb-1"><span class="text-muted">${app.escapeHtml(u.due)}</span> ${app.escapeHtml(u.title)}
+          <span class="text-muted">· ${app.escapeHtml(u.type)}</span></li>`).join('')}</ul>`
+      : emptyNote('Nothing dated in the next two weeks.');
+
+    document.getElementById('rptNeedsAttention').innerHTML = report.needsAttention.length
+      ? `<ul class="list-unstyled mb-0">${report.needsAttention.slice(0, 12).map(n => `
+          <li class="mb-1"><span class="badge bg-${n.severity === 'overdue' ? 'danger' : 'warning'} me-1">${app.escapeHtml(n.severity)}</span>
+          ${app.escapeHtml(n.title)} <span class="text-muted">· ${app.escapeHtml(n.reason)}</span></li>`).join('')}</ul>`
+      : emptyNote('Nothing overdue or stalled.');
+  } catch (error) {
+    console.error('Error loading status report:', error);
+    app.notify(`Could not build the report: ${error.message}`, 'danger');
+  }
+}
+
+function statusReportRange() {
+  const startDate = document.getElementById('rptStatusStart')?.value || '';
+  const endDate = document.getElementById('rptStatusEnd')?.value || '';
+  return `startDate=${startDate}&endDate=${endDate}`;
+}
+
+// Exports are plain downloads, so the browser is pointed straight at them
+// rather than the file being assembled in JS.
+function downloadReport(format) {
+  window.location.href = `/api/reporting/export/${format}?${statusReportRange()}`;
+}
+
+async function openEmailDraft() {
+  try {
+    const response = await fetch(`/api/reporting/email-draft?${statusReportRange()}`);
+    const result = await response.json();
+    if (!result.success) throw new Error(result.message);
+
+    document.getElementById('rptEmailSubject').value = result.data.subject;
+    document.getElementById('rptEmailBody').value = result.data.body;
+    document.getElementById('rptEmailSendBtn').dataset.mailto = result.data.mailto;
+    new bootstrap.Modal(document.getElementById('rptEmailModal')).show();
+  } catch (error) {
+    app.notify(`Could not draft the email: ${error.message}`, 'danger');
+  }
+}
+
+function initStatusReport() {
+  setDefaultDateRange('rptStatusStart', 'rptStatusEnd');
+  document.getElementById('rptStatusApplyBtn')?.addEventListener('click', loadStatusReport);
+  document.getElementById('rptExportXlsxBtn')?.addEventListener('click', () => downloadReport('xlsx'));
+  document.getElementById('rptExportPdfBtn')?.addEventListener('click', () => downloadReport('pdf'));
+  document.getElementById('rptEmailBtn')?.addEventListener('click', openEmailDraft);
+
+  document.getElementById('rptEmailCopyBtn')?.addEventListener('click', async () => {
+    const body = document.getElementById('rptEmailBody').value;
+    try {
+      await navigator.clipboard.writeText(body);
+      app.notify('Copied', 'success');
+    } catch {
+      document.getElementById('rptEmailBody').select();
+      app.notify('Press Ctrl/Cmd-C to copy', 'info');
+    }
+  });
+
+  // Hands the draft to whatever the machine uses for mail, with the edited text.
+  document.getElementById('rptEmailSendBtn')?.addEventListener('click', () => {
+    const subject = document.getElementById('rptEmailSubject').value;
+    const body = document.getElementById('rptEmailBody').value;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  });
+
+  loadStatusReport();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initStatusReport);
+} else {
+  initStatusReport();
+}

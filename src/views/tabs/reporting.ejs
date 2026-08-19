@@ -6,7 +6,8 @@
 </div>
 
 <ul class="nav nav-tabs mb-3" id="rptReportingSubTabs">
-  <li class="nav-item"><button class="nav-link active" data-subtab="summary" type="button">Time Summary</button></li>
+  <li class="nav-item"><button class="nav-link active" data-subtab="status" type="button" title="Everything at a glance: where things stand, what got done, what is coming, what needs a decision">Status Report</button></li>
+  <li class="nav-item"><button class="nav-link" data-subtab="summary" type="button">Time Summary</button></li>
   <li class="nav-item"><button class="nav-link" data-subtab="work-items" type="button">Work Items</button></li>
   <li class="nav-item"><button class="nav-link" data-subtab="goals" type="button">Goals</button></li>
   <li class="nav-item"><button class="nav-link" data-subtab="by-project" type="button">By Project</button></li>
@@ -14,8 +15,78 @@
   <li class="nav-item"><button class="nav-link" data-subtab="todos-ideas" type="button">To Dos &amp; Ideas</button></li>
 </ul>
 
+<!-- Status Report: the whole picture in one page, and the thing you send on.
+     Structured the way status reports conventionally are - overall standing,
+     then what got done, then what is next, then what needs a decision - so it
+     can be read top to bottom without hunting. -->
+<div class="reporting-subtab-pane" data-subtab-pane="status">
+  <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+    <div>
+      <label for="rptStatusStart" class="form-label small mb-1">From</label>
+      <input type="date" class="form-control form-control-sm" id="rptStatusStart">
+    </div>
+    <div>
+      <label for="rptStatusEnd" class="form-label small mb-1">To</label>
+      <input type="date" class="form-control form-control-sm" id="rptStatusEnd">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="rptStatusApplyBtn" title="Rebuild the report for these dates">Apply</button>
+    <div class="ms-auto d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="rptExportXlsxBtn" title="Download as an Excel workbook - one sheet per section, so each can be filtered and pivoted">
+        <i class="bi bi-file-earmark-spreadsheet"></i> Excel
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="rptExportPdfBtn" title="Download as a PDF laid out to be read">
+        <i class="bi bi-file-earmark-pdf"></i> PDF
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-primary" id="rptEmailBtn" title="Write an update for management from this report. Nothing is sent - you review it first.">
+        <i class="bi bi-envelope"></i> Draft email
+      </button>
+    </div>
+  </div>
+
+  <div id="rptStatusHeadline" class="row g-2 mb-3"></div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-7">
+      <div class="card h-100"><div class="card-body">
+        <h6 class="card-title">Portfolio</h6>
+        <canvas id="rptPortfolioChart" height="140"></canvas>
+      </div></div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card h-100"><div class="card-body">
+        <h6 class="card-title">Where each type stands</h6>
+        <div class="table-responsive"><table class="table table-sm mb-0">
+          <thead><tr><th>Type</th><th class="text-end">Done</th><th class="text-end">Total</th><th>Status</th></tr></thead>
+          <tbody id="rptPortfolioTable"></tbody>
+        </table></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card h-100"><div class="card-body">
+        <h6 class="card-title">What got done</h6>
+        <div id="rptAccomplishments" class="small"></div>
+      </div></div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card h-100"><div class="card-body">
+        <h6 class="card-title">Coming up</h6>
+        <div id="rptUpcoming" class="small"></div>
+      </div></div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card h-100"><div class="card-body">
+        <h6 class="card-title">Needs attention</h6>
+        <div id="rptNeedsAttention" class="small"></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
 <!-- Time Summary -->
-<div class="reporting-subtab-pane" data-subtab-pane="summary">
+<div class="reporting-subtab-pane d-none" data-subtab-pane="summary">
   <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
     <div>
       <label for="rptSummaryStartDate" class="form-label small mb-1">From</label>
@@ -254,3 +325,37 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
   integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
 <script src="/js/reporting.js"></script>
+
+<!-- The draft is shown for review and editing. The app holds no mail
+     credentials and never sends anything itself: Copy puts it on the clipboard,
+     Open in mail hands it to whatever this machine uses. -->
+<div class="modal fade" id="rptEmailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title">Update for management</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Written from the report for the dates above. Edit it before you send it - nothing is sent from here.</p>
+        <div class="mb-2">
+          <label for="rptEmailSubject" class="form-label small mb-1">Subject</label>
+          <input type="text" class="form-control form-control-sm" id="rptEmailSubject">
+        </div>
+        <div>
+          <label for="rptEmailBody" class="form-label small mb-1">Message</label>
+          <textarea class="form-control form-control-sm" id="rptEmailBody" rows="16" style="font-family: ui-monospace, monospace;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-outline-secondary" id="rptEmailCopyBtn" title="Copy the message to the clipboard">
+          <i class="bi bi-clipboard"></i> Copy
+        </button>
+        <button type="button" class="btn btn-primary" id="rptEmailSendBtn" title="Hand this to your mail app as a new draft">
+          <i class="bi bi-envelope"></i> Open in mail
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
