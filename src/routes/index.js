@@ -26,6 +26,7 @@ import contextSsoRouter from "./api/contextSso.js";
 import dataSourceAuthRouter from "./api/dataSourceAuth.js";
 import quotesRouter from "./api/quotes.js";
 import entityTypesRouter from "./api/entityTypes.js";
+import linkTitleRouter from "./api/linkTitle.js";
 import entitiesRouter from "./api/entities.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
@@ -106,6 +107,8 @@ router.use("/api", contextSsoRouter);
 router.use("/api", dataSourceAuthRouter);
 router.use("/api/quotes", quotesRouter);
 router.use("/api/entity-types", entityTypesRouter);
+// Resolves a dropped URL's page title. Not context-specific.
+router.use("/api/link-title", linkTitleRouter);
 router.use("/api/entities", entitiesRouter);
 
 // First-run bootstrap page: gets the app pointed at a working database and
@@ -123,7 +126,9 @@ router.get("/setup", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const currentYear = new Date().getFullYear();
-    const tab = req.query.tab || "dailies";
+    // Dailies is a rail, not a page - the landing tab is the first real one,
+    // which the client resolves from the rendered tab buttons.
+    const tab = req.query.tab || "priority";
     const version = readVersion();
 
     // Fetch all active entity types for generic tab rendering
@@ -142,7 +147,7 @@ router.get("/", async (req, res) => {
     res.render("pages/dashboard", {
       title: "MyWork Dashboard",
       currentYear: new Date().getFullYear(),
-      activeTab: req.query.tab || "dailies",
+      activeTab: req.query.tab || "priority",
       version: readVersion(),
       dbHealth: res.locals.dbHealth,
       entityTypes: [],
@@ -152,7 +157,7 @@ router.get("/", async (req, res) => {
 
 // Redirect /dashboard to /
 router.get("/dashboard", (req, res) => {
-  res.redirect("/?tab=" + (req.query.tab || "dailies"));
+  res.redirect("/?tab=" + (req.query.tab || "priority"));
 });
 
 // Settings page

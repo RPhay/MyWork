@@ -1,17 +1,17 @@
-<div style="display: flex; gap: 0; height: 70vh; position: relative;">
+<div style="display: flex; flex-direction: column; gap: 0; height: 70vh; position: relative;">
+  <!-- The calendar's switch lives OUTSIDE the pane it controls, or hiding the
+       calendar would hide the only way to bring it back. -->
+  <div class="dailies-rail-head">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleDailiesCalendarBtn"
+            title="Show or hide the calendar">
+      <i class="bi bi-calendar3"></i> Calendar
+    </button>
+  </div>
+
   <!-- Outer Split Pane (Calendar | Content) -->
   <div class="split-pane-container" id="dailiesOuterSplitPane" style="flex: 1; display: flex; gap: 0; overflow: hidden;">
     <!-- Left Pane: Tabbed Calendar/Picker -->
     <div class="split-pane-left" id="dailiesCalendarPane" style="display: flex; flex-direction: column; overflow: hidden;">
-      <!-- Tabs -->
-      <ul class="nav nav-tabs" role="tablist" style="border-bottom: 1px solid #dee2e6; margin: 0; padding: 0 15px; padding-top: 15px;">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="calendar-tab" data-bs-toggle="tab" data-bs-target="#calendar-pane" type="button" role="tab" aria-controls="calendar-pane" aria-selected="true">Calendar</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="picker-tab" data-bs-toggle="tab" data-bs-target="#picker-pane" type="button" role="tab" aria-controls="picker-pane" aria-selected="false">Work Picker</button>
-        </li>
-      </ul>
 
       <!-- Tab Content -->
       <div class="tab-content" style="flex: 1; overflow: hidden;">
@@ -21,90 +21,7 @@
         </div>
 
         <!-- Work Picker Tab -->
-        <div class="tab-pane fade" id="picker-pane" role="tabpanel" aria-labelledby="picker-tab" style="overflow-y: auto; padding: 15px; height: 100%;">
-          <!-- Tabs for different item types -->
-          <ul class="nav nav-tabs mb-3" id="addItemTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-              <button class="nav-link active" id="project-tab" data-bs-toggle="tab" data-bs-target="#project-content" type="button" role="tab" aria-controls="project-content" aria-selected="true" title="Project"><i class="bi bi-folder"></i></button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="task-tab" data-bs-toggle="tab" data-bs-target="#task-content" type="button" role="tab" aria-controls="task-content" aria-selected="false" title="Task"><i class="bi bi-card-checklist"></i></button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="ticket-tab" data-bs-toggle="tab" data-bs-target="#ticket-content" type="button" role="tab" aria-controls="ticket-content" aria-selected="false" title="Ticket"><i class="bi bi-ticket"></i></button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="idea-tab" data-bs-toggle="tab" data-bs-target="#idea-content" type="button" role="tab" aria-controls="idea-content" aria-selected="false" title="Brainstorm"><i class="bi bi-lightbulb"></i></button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="template-tab" data-bs-toggle="tab" data-bs-target="#template-content" type="button" role="tab" aria-controls="template-content" aria-selected="false" title="Template"><i class="bi bi-clipboard-plus"></i></button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="goal-tab" data-bs-toggle="tab" data-bs-target="#goal-content" type="button" role="tab" aria-controls="goal-content" aria-selected="false" title="Goal"><i class="bi bi-bullseye"></i></button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="todo-tab" data-bs-toggle="tab" data-bs-target="#todo-content" type="button" role="tab" aria-controls="todo-content" aria-selected="false" title="To Do"><i class="bi bi-check2-square"></i></button>
-            </li>
-          </ul>
-
-          <div class="tab-content" id="addItemTabContent">
-            <!-- Project Tab -->
-            <div class="tab-pane fade show active" id="project-content" role="tabpanel" aria-labelledby="project-tab">
-              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="priority">+ Create New Project</button>
-              <div id="projectsList" class="list-group">
-                <p class="text-muted small">Loading projects...</p>
-              </div>
-            </div>
-
-            <!-- Task Tab -->
-            <div class="tab-pane fade" id="task-content" role="tabpanel" aria-labelledby="task-tab">
-              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="task">+ Create New Task</button>
-              <div id="dailiesTasksList" class="list-group">
-                <p class="text-muted small">Loading tasks...</p>
-              </div>
-            </div>
-
-            <!-- Ticket Tab -->
-            <div class="tab-pane fade" id="ticket-content" role="tabpanel" aria-labelledby="ticket-tab">
-              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="ticket">+ Create New Ticket</button>
-              <div id="dailiesTicketsList" class="list-group">
-                <p class="text-muted small">Loading tickets...</p>
-              </div>
-            </div>
-
-            <!-- Brainstorm Tab -->
-            <div class="tab-pane fade" id="idea-content" role="tabpanel" aria-labelledby="idea-tab">
-              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="idea">+ Create New Brainstorm</button>
-              <div id="ideaList" class="list-group">
-                <p class="text-muted small">Loading brainstorms...</p>
-              </div>
-            </div>
-
-            <!-- Template Tab -->
-            <div class="tab-pane fade" id="template-content" role="tabpanel" aria-labelledby="template-tab">
-              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="template">+ Create New Template</button>
-              <div id="dailiesTemplatesList" class="list-group">
-                <p class="text-muted small">Loading templates...</p>
-              </div>
-            </div>
-
-            <!-- Goal Tab -->
-            <div class="tab-pane fade" id="goal-content" role="tabpanel" aria-labelledby="goal-tab">
-              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="goal">+ Create New Goal</button>
-              <div id="goalsList" class="list-group">
-                <p class="text-muted small">Loading goals...</p>
-              </div>
-            </div>
-
-            <!-- To Do Tab -->
-            <div class="tab-pane fade" id="todo-content" role="tabpanel" aria-labelledby="todo-tab">
-              <button type="button" class="btn btn-sm btn-outline-primary mb-3" data-action="create-new-item" data-type="todo">+ Create New To Do</button>
-              <div id="todosList" class="list-group">
-                <p class="text-muted small">Loading to dos...</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- Work Picker removed: the rail already lists the day's work. -->
       </div>
     </div>
 
@@ -118,11 +35,8 @@
       <div class="split-pane-left" id="dailiesCenterPane" style="overflow-y: auto; padding: 15px;">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h6>Work Items for <span id="selectedDateDisplay"></span> <span id="dailyTimeTotal" class="text-muted small fw-normal"></span></h6>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-primary" id="addWorkItemBtn">
-              + Add
-            </button>
-          </div>
+          <%# The + Add button is gone: work is put on a day by dragging it in
+              from a typed page, not by creating a bare work item here. %>
         </div>
 
         <div class="work-item-tree-header text-muted small fw-bold border-bottom pb-1 mb-2">
@@ -149,9 +63,11 @@
         <div class="split-pane-editor">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <div class="split-pane-editor-title" id="workItemEditorDisplayTitle">Select a work item to edit</div>
-            <div style="gap: 0.5rem; display: flex;">
-              <button type="button" class="btn btn-primary btn-sm" id="saveWorkItemEditorBtn" disabled>Save</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="closeWorkItemEditorBtn">Cancel</button>
+            <div class="editor-actions-bar">
+              <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="saveWorkItemEditorBtn" disabled>Save</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="closeWorkItemEditorBtn">Revert</button>
+              </div>
             </div>
           </div>
           <form id="workItemEditorForm">
@@ -204,9 +120,11 @@
               <div class="split-pane-editor-title" id="childItemEditorDisplayTitle">Select an item to edit</div>
               <small class="text-muted" id="childItemEditorTypeLabel"></small>
             </div>
-            <div style="gap: 0.5rem; display: flex;">
-              <button type="button" class="btn btn-primary btn-sm" id="saveChildItemEditorBtn" disabled>Save</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="closeChildItemEditorBtn">Cancel</button>
+            <div class="editor-actions-bar">
+              <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="saveChildItemEditorBtn" disabled>Save</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="closeChildItemEditorBtn">Revert</button>
+              </div>
             </div>
           </div>
           <form id="childItemEditorForm">

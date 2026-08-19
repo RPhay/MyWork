@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/main.css">
 </head>
 <body
-  data-active-tab="<%= activeTab || 'dailies' %>"
+  data-active-tab="<%= activeTab || 'work_item' %>"
   data-current-year="<%= currentYear %>"
   data-csrf-token="<%= csrfToken %>"
   data-version="<%= version %>"
@@ -52,13 +52,20 @@
         const editableTypes = sortedTypes.filter(t => t.slug !== 'work_item');
       %>
 
+      <%# Dailies is not a page any more - it is a rail down the left of
+          whichever tab you are on. Its button toggles that rail, so it carries
+          data-rail-toggle instead of data-tab; tabs.js keys off that. %>
       <% fixedTypes.forEach(type => { %>
-        <li class="nav-item" role="presentation" data-tab="<%= type.slug %>" data-type-id="<%= type.id %>">
-          <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-tab="<%= type.slug %>" type="button" role="tab">
+        <li class="nav-item" role="presentation" data-rail-toggle="<%= type.slug %>" data-type-id="<%= type.id %>">
+          <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-rail-toggle="<%= type.slug %>" type="button">
             <% if (type.icon) { %>
               <span class="tab-icon"><%= type.icon %></span>
             <% } %>
-            <%= type.slug === 'work_item' ? 'Dailies' : type.label %>
+            <%# The tab name is the type's own label - no per-slug override. A
+                hardcoded 'Dailies' here meant Settings > Entity Types showed
+                one name and the tab showed another, so renaming the type had
+                no visible effect. %>
+            <%= type.label %>
           </button>
         </li>
       <% }); %>
@@ -94,6 +101,15 @@
       </li>
     </ul>
 
+    <!-- The shell: Dailies down the left of whichever tab is showing, then the
+         tab content itself. Dailies is no longer one of the tab panes - its
+         button in the bar toggles this rail. -->
+    <div class="app-shell" id="appShell">
+      <aside class="dailies-rail" id="dailiesRail">
+        <%- include('../tabs/dailies.ejs') %>
+      </aside>
+      <div class="dailies-rail-divider" id="dailiesRailDivider"></div>
+
     <!-- Tab Content (dynamically generated from entity types) -->
     <div class="tab-content" id="mainTabContent">
       <%
@@ -111,7 +127,7 @@
         const specialTabs = ['priority-board', 'reporting'];
       %>
 
-      <% sortedTypes.forEach(type => { %>
+      <% editableTypes.forEach(type => { %>
         <div id="tab-<%= type.slug %>" class="tab-content-pane">
           <%
             // Check if there's a custom template for this type
@@ -137,6 +153,7 @@
         <%- include('../tabs/reporting.ejs') %>
       </div>
     </div>
+    </div><!-- /.app-shell -->
   </div>
 
   <%- include('../partials/footer.ejs') %>
@@ -169,24 +186,8 @@
     </div>
   </div>
 
-  <!-- Confirm Modal -->
-  <div class="modal fade" id="confirmModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header border-bottom">
-          <h5 class="modal-title" id="confirmModalTitle">Confirm Action</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body" id="confirmModalMessage">
-          Are you sure?
-        </div>
-        <div class="modal-footer border-top">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancel">Cancel</button>
-          <button type="button" class="btn btn-primary" id="confirmModalConfirm">Confirm</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- #confirmModal is built on demand by app._dialog in main.js, so confirm
+       and prompt work identically on the dashboard and on Settings. -->
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
@@ -202,6 +203,7 @@
   <script src="/js/main.js"></script>
   <script src="/js/tabs.js"></script>
   <script src="/js/forms.js"></script>
+  <script src="/js/save-shortcut.js"></script>
   <script src="/js/dailies.js"></script>
 </body>
 </html>

@@ -7,14 +7,30 @@ function rememberedTabKey() {
   return `currentTab:${window.location.pathname}`;
 }
 
+// The dashboard deliberately does NOT restore a remembered tab: loading the
+// dashboard with no ?tab= always lands on the server default (Dailies).
+// Settings still restores, because its own strip is where you were working
+// when you left it. An explicit ?tab= wins on both pages.
+function restoresRememberedTab() {
+  return window.location.pathname !== '/';
+}
+
 class TabManager {
   constructor() {
-    // Precedence: an explicit ?tab= in the URL, then the tab this page was last
-    // left on, then the server's default. That is what makes leaving for
-    // Settings and coming back land on the tab you were working in.
+    // Precedence: an explicit ?tab= in the URL, then (Settings only) the tab
+    // this page was last left on, then the server's default.
     const urlTab = new URLSearchParams(window.location.search).get('tab');
-    const remembered = sessionStorage.getItem(rememberedTabKey());
-    const fallback = window.APP_CONFIG?.activeTab || 'dailies';
+    const remembered = restoresRememberedTab()
+      ? sessionStorage.getItem(rememberedTabKey())
+      : null;
+    // Dailies is a rail now, not a page, so it cannot be the landing tab. The
+    // first tab button that actually exists is.
+    const serverDefault = window.APP_CONFIG?.activeTab;
+    const firstRealTab = document.querySelector('button[data-tab]')?.dataset.tab;
+    const fallback =
+      (serverDefault && document.querySelector(`button[data-tab="${CSS.escape(serverDefault)}"]`))
+        ? serverDefault
+        : (firstRealTab || 'priority');
 
     this.currentTab = urlTab || remembered || fallback;
 
@@ -27,7 +43,82 @@ class TabManager {
     this.init();
   }
 
+  // Dailies rail: its button in the tab bar shows and hides the rail beside
+  // whichever tab is open, instead of switching to a page of its own. The
+  // choice is remembered, and the rail starts open.
+  setupDailiesRail() {
+    const KEY = 'dailiesRailOpen';
+    const apply = (open) => {
+      document.body.classList.toggle('dailies-rail-open', open);
+      document.querySelectorAll('[data-rail-toggle]').forEach(el => {
+        if (el.tagName === 'BUTTON') el.classList.toggle('active', open);
+      });
+    };
+    apply(localStorage.getItem(KEY) !== 'false');
+
+    // The rail is resizable, and its width outlives closing and reopening it -
+    // and page loads. Stored as a percentage so it still makes sense if the
+    // window is a different size next time.
+    const WIDTH_KEY = 'dailiesRailWidth';
+    const rail = document.getElementById('dailiesRail');
+    const divider = document.getElementById('dailiesRailDivider');
+    const shell = document.getElementById('appShell');
+
+    const applyWidth = (pct) => {
+      if (rail) rail.style.flex = `0 0 ${pct}%`;
+    };
+    const storedWidth = parseFloat(localStorage.getItem(WIDTH_KEY));
+    applyWidth(Number.isFinite(storedWidth) ? storedWidth : 50);
+
+    if (divider && rail && shell) {
+      let dragging = false;
+      divider.addEventListener('mousedown', (e) => {
+        dragging = true;
+        divider.classList.add('dragging');
+        e.preventDefault();          // otherwise the drag selects text
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const box = shell.getBoundingClientRect();
+        const pct = ((e.clientX - box.left) / box.width) * 100;
+        // Kept within sane bounds: neither side may be squeezed out entirely.
+        applyWidth(Math.min(80, Math.max(20, pct)));
+      });
+      document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        divider.classList.remove('dragging');
+        const box = shell.getBoundingClientRect();
+        const pct = (rail.getBoundingClientRect().width / box.width) * 100;
+        localStorage.setItem(WIDTH_KEY, String(Math.round(pct * 10) / 10));
+      });
+    }
+
+    // The calendar inside the rail has its own toggle, since the Work Picker
+    // tab it used to share space with is gone.
+    const CAL_KEY = 'dailiesCalendarOpen';
+    const applyCal = (open) => {
+      document.body.classList.toggle('dailies-calendar-open', open);
+      document.getElementById('toggleDailiesCalendarBtn')?.classList.toggle('active', open);
+    };
+    applyCal(localStorage.getItem(CAL_KEY) !== 'false');
+    document.getElementById('toggleDailiesCalendarBtn')?.addEventListener('click', () => {
+      const open = !document.body.classList.contains('dailies-calendar-open');
+      localStorage.setItem(CAL_KEY, String(open));
+      applyCal(open);
+    });
+
+    document.querySelectorAll('button[data-rail-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const open = !document.body.classList.contains('dailies-rail-open');
+        localStorage.setItem(KEY, String(open));
+        apply(open);
+      });
+    });
+  }
+
   init() {
+    this.setupDailiesRail();
     this.setupTabButtons();
     this.showTab(this.currentTab);
     this.setupUrlSync();
@@ -37,7 +128,9 @@ class TabManager {
 
   initializeTabContent() {
     // Initialize the currently active tab
-    if (this.currentTab === 'dailies' && typeof renderCalendar !== 'undefined') {
+    // The rail is always in the DOM, so Dailies initialises on every page load
+    // rather than when its tab is opened.
+    if (typeof renderCalendar !== 'undefined') {
       renderCalendar();
       updateDateDisplay();
       const today = new Date().toISOString().split('T')[0];
@@ -154,7 +247,7 @@ class TabManager {
   setupUrlSync() {
     // Handle browser back/forward
     window.addEventListener('popstate', (e) => {
-      const tab = e.state?.tab || window.APP_CONFIG?.activeTab || 'dailies';
+      const tab = e.state?.tab || window.APP_CONFIG?.activeTab || 'work_item';
       this.showTab(tab);
     });
   }
@@ -165,44 +258,29 @@ class TabManager {
     // loaded once at page load).
     console.log('Loading tab data for:', tabName);
 
+    // Only tabs that actually exist belong here. This switch had accumulated
+    // cases for `my-priorities`, `areas`, `yearly-goals`, `todos`,
+    // `brainstorming`, `data-sources` and `database-config` - none of which is
+    // a tab name any more, and most of whose loader functions were deleted
+    // with the bespoke tabs they belonged to. They were silently doing nothing
+    // behind `typeof x !== 'undefined'` guards.
+    //
+    // The typed pages (Categories, Goals, Todos, Tasks, Tickets, Ideas,
+    // Projects) are absent on purpose: generic-entity-init.js owns their
+    // fetching. Only the hand-written tabs need an entry.
     switch (tabName) {
-      case 'dailies':
-        if (typeof loadWorkItems !== 'undefined') loadWorkItems();
-        break;
-      case 'my-priorities':
-        if (typeof loadPriorities !== 'undefined') loadPriorities();
-        if (typeof loadPriorityRightPanel !== 'undefined') loadPriorityRightPanel();
-        break;
-      case 'areas':
-        if (typeof loadAreas !== 'undefined') loadAreas();
-        break;
-      case 'yearly-goals':
-        if (typeof loadYearlyGoals !== 'undefined') loadYearlyGoals();
-        break;
-      case 'data-sources':
-        if (typeof loadSources !== 'undefined') loadSources();
-        break;
-      case 'database-config':
-        if (typeof loadDatabaseConfig !== 'undefined') loadDatabaseConfig();
-        break;
-      case 'contexts':
-        if (typeof loadContexts !== 'undefined') loadContexts();
-        break;
-      case 'templates':
+      case 'template':
         if (typeof loadTemplates !== 'undefined') loadTemplates();
-        if (typeof loadTemplateRightPanel !== 'undefined') loadTemplateRightPanel();
-        break;
-      case 'todos':
-        if (typeof loadToDos !== 'undefined') loadToDos();
-        break;
-      case 'brainstorming':
-        if (typeof loadIdeas !== 'undefined') loadIdeas();
         break;
       case 'priority-board':
         if (typeof loadBoard !== 'undefined') loadBoard();
         break;
       case 'reporting':
         if (typeof loadActiveReportingSubtab !== 'undefined') loadActiveReportingSubtab();
+        break;
+      // Settings
+      case 'contexts':
+        if (typeof loadContexts !== 'undefined') loadContexts();
         break;
     }
   }
