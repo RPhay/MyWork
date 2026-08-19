@@ -34,7 +34,10 @@ async function attachFieldValues(entityIds) {
     // Find the non-null value across all typed columns
     if (row.value_text !== null) entity[row.field_key] = row.value_text;
     else if (row.value_long !== null) entity[row.field_key] = row.value_long;
-    else if (row.value_number !== null) entity[row.field_key] = row.value_number;
+    // value_number is DECIMAL(15,2), which mysql2 returns as a STRING - a year
+    // came back as "2026.00" and rendered that way in its column. Coerce to a
+    // real number so display, sorting and sum roll-ups all get one.
+    else if (row.value_number !== null) entity[row.field_key] = Number(row.value_number);
     else if (row.value_date !== null) entity[row.field_key] = row.value_date;
     else if (row.value_bool !== null) entity[row.field_key] = row.value_bool === 1;
     // mysql2 already parses JSON columns into objects/arrays, so only parse

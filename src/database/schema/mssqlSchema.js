@@ -16,6 +16,15 @@
 //     tables with an updated_at column get an AFTER UPDATE trigger instead.
 //   - CREATE TRIGGER must be the only statement in its batch, so each one is
 //     sent as its own .query() call.
+//
+// The entity types, their fields and their relationship rules come from
+// ../systemEntityTypes.js, shared with mysqlSchema.js and phase 0. This file
+// used to carry its own copies, which had drifted to pre-convergence values.
+import {
+  SYSTEM_ENTITY_TYPES,
+  SPECIAL_ENTITY_TYPES,
+  resolveTypeRelationships,
+} from '../systemEntityTypes.js';
 
 async function tableExists(pool, tableName) {
   const result = await pool
@@ -1149,6 +1158,12 @@ export async function createMssqlSchema(pool) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD external_source NVARCHAR(100)");
   }
 
+  // Where the Title column sits among the field columns - see mysqlSchema.js.
+  const typesTitleOrderExists = await columnExistsAsync(pool, "entity_types", "title_order");
+  if (!typesTitleOrderExists) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD title_order INT NOT NULL DEFAULT 0");
+  }
+
   const typesTemplateStructureExists = await columnExistsAsync(pool, "entity_types", "template_structure");
   if (!typesTemplateStructureExists) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD template_structure NVARCHAR(MAX)");
@@ -1158,19 +1173,7 @@ export async function createMssqlSchema(pool) {
   // Note: work_item represents individual items that can be associated with a Daily
   const escapeSQL = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
 
-  const systemTypes = [
-    { slug: 'work_item', label: 'Work Items', label_singular: 'Work Item', icon: '⭐', supports_hierarchy: 1, primary_date_field: 'date' },
-    { slug: 'priority', label: 'Projects', label_singular: 'Project', icon: '📍', supports_hierarchy: 1, primary_date_field: null },
-    { slug: 'area', label: 'Categories', label_singular: 'Category', icon: '📁', supports_hierarchy: 1, primary_date_field: null },
-    { slug: 'goal', label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: 0, primary_date_field: null },
-    { slug: 'to_do', label: 'Todos', label_singular: 'Todo', icon: '✅', supports_hierarchy: 1, primary_date_field: null },
-    { slug: 'task', label: 'Tasks', label_singular: 'Task', icon: '📂', supports_hierarchy: 0, primary_date_field: null },
-    { slug: 'ticket', label: 'Tickets', label_singular: 'Ticket', icon: '🎟️', supports_hierarchy: 0, primary_date_field: null },
-    { slug: 'idea', label: 'Ideas', label_singular: 'Idea', icon: '💡', supports_hierarchy: 1, primary_date_field: null },
-    { slug: 'template', label: 'Templates', label_singular: 'Template', icon: '📋', supports_hierarchy: 1, primary_date_field: null }
-  ];
-
-  for (const type of systemTypes) {
+  for (const type of SYSTEM_ENTITY_TYPES) {
     const checkResult = await pool.request()
       .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL(type.slug)}'`);
 
@@ -1178,18 +1181,21 @@ export async function createMssqlSchema(pool) {
       const primaryDateField = type.primary_date_field ? `'${escapeSQL(type.primary_date_field)}'` : 'NULL';
       await pool.request()
         .query(`INSERT INTO [MyWork].[entity_types] (slug, label, label_singular, icon, type_category, supports_hierarchy, is_system, primary_date_field, order_index)
-                VALUES ('${escapeSQL(type.slug)}', '${escapeSQL(type.label)}', '${escapeSQL(type.label_singular)}', '${escapeSQL(type.icon)}', 'editable', ${type.supports_hierarchy}, 1, ${primaryDateField}, 0)`);
+                VALUES ('${escapeSQL(type.slug)}', '${escapeSQL(type.label)}', '${escapeSQL(type.label_singular)}', '${escapeSQL(type.icon)}', 'editable', ${type.supports_hierarchy ? 1 : 0}, 1, ${primaryDateField}, ${SYSTEM_ENTITY_TYPES.indexOf(type)})`);
     }
   }
 
   // Seed special types (Daily day container and External integrations) if they don't exist (MSSQL)
-  // Daily = read-only type representing one complete day's work (a tree of all associated items)
-  const specialTypes = [
-    { slug: 'daily', label: 'Daily', label_singular: 'Daily', icon: '📅', type_category: 'daily' },
-    { slug: 'outlook_calendar', label: 'Outlook Calendar', label_singular: 'Outlook Event', icon: '📆', type_category: 'external', external_source: 'outlook' }
-  ];
+  // Repair forbidden icons on existing installs - mirrors mysqlSchema.js. A
+  // folder-like icon is never a legitimate customisation, so overwriting it
+  // cannot clobber a deliberate choice. Labels are deliberately not touched.
+  for (const type of SYSTEM_ENTITY_TYPES) {
+    await pool.request()
+      .query(`UPDATE [MyWork].[entity_types] SET icon = '${escapeSQL(type.icon)}' WHERE slug = '${escapeSQL(type.slug)}' AND icon IN (N'📁', N'📂')`);
+  }
 
-  for (const type of specialTypes) {
+  // Daily = read-only type representing one complete day's work (a tree of all associated items)
+  for (const type of SPECIAL_ENTITY_TYPES) {
     const checkResult = await pool.request()
       .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL(type.slug)}'`);
 
@@ -1216,6 +1222,8 @@ export async function createMssqlSchema(pool) {
       display_order INT DEFAULT 0,
       show_in_row BIT DEFAULT 0,
       is_completion_signal BIT DEFAULT 0,
+      rollup NVARCHAR(20) NULL,
+      show_column_label BIT DEFAULT 1,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       FOREIGN KEY (entity_type_id) REFERENCES [MyWork].[entity_types](id) ON DELETE CASCADE,
@@ -1225,80 +1233,48 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "entity_type_fields");
 
+  // Backfill the roll-up column for tables that predate it. Mirrors the same
+  // block in mysqlSchema.js - createTableIfNotExists is a no-op once the table
+  // exists, so the CREATE TABLE body above never reaches an existing install.
+  const fieldsRollupExists = await columnExistsAsync(pool, "entity_type_fields", "rollup");
+  if (!fieldsRollupExists) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_type_fields] ADD rollup NVARCHAR(20) NULL");
+  }
+
+  // Mirrors mysqlSchema.js - see the note there.
+  const fieldsShowLabelExists = await columnExistsAsync(pool, "entity_type_fields", "show_column_label");
+  if (!fieldsShowLabelExists) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_type_fields] ADD show_column_label BIT DEFAULT 1");
+  }
+
   // Seed default fields for system entity types (MSSQL, restored from original schema)
   const escapeSQL2 = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
   const escapeJSON = (obj) => (obj ? escapeSQL2(JSON.stringify(obj)) : 'NULL');
 
-  const typeFields = {
-    'work_item': [
-      { field_key: 'date', label: 'Date', field_type: 'date', required: 1, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: null },
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null },
-      { field_key: 'emoji', label: 'Emoji', field_type: 'text', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 2, field_options: null },
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 3, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'time_box_minutes', label: 'Time Box (minutes)', field_type: 'number', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 4, field_options: null },
-      { field_key: 'start_time', label: 'Start Time', field_type: 'text', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 5, field_options: null },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 6, field_options: null }
-    ],
-    'priority': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
-    ],
-    'area': [
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0, field_options: null },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
-    ],
-    'goal': [
-      { field_key: 'year', label: 'Year', field_type: 'number', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: null },
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null },
-      { field_key: 'due_date', label: 'Due Date', field_type: 'date', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 3, field_options: null },
-      { field_key: 'measurements', label: 'Measurements', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 4, field_options: null },
-      { field_key: 'goal_updates', label: 'Goal Updates', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 5, field_options: null },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 6, field_options: null }
-    ],
-    'to_do': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null },
-      { field_key: 'target_date', label: 'Target Date', field_type: 'date', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 2, field_options: null },
-      { field_key: 'importance', label: 'Importance', field_type: 'number', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 3, field_options: null },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 4, field_options: null }
-    ],
-    'task': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 1, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null }
-    ],
-    'ticket': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] } },
-      { field_key: 'ticket_type', label: 'Ticket Type', field_type: 'text', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 1, field_options: null },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 2, field_options: null }
-    ],
-    'idea': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: 0, show_in_row: 1, is_completion_signal: 0, display_order: 0, field_options: { values: ['Raw', 'Developing', 'Ready'], doneValues: ['Ready'] } },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 1, field_options: null }
-    ],
-    'template': [
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: 0, show_in_row: 0, is_completion_signal: 0, display_order: 0, field_options: null }
-    ]
-  };
-
-  for (const [slug, fields] of Object.entries(typeFields)) {
+  // Seed default fields for system entity types. Array order is display_order.
+  for (const type of SYSTEM_ENTITY_TYPES) {
     const typeResult = await pool.request()
-      .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL2(slug)}'`);
+      .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL2(type.slug)}'`);
 
-    if (typeResult.recordset.length > 0) {
-      const typeId = typeResult.recordset[0].id;
+    if (typeResult.recordset.length === 0) continue;
+    const typeId = typeResult.recordset[0].id;
 
-      for (const field of fields) {
-        const checkResult = await pool.request()
-          .query(`SELECT id FROM [MyWork].[entity_type_fields] WHERE entity_type_id = ${typeId} AND field_key = '${escapeSQL2(field.field_key)}'`);
+    for (let i = 0; i < type.fields.length; i++) {
+      const field = type.fields[i];
+      const checkResult = await pool.request()
+        .query(`SELECT id FROM [MyWork].[entity_type_fields] WHERE entity_type_id = ${typeId} AND field_key = '${escapeSQL2(field.field_key)}'`);
 
-        if (checkResult.recordset.length === 0) {
-          const fieldOptionsStr = field.field_options ? `'${escapeJSON(field.field_options)}'` : 'NULL';
-          await pool.request()
-            .query(`INSERT INTO [MyWork].[entity_type_fields] (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal)
-                    VALUES (${typeId}, '${escapeSQL2(field.field_key)}', '${escapeSQL2(field.label)}', '${escapeSQL2(field.field_type)}', ${fieldOptionsStr}, ${field.required}, ${field.display_order}, ${field.show_in_row}, ${field.is_completion_signal})`);
-        }
+      if (checkResult.recordset.length === 0) {
+        const fieldOptionsStr = field.field_options ? `'${escapeJSON(field.field_options)}'` : 'NULL';
+        await pool.request()
+          .query(`INSERT INTO [MyWork].[entity_type_fields] (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal, rollup)
+                  VALUES (${typeId}, '${escapeSQL2(field.field_key)}', '${escapeSQL2(field.label)}', '${escapeSQL2(field.field_type)}', ${fieldOptionsStr}, ${field.required ? 1 : 0}, ${i}, ${field.show_in_row ? 1 : 0}, ${field.is_completion_signal ? 1 : 0}, ${field.rollup ? `'${escapeSQL2(field.rollup)}'` : 'NULL'})`);
+      } else {
+        // Reconcile only what the type editor does not expose - see the same
+        // block in mysqlSchema.js. show_in_row is excluded on purpose: it is
+        // user-editable now, so overwriting it would reset chosen columns.
+        await pool.request()
+          .query(`UPDATE [MyWork].[entity_type_fields] SET display_order = ${i}, is_completion_signal = ${field.is_completion_signal ? 1 : 0} WHERE id = ${checkResult.recordset[0].id}`);
       }
     }
   }
@@ -1321,6 +1297,38 @@ export async function createMssqlSchema(pool) {
     )
   `,
   );
+
+  // Seed the type-to-type relationship rules, mirroring mysqlSchema.js. Neither
+  // schema file used to do this, so an install created by a schema run had
+  // hierarchical types with no self-nesting rule - a tree whose every
+  // drag-to-nest is rejected.
+  {
+    const typeRows = await pool.request().query('SELECT id, slug FROM [MyWork].[entity_types]');
+    const typeIdBySlug = new Map(typeRows.recordset.map((r) => [r.slug, r.id]));
+
+    const insertRule = async (parentSlug, childSlug, rel) => {
+      const parentId = typeIdBySlug.get(parentSlug);
+      const childId = typeIdBySlug.get(childSlug);
+      if (!parentId || !childId) return;
+      const existing = await pool.request()
+        .query(`SELECT id FROM [MyWork].[entity_type_relationships] WHERE parent_type_id = ${parentId} AND child_type_id = ${childId} AND relationship_kind = '${escapeSQL2(rel.relationship_kind)}'`);
+      if (existing.recordset.length > 0) return;
+      const maxChildren = rel.max_children_per_parent ?? 'NULL';
+      const maxParents = rel.max_parents_per_child ?? 'NULL';
+      await pool.request()
+        .query(`INSERT INTO [MyWork].[entity_type_relationships] (parent_type_id, child_type_id, relationship_kind, max_children_per_parent, max_parents_per_child)
+                VALUES (${parentId}, ${childId}, '${escapeSQL2(rel.relationship_kind)}', ${maxChildren}, ${maxParents})`);
+    };
+
+    for (const rel of resolveTypeRelationships()) {
+      if (rel.type_slugs) {
+        for (const slug of rel.type_slugs) await insertRule(slug, slug, rel);
+      } else {
+        const children = Array.isArray(rel.type_slugs_child) ? rel.type_slugs_child : [rel.type_slugs_child];
+        for (const childSlug of children) await insertRule(rel.type_slugs_parent, childSlug, rel);
+      }
+    }
+  }
 
   // Generic Entity Storage — content tables (per-context, context_id scoped)
 

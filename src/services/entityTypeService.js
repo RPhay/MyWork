@@ -1,5 +1,6 @@
 import { query } from '../database/connectionPool.js';
 import { ValidationError, NotFoundError, ConflictError } from '../config/errors.js';
+import { SYSTEM_ENTITY_TYPES } from '../database/systemEntityTypes.js';
 
 /**
  * Entity type service: CRUD for type definitions (home DB, global, structural).
@@ -69,14 +70,32 @@ export async function getEntityTypeWithSchema(idOrSlug) {
   return { ...type, fields, relationships };
 }
 
+// A type that says it supports hierarchy needs the rule that actually permits
+// the edge: entityRelationshipService rejects any nesting that no
+// entity_type_relationships row allows. Without it a page renders a tree whose
+// every drag-to-nest is refused - the flag is set, but nothing can move.
+async function ensureSelfNestingRule(typeId) {
+  const existing = await query(
+    "SELECT id FROM entity_type_relationships WHERE parent_type_id = ? AND child_type_id = ? AND relationship_kind = 'hierarchy'",
+    [typeId, typeId]
+  );
+  if (existing.length > 0) return;
+  await query(
+    "INSERT INTO entity_type_relationships (parent_type_id, child_type_id, relationship_kind) VALUES (?, ?, 'hierarchy')",
+    [typeId, typeId]
+  );
+}
+
 // Create a new entity type
 export async function createEntityType(data) {
   if (!data.slug) throw new ValidationError('slug is required');
   if (!data.label) throw new ValidationError('label is required');
   if (!data.label_singular) throw new ValidationError('label_singular is required');
-  if (!data.primary_date_field && data.slug !== 'work_item') {
-    throw new ValidationError('primary_date_field is required for non-Work-Item types');
-  }
+  // primary_date_field is optional. It used to be required for everything
+  // except work_item, which contradicted the seeded types - priority, area,
+  // goal, to_do, task, ticket, idea and template all carry null - so a
+  // user-created type was held to a stricter rule than any built-in one, and
+  // creating a type from Settings failed outright.
 
   const validCategories = ['editable', 'template', 'daily', 'external'];
   const typeCategory = data.type_category || 'editable';
@@ -84,8 +103,12 @@ export async function createEntityType(data) {
     throw new ValidationError(`invalid type_category: ${typeCategory}`);
   }
 
-  // Normalize slug to kebab-case
-  const slug = data.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  // Normalise to snake_case, matching every built-in slug (work_item, to_do,
+  // priority). This used to force kebab-case, so a type created here got
+  // `my-thing` while the seeded types used `my_thing` - two conventions for the
+  // same identifier, and the seeded ones would not have survived a round trip
+  // through this function.
+  const slug = data.slug.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
 
   try {
     const result = await query(
@@ -103,6 +126,8 @@ export async function createEntityType(data) {
       }
     }
 
+    if (data.supports_hierarchy) await ensureSelfNestingRule(typeId);
+
     return getEntityType(typeId);
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') throw new ConflictError(`slug already exists: ${slug}`);
@@ -119,7 +144,7 @@ export async function updateEntityType(id, data) {
 
   const updates = [];
   const values = [];
-  const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'primary_date_field', 'order_index', 'is_visible', 'type_category', 'external_source', 'template_structure'];
+  const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'primary_date_field', 'order_index', 'is_visible', 'type_category', 'external_source', 'template_structure', 'title_order'];
 
   for (const field of allowedFields) {
     if (data[field] !== undefined) {
@@ -141,6 +166,12 @@ export async function updateEntityType(id, data) {
       values
     );
   }
+
+  // Turning hierarchy ON has to bring its rule with it, or the flag is a
+  // promise the engine will refuse to keep. Turning it off deliberately leaves
+  // the rule in place: it may have been created by hand, and an unused rule is
+  // harmless while a deleted one is not recoverable.
+  if (data.supports_hierarchy) await ensureSelfNestingRule(id);
 
   // Handle fields if provided.
   //
@@ -178,6 +209,10 @@ export async function updateEntityType(id, data) {
         required: incoming.required !== undefined ? incoming.required : prior.required,
         display_order: i,
         show_in_row: incoming.show_in_row !== undefined ? incoming.show_in_row : prior.show_in_row,
+        rollup: incoming.rollup !== undefined ? incoming.rollup : prior.rollup,
+        show_column_label: incoming.show_column_label !== undefined
+          ? incoming.show_column_label
+          : prior.show_column_label,
         is_completion_signal: incoming.is_completion_signal !== undefined
           ? incoming.is_completion_signal
           : prior.is_completion_signal,
@@ -224,7 +259,7 @@ export async function createEntityTypeField(entityTypeId, data) {
   // array of {url, title} - it replaces the per-type priority_links /
   // task_links / ticket_links / to_do_links tables, which existed only because
   // there was no generic way to say "this type has links".
-  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio', 'checkbox', 'status', 'recurrence'];
+  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio', 'checkbox', 'status', 'recurrence', 'emoji', 'emojis'];
   if (!validFieldTypes.includes(data.field_type)) {
     throw new ValidationError(`Invalid field_type. Must be one of: ${validFieldTypes.join(', ')}`);
   }
@@ -233,7 +268,7 @@ export async function createEntityTypeField(entityTypeId, data) {
 
   try {
     const result = await query(
-      'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal, rollup, show_column_label) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         entityTypeId,
         fieldKey,
@@ -243,7 +278,9 @@ export async function createEntityTypeField(entityTypeId, data) {
         data.required ? 1 : 0,
         data.display_order || 0,
         data.show_in_row ? 1 : 0,
-        data.is_completion_signal ? 1 : 0
+        data.is_completion_signal ? 1 : 0,
+        data.rollup || null,
+        data.show_column_label === undefined ? 1 : (data.show_column_label ? 1 : 0)
       ]
     );
     const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [result.insertId]);
@@ -258,7 +295,7 @@ export async function createEntityTypeField(entityTypeId, data) {
 export async function updateEntityTypeField(fieldId, data) {
   const updates = [];
   const values = [];
-  const allowedFields = ['label', 'field_type', 'field_options', 'required', 'display_order', 'show_in_row', 'is_completion_signal'];
+  const allowedFields = ['label', 'field_type', 'field_options', 'required', 'display_order', 'show_in_row', 'is_completion_signal', 'rollup', 'show_column_label'];
 
   for (const field of allowedFields) {
     if (data[field] !== undefined) {
@@ -359,18 +396,21 @@ export async function deleteEntityTypeRelationship(ruleId) {
   await query('DELETE FROM entity_type_relationships WHERE id = ?', [ruleId]);
 }
 
-// System type defaults (from phase0-seed-entity-types.js)
-const SYSTEM_TYPE_DEFAULTS = {
-  work_item: { label: 'Dailies', label_singular: 'Work Item', icon: '⭐', supports_hierarchy: true, primary_date_field: 'date' },
-  priority: { label: 'Projects', label_singular: 'Priority', icon: '📍', supports_hierarchy: true, primary_date_field: null },
-  area: { label: 'Categories', label_singular: 'Area', icon: '🏷️', supports_hierarchy: true, primary_date_field: null },
-  goal: { label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: true, primary_date_field: null },
-  to_do: { label: 'Todos', label_singular: 'Todo', icon: '✅', supports_hierarchy: true, primary_date_field: null },
-  task: { label: 'Tasks', label_singular: 'Task', icon: '📝', supports_hierarchy: true, primary_date_field: null },
-  ticket: { label: 'Tickets', label_singular: 'Ticket', icon: '🎟️', supports_hierarchy: true, primary_date_field: null },
-  idea: { label: 'Brainstorming', label_singular: 'Idea', icon: '💡', supports_hierarchy: true, primary_date_field: null },
-  template: { label: 'Templates', label_singular: 'Template', icon: '📋', supports_hierarchy: false, primary_date_field: null }
-};
+// What "revert to defaults" restores. Derived from the shared definitions in
+// src/database/systemEntityTypes.js rather than restated, because a second copy
+// is how these values drifted apart in the first place.
+const SYSTEM_TYPE_DEFAULTS = Object.fromEntries(
+  SYSTEM_ENTITY_TYPES.map((t) => [
+    t.slug,
+    {
+      label: t.label,
+      label_singular: t.label_singular,
+      icon: t.icon,
+      supports_hierarchy: t.supports_hierarchy,
+      primary_date_field: t.primary_date_field,
+    },
+  ])
+);
 
 // Revert a system type to its default settings
 export async function revertSystemType(id) {

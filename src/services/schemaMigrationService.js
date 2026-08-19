@@ -2,6 +2,10 @@ import { query } from '../database/connectionPool.js';
 import { getCurrentConfig } from '../database/connectionPool.js';
 import * as entityTypeService from './entityTypeService.js';
 import logger from '../utils/logger.js';
+import {
+  SYSTEM_ENTITY_TYPES,
+  resolveTypeRelationships,
+} from '../database/systemEntityTypes.js';
 
 /**
  * Schema Migration Service
@@ -282,127 +286,11 @@ async function ensureGenericSchema() {
 
 async function seedSystemTypes() {
   try {
-    // Define system entity types with their fields
-    const types = [
-      {
-        slug: 'work_item',
-        label: 'Dailies',
-        label_singular: 'Work Item',
-        icon: '✓',
-        supports_hierarchy: true,
-        is_system: true,
-        primary_date_field: 'date',
-        fields: [
-          { field_key: 'date', label: 'Date', field_type: 'date', required: true, show_in_row: true },
-          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true, is_completion_signal: true },
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-      {
-        slug: 'priority',
-        label: 'Projects',
-        label_singular: 'Priority',
-        icon: '📌',
-        supports_hierarchy: true,
-        is_system: true,
-        primary_date_field: null,
-        fields: [
-          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true },
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-      {
-        slug: 'area',
-        label: 'Categories',
-        label_singular: 'Area',
-        icon: '📂',
-        supports_hierarchy: true,
-        is_system: true,
-        primary_date_field: null,
-        fields: [
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-      {
-        slug: 'goal',
-        label: 'Goals',
-        label_singular: 'Goal',
-        icon: '🎯',
-        supports_hierarchy: false,
-        is_system: true,
-        primary_date_field: null,
-        fields: [
-          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true },
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-      {
-        slug: 'to_do',
-        label: 'Todos',
-        label_singular: 'Todo',
-        icon: '☑',
-        supports_hierarchy: true,
-        is_system: true,
-        primary_date_field: null,
-        fields: [
-          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true, is_completion_signal: true },
-          { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-      {
-        slug: 'task',
-        label: 'Tasks',
-        label_singular: 'Task',
-        icon: '📋',
-        supports_hierarchy: true,
-        is_system: true,
-        primary_date_field: null,
-        fields: [
-          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true, is_completion_signal: true },
-          { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-      {
-        slug: 'ticket',
-        label: 'Tickets',
-        label_singular: 'Ticket',
-        icon: '🎫',
-        supports_hierarchy: true,
-        is_system: true,
-        primary_date_field: null,
-        fields: [
-          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }, required: false, show_in_row: true },
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-      {
-        slug: 'idea',
-        label: 'Brainstorming',
-        label_singular: 'Idea',
-        icon: '💡',
-        supports_hierarchy: true,
-        is_system: true,
-        primary_date_field: null,
-        fields: [
-          { field_key: 'status', label: 'Status', field_type: 'status', field_options: { values: ['Raw', 'Developing', 'Ready'], doneValues: ['Ready'] }, required: false, show_in_row: true },
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-      {
-        slug: 'template',
-        label: 'Templates',
-        label_singular: 'Template',
-        icon: '📑',
-        supports_hierarchy: false,
-        is_system: true,
-        primary_date_field: null,
-        fields: [
-          { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
-        ]
-      },
-    ];
+    // The definitions are shared with both schema files and phase 0 - see
+    // src/database/systemEntityTypes.js. This function used to carry its own
+    // copy, which disagreed with all of them on icons and on
+    // supports_hierarchy for goal.
+    const types = SYSTEM_ENTITY_TYPES;
 
     const typeMap = new Map();
 
@@ -433,6 +321,30 @@ async function seedSystemTypes() {
           await query(
             'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [typeId, field.field_key, field.label, field.field_type, field.field_options ? JSON.stringify(field.field_options) : null, field.required ? 1 : 0, i, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0]
+          );
+        } catch (error) {
+          if (error.code !== 'ER_DUP_ENTRY') throw error;
+        }
+      }
+    }
+
+    // Create the type-to-type relationship rules. Without these, a
+    // supports_hierarchy type has no self-nesting rule and every drag-to-nest
+    // is rejected.
+    for (const rel of resolveTypeRelationships()) {
+      const pairs = rel.type_slugs
+        ? rel.type_slugs.map((slug) => [slug, slug])
+        : (Array.isArray(rel.type_slugs_child) ? rel.type_slugs_child : [rel.type_slugs_child])
+            .map((childSlug) => [rel.type_slugs_parent, childSlug]);
+
+      for (const [parentSlug, childSlug] of pairs) {
+        const parentId = typeMap.get(parentSlug);
+        const childId = typeMap.get(childSlug);
+        if (!parentId || !childId) continue;
+        try {
+          await query(
+            'INSERT INTO entity_type_relationships (parent_type_id, child_type_id, relationship_kind, max_children_per_parent, max_parents_per_child) VALUES (?, ?, ?, ?, ?)',
+            [parentId, childId, rel.relationship_kind, rel.max_children_per_parent, rel.max_parents_per_child]
           );
         } catch (error) {
           if (error.code !== 'ER_DUP_ENTRY') throw error;

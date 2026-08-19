@@ -2,6 +2,19 @@
 // `npm run db:init` (against the app's own configured database) and by the
 // Database Configuration "Test Connection" flow (against an arbitrary target
 // database, to check for / create the schema there).
+//
+// The entity types, their fields and their relationship rules are NOT defined
+// here - they come from ../systemEntityTypes.js, which every seeding path
+// shares. This file used to carry its own copies of all three, and because
+// `npm run db:init` runs this file and never phase 0, those copies are what a
+// fresh install actually got. They had drifted to pre-convergence values
+// (goal/task/ticket flat, template hierarchical, folder-like icons), which is
+// why those settings kept reverting after a schema run.
+import {
+  SYSTEM_ENTITY_TYPES,
+  SPECIAL_ENTITY_TYPES,
+  resolveTypeRelationships,
+} from '../systemEntityTypes.js';
 
 async function columnExists(connection, table, column) {
   const [rows] = await connection.query(
@@ -1018,21 +1031,8 @@ export async function createMysqlSchema(connection) {
     await connection.query("CREATE INDEX idx_type_category ON entity_types(type_category)");
   }
 
-  // Seed system entity types if they don't exist
-  // Note: work_item represents individual items that can be associated with a Daily
-  const systemTypes = [
-    { slug: 'work_item', label: 'Work Items', label_singular: 'Work Item', icon: '⭐', supports_hierarchy: true, primary_date_field: 'date' },
-    { slug: 'priority', label: 'Projects', label_singular: 'Project', icon: '📍', supports_hierarchy: true, primary_date_field: null },
-    { slug: 'area', label: 'Categories', label_singular: 'Category', icon: '📁', supports_hierarchy: true, primary_date_field: null },
-    { slug: 'goal', label: 'Goals', label_singular: 'Goal', icon: '🎯', supports_hierarchy: false, primary_date_field: null },
-    { slug: 'to_do', label: 'Todos', label_singular: 'Todo', icon: '✅', supports_hierarchy: true, primary_date_field: null },
-    { slug: 'task', label: 'Tasks', label_singular: 'Task', icon: '📂', supports_hierarchy: false, primary_date_field: null },
-    { slug: 'ticket', label: 'Tickets', label_singular: 'Ticket', icon: '🎟️', supports_hierarchy: false, primary_date_field: null },
-    { slug: 'idea', label: 'Ideas', label_singular: 'Idea', icon: '💡', supports_hierarchy: true, primary_date_field: null },
-    { slug: 'template', label: 'Templates', label_singular: 'Template', icon: '📋', supports_hierarchy: true, primary_date_field: null }
-  ];
-
-  for (const type of systemTypes) {
+  // Seed system entity types if they don't exist.
+  for (const type of SYSTEM_ENTITY_TYPES) {
     const [existing] = await connection.query(
       'SELECT id FROM entity_types WHERE slug = ?',
       [type.slug]
@@ -1040,19 +1040,29 @@ export async function createMysqlSchema(connection) {
     if (existing.length === 0) {
       await connection.query(
         'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [type.slug, type.label, type.label_singular, type.icon, 'editable', type.supports_hierarchy ? 1 : 0, 1, type.primary_date_field, 0]
+        [type.slug, type.label, type.label_singular, type.icon, 'editable', type.supports_hierarchy ? 1 : 0, 1, type.primary_date_field, SYSTEM_ENTITY_TYPES.indexOf(type)]
       );
     }
   }
 
-  // Seed special types (Daily day container and External integrations) if they don't exist
-  // Daily = read-only type representing one complete day's work (a tree of all associated items)
-  const specialTypes = [
-    { slug: 'daily', label: 'Daily', label_singular: 'Daily', icon: '📅', type_category: 'daily', description: 'One day of work - a container tree of all associated items' },
-    { slug: 'outlook_calendar', label: 'Outlook Calendar', label_singular: 'Outlook Event', icon: '📆', type_category: 'external', external_source: 'outlook' }
-  ];
+  // Repair forbidden icons on existing installs. Seeding only inserts, so a
+  // database created before the icons were fixed keeps them forever - which is
+  // how Categories went back to 📁 and Tasks to 📂. A folder-like icon is never
+  // a legitimate customisation (every hierarchical type can hold is_folder rows
+  // rendered with 📁, so a folder-ish type icon makes items and the folders
+  // containing them indistinguishable), so overwriting it cannot clobber a
+  // deliberate choice. Labels are deliberately NOT reconciled here - renaming a
+  // type in Settings is legitimate.
+  for (const type of SYSTEM_ENTITY_TYPES) {
+    await connection.query(
+      "UPDATE entity_types SET icon = ? WHERE slug = ? AND icon IN ('📁', '📂')",
+      [type.icon, type.slug]
+    );
+  }
 
-  for (const type of specialTypes) {
+  // Seed special types (Daily day container and External integrations).
+  // Daily = read-only type representing one complete day's work.
+  for (const type of SPECIAL_ENTITY_TYPES) {
     const [existing] = await connection.query(
       'SELECT id FROM entity_types WHERE slug = ?',
       [type.slug]
@@ -1060,7 +1070,7 @@ export async function createMysqlSchema(connection) {
     if (existing.length === 0) {
       await connection.query(
         'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [type.slug, type.label, type.label_singular, type.icon, type.type_category, type.external_source || null, 0, 1, 0]
+        [type.slug, type.label, type.label_singular, type.icon, type.type_category, type.external_source, 0, 1, 0]
       );
     }
   }
@@ -1071,12 +1081,14 @@ export async function createMysqlSchema(connection) {
       entity_type_id INT NOT NULL,
       field_key VARCHAR(100) NOT NULL,
       label VARCHAR(255) NOT NULL,
-      field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence') NOT NULL,
+      field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence','emoji','emojis') NOT NULL,
       field_options JSON,
       required BOOLEAN DEFAULT FALSE,
       display_order INT DEFAULT 0,
       show_in_row BOOLEAN DEFAULT FALSE,
       is_completion_signal BOOLEAN DEFAULT FALSE,
+      rollup VARCHAR(20) NULL,
+      show_column_label BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (entity_type_id) REFERENCES entity_types(id) ON DELETE CASCADE,
@@ -1084,6 +1096,29 @@ export async function createMysqlSchema(connection) {
       INDEX idx_type (entity_type_id)
     )
   `);
+
+  // Where the Title column sits among the field columns. Title is not a field,
+  // so it has no display_order of its own; this interleaves with them. 0 puts
+  // it first, which is where it has always been.
+  if (!(await columnExists(connection, "entity_types", "title_order"))) {
+    await connection.query("ALTER TABLE entity_types ADD COLUMN title_order INT NOT NULL DEFAULT 0");
+  }
+
+  // How a folder derives this field from the items beneath it: 'status', 'sum',
+  // 'min', 'max', 'avg', 'all', 'any'. NULL means the field does not roll up,
+  // which is the case for every field type where an aggregate is meaningless
+  // (text, links, recurrence, ...). Folders never store a value - the roll-up
+  // is computed at render time - so this only declares the rule.
+  if (!(await columnExists(connection, "entity_type_fields", "rollup"))) {
+    await connection.query("ALTER TABLE entity_type_fields ADD COLUMN rollup VARCHAR(20) NULL");
+  }
+
+  // Whether this column's NAME is drawn in the header. A checkbox or emoji
+  // column is self-explanatory and its label just eats the width. Defaults to
+  // true so nothing changes for fields that predate it.
+  if (!(await columnExists(connection, "entity_type_fields", "show_column_label"))) {
+    await connection.query("ALTER TABLE entity_type_fields ADD COLUMN show_column_label BOOLEAN DEFAULT TRUE");
+  }
 
   // Widen field_type for tables created before url/links/radio existed. The
   // type editor and entityTypeService already offered 'url' and 'radio' while
@@ -1094,84 +1129,47 @@ export async function createMysqlSchema(connection) {
   // accepts any value and needs no matching change.
   await connection.query(`
     ALTER TABLE entity_type_fields
-    MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence') NOT NULL
+    MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','checkbox','recurrence','emoji','emojis') NOT NULL
   `);
 
-  // Seed default fields for system entity types (restored from original schema)
-  const typeFields = {
-    'work_item': [
-      { field_key: 'date', label: 'Date', field_type: 'date', required: true, show_in_row: true, is_completion_signal: false, display_order: 0 },
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 },
-      { field_key: 'emoji', label: 'Emoji', field_type: 'text', required: false, show_in_row: true, is_completion_signal: false, display_order: 2 },
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 3, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'time_box_minutes', label: 'Time Box (minutes)', field_type: 'number', required: false, show_in_row: false, is_completion_signal: false, display_order: 4 },
-      { field_key: 'start_time', label: 'Start Time', field_type: 'text', required: false, show_in_row: false, is_completion_signal: false, display_order: 5 },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 6 }
-    ],
-    'priority': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
-    ],
-    'area': [
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
-    ],
-    'goal': [
-      { field_key: 'year', label: 'Year', field_type: 'number', required: false, show_in_row: true, is_completion_signal: false, display_order: 0 },
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 1, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 },
-      { field_key: 'due_date', label: 'Due Date', field_type: 'date', required: false, show_in_row: true, is_completion_signal: false, display_order: 3 },
-      { field_key: 'measurements', label: 'Measurements', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 4 },
-      { field_key: 'goal_updates', label: 'Goal Updates', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 5 },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 6 }
-    ],
-    'to_do': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 },
-      { field_key: 'target_date', label: 'Target Date', field_type: 'date', required: false, show_in_row: true, is_completion_signal: false, display_order: 2 },
-      { field_key: 'importance', label: 'Importance', field_type: 'number', required: false, show_in_row: true, is_completion_signal: false, display_order: 3 },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 4 }
-    ],
-    'task': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: true, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 }
-    ],
-    'ticket': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Not Started', 'In Progress', 'Complete'], doneValues: ['Complete'] }) },
-      { field_key: 'ticket_type', label: 'Ticket Type', field_type: 'text', required: false, show_in_row: true, is_completion_signal: false, display_order: 1 },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 2 }
-    ],
-    'idea': [
-      { field_key: 'status', label: 'Status', field_type: 'status', required: false, show_in_row: true, is_completion_signal: false, display_order: 0, field_options: JSON.stringify({ values: ['Raw', 'Developing', 'Ready'], doneValues: ['Ready'] }) },
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 1 }
-    ],
-    'template': [
-      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false, is_completion_signal: false, display_order: 0 }
-    ]
-  };
-
-  for (const [slug, fields] of Object.entries(typeFields)) {
+  // Seed default fields for system entity types. Array order is display_order.
+  for (const type of SYSTEM_ENTITY_TYPES) {
     const [typeResult] = await connection.query(
       'SELECT id FROM entity_types WHERE slug = ?',
-      [slug]
+      [type.slug]
     );
+    if (typeResult.length === 0) continue;
+    const typeId = typeResult[0].id;
 
-    if (typeResult.length > 0) {
-      const typeId = typeResult[0].id;
-
-      for (const field of fields) {
-        const [existing] = await connection.query(
-          'SELECT id FROM entity_type_fields WHERE entity_type_id = ? AND field_key = ?',
-          [typeId, field.field_key]
+    for (let i = 0; i < type.fields.length; i++) {
+      const field = type.fields[i];
+      const [existing] = await connection.query(
+        'SELECT id FROM entity_type_fields WHERE entity_type_id = ? AND field_key = ?',
+        [typeId, field.field_key]
+      );
+      if (existing.length === 0) {
+        await connection.query(
+          'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal, rollup) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [typeId, field.field_key, field.label, field.field_type, field.field_options ? JSON.stringify(field.field_options) : null, field.required ? 1 : 0, i, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0, field.rollup || null]
         );
-
-        if (existing.length === 0) {
-          await connection.query(
-            'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [typeId, field.field_key, field.label, field.field_type, field.field_options || null, field.required ? 1 : 0, field.display_order, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0]
-          );
-        }
+      } else {
+        // Reconcile only what the type editor does NOT expose: display_order
+        // and is_completion_signal. A field added to a type later gets the
+        // index it has here while fields already in the table keep the indexes
+        // they were seeded with, so the two collide and the editor renders them
+        // in an arbitrary order.
+        //
+        // `show_in_row` is deliberately NOT reconciled: it is which columns the
+        // page shows, and it is now editable both in this editor and via the
+        // column chooser on the page. Overwriting it here would silently reset
+        // the user's chosen columns on every schema run.
+        //
+        // `label`, `field_type` and `field_options` are likewise editable and
+        // must not be overwritten.
+        await connection.query(
+          'UPDATE entity_type_fields SET display_order = ?, is_completion_signal = ? WHERE id = ?',
+          [i, field.is_completion_signal ? 1 : 0, existing[0].id]
+        );
       }
     }
   }
@@ -1192,6 +1190,39 @@ export async function createMysqlSchema(connection) {
       INDEX idx_child (child_type_id)
     )
   `);
+
+  // Seed the type-to-type relationship rules. This file never used to do this
+  // at all, so an install created by `db:init` had hierarchical types with no
+  // self-nesting rule - which renders a tree whose every drag-to-nest is
+  // rejected, and is why `goal -> goal` kept having to be re-added by hand.
+  {
+    const [typeRows] = await connection.query('SELECT id, slug FROM entity_types');
+    const typeIdBySlug = new Map(typeRows.map((r) => [r.slug, r.id]));
+
+    const insertRule = async (parentSlug, childSlug, rel) => {
+      const parentId = typeIdBySlug.get(parentSlug);
+      const childId = typeIdBySlug.get(childSlug);
+      if (!parentId || !childId) return;
+      const [existing] = await connection.query(
+        'SELECT id FROM entity_type_relationships WHERE parent_type_id = ? AND child_type_id = ? AND relationship_kind = ?',
+        [parentId, childId, rel.relationship_kind]
+      );
+      if (existing.length > 0) return;
+      await connection.query(
+        'INSERT INTO entity_type_relationships (parent_type_id, child_type_id, relationship_kind, max_children_per_parent, max_parents_per_child) VALUES (?, ?, ?, ?, ?)',
+        [parentId, childId, rel.relationship_kind, rel.max_children_per_parent, rel.max_parents_per_child]
+      );
+    };
+
+    for (const rel of resolveTypeRelationships()) {
+      if (rel.type_slugs) {
+        for (const slug of rel.type_slugs) await insertRule(slug, slug, rel);
+      } else {
+        const children = Array.isArray(rel.type_slugs_child) ? rel.type_slugs_child : [rel.type_slugs_child];
+        for (const childSlug of children) await insertRule(rel.type_slugs_parent, childSlug, rel);
+      }
+    }
+  }
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS entities (
