@@ -14,18 +14,29 @@ const CONFIG_FILE = path.join(__dirname, '../..', 'data', 'system-db-config.enc.
 
 const VALID_TYPES = ['mysql', 'mssql'];
 
+// What a healthy database is expected to contain. This drives the "missing
+// tables" warning and the Fix Schema button, so it must list only tables the
+// schema files actually create.
+//
+// It previously still named areas, goals, goal_categories, ideas, idea_folders,
+// idea_items, idea_links, to_do_folders and context_tab_settings - all of which
+// the generic-engine migration deliberately removed. The check reported them
+// missing on a perfectly healthy database, and Fix Schema could never clear the
+// warning because nothing creates them any more. If you retire a table, remove
+// it here in the same change.
 const ALL_SYSTEM_TABLES = [
-  // Legacy tables (kept for backward compatibility with existing data)
+  // Still first-class tables of their own.
   'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
-  'sources', 'source_auth', 'categories', 'areas', 'years', 'priorities',
-  'priority_areas', 'priority_goals', 'goals', 'goal_categories', 'work_items',
+  'sources', 'source_auth', 'categories', 'years', 'priorities', 'work_items',
+  'work_item_templates', 'to_dos', 'to_do_items', 'tasks', 'tickets',
+  'priority_links', 'to_do_links', 'task_links', 'ticket_links',
+  // The legacy <-> entity association bridge (right-hand column points at
+  // `entities`); see the block of that name in mysqlSchema.js.
+  'priority_areas', 'priority_goals',
   'work_goal_associations', 'work_priority_associations', 'work_area_associations',
-  'work_source_associations', 'work_item_templates', 'template_areas',
-  'template_goals', 'template_priorities',
-  'to_do_folders', 'to_dos', 'to_do_items', 'idea_folders', 'ideas', 'idea_items',
-  'tasks', 'tickets', 'priority_links', 'to_do_links', 'idea_links', 'task_links',
-  'ticket_links', 'context_tab_settings',
-  // New generic entity engine tables (Phase 10 migration)
+  'work_idea_associations', 'work_source_associations',
+  'template_areas', 'template_goals', 'template_priorities',
+  // The generic entity engine.
   'entity_types', 'entity_type_fields', 'entity_type_relationships',
   'entities', 'entity_field_values', 'entity_relationships'
 ];
