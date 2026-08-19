@@ -4,7 +4,7 @@
  */
 
 const GenericEntity = (() => {
-  let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges, currentIsFolder = false, allEntities = [];
+  let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges, currentIsFolder = false, currentSaveSlug = null, allEntities = [];
   const splitPanesByType = {}; // Store splitPane instances per type
   let currentSaveBtn = null; // Track current save button element
 
@@ -806,6 +806,15 @@ const GenericEntity = (() => {
   function renderEntityRow(entity, typeSchema, depth = 0, childCount = 0, rollups = null) {
     const hasChildren = childCount > 0;
     const isFolder = !!entity.is_folder;
+    // Rows nested from another type carry is_copy: true when they were cloned
+    // on the way in, false when they are the original being referenced. Only
+    // those rows get a badge - a row on its own page is neither.
+    const origin = entity.is_copy === undefined ? null : (entity.is_copy ? 'copy' : 'reference');
+    const originBadge = origin === 'copy'
+      ? '<i class="bi bi-files text-muted entity-origin" title="Copy - edits stay here and do not change the original"></i>'
+      : origin === 'reference'
+        ? '<i class="bi bi-link-45deg text-muted entity-origin" title="Reference - edits change the original record everywhere it appears"></i>'
+        : '';
     const icon = isFolder ? FOLDER_ICON : typeSchema.icon;
 
 
@@ -824,6 +833,7 @@ const GenericEntity = (() => {
             <span class="entity-indent" style="width: ${depth * INDENT_PX}px;"></span>
             ${hasChildren ? `<span class="entity-toggle" data-action="toggle-expand">▶</span>` : '<span class="entity-toggle-spacer"></span>'}
             ${icon ? `<span class="entity-row-icon">${icon}</span>` : ''}
+          ${originBadge}
             <span class="entity-title">${entity.title}</span>${app.childCountBadge(childCount)}
           </div>`;
       }
@@ -853,7 +863,12 @@ const GenericEntity = (() => {
   // no such column. Hierarchy lives entirely in entity_relationships
   // (kind='hierarchy'), fetched separately and passed in as `relationships`
   // ([{parent_entity_id, child_entity_id, order_index}, ...]).
-  function renderTree(entities, typeSchema, relationships = []) {
+  // `schemaForEntity` lets a row render with its OWN type's icon and columns
+  // when the tree holds more than one type - a template may contain ideas,
+  // categories, tickets and so on. Pages that only ever hold one type pass
+  // nothing and every row uses the page's schema, exactly as before.
+  function renderTree(entities, typeSchema, relationships = [], schemaForEntity = null) {
+    const schemaOf = (entity) => (schemaForEntity ? schemaForEntity(entity) : typeSchema);
     const state = readViewState(typeSchema.slug);
     const filters = state.filters || {};
     const hasFilters = Object.values(filters).some(Boolean);
@@ -908,7 +923,7 @@ const GenericEntity = (() => {
 
       return `
         <div class="entity-node ${isExpanded ? 'expanded' : ''}" data-entity-id="${entity.id}">
-          ${renderEntityRow(entity, typeSchema, depth, visibleChildren.length, rollups)}
+          ${renderEntityRow(entity, schemaOf(entity), depth, visibleChildren.length, rollups)}
           ${childrenHtml}
         </div>
       `;
@@ -1257,7 +1272,11 @@ const GenericEntity = (() => {
     markChanged: markChanged,
     trackFormChanges: trackFormChanges,
 
-    populate: (entityId, entity, typeConfig, typeSlugOverride) => {
+    // `saveTypeSlug` separates WHERE the editor renders from WHAT it saves. On a
+    // mixed-type page (a template holding ideas, tickets and so on) the editor
+    // lives in the page's pane, but a nested row must be written back to its own
+    // type's endpoint. They are the same for every single-type page.
+    populate: (entityId, entity, typeConfig, typeSlugOverride, saveTypeSlug) => {
       // Toggle close: if clicking same entity with no changes, close the editor
       if (currentEntityId === entityId && entityId !== null) {
         if (hasChanges) {
@@ -1270,6 +1289,7 @@ const GenericEntity = (() => {
       currentEntityId = entityId;
       hasChanges = false;
       currentIsFolder = !!entity.is_folder;
+      currentSaveSlug = saveTypeSlug || null;
       typeSchema = typeConfig;
 
       // Use provided typeSlug or fall back to currentTypeSlug
@@ -1311,9 +1331,10 @@ const GenericEntity = (() => {
 
     save: async () => {
       const data = collectFormValues(typeSchema, currentIsFolder);
+      const slug = currentSaveSlug || currentTypeSlug;
       const url = currentEntityId
-        ? `/api/entities/${currentTypeSlug}/${currentEntityId}`
-        : `/api/entities/${currentTypeSlug}`;
+        ? `/api/entities/${slug}/${currentEntityId}`
+        : `/api/entities/${slug}`;
       const method = currentEntityId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {

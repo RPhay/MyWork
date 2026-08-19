@@ -967,6 +967,11 @@ export async function createMysqlSchema(connection) {
       external_source VARCHAR(100) COMMENT 'For external types: source system (e.g. outlook_calendar)',
       template_structure JSON COMMENT 'For templates: tree structure of entity types with preset values',
       supports_hierarchy BOOLEAN DEFAULT FALSE,
+      -- Whether rows of this type can hold FOLDERS. Hierarchical types
+      -- normally can; a template cannot, because the template row is
+      -- itself the container and a folder inside it is a pointless
+      -- second layer.
+      supports_folders BOOLEAN DEFAULT TRUE,
       is_system BOOLEAN DEFAULT FALSE,
       primary_date_field VARCHAR(100),
       order_index INT DEFAULT 0,
@@ -979,6 +984,12 @@ export async function createMysqlSchema(connection) {
       INDEX idx_type_category (type_category)
     )
   `);
+
+  if (!(await columnExists(connection, "entity_types", "supports_folders"))) {
+    await connection.query(
+      "ALTER TABLE entity_types ADD COLUMN supports_folders BOOLEAN DEFAULT TRUE",
+    );
+  }
 
   // Backfill is_visible for entity_types created before the Settings page could
   // hide a type's tab. Defaults to visible so existing installs are unchanged.

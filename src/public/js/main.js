@@ -143,6 +143,42 @@ const app = {
     return window.APP_CONFIG?.csrfToken || document.querySelector('[name="_csrf"]')?.value;
   },
 
+  // Copy or reference? Asked whenever a row is dropped somewhere that can hold
+  // either - onto a day, or into a template. The two behave very differently
+  // afterwards (a reference mirrors edits back to the original; a copy does
+  // not) and the choice cannot be inferred, so it is always asked.
+  // Resolves 'copy', 'reference', or null if dismissed.
+  // Copy or reference? Asked on every drop of a typed row, because the two behave
+  // very differently afterwards and the choice cannot be inferred. Uses the app's
+  // own modal - browser dialogs are against this project's UX standards.
+  // Resolves 'copy', 'reference', or null if dismissed.
+  askCopyOrReference(name) {
+    return new Promise((resolve) => {
+      const modalEl = document.getElementById("copyOrReferenceModal");
+      if (!modalEl) return resolve("reference");   // no modal: keep the old behaviour
+  
+      document.getElementById("copyOrReferenceName").textContent = name || "this item";
+      const modal = new bootstrap.Modal(modalEl);
+  
+      let answered = null;
+      const pick = (choice) => () => { answered = choice; modal.hide(); };
+      const copyBtn = document.getElementById("copyOrReferenceCopyBtn");
+      const refBtn = document.getElementById("copyOrReferenceRefBtn");
+      const onCopy = pick("copy");
+      const onRef = pick("reference");
+  
+      copyBtn.addEventListener("click", onCopy);
+      refBtn.addEventListener("click", onRef);
+      modalEl.addEventListener("hidden.bs.modal", () => {
+        copyBtn.removeEventListener("click", onCopy);
+        refBtn.removeEventListener("click", onRef);
+        resolve(answered);
+      }, { once: true });
+  
+      modal.show();
+    });
+  },
+
   // Confirm action with custom modal
   // Custom modal dialogs. UI_STANDARDS.md §5c forbids browser dialogs, but the
   // `#confirmModal` markup this used to depend on lived only in dashboard.ejs,

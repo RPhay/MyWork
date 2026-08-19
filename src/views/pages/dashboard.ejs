@@ -124,8 +124,21 @@
         <%- include('../tabs/dailies.ejs') %>
       </aside>
       <div class="app-rail-divider" id="railDivider-work_item"></div>
+      <%# Templates is a typed page like any other now - same tree, same editor,
+          same drag and drop. Its one difference is a type rule, not code: a
+          template may contain any editable type (see systemEntityTypes.js), so
+          rows dragged in from other tabs nest inside it. %>
       <aside class="app-rail" id="rail-template" data-rail="template">
-        <%- include('../tabs/templates.ejs') %>
+        <%
+          const templateType = sortedTypes.find(t => t.slug === 'template');
+          if (templateType) {
+        %>
+          <%- include('../tabs/generic-entity-tab.ejs', {
+                typeSlug: templateType.slug,
+                typeName: templateType.label,
+                typeNameSingular: templateType.label_singular || templateType.label
+              }) %>
+        <% } %>
       </aside>
       <div class="app-rail-divider" id="railDivider-template"></div>
 

@@ -38,13 +38,12 @@ async function main() {
   );
   console.log(`✅ supports_hierarchy = 1 for ${HIERARCHY_TYPES.join(', ')} (${flags.affectedRows} rows touched)`);
 
-  // 1b. Templates don't nest (they instantiate into work items instead), but
-  //     the flag had drifted to 1 with no template->template rule to back it.
-  //     A type claiming supports_hierarchy without the matching rule renders a
-  //     tree whose every drag-to-nest is rejected, and whose context menu
-  //     offers "New ... inside" that can't succeed.
-  const tmpl = await query("UPDATE entity_types SET supports_hierarchy = 0 WHERE slug = 'template'");
-  console.log(`✅ supports_hierarchy = 0 for template (${tmpl.affectedRows} rows touched)`);
+  // 1b. Templates DO nest, and are the one type that may contain any other
+  //     type - that is what a template is. This previously set the flag to 0,
+  //     from a time when templates had no containment rules to back it; both
+  //     the flag and the rules now live in systemEntityTypes.js.
+  const tmpl = await query("UPDATE entity_types SET supports_hierarchy = 1 WHERE slug = 'template'");
+  console.log(`✅ supports_hierarchy = 1 for template (${tmpl.affectedRows} rows touched)`);
 
   // 2. Every hierarchical type needs a self-nesting rule or the relationship
   //    service rejects the edge. goal was the one missing.

@@ -1091,6 +1091,7 @@ export async function createMssqlSchema(pool) {
       external_source NVARCHAR(100),
       template_structure NVARCHAR(MAX),
       supports_hierarchy BIT DEFAULT 0,
+      supports_folders BIT DEFAULT 1,
       is_system BIT DEFAULT 0,
       primary_date_field NVARCHAR(100),
       order_index INT DEFAULT 0,
@@ -1112,6 +1113,11 @@ export async function createMssqlSchema(pool) {
   // Backfill for entity_types created before is_visible existed - see mysqlSchema.js
   if (!(await columnExists(pool, "entity_types", "is_visible"))) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD is_visible BIT DEFAULT 1");
+  }
+
+  // See mysqlSchema.js for what supports_folders means.
+  if (!(await columnExists(pool, "entity_types", "supports_folders"))) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD supports_folders BIT DEFAULT 1");
   }
 
   const typesExternalSourceExists = await columnExistsAsync(pool, "entity_types", "external_source");

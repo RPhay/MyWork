@@ -108,6 +108,69 @@ export async function getAllEntities(entityTypeSlug, contextId = null) {
   return entities;
 }
 
+// Entities of ANOTHER type that sit inside one of this type. Only templates
+// have such children today (they may contain any editable type), but this is
+// driven by the data, not by the slug: any type whose rules permit a cross-type
+// child gets the same treatment.
+//
+// Walks down, so a template containing a project containing its sub-projects
+// returns all of them - the tree is rendered from this list, and a node whose
+// parent is missing from it simply does not appear.
+export async function getNestedEntitiesOfOtherTypes(entityTypeSlug, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const type = await entityTypeService.getEntityType(entityTypeSlug);
+  const seen = new Set();
+  const collected = [];
+
+  let frontier = (await queryPool(
+    'SELECT id FROM entities WHERE entity_type_id = ? AND context_id = ?',
+    [type.id, contextId]
+  )).map(r => r.id);
+
+  while (frontier.length > 0) {
+    const placeholders = frontier.map(() => '?').join(', ');
+    const children = await queryPool(
+      `SELECT DISTINCT er.child_entity_id AS id
+       FROM entity_relationships er
+       WHERE er.relationship_kind = 'hierarchy' AND er.context_id = ?
+         AND er.parent_entity_id IN (${placeholders})`,
+      [contextId, ...frontier]
+    );
+
+    const next = [];
+    for (const row of children) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      next.push(row.id);
+    }
+    if (next.length === 0) break;
+
+    const nextPlaceholders = next.map(() => '?').join(', ');
+    const rows = await queryPool(
+      `SELECT * FROM entities WHERE id IN (${nextPlaceholders}) AND entity_type_id <> ?`,
+      [...next, type.id]
+    );
+    collected.push(...rows);
+    frontier = next;
+  }
+
+  if (collected.length > 0) {
+    const fieldMap = await attachFieldValues(collected.map(e => e.id));
+    // Which of these are copies rather than references. A copy was cloned from
+    // something (an instantiated_from edge); a reference IS the original, so
+    // editing it changes it everywhere it appears. The UI badges the two
+    // differently because that difference is invisible otherwise.
+    const copies = await findClonedEntityIds(collected.map(e => e.id), contextId);
+    for (const entity of collected) {
+      entity.fields = fieldMap.get(entity.id) || {};
+      entity.is_copy = copies.has(entity.id);
+    }
+  }
+
+  return collected;
+}
+
 // Get a single entity by ID
 export async function getEntityById(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
@@ -423,6 +486,53 @@ export async function findClonedEntityIds(entityIds, contextId = null) {
     [contextId, ...entityIds]
   );
   return new Set(rows.map(r => r.child_entity_id));
+}
+
+// Turn a template into work on a day. The work item takes the template's name,
+// and every row the template holds is CLONED and associated to it - a template
+// is always a full copy (that is what distinguishes it from a reference), so
+// nothing done to the day's copy reaches back into the template.
+//
+// Association goes through the same work_*_associations junctions the Dailies
+// UI already reads, keyed by the child's own type.
+export async function instantiateTemplate(templateEntityId, date, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const template = await getEntityById(templateEntityId, contextId);
+  const children = await entityRelationshipService.getEntityChildren(templateEntityId, contextId, 'hierarchy');
+
+  const workItemId = await queryPool(
+    'INSERT INTO work_items (date, title, status, order_index, context_id) VALUES (?, ?, ?, ?, ?)',
+    [date, template.title, 'Not Started', 0, contextId]
+  ).then(r => r.insertId);
+
+  // slug -> the junction that links a work item to that type
+  const JUNCTIONS = {
+    priority: ['work_priority_associations', 'priority_id'],
+    area: ['work_area_associations', 'area_id'],
+    goal: ['work_goal_associations', 'goal_id'],
+    idea: ['work_idea_associations', 'idea_id'],
+    to_do: ['work_todo_associations', 'todo_id'],
+    task: ['work_task_associations', 'task_id'],
+    ticket: ['work_ticket_associations', 'ticket_id'],
+  };
+
+  const copied = [];
+  for (const child of children) {
+    const type = await entityTypeService.getEntityType(child.entity_type_id);
+    const junction = JUNCTIONS[type.slug];
+    if (!junction) continue;                       // nested templates carry no work of their own
+
+    const copy = await cloneEntity(child.child_entity_id, contextId);
+    const [table, column] = junction;
+    await queryPool(
+      `INSERT IGNORE INTO ${table} (work_item_id, ${column}) VALUES (?, ?)`,
+      [workItemId, copy.id]
+    );
+    copied.push({ id: copy.id, title: copy.title, type: type.slug });
+  }
+
+  return { workItemId, title: template.title, date, copied };
 }
 
 // Reorder siblings (same parent)

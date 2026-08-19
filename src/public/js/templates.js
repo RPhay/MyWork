@@ -620,7 +620,12 @@ function initTemplatesEventListeners() {
     const header = e.target.closest('.template-node-header');
     if (!header) return;
     const nodeEl = header.closest('.template-node');
-    e.dataTransfer.effectAllowed = 'move';
+    // copyMove: dropping a template on a day COPIES it into that day (the
+    // template itself stays put), so the target asks for dropEffect 'copy'.
+    // With effectAllowed='move' that pair is incompatible and Chromium refuses
+    // the drop outright - which is why a template dragged onto a day did
+    // nothing, no error, in a real browser.
+    e.dataTransfer.effectAllowed = 'copyMove';
     e.dataTransfer.setData('template-id', nodeEl.dataset.templateId);
     // The Dailies rail reads `type`/`id`; `template-id` alone meant a template
     // dropped on a day did nothing at all.

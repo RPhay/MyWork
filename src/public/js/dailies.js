@@ -1724,36 +1724,8 @@ async function linkChild(workId, type, id) {
 
 // Dropping a project/goal/area on empty space in the work items list creates a new
 // work item (titled after the dragged item) with that item linked as a child.
-// Copy or reference? Asked on every drop of a typed row, because the two behave
-// very differently afterwards and the choice cannot be inferred. Uses the app's
-// own modal - browser dialogs are against this project's UX standards.
-// Resolves 'copy', 'reference', or null if dismissed.
-function askCopyOrReference(name) {
-  return new Promise((resolve) => {
-    const modalEl = document.getElementById("copyOrReferenceModal");
-    if (!modalEl) return resolve("reference");   // no modal: keep the old behaviour
-
-    document.getElementById("copyOrReferenceName").textContent = name || "this item";
-    const modal = new bootstrap.Modal(modalEl);
-
-    let answered = null;
-    const pick = (choice) => () => { answered = choice; modal.hide(); };
-    const copyBtn = document.getElementById("copyOrReferenceCopyBtn");
-    const refBtn = document.getElementById("copyOrReferenceRefBtn");
-    const onCopy = pick("copy");
-    const onRef = pick("reference");
-
-    copyBtn.addEventListener("click", onCopy);
-    refBtn.addEventListener("click", onRef);
-    modalEl.addEventListener("hidden.bs.modal", () => {
-      copyBtn.removeEventListener("click", onCopy);
-      refBtn.removeEventListener("click", onRef);
-      resolve(answered);
-    }, { once: true });
-
-    modal.show();
-  });
-}
+// askCopyOrReference now lives in main.js as app.askCopyOrReference, so the
+// Templates page asks the same question in the same words.
 
 // Type slug for the clone endpoint. Dailies names things in the singular and
 // those names are not always the type slug (`todo` vs `to_do`).
@@ -1825,8 +1797,11 @@ async function unlinkChild(workId, type, id) {
 
 async function instantiateTemplateOnDate(templateId, date) {
   try {
+    // Templates are entities now, so instantiation goes through the generic
+    // endpoint. It creates the work item and gives it an independent COPY of
+    // everything the template holds - a template is never a reference.
     const response = await fetch(
-      `/api/work-item-templates/${templateId}/instantiate`,
+      `/api/entities/template/${templateId}/instantiate`,
       {
         method: "POST",
         headers: {
@@ -2084,7 +2059,7 @@ function initWorkItemsListEventListeners() {
           linkChild(workItemEl.dataset.workId, type, id);
           return;
         }
-        const choice = await askCopyOrReference(e.dataTransfer.getData("name"));
+        const choice = await app.askCopyOrReference(e.dataTransfer.getData("name"));
         if (!choice) return;
         const linkId = choice === "copy" ? await cloneForDrop(type, id) : id;
         if (linkId) linkChild(workItemEl.dataset.workId, type, linkId);
@@ -2102,7 +2077,7 @@ function initWorkItemsListEventListeners() {
         instantiateTemplateOnDate(id, date);
       } else if (ASSOCIATION_PATHS[type]) {
         const name = e.dataTransfer.getData("name");
-        const choice = await askCopyOrReference(name);
+        const choice = await app.askCopyOrReference(name);
         if (!choice) return;                       // cancelled
         createWorkItemFromChild(type, id, name, date, choice === "copy");
       }

@@ -4,6 +4,7 @@ import * as entityRelationshipService from '../../services/entityRelationshipSer
 import * as entityTypeService from '../../services/entityTypeService.js';
 import { getActiveContextId } from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
+import { ValidationError } from '../../config/errors.js';
 
 const router = express.Router();
 
@@ -14,6 +15,23 @@ router.get('/:typeSlug', async (req, res) => {
     res.json({ success: true, data: entities });
   } catch (error) {
     logger.error('Error fetching entities:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/entities/:typeSlug/contents - this type's rows PLUS anything nested
+// inside them, whatever type that is. Ordinary types only ever contain their
+// own kind, so this returns the same as the plain list; templates may contain
+// any type, and their children have to come back too or the tree renders a
+// parent with invisible children.
+router.get('/:typeSlug/contents', async (req, res) => {
+  try {
+    const contextId = await getActiveContextId();
+    const own = await entityService.getAllEntities(req.params.typeSlug, contextId);
+    const nested = await entityService.getNestedEntitiesOfOtherTypes(req.params.typeSlug, contextId);
+    res.json({ success: true, data: [...own, ...nested] });
+  } catch (error) {
+    logger.error('Error fetching entity contents:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
@@ -55,6 +73,23 @@ router.post('/:typeSlug', async (req, res) => {
     res.status(201).json({ success: true, data: entity });
   } catch (error) {
     logger.error('Error creating entity:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/entities/:typeSlug/:id/instantiate - turn a template into work on a
+// day. A template is always instantiated as a full COPY: the work item gets an
+// independent clone of each thing the template holds, so editing what lands on
+// the day never reaches back into the template.
+router.post('/:typeSlug/:id/instantiate', async (req, res) => {
+  try {
+    const { date } = req.body;
+    if (!date) throw new ValidationError('date is required');
+    const contextId = await getActiveContextId();
+    const result = await entityService.instantiateTemplate(parseInt(req.params.id), date, contextId);
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Error instantiating template:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });

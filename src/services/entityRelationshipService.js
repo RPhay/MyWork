@@ -30,10 +30,17 @@ export async function getEntityRelationships(entityId, contextId = null, kind = 
   return relationships;
 }
 
-// Get all relationships of a given kind between entities of one type - used by
-// the generic tree renderer, which otherwise has no way to know parent/child
-// links (entities itself carries no parent column; that's entity_relationships'
-// job) without an N+1 query per row.
+// Every edge of a kind whose PARENT is of this type - used by the generic tree
+// renderer, which otherwise has no way to know parent/child links (entities
+// carries no parent column; that is entity_relationships' job) without an N+1
+// query per row.
+//
+// This used to require child and parent to share a type, back when nesting was
+// always same-type. Templates broke that assumption: a template may contain any
+// editable type, so its children were created correctly and then filtered out
+// of the very query the tree renders from - the row simply never appeared.
+// Which types may nest in which is enforced at write time by
+// validateRelationship, so there is nothing for this read to re-police.
 export async function getRelationshipsForType(typeSlug, contextId = null, kind = 'hierarchy') {
   if (!contextId) contextId = await getActiveContextId();
 
@@ -41,10 +48,8 @@ export async function getRelationshipsForType(typeSlug, contextId = null, kind =
     `SELECT er.parent_entity_id, er.child_entity_id, er.order_index
      FROM entity_relationships er
      JOIN entities parent_e ON parent_e.id = er.parent_entity_id
-     JOIN entities child_e ON child_e.id = er.child_entity_id
      JOIN entity_types et ON et.id = parent_e.entity_type_id
      WHERE et.slug = ? AND er.context_id = ? AND er.relationship_kind = ?
-       AND child_e.entity_type_id = parent_e.entity_type_id
      ORDER BY er.parent_entity_id, er.order_index, er.id`,
     [typeSlug, contextId, kind]
   );

@@ -114,6 +114,13 @@ function showEntityTypeEditorModal(type) {
             <strong>Supports Hierarchy</strong> - items can have parents/children of the same type
           </label>
         </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="typeFolders" ${type === null || type === undefined || type.supports_folders === undefined || type.supports_folders ? 'checked' : ''}>
+          <label class="form-check-label" for="typeFolders"
+                 title="Folders group rows of this type. Turn it off for a type that is already a container - a template holds its contents directly, so a folder inside one adds nothing.">
+            <strong>Can contain folders</strong> - off for types that are containers in their own right
+          </label>
+        </div>
       </div>
 
       <!-- Relationships Section -->
@@ -580,6 +587,7 @@ async function saveEntityType() {
     label_singular: document.getElementById('typeSingular').value,
     icon: document.getElementById('typeIcon').value || null,
     supports_hierarchy: document.getElementById('typeHierarchy').checked,
+    supports_folders: document.getElementById('typeFolders')?.checked ?? true,
     fields: Array.from(document.querySelectorAll('.field-row')).map(row => {
       const fieldType = row.querySelector('.field-type').value;
       // The storage key is derived from the label rather than typed twice.

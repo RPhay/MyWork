@@ -19,6 +19,12 @@ const DAILIES_DROP_TYPE = {
   to_do: 'todo',
 };
 
+// The same map read backwards: a dropped payload names its type the way Dailies
+// does, and we need the type slug to check the rules and call the API.
+const SLUG_FROM_DROP_TYPE = Object.fromEntries(
+  Object.entries(DAILIES_DROP_TYPE).map(([slug, dropType]) => [dropType, slug])
+);
+
 // Track which types have been initialized to avoid re-initialization
 const initializedTypes = new Set();
 
@@ -65,8 +71,47 @@ async function initGenericEntityTab(typeSlug, typeName) {
     if (!typeData.success) throw new Error(typeData.message);
     const typeSchema = typeData.data;
 
+    // Which types may be nested INSIDE this one, by slug. This is what lets a
+    // row dragged from another tab land inside a template: templates declare
+    // every editable type as an allowed child, ordinary types declare only
+    // themselves. Nothing here is template-specific - it is read from the type
+    // rules, so a user who allows Projects inside Categories gets that too.
+    let allowedChildSlugs = new Set();
+    try {
+      const allTypesRes = await fetch('/api/entity-types', {
+        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+      });
+      const allTypes = (await allTypesRes.json()).data || [];
+      const slugById = new Map(allTypes.map(t => [t.id, t.slug]));
+      allowedChildSlugs = new Set(
+        (typeSchema.relationships || [])
+          .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id === typeSchema.id)
+          .map(r => slugById.get(r.child_type_id))
+          .filter(Boolean)
+      );
+    } catch {
+      allowedChildSlugs = new Set([typeSlug]);
+    }
+
+    // The type slug carried by a drag from another tab, or null if this drag
+    // did not come from one (or is not allowed to land here).
+    const incomingChildSlug = (e) => {
+      const raw = e.dataTransfer?.getData('type');
+      if (!raw) return null;
+      const slug = SLUG_FROM_DROP_TYPE[raw] || raw;
+      return allowedChildSlugs.has(slug) ? slug : null;
+    };
+
+    // A type that may contain other types needs their rows too, or the tree
+    // shows a parent whose children are invisible. `contents` returns this
+    // type's rows plus anything nested inside them, at any depth.
+    const containsOtherTypes = [...allowedChildSlugs].some(slug => slug !== typeSlug);
+
     async function fetchAllEntities() {
-      const response = await fetch(`/api/entities/${typeSlug}`, {
+      const endpoint = containsOtherTypes
+        ? `/api/entities/${typeSlug}/contents`
+        : `/api/entities/${typeSlug}`;
+      const response = await fetch(endpoint, {
         headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
       });
       if (!response.ok) throw new Error('Failed to fetch entities');
@@ -74,6 +119,20 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (!data.success) throw new Error(data.message);
       return data.data || [];
     }
+
+    // Schema per entity, so a row nested inside a template renders with ITS own
+    // icon and columns rather than the containing type's. Ordinary pages only
+    // ever hold one type, so this resolves to the page's own schema for them.
+    const schemaByTypeId = new Map([[typeSchema.id, typeSchema]]);
+    if (containsOtherTypes) {
+      try {
+        const res = await fetch('/api/entity-types', {
+          headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
+        });
+        for (const t of ((await res.json()).data || [])) schemaByTypeId.set(t.id, t);
+      } catch { /* fall back to the page's own schema */ }
+    }
+    const schemaForEntity = (entity) => schemaByTypeId.get(entity?.entity_type_id) || typeSchema;
     let entities = await fetchAllEntities();
 
     // Hierarchy (parent/child) lives entirely in entity_relationships - the
@@ -103,11 +162,16 @@ async function initGenericEntityTab(typeSlug, typeName) {
     GenericEntity.setEntities(entities);
 
     const listContainer = document.getElementById(`${typeSlug}EntityList`);
+    // Cross-type drops target the whole pane, not just the inner list. The list
+    // ends where its rows end, so a drop aimed at a row but landing a few pixels
+    // off - in the pane's padding, or on the divider beside it - hit nothing at
+    // all and the drag silently died.
+    const dropPane = document.getElementById(`${typeSlug}ListPane`) || listContainer;
 
     // Render tree or list from the current `entities`/`relationships` arrays
     function renderList() {
       if (typeSchema.supports_hierarchy) {
-        listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema, relationships);
+        listContainer.innerHTML = GenericEntity.renderTree(entities, typeSchema, relationships, schemaForEntity);
       } else {
         listContainer.innerHTML = GenericEntity.renderFlatList(entities, typeSchema);
       }
@@ -486,7 +550,12 @@ async function initGenericEntityTab(typeSlug, typeName) {
         if (handleSelectionClick(e, row)) return;   // modifier click: selection only
         const entityId = row.dataset.entityId;
         const entity = entities.find(x => x.id == entityId);
-        if (entity) GenericEntity.populate(entity.id, entity, typeSchema, typeSlug);
+        // A row nested inside a template is of its own type, so edit it with
+        // that type's fields - and save it back to that type's endpoint.
+        if (entity) {
+          const schema = schemaForEntity(entity);
+          GenericEntity.populate(entity.id, entity, schema, typeSlug, schema.slug);
+        }
       }
     });
 
@@ -910,6 +979,10 @@ async function initGenericEntityTab(typeSlug, typeName) {
       .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id === typeSchema.id)
       .map(r => r.child_type_id);
     const canNestOwnType = typeSchema.supports_hierarchy && hierarchyChildTypeIds.includes(typeSchema.id);
+    // Folders are a separate capability from nesting: a template nests freely
+    // but has no folders, because the template row is already the container.
+    const allowsFolders = typeSchema.supports_hierarchy
+      && typeSchema.supports_folders !== 0 && typeSchema.supports_folders !== false;
     const singular = typeSchema.label_singular || typeName;
 
     let pendingParentId = null; // set when creating something "inside" a row
@@ -985,7 +1058,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (!row) {
         // Empty space: create at the top level.
         const items = [{ icon: '➕', label: `New ${singular}`, action: () => startCreate() }];
-        if (typeSchema.supports_hierarchy) {
+        if (allowsFolders) {
           items.push({ icon: '📁', label: 'New Folder', action: () => startCreate({ isFolder: true }) });
         }
         openContextMenu(e.clientX, e.clientY, items);
@@ -1000,7 +1073,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (canNestOwnType) {
         items.push({ icon: '➕', label: `New ${singular} inside`, action: () => startCreate({ parentId: entityId }) });
       }
-      if (typeSchema.supports_hierarchy) {
+      if (allowsFolders) {
         items.push({ icon: '📁', label: 'New Folder inside', action: () => startCreate({ parentId: entityId, isFolder: true }) });
       }
       if (items.length > 0) items.push({ separator: true });
@@ -1164,6 +1237,12 @@ async function initGenericEntityTab(typeSlug, typeName) {
         // type slug - `to_do` is `todo` there.
         const dropType = DAILIES_DROP_TYPE[typeSlug] || typeSlug;
         const entity = entities.find(x => String(x.id) === String(draggedEntityId));
+        // copyMove, not move: a cross-type drop asks for 'copy' (the row is being
+        // placed somewhere else, not taken out of this list). With
+        // effectAllowed='move' Chromium treats a 'copy' dropEffect as
+        // incompatible and refuses the drop - every dragover was accepted and no
+        // drop ever fired.
+        e.dataTransfer.effectAllowed = 'copyMove';
         e.dataTransfer.setData('type', dropType);
         e.dataTransfer.setData('id', String(draggedEntityId));
         e.dataTransfer.setData('name', entity?.title || '');
@@ -1191,8 +1270,105 @@ async function initGenericEntityTab(typeSlug, typeName) {
       row.classList.remove('drop-indicator-before', 'drop-indicator-after', 'entity-drop-target-nest');
     }
 
+    // Chromium will not deliver a `drop` unless the target accepts the drag on
+    // dragENTER as well as dragover. Accepting only on dragover produced a
+    // dragstart -> dragover -> dragend sequence with no drop at all, which is
+    // exactly what "I cannot drag anything onto a template" looked like.
+    // Nesting a row dragged in from another tab. Shared by the pane-level and
+    // list-level drop handlers so both routes behave identically.
+    async function handleCrossTypeDrop(e, targetRow) {
+      const childSlug = incomingChildSlug(e);
+      const droppedId = Number(e.dataTransfer.getData('id'));
+      const childName = e.dataTransfer.getData('name');
+      if (!childSlug || !droppedId) return;
+
+      // Copy or reference: a reference points at the original, so editing it
+      // here edits the original; a copy is independent. Same question, same
+      // wording, as dropping onto a day.
+      const choice = await app.askCopyOrReference(childName);
+      if (!choice) return;
+
+      const csrf = document.body.dataset.csrfToken;
+      try {
+        let childId = droppedId;
+        if (choice === 'copy') {
+          const cloned = await fetch(`/api/entities/${childSlug}/${droppedId}/clone`, {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': csrf }
+          });
+          const cloneResult = await cloned.json();
+          if (!cloneResult.success) throw new Error(cloneResult.message);
+          childId = cloneResult.data.id;
+        }
+        // Onto a row: nest inside it. Onto empty space: make a new row of this
+        // type named after what was dropped and nest it there - so dragging an
+        // Idea onto an empty Templates list gives you a template containing
+        // that idea, rather than doing nothing.
+        let parentId = targetRow ? Number(targetRow.dataset.entityId) : null;
+        if (!parentId) {
+          const created = await fetch(`/api/entities/${typeSlug}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+            body: JSON.stringify({ title: childName || `New ${singular}` })
+          });
+          const result = await created.json();
+          if (!result.success) throw new Error(result.message);
+          parentId = result.data.id;
+        }
+
+        const linked = await fetch(`/api/entities/${typeSlug}/${parentId}/relationships`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          body: JSON.stringify({ parentEntityId: parentId, childEntityId: childId, relationshipKind: 'hierarchy' })
+        });
+        if (!linked.ok) throw new Error((await linked.json().catch(() => ({}))).message || 'Could not add it');
+
+        localStorage.setItem(`entity-expanded-${parentId}`, 'true');
+        await refreshEntities();
+        app.notify(`Added ${childName || 'item'}`, 'success');
+      } catch (error) {
+        app.notify(error.message || 'Could not add that here', 'danger');
+      }
+    }
+
+    dropPane.addEventListener('dragenter', (e) => {
+      if (draggedEntityId) return;
+      if (!e.dataTransfer?.types?.includes('type')) return;
+      e.preventDefault();
+    });
+
+    // Cross-type drags are accepted across the whole pane; same-list reordering
+    // stays on the list itself, where the row geometry it needs lives.
+    dropPane.addEventListener('dragover', (e) => {
+      if (draggedEntityId) return;
+      if (!e.dataTransfer?.types?.includes('type')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      const row = e.target.closest('.entity-row');
+      listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
+      if (row) row.classList.add('entity-drop-target-nest');
+      else dropPane.classList.add('entity-list-drop-target');
+    });
+
+    dropPane.addEventListener('drop', async (e) => {
+      if (draggedEntityId) return;
+      e.preventDefault();
+      dropPane.classList.remove('entity-list-drop-target');
+      listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
+      await handleCrossTypeDrop(e, e.target.closest('.entity-row'));
+    });
+
     listContainer.addEventListener('dragover', (e) => {
-      if (!draggedEntityId) return;
+      if (!draggedEntityId) {
+        if (!e.dataTransfer?.types?.includes('type')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        const row = e.target.closest('.entity-row');
+        listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
+        if (row) row.classList.add('entity-drop-target-nest');
+        else listContainer.classList.add('entity-list-drop-target');
+        return;
+      }
       e.preventDefault();
       const row = e.target.closest('.entity-row');
       if (row) {
@@ -1210,12 +1386,19 @@ async function initGenericEntityTab(typeSlug, typeName) {
     listContainer.addEventListener('dragleave', (e) => {
       const row = e.target.closest('.entity-row');
       if (row) clearDropIndicator(row);
+      if (!listContainer.contains(e.relatedTarget)) {
+        listContainer.classList.remove('entity-list-drop-target');
+      }
     });
 
     listContainer.addEventListener('drop', async (e) => {
       e.preventDefault();
+      listContainer.classList.remove('entity-list-drop-target');
       const targetRow = e.target.closest('.entity-row');
-      if (!targetRow || !draggedEntityId) return;
+
+      if (!draggedEntityId) return;   // handled by the pane-level listener
+
+      if (!targetRow) return;
       clearDropIndicator(targetRow);
 
       const targetId = parseInt(targetRow.dataset.entityId, 10);
@@ -1393,7 +1576,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // editor and the same save path as any other new item.
     const folderBtn = document.getElementById(`add${typeSlug}FolderBtn`);
     if (folderBtn) {
-      if (typeSchema.supports_hierarchy) {
+      if (typeSchema.supports_hierarchy && typeSchema.supports_folders !== 0 && typeSchema.supports_folders !== false) {
         folderBtn.addEventListener('click', () => {
           GenericEntity.populate(null, { is_folder: true }, typeSchema, typeSlug);
         });

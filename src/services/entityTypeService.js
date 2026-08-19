@@ -144,12 +144,12 @@ export async function updateEntityType(id, data) {
 
   const updates = [];
   const values = [];
-  const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'primary_date_field', 'order_index', 'is_visible', 'type_category', 'external_source', 'template_structure', 'title_order'];
+  const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'supports_folders', 'primary_date_field', 'order_index', 'is_visible', 'type_category', 'external_source', 'template_structure', 'title_order'];
 
   for (const field of allowedFields) {
     if (data[field] !== undefined) {
       updates.push(`${field} = ?`);
-      if (field === 'supports_hierarchy' || field === 'is_visible') {
+      if (field === 'supports_hierarchy' || field === 'supports_folders' || field === 'is_visible') {
         values.push(data[field] ? 1 : 0);
       } else if (field === 'template_structure') {
         values.push(data[field] ? JSON.stringify(data[field]) : null);
