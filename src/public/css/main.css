@@ -18,6 +18,197 @@
   box-shadow: inset 0 -3px 0 0 #0d6efd;
 }
 
+/* Status badge: a status field renders in the row as a clickable badge showing
+   the value, cycling through that type's own list on click - the same control
+   the Templates rows use. Colour comes from the value's role (first /
+   in-between / done), not its name, so any vocabulary gets sensible colours.
+   Emitted by renderStatusToggle() in genericEntity.js. */
+.status-badge {
+  cursor: pointer;
+  flex: none;
+  user-select: none;
+}
+
+/* Black on every state. Bootstrap's .badge sets white text, which is unreadable
+   on bg-warning and inconsistent across the four states; the two-class selector
+   outranks it regardless of stylesheet order. */
+.badge.status-badge {
+  color: #000;
+}
+
+.status-badge:focus-visible {
+  outline: 2px solid #2196f3;
+  outline-offset: 2px;
+}
+
+/* Shared emoji picker (app.pickEmoji). Fixed so no scroll container clips it. */
+.app-emoji-picker {
+  position: fixed;
+  z-index: 1060;
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 2px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  padding: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.app-emoji-choice,
+.app-emoji-clear {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.app-emoji-clear {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  color: #6c757d;
+  text-align: right;
+}
+
+.app-emoji-choice:hover,
+.app-emoji-clear:hover {
+  background: #e7f1ff;
+  border-color: #0d6efd;
+}
+
+.emoji-cell {
+  cursor: pointer;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.emoji-cell-empty {
+  color: #ced4da;
+}
+
+.emoji-field-btn {
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 4px 12px;
+}
+
+/* Child-count badge: "(3)" after the title of any row that has things nested
+   under it. Emitted by app.childCountBadge() so every page renders it the same.
+   Muted and slightly smaller so it reads as metadata, not as part of the
+   title. */
+.child-count {
+  color: #6c757d;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+  flex: none;
+  user-select: none;
+}
+
+/* ===== App shell =====
+   Dailies is a rail down the left of whichever tab is showing, not a page. The
+   rail and the tab content sit side by side; toggling the rail simply collapses
+   its column. */
+.app-shell {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+}
+
+.app-shell > .tab-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dailies-rail {
+  /* Half the screen, so the calendar and the day's work sit side by side
+     exactly as they did on the old full-width page. */
+  flex: 0 0 50%;
+  min-width: 0;
+  display: none;             /* shown by body.dailies-rail-open */
+  overflow: hidden;
+}
+
+/* A solid line between the rail and the tab content, wide enough to grab. The
+   line itself is drawn with a border so the hit area can be larger than the
+   1px rule people actually see. */
+.dailies-rail-divider {
+  display: none;
+  flex: 0 0 11px;
+  margin: 0 4px;
+  border-left: 2px solid #adb5bd;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.dailies-rail-divider:hover,
+.dailies-rail-divider.dragging {
+  border-left-color: #0d6efd;
+}
+
+body.dailies-rail-open .dailies-rail-divider {
+  display: block;
+}
+
+body.dailies-rail-open .dailies-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inside the rail Dailies keeps its own layout - calendar on the left, the
+   day's work to the right of it - rather than stacking. */
+
+/* Calendar visibility is its own toggle now that the Work Picker is gone.
+   With it hidden the day's rows take the whole rail rather than leaving the
+   calendar's third empty - its divider goes too. */
+body:not(.dailies-calendar-open) #dailiesCalendarPane,
+body:not(.dailies-calendar-open) #dailiesOuterDivider {
+  display: none !important;
+}
+
+body:not(.dailies-calendar-open) #dailiesContentRight {
+  flex: 1 1 100% !important;
+  border-left: 0;
+}
+
+.dailies-rail-head {
+  padding: 8px 10px 4px;
+}
+
+/* Shared selected-row indicator: the row whose record the editor currently has
+   open, on every list in the app that has a selectable row. One rule so
+   selection looks the same on Dailies, Templates, the typed pages, Contexts,
+   the Priority Board and Settings > Entity Types - add new row types to this
+   selector list rather than restyling selection per page.
+
+   The bar is an inset box-shadow, not a border-left, so selecting a row does
+   not shift its contents sideways (same reason the drop indicators above use
+   one).
+
+   `.selected.selected` is deliberate: every one of these rows also has a
+   `:hover` rule, and those live in per-tab inline <style> blocks that always
+   come after this file in the cascade. At equal specificity hover would win
+   and a selected row would lose its indicator the moment the pointer crossed
+   it. Doubling the state class outranks them without needing a copy of this
+   block per page. */
+.entity-row.selected.selected,
+.context-row.selected.selected,
+.type-list-item.selected.selected,
+.priority-strip-child.selected.selected,
+.weekly-priority-row.selected.selected,
+.work-item.selected.selected > .work-item-header,
+.template-node.selected.selected > .template-node-header,
+.priority-strip.selected.selected > .priority-strip-header {
+  background-color: #e3f2fd;
+  box-shadow: inset 3px 0 0 0 #2196f3;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   background-color: #f8f9fa;
@@ -205,9 +396,51 @@ footer {
 
 .split-pane-right {
   flex: 0 0 33.34%;
-  overflow-y: auto;
+  /* The PANE no longer scrolls; the editor body inside it does. That is what
+     keeps the action bar pinned to the bottom instead of scrolling away with
+     the form. */
+  overflow: hidden;
   padding: 0 1rem;
   border-left: 1px solid #dee2e6;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Every editor: header at the top, a scrolling body, and the Save/Cancel bar
+   pinned along the bottom where it is always reachable. The bar sits in the
+   header in the markup, so it is positioned rather than re-ordered - that keeps
+   the change to one class per editor instead of restructuring four templates. */
+.split-pane-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Room for the absolutely-positioned action bar (48px tall) plus a little
+     breathing space, so the last field is never tucked underneath it. */
+  padding-bottom: 60px;
+}
+
+.split-pane-editor > form,
+.split-pane-editor > div[id$="-editor-pane"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.editor-actions-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 8px 0;
+  background: #fff;
+  border-top: 1px solid #dee2e6;
 }
 
 .split-pane-right.hidden {
@@ -216,7 +449,11 @@ footer {
 }
 
 .split-pane-editor {
-  padding: 1rem 0;
+  /* Top padding only. The shorthand `padding: 1rem 0` used to sit here and
+     silently reset the bottom padding that keeps content clear of the pinned
+     action bar - the last field ended up 32px underneath it. The bottom gap is
+     set with the flex layout above and must not be overwritten here. */
+  padding-top: 1rem;
 }
 
 .split-pane-editor-title {

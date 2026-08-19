@@ -95,9 +95,19 @@ class SplitPane {
   }
 
   hideRightPane() {
-    console.log(`[SplitPane] hideRightPane called, adding hidden class to ${this.rightPane?.id}`);
     this.rightPane.classList.add('hidden');
     this.divider.style.display = 'none';
-    console.log(`[SplitPane] hideRightPane complete`);
+    // Re-apply the widths. setLeftWidth() has a branch that gives the left pane
+    // the full container once the right one is hidden, but nothing called it
+    // here - so closing an editor left the list at the ~66% it had while the
+    // editor was open, with the editor's third of the tab as dead space.
+    // showRightPane() has always called this; hideRightPane() never did.
+    this.setLeftWidth(this.currentLeftPercent());
+  }
+
+  // The width the left pane should return to when the right pane comes back.
+  currentLeftPercent() {
+    const saved = localStorage.getItem(`splitPane-${this.container.id}-left`);
+    return saved ? parseFloat(saved) : this.initialLeftPercent;
   }
 }

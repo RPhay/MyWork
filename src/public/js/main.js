@@ -2,7 +2,7 @@
 
 // Server-rendered config, passed via data attributes on <body> (CSP-safe: no inline script needed)
 window.APP_CONFIG = {
-  activeTab: document.body.dataset.activeTab || 'dailies',
+  activeTab: document.body.dataset.activeTab || 'work_item',
   currentYear: parseInt(document.body.dataset.currentYear, 10),
   csrfToken: document.body.dataset.csrfToken,
   version: document.body.dataset.version,
@@ -144,49 +144,109 @@ const app = {
   },
 
   // Confirm action with custom modal
-  confirm(message, title = 'Confirm Action') {
+  // Custom modal dialogs. UI_STANDARDS.md §5c forbids browser dialogs, but the
+  // `#confirmModal` markup this used to depend on lived only in dashboard.ejs,
+  // so on Settings app.confirm silently fell back to window.confirm - which is
+  // why Settings code just called confirm() directly. The dialog is built here
+  // instead, on first use, so both work identically on every page.
+  //
+  // The element ids are unchanged from the old markup (#confirmModal,
+  // #confirmModalConfirm, ...) because they are what the e2e tests drive.
+  _dialog(options) {
+    const { title, message, input } = options;
+
+    let modalElement = document.getElementById('confirmModal');
+    if (!modalElement) {
+      modalElement = document.createElement('div');
+      modalElement.className = 'modal fade';
+      modalElement.id = 'confirmModal';
+      modalElement.tabIndex = -1;
+      modalElement.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header border-bottom">
+              <h5 class="modal-title" id="confirmModalTitle"></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p id="confirmModalMessage" class="mb-2"></p>
+              <input type="text" class="form-control" id="confirmModalInput">
+            </div>
+            <div class="modal-footer border-top">
+              <button type="button" class="btn btn-secondary" id="confirmModalCancel">Cancel</button>
+              <button type="button" class="btn btn-primary" id="confirmModalConfirm">Confirm</button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(modalElement);
+    }
+
+    const titleEl = modalElement.querySelector('#confirmModalTitle');
+    const messageEl = modalElement.querySelector('#confirmModalMessage');
+    const inputEl = modalElement.querySelector('#confirmModalInput');
+    const confirmBtn = modalElement.querySelector('#confirmModalConfirm');
+    const cancelBtn = modalElement.querySelector('#confirmModalCancel');
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    messageEl.classList.toggle('d-none', !message);
+    inputEl.classList.toggle('d-none', !input);
+    inputEl.value = input?.defaultValue || '';
+    inputEl.placeholder = input?.placeholder || '';
+    confirmBtn.textContent = options.confirmLabel || (input ? 'OK' : 'Confirm');
+
+    const modal = new bootstrap.Modal(modalElement);
+
     return new Promise((resolve) => {
-      const modalElement = document.getElementById('confirmModal');
-      if (!modalElement) {
-        // Fallback to browser confirm if modal doesn't exist
-        resolve(window.confirm(message));
-        return;
-      }
+      let settled = false;
 
-      const titleElement = document.getElementById('confirmModalTitle');
-      const messageElement = document.getElementById('confirmModalMessage');
-      const confirmBtn = document.getElementById('confirmModalConfirm');
-      const cancelBtn = document.getElementById('confirmModalCancel');
+      // `hidden.bs.modal` covers every dismissal route - the X, the backdrop,
+      // Escape - so a dialog can never resolve twice or hang unresolved.
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        confirmBtn.removeEventListener('click', onConfirm);
+        cancelBtn.removeEventListener('click', onCancel);
+        inputEl.removeEventListener('keydown', onKeydown);
+        modalElement.removeEventListener('hidden.bs.modal', onHidden);
+        resolve(value);
+      };
 
-      if (!titleElement || !messageElement || !confirmBtn || !cancelBtn) {
-        // Fallback to browser confirm if any element is missing
-        resolve(window.confirm(message));
-        return;
-      }
+      const onConfirm = () => {
+        const value = input ? inputEl.value.trim() : true;
+        modal.hide();
+        finish(input && !value ? null : value);
+      };
+      const onCancel = () => { modal.hide(); finish(input ? null : false); };
+      const onHidden = () => finish(input ? null : false);
+      const onKeydown = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+      };
 
-      titleElement.textContent = title;
-      messageElement.textContent = message;
+      confirmBtn.addEventListener('click', onConfirm);
+      cancelBtn.addEventListener('click', onCancel);
+      inputEl.addEventListener('keydown', onKeydown);
+      modalElement.addEventListener('hidden.bs.modal', onHidden);
 
-      const modal = new bootstrap.Modal(modalElement);
+      modalElement.addEventListener(
+        'shown.bs.modal',
+        () => { if (input) inputEl.focus(); },
+        { once: true }
+      );
+
       modal.show();
-
-      const handleConfirm = () => {
-        modal.hide();
-        confirmBtn.removeEventListener('click', handleConfirm);
-        cancelBtn.removeEventListener('click', handleCancel);
-        resolve(true);
-      };
-
-      const handleCancel = () => {
-        modal.hide();
-        confirmBtn.removeEventListener('click', handleConfirm);
-        cancelBtn.removeEventListener('click', handleCancel);
-        resolve(false);
-      };
-
-      confirmBtn.addEventListener('click', handleConfirm);
-      cancelBtn.addEventListener('click', handleCancel);
     });
+  },
+
+  // Resolves true/false. Replaces window.confirm everywhere.
+  confirm(message, title = 'Confirm Action') {
+    return this._dialog({ title, message });
+  },
+
+  // Resolves the entered string, or null if cancelled or left empty. Replaces
+  // window.prompt everywhere.
+  prompt(message, { title = 'Enter a value', defaultValue = '', placeholder = '' } = {}) {
+    return this._dialog({ title, message, input: { defaultValue, placeholder } });
   },
 
   // Icon shown inside a status checkbox; empty for 'incomplete' (empty box).
@@ -225,9 +285,97 @@ const app = {
   // For flat (non-hierarchical) drag-reorder lists: which half of the hovered
   // row the cursor is in, so dropping shows/lands as "insert before" or
   // "insert after" instead of silently reordering with no visual cue.
+  // Shared emoji picker. Opens next to `anchorEl` and resolves to the chosen
+  // emoji, or null if dismissed. Used by the `emoji` field type in both the
+  // editor and the row cell, so there is one picker rather than one per
+  // surface. Dailies has its own older picker wired to its own endpoints; this
+  // one is generic and returns a value instead of saving.
+  pickEmoji(anchorEl) {
+    const EMOJI = [
+      '⭐','🌟','✨','🔥','⚡','💡','🎯','✅','☑️','❌','⚠️','❗','❓','🔔',
+      '📌','🔖','🏷️','📝','🗒️','📋','📅','📆','⏰','⏳','🚩','🏁','🏆','🥇',
+      '🚀','🛠️','🔧','⚙️','🧰','🐛','🩹','🔍','🔎','🧠','📊','📈','📉','🧮',
+      '💰','💳','🏦','👤','👥','🤝','💬','🗣️','📞','✉️','📧','📢','📣',
+      '🏠','🏢','🏛️','🏭','🌍','🌐','🧭','🗺️','✈️','🚗','🚚','⛵','☁️','🌙',
+      '☀️','🌱','🌳','🍀','❤️','💜','💙','💚','💛','🧡','🖤','🤍','🔴','🟠',
+      '🟡','🟢','🔵','🟣','⚫','⚪','🎨','🎬','🎵','🎮','🕹️','🎁','🧩','🪄',
+      '🔒','🔑','🛡️','💾','🖥️','💻','📦','🧊','🧪','🔬','📡','🛰️','♻️','🔄',
+    ];
+
+    return new Promise((resolve) => {
+      document.querySelectorAll('.app-emoji-picker').forEach(el => el.remove());
+
+      const picker = document.createElement('div');
+      picker.className = 'app-emoji-picker';
+      picker.innerHTML =
+        '<button type="button" class="app-emoji-clear" data-emoji="">clear</button>' +
+        EMOJI.map(e => `<button type="button" class="app-emoji-choice" data-emoji="${e}">${e}</button>`).join('');
+      document.body.appendChild(picker);
+
+      const b = anchorEl.getBoundingClientRect();
+      const p = picker.getBoundingClientRect();
+      const below = window.innerHeight - b.bottom;
+      picker.style.top = `${below > p.height ? b.bottom + 4 : Math.max(4, b.top - p.height - 4)}px`;
+      picker.style.left = `${Math.min(Math.max(4, b.left), window.innerWidth - p.width - 8)}px`;
+
+      const done = (value) => {
+        picker.remove();
+        document.removeEventListener('mousedown', away, true);
+        resolve(value);
+      };
+      const away = (e) => { if (!picker.contains(e.target) && e.target !== anchorEl) done(null); };
+
+      picker.addEventListener('click', (e) => {
+        const choice = e.target.closest('[data-emoji]');
+        if (choice) done(choice.dataset.emoji);
+      });
+      setTimeout(() => document.addEventListener('mousedown', away, true), 0);
+    });
+  },
+
+  // Child-count badge shown after a row's title on every page that renders a
+  // row with things nested under it: the typed pages, Dailies, Templates, the
+  // Priority Board and its Weekly list. One helper so the markup and wording
+  // stay identical everywhere - add new row types by calling this, not by
+  // hand-rolling another span.
+  //
+  // The count is DIRECT children, not all descendants.
+  childCountBadge(count) {
+    const n = Number(count) || 0;
+    return n > 0
+      ? `<span class="child-count" title="${n} item${n === 1 ? '' : 's'} inside">(${n})</span>`
+      : '';
+  },
+
+  // Selected-row indicator. Every list in the app where a row can be selected
+  // uses the same `.selected` state class (UI_STANDARDS.md §5), so selection
+  // looks identical on Dailies, Templates, the typed pages, Contexts, the
+  // Priority Board and Settings > Entity Types. Pass null to clear.
+  //
+  // `groupSelector` is what identifies the row's siblings - the class is
+  // removed from every match before it is added, so a list can only ever have
+  // one selected record. `rows` is an element, or a NodeList/array when one
+  // record is shown in more than one place at once (a Priority Board strip and
+  // its Weekly Priorities row are the same project).
+  selectRow(rows, groupSelector) {
+    document
+      .querySelectorAll(`${groupSelector}`)
+      .forEach((el) => el.classList.remove('selected'));
+    if (!rows) return;
+    const list = rows instanceof Element ? [rows] : [...rows];
+    list.forEach((el) => el.classList.add('selected'));
+  },
+
   getVerticalDropZone(event, rowEl) {
     const rect = rowEl.getBoundingClientRect();
     return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+  },
+
+  // Same idea for a horizontal strip, used by column drag-reorder in the row
+  // headers: which side of the target cell the pointer is on.
+  getHorizontalDropZone(event, cellEl) {
+    const rect = cellEl.getBoundingClientRect();
+    return event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
   },
 
   // For hierarchical (tree) drag-reorder lists: same idea, but the middle band
