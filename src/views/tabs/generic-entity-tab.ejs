@@ -22,16 +22,25 @@
           <!-- Available on every type that supports nesting; generic-entity-init.js
                removes it for flat types. A folder is an is_folder row of this
                same type, not a type of its own. -->
-          <button class="btn btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="Create a folder to organize <%= typeName %>">
-            <i class="bi bi-folder-plus"></i> + Folder
-          </button>
-          <button class="btn btn-primary" id="add<%= typeSlug %>Btn">
-            + New <%= typeNameSingular %>
-          </button>
+          <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="Create a folder to organize <%= typeName %>">
+              <i class="bi bi-folder-plus"></i> + Folder
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>Btn">
+              + New <%= typeNameSingular %>
+            </button>
+          </div>
         </div>
       </div>
 
-      <p class="text-muted small mb-2">Drag to organize. Click to edit, click again to close.</p>
+
+      <div id="<%= typeSlug %>SelectionBar" class="entity-selection-bar" hidden>
+        <span class="selection-count">0 selected</span>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-selected">
+          <i class="bi bi-trash"></i> Delete selected
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="clear-selection">Clear</button>
+      </div>
 
       <div id="<%= typeSlug %>EntityList" style="overflow-y: auto;">
         <p class="text-center text-muted">Loading...</p>
@@ -46,9 +55,11 @@
       <div class="split-pane-editor">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
           <div class="split-pane-editor-title">Edit <%= typeNameSingular %></div>
-          <div style="gap: 0.5rem; display: flex;">
-            <button type="button" class="btn btn-primary btn-sm" id="<%= typeSlug %>SaveBtn" disabled>Save</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="<%= typeSlug %>CloseBtn">Cancel</button>
+          <div class="editor-actions-bar">
+            <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>SaveBtn" disabled>Save</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>CloseBtn">Revert</button>
+            </div>
           </div>
         </div>
         <div id="<%= typeSlug %>-editor-pane" style="overflow-y: auto;"></div>
@@ -71,28 +82,557 @@
   background-color: #f8f9fa;
 }
 
-/* The row whose item the editor currently has open. */
-.entity-row.selected {
-  border-color: #0d6efd;
-  background-color: #e7f1ff;
+/* ===== Columns =====
+   The header and every row share one grid template, published as
+   --entity-col-count on .entity-list, so the header cells sit directly above
+   the values they label. Title takes the free space; each field column is a
+   fixed band; the last column is the row actions. */
+.entity-row-content {
+  align-items: start;
 }
+
+.entity-header-row,
+.entity-row-content {
+  display: grid;
+  /* Published once on .entity-list by gridTemplate(). The flexible track sits
+     wherever the Title column has been dragged to, so header and rows cannot
+     drift apart. */
+  grid-template-columns: var(--entity-grid, minmax(0, 1fr) 44px);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.entity-list {
+  /* No horizontal scrolling: the grid tracks are fractional, so the columns
+     always fit whatever width the pane has.
+     `clip` rather than `hidden`: setting one axis to hidden makes the OTHER
+     axis compute to auto, which added a vertical scrollbar inside this element
+     and reported ~12px of phantom horizontal scroll. clip leaves overflow-y
+     alone. */
+  overflow-x: clip;
+  min-width: 0;
+}
+
+.entity-header-row {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+  border-bottom: 2px solid #dee2e6;
+  /* Rows carry padding: 8px AND a 1px border, so their content box is 18px
+     narrower than their outer width. The header must lose the same 18px or its
+     flexible Title track resolves 2px wider and every column sits slightly off
+     its values. Hence the transparent side borders. */
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
+  padding: 6px 8px 8px;
+  margin-bottom: 4px;
+}
+
+/* Text is never truncated. With the row also never scrolling sideways, the
+   only way to honour both is to WRAP: a long value makes its row taller rather
+   than being cut off or pushing the grid wider. */
+.entity-cell {
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.entity-cell .row-field,
+.entity-cell .entity-row-link {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+/* The one exception: a status badge is sized to its longest value already, so
+   it must stay on a single line rather than wrapping inside its own pill. */
+.entity-cell .status-badge {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.entity-cell-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Nesting is shown inside the Title cell: the indent sits before the arrow, so
+   the indent, arrow, icon and title move together and no other column is
+   affected. */
+.entity-indent {
+  display: inline-block;
+  flex: none;
+}
+
+.entity-toggle-spacer {
+  width: 18px;
+  display: inline-block;
+  flex: none;
+}
+
+.entity-header-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* .entity-cell sets overflow:hidden to keep long values from spilling across
+     columns. On a HEADER cell that also clipped the absolutely-positioned
+     filter menu, so it opened but was invisible - the control looked stuck on
+     "All". Headers hold no long values, so visible is safe here. */
+  overflow: visible;
+}
+
+.entity-sort-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  /* Stays a usable target when its column's name is hidden - otherwise the
+     button collapses to nothing and the column can no longer be sorted. */
+  min-height: 18px;
+  min-width: 28px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6c757d;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.entity-sort-btn:hover { color: #0d6efd; }
+.entity-sort-btn.active { color: #0d6efd; }
+.entity-sort-arrow { font-size: 0.7em; }
+
+.entity-filter-input {
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border: 1px solid #dee2e6;
+  border-radius: 3px;
+  width: 100%;
+  min-width: 0;
+}
+
+.entity-filter-select {
+  background: #fff;
+  cursor: pointer;
+  /* Room for the native chevron so the value is not overlapped. */
+  padding-right: 16px;
+}
+
+.entity-filter-input:focus {
+  outline: none;
+  border-color: #0d6efd;
+}
+
+/* Row is showing an unsaved preview mirrored from the open editor. Marked so
+   it cannot be mistaken for persisted data - closing the editor discards it. */
+.entity-row-unsaved .entity-title::after {
+  content: " \2022";
+  color: #f0a020;
+  font-weight: 700;
+}
+
+/* Date cells are click targets even when empty: no data-action, so the click
+   falls through to the row handler and opens the editor. */
+.row-date {
+  cursor: pointer;
+}
+
+.row-date-empty {
+  color: #adb5bd;
+  font-style: italic;
+}
+
+.row-date-empty:hover {
+  color: #0d6efd;
+}
+
+.row-date-input {
+  font-size: 0.85em;
+  padding: 0 2px;
+  border: 1px solid #0d6efd;
+  border-radius: 3px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Row is accepting a link dragged in from outside the app. Distinct from the
+   reorder/nest indicators so the two drags never look alike. */
+.entity-row.entity-link-drop-target {
+  outline: 2px dashed #0d6efd;
+  outline-offset: -2px;
+  background-color: #eef5ff;
+}
+
+/* A rolled-up value belongs to the items inside the folder, not to the folder
+   itself, so it reads as derived rather than as data you can edit. The status
+   badge in this state carries no click handler at all. */
+.is-rollup {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.badge.status-badge.is-rollup {
+  cursor: default;
+}
+
+.badge.bg-light.status-badge {
+  border: 1px solid #dee2e6;
+}
+
+/* The filter row is off by default - it is a power feature, and a permanent
+   second row of inputs makes the header noisy. The funnel button in the header
+   turns it on, and the choice is remembered per type. */
+.entity-list:not(.filters-shown) .entity-filter-input,
+.entity-list:not(.filters-shown) .entity-filter-multi {
+  display: none;
+}
+
+.entity-filters-btn.active {
+  color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+/* Status cells are a fixed width: the badge text varies ("Not Started" vs
+   "Failed"), and letting the cell size to its content made the control jump
+   about as values changed. */
+.entity-cell[data-col="status"] {
+  display: flex;
+  align-items: center;
+}
+
+.entity-cell[data-col="status"] .status-badge {
+  /* border-box, or the badge's own padding pushes it past the cell and the
+     cell's overflow:hidden shears off its right-hand rounded corners - which
+     is why it looked curved on the left and square on the right. */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  text-align: center;
+}
+
+/* A saved link reads as its name; the url/title inputs stay hidden behind the
+   pencil so the editor is a list of links rather than a grid of raw URLs. */
+.entity-link-row {
+  margin-bottom: 6px;
+}
+
+.entity-link-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.entity-link-anchor {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-link-edit-btn {
+  padding: 0 4px;
+}
+
+.entity-link-fields {
+  display: none;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.entity-link-row.editing .entity-link-fields {
+  display: flex;
+}
+
+.entity-link-row.editing .entity-link-url {
+  flex: 2;
+}
+
+.entity-link-row.editing .entity-link-title {
+  flex: 1;
+}
+
+/* A choice cell is a real select, sized to its column rather than to its
+   longest option, so it can never widen the row. */
+.row-choice {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 0.8rem;
+  padding: 1px 4px;
+  border: 1px solid #dee2e6;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.row-choice:focus {
+  outline: none;
+  border-color: #0d6efd;
+}
+
+/* Sized to sit alongside the row's delete icon rather than looking like fine
+   print - these are the row's controls, not its metadata. */
+/* Two-class selectors on purpose: these elements also carry .row-field, whose
+   0.875rem is declared later in this file and would otherwise win, leaving the
+   glyphs at the size of fine print. */
+.entity-cell .checkbox-cell,
+.entity-cell .emoji-cell {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.entity-cell .checkbox-cell {
+  cursor: pointer;
+  color: #495057;
+}
+
+.checkbox-cell:hover {
+  color: #0d6efd;
+}
+
+/* Each field in the editor carries a drag handle and a column toggle, so the
+   same two values (display_order, show_in_row) can be set from here as well as
+   from the header. */
+.editor-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* Aligned with the field's LABEL line, so each switch sits beside the name it
+   belongs to rather than floating against the input below it. */
+.editor-field-gutter {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  margin-top: 2px;
+  flex: none;
+}
+
+.editor-field-gutter .form-switch {
+  margin: 0;
+  min-height: 0;
+  padding-left: 2.2em;
+}
+
+.editor-field-gutter .form-check-input {
+  margin-top: 0;
+}
+
+.editor-field-handle {
+  cursor: grab;
+  color: #adb5bd;
+  user-select: none;
+  font-size: 0.85rem;
+}
+
+.editor-field-handle:hover {
+  color: #0d6efd;
+}
+
+.editor-field-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-field.dragging {
+  opacity: 0.45;
+}
+
+.editor-field.drop-before {
+  box-shadow: inset 0 3px 0 0 #0d6efd;
+}
+
+.editor-field.drop-after {
+  box-shadow: inset 0 -3px 0 0 #0d6efd;
+}
+
+/* Roomier editor inputs: the defaults are cramped for anything longer than a
+   few words, and a textarea at two rows makes notes unreadable. */
+.entity-editor-form textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.entity-editor-form input[type="text"],
+.entity-editor-form input[type="url"],
+.entity-editor-form input[type="number"],
+.entity-editor-form input[type="date"],
+.entity-editor-form select {
+  min-height: 40px;
+  font-size: 0.95rem;
+}
+
+.entity-editor-form .form-group {
+  margin-bottom: 12px;
+}
+
+/* Multi-selection. Deliberately a different signal from `.selected`, which
+   means "open in the editor" - one row can be both. */
+.entity-row.multi-selected {
+  background-color: #e7f1ff;
+  box-shadow: inset 3px 0 0 0 #0d6efd;
+}
+
+.entity-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: #eef5ff;
+  border: 1px solid #bcd4f6;
+  border-radius: 4px;
+}
+
+.entity-selection-bar .selection-count {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-right: auto;
+}
+
+/* Link icon sits just left of the name, with a little air between them. */
+.entity-row-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Column drag-reorder. Insertion side is shown with an inset shadow rather
+   than a border so the header does not shift while dragging - same reason the
+   row drop indicators in main.css use one. */
+.entity-header-cell[draggable="true"] {
+  cursor: grab;
+}
+
+.entity-header-cell.col-dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+.entity-header-cell.col-drop-before {
+  box-shadow: inset 3px 0 0 0 #0d6efd;
+}
+
+.entity-header-cell.col-drop-after {
+  box-shadow: inset -3px 0 0 0 #0d6efd;
+}
+
+.entity-filter-multi { position: relative; }
+
+.entity-filter-toggle {
+  text-align: left;
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entity-filter-toggle.has-filter {
+  border-color: #0d6efd;
+  color: #0d6efd;
+  font-weight: 600;
+}
+
+.entity-filter-menu {
+  position: fixed;
+  z-index: 1050;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  padding: 6px 10px;
+  min-width: 150px;
+  max-width: 240px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.entity-header-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Row actions right-align in the same track the header controls occupy. */
+.entity-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Fixed, not absolute: .entity-list scrolls horizontally, and a scroll
+   container clips absolutely-positioned descendants - which cut these menus
+   off. Position is set from the button's rect when the menu opens. */
+.entity-columns-menu {
+  position: fixed;
+  z-index: 1050;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  padding: 8px 10px;
+  min-width: 170px;
+}
+
+.entity-columns-menu-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  margin-bottom: 4px;
+}
+
+.entity-column-option {
+  display: block;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.entity-empty { padding: 16px 8px; }
+
+/* .entity-row.selected lives in main.css with every other selectable row. */
 
 .entity-row[draggable="true"] {
   cursor: move;
 }
 
-.entity-row-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+/* The grid definition for .entity-row-content is above, with the header it has
+   to line up with. This rule used to redeclare it as flex and, being later in
+   the file, silently won - which left the header on a grid and the rows on
+   flex, so no column lined up with its label. */
 
 .entity-toggle {
   cursor: pointer;
   display: inline-block;
   width: 18px;
+  text-align: center;
+  flex: none;
   transform: rotate(0deg);
+  transform-origin: center;
   transition: transform 0.2s;
+}
+
+/* Points down when the node is open. The rotate(0deg) above and its transition
+   were already here, but nothing ever rotated it, so the arrow stayed pointing
+   right whatever the state.
+   Keyed off .entity-node.expanded because that is the class the toggle handler
+   flips - .entity-row's own `expanded` class is written at render time and
+   would go stale the moment a row was expanded without a re-render. */
+.entity-node.expanded > .entity-row .entity-toggle {
+  transform: rotate(90deg);
 }
 
 .entity-node.expanded > .entity-node-children {
@@ -101,7 +641,11 @@
 
 .entity-node-children {
   display: none;
-  margin-left: 18px;
+  /* No margin-left. Nesting is expressed ONLY by the indent span inside the
+     tree gutter, so every row - at every depth - starts at the same left edge
+     and its columns stay under their headers. Indenting the container as well
+     shifted the whole row, which double-indented children and pushed the
+     leading columns out of alignment once Title was moved rightwards. */
 }
 
 .entity-drop-target-nest {
@@ -122,13 +666,25 @@
   font-weight: 600;
 }
 
-.entity-title {
-  font-weight: 500;
+/* Title and its child-count badge travel together: the CELL takes the free
+   space, the title shrinks with an ellipsis inside it, and the badge stays
+   pinned to the end of the text. Giving `flex: 1` to the title itself pushed
+   the badge across to the row's actions. */
+.entity-title-cell {
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.entity-title {
+  font-weight: 500;
+  flex: 0 1 auto;
+  min-width: 0;
+  /* Wraps rather than ellipsising - a title is the one thing you must be able
+     to read in full. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .entity-actions {
@@ -140,7 +696,10 @@
 .row-field {
   color: #6c757d;
   font-size: 0.875rem;
-  margin-left: 8px;
+  /* No margin-left: fields are grid cells now and the row's `gap` spaces them.
+     The leftover margin pushed every field 8px right inside its own cell, which
+     made the full-width status badge overhang and lose its right-hand rounded
+     corners to the cell's overflow:hidden. */
 }
 
 .entity-row-link {
