@@ -120,6 +120,9 @@ const TemplateEditor = (() => {
     fillForm,
     save,
     close,
-    toggleOnSameRow
+    toggleOnSameRow,
+    // The list uses this to mark the open record's row `.selected` - one id,
+    // owned here, rather than a second copy tracked by the list.
+    getCurrentId: () => currentTemplateId
   };
 })();

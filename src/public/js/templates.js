@@ -30,7 +30,7 @@ function renderTemplateNode(template) {
         <span class="template-title-cell">
           <i class="bi bi-chevron-right template-node-toggle" data-action="toggle-expand" title="Expand/collapse"></i>
           <i class="bi ${APP_ICONS.template} text-muted" title="Template"></i>
-          <span class="template-title">${app.escapeHtml(template.title)}</span>
+          <span class="template-title">${app.escapeHtml(template.title)}</span>${app.childCountBadge(children.length)}
         </span>
         <span class="template-emoji" data-action="pick-emoji" data-id="${template.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(template.emoji || '')}</span>
         <span class="template-start-time" title="Meeting time">${template.start_time ? template.start_time : '-'}</span>
@@ -54,6 +54,7 @@ function renderTemplatesList(templates) {
   }
 
   container.innerHTML = templates.map(renderTemplateNode).join('');
+  syncTemplateRowSelection();
 }
 
 async function loadTemplates() {
@@ -77,74 +78,21 @@ async function loadTemplates() {
   }
 }
 
-async function loadTemplateRightPanel() {
-  // Projects (priorities)
-  try {
-    const response = await fetch('/api/priorities');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
-    const div = document.getElementById('tplPrioritiesListRight');
-
-    if (result.success && result.data.length > 0) {
-      div.innerHTML = app.flattenTree(result.data).map(p => `
-        <div class="tpl-priority-item" draggable="true" data-type="priority" data-id="${p.id}" style="margin-left: ${p.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.project}"></i> ${app.escapeHtml(p.title)}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `).join('');
-      setupDragListeners();
-    } else {
-      div.innerHTML = '<small class="text-muted">No priorities</small>';
-    }
-  } catch (error) {
-    console.error('Error loading priorities:', error);
-  }
-
-  // Goals
-  try {
-    const year = window.APP_CONFIG?.currentYear || new Date().getFullYear();
-    const response = await fetch(`/api/goals/year/${year}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
-    const div = document.getElementById('tplGoalsListRight');
-
-    if (result.success && result.data.length > 0) {
-      div.innerHTML = result.data.map(g => `
-        <div class="tpl-goal-item" draggable="true" data-type="goal" data-id="${g.id}">
-          <span><i class="bi ${APP_ICONS.goal}"></i> ${app.escapeHtml(g.name)}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `).join('');
-      setupDragListeners();
-    } else {
-      div.innerHTML = '<small class="text-muted">No goals</small>';
-    }
-  } catch (error) {
-    console.error('Error loading goals:', error);
-  }
-
-  // Areas
-  try {
-    const response = await fetch('/api/areas');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
-    const div = document.getElementById('tplAreasListRight');
-
-    if (result.success && result.data.length > 0) {
-      div.innerHTML = app.flattenTree(result.data).map(a => `
-        <div class="tpl-area-item" draggable="true" data-type="area" data-id="${a.id}" style="margin-left: ${a.depth * 14}px;">
-          <span><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.name)}</span>
-          <small class="text-muted">→</small>
-        </div>
-      `).join('');
-      setupDragListeners();
-    } else {
-      div.innerHTML = '<small class="text-muted">No categories</small>';
-    }
-  } catch (error) {
-    console.error('Error loading areas:', error);
-  }
-}
+// loadTemplateRightPanel() lived here. It populated a right-hand drag-source
+// panel (#tplPrioritiesListRight / #tplGoalsListRight / #tplAreasListRight) that
+// commit e8841c0 removed from templates.ejs without touching this file - so it
+// fetched /api/priorities, /api/goals/year/:year and /api/areas on every single
+// dashboard load and then threw "Cannot set properties of null (setting
+// 'innerHTML')" three times into the console, swallowed by its own try/catch.
+// It was the single largest source of console errors in the e2e suite.
+//
+// Deleted rather than null-guarded: guarding would keep three pointless
+// requests per page load for a panel that no longer exists.
+//
+// NOTE: the drop target below still accepts project/goal/category drops and the
+// empty state still reads "Drag a project, goal, or category here", but that
+// panel was the only drag source for it - so template associations currently
+// cannot be created in the UI. That is a separate regression from e8841c0.
 
 function setTimeBoxField(groupId, minutes) {
   const value = minutes ? String(minutes) : '';
@@ -212,12 +160,26 @@ async function saveTemplate() {
   }
 }
 
+// Marks the row of whatever the editor currently has open. Called on open, on
+// close, and after every re-render (the list is rebuilt via innerHTML, which
+// drops the class).
+function syncTemplateRowSelection() {
+  const id = TemplateEditor.getCurrentId();
+  const row =
+    id != null
+      ? document.querySelector(`.template-node[data-template-id="${id}"]`)
+      : null;
+  app.selectRow(row, '.template-node');
+}
+
 async function editTemplate(templateId) {
   await TemplateEditor.populate(templateId);
+  syncTemplateRowSelection();
 }
 
 function closeTemplateEditor() {
   TemplateEditor.close();
+  syncTemplateRowSelection();
 }
 
 async function deleteTemplate(templateId) {
@@ -984,7 +946,6 @@ function initTemplates() {
 
   initTemplatesEventListeners();
   loadTemplates();
-  loadTemplateRightPanel();
 }
 
 if (document.readyState === 'loading') {

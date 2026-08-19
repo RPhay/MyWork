@@ -44,9 +44,11 @@
         <div class="split-pane-editor">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <div class="split-pane-editor-title" id="templateEditorDisplayTitle">Select a template to edit</div>
-            <div style="gap: 0.5rem; display: flex;">
-              <button type="button" class="btn btn-primary btn-sm" id="saveTemplateEditorBtn" disabled>Save</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="closeTemplateEditorBtn">Cancel</button>
+            <div class="editor-actions-bar">
+              <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="saveTemplateEditorBtn" disabled>Save</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="closeTemplateEditorBtn">Revert</button>
+              </div>
             </div>
           </div>
           <form id="templateEditorForm">

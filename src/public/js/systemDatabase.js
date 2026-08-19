@@ -278,7 +278,7 @@ function showSystemDbEditForm(dbType, config) {
 }
 
 async function removeSystemDbConfig() {
-  if (!confirm("Are you sure? This will reset the system database to the default configuration.")) {
+  if (!(await app.confirm("Are you sure? This will reset the system database to the default configuration.", "Reset System Database"))) {
     return;
   }
 

@@ -99,7 +99,7 @@ async function loginWithSSO(sourceId) {
     // Get current context
     const contextId = document.getElementById('contextSwitcherBtn')?.dataset.contextId;
     if (!contextId) {
-      alert('No context selected');
+      app.notify('No context selected', 'warning');
       return;
     }
 
@@ -114,7 +114,7 @@ async function loginWithSSO(sourceId) {
 
     const result = await response.json();
     if (!result.success) {
-      alert('Failed to initiate login: ' + result.message);
+      app.notify('Failed to initiate login: ' + result.message, 'danger');
       return;
     }
 
@@ -122,7 +122,7 @@ async function loginWithSSO(sourceId) {
     window.location.href = result.authUrl + `&redirectTarget=/api/sources/${sourceId}/auth/sso/callback`;
   } catch (error) {
     console.error('SSO login error:', error);
-    alert('Error initiating SSO: ' + error.message);
+    app.notify('Error initiating SSO: ' + error.message, 'danger');
   }
 }
 
@@ -181,7 +181,7 @@ async function saveCredentials(sourceId) {
     const password = document.getElementById('credPassword').value;
 
     if (!username || !password) {
-      alert('Please enter username and password');
+      app.notify('Please enter username and password', 'warning');
       return;
     }
 
@@ -193,7 +193,7 @@ async function saveCredentials(sourceId) {
 
     const result = await response.json();
     if (!result.success) {
-      alert('Failed to save credentials: ' + result.message);
+      app.notify('Failed to save credentials: ' + result.message, 'danger');
       return;
     }
 
@@ -211,7 +211,7 @@ async function saveCredentials(sourceId) {
     app.notify('Authenticated successfully', 'success');
   } catch (error) {
     console.error('Credentials error:', error);
-    alert('Error: ' + error.message);
+    app.notify('Error: ' + error.message, 'danger');
   }
 }
 

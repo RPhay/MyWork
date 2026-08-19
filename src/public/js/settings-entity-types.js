@@ -47,12 +47,26 @@ async function loadEntityTypesUI() {
     if (readonlyList) {
       readonlyList.innerHTML = '<div class="p-4 text-center text-danger">Error loading types</div>';
     }
+  } finally {
+    syncTypeRowSelection();
   }
+}
+
+// Marks the row of whatever the editor currently has open. Called on open, on
+// close, and after the lists re-render, which rebuilds every row from scratch.
+function syncTypeRowSelection() {
+  const id = currentEditingType?.id;
+  const row =
+    id != null
+      ? document.querySelector(`.type-list-item[data-type-id="${id}"]`)
+      : null;
+  app.selectRow(row, '.type-list-item');
 }
 
 function createTypeListItem(type, isReadonly) {
   const item = document.createElement('div');
   item.className = `type-list-item ${isReadonly ? 'readonly' : ''}`;
+  item.dataset.typeId = type.id;
 
   let categoryBadge = '';
   if (type.type_category && type.type_category !== 'editable') {
@@ -87,9 +101,6 @@ function createTypeListItem(type, isReadonly) {
           <input class="form-check-input type-visible-toggle" type="checkbox" ${isVisible ? 'checked' : ''}>
           <label class="form-check-label small text-muted">${isVisible ? 'Enabled' : 'Disabled'}</label>
         </div>
-        <button class="btn btn-sm btn-outline-primary type-edit-btn" title="Edit type">
-          <i class="bi bi-pencil"></i> Edit
-        </button>
       ` : `
         <span class="text-muted" style="font-size: 0.9em;">Read-only</span>
       `}

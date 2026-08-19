@@ -460,7 +460,7 @@ async function saveContextOwner(contextId, userId) {
 }
 
 async function addNewContextOwner() {
-  const name = window.prompt("New user name:");
+  const name = await app.prompt("New user name:", { title: "Add Owner", placeholder: "Name" });
   if (!name || !name.trim()) return;
 
   try {
@@ -737,8 +737,9 @@ async function saveContextDbConfig() {
 
     if (testResult.schemaExists === false) {
       // Schema doesn't exist, ask user if they want to create it
-      const confirmed = confirm(
-        `The database schema does not exist in this database.\n\nWould you like to create it now?\n\nThis will create the necessary tables and columns for MyWork to function properly with this context.`
+      const confirmed = await app.confirm(
+        'The database schema does not exist in this database. Would you like to create it now? This will create the necessary tables and columns for MyWork to function properly with this context.',
+        'Create Schema'
       );
 
       if (!confirmed) {
@@ -796,7 +797,7 @@ async function saveContextDbConfig() {
 
 async function removeContextDbConfig() {
   if (!selectedContextId) return;
-  if (!confirm("Are you sure? This will remove the database connection for this context.")) {
+  if (!(await app.confirm("Are you sure? This will remove the database connection for this context.", "Remove Connection"))) {
     return;
   }
 

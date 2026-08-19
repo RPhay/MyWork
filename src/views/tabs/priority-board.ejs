@@ -169,8 +169,17 @@
     transform: rotate(90deg);
   }
 
-  .priority-strip-title {
+  /* Cell takes the free space; title ellipsises inside it; badge stays with
+     the text instead of being pushed to the row's actions. */
+  .priority-strip-title-cell {
+    display: flex;
+    align-items: center;
     flex: 1;
+    min-width: 0;
+  }
+
+  .priority-strip-title {
+    flex: 0 1 auto;
     font-weight: 500;
     font-size: 0.85rem;
     overflow: hidden;
@@ -231,7 +240,17 @@
     opacity: 0.5;
   }
 
+  .weekly-priority-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
   .weekly-priority-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     flex: 1;
     font-weight: 500;
     overflow: hidden;

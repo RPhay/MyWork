@@ -1,6 +1,16 @@
 /**
- * Entity Type Editor Modal
- * Handles creating and editing entity types with fields and relationships
+ * Entity Type Editor
+ * Handles creating and editing entity types with fields and relationships.
+ *
+ * The lists this builds (fields, parent types, child types) must NOT be given
+ * their own max-height/overflow. They sit inside the editor pane, which already
+ * scrolls, and a capped inner box means scrolling a small region nested inside
+ * two other scrolling regions. Let them render at full height.
+ *
+ * This file builds its HTML with template literals, so a stray backtick - in a
+ * comment as easily as in code - terminates a template early and breaks the
+ * whole file, which takes the type editor down completely rather than failing
+ * locally. Run `node --check` on this file after editing it.
  */
 
 let currentEntityTypeModal = null;
@@ -15,16 +25,20 @@ function closeEntityTypeEditor() {
   if (actionsEl) actionsEl.innerHTML = '';
   currentEditingType = null;
   entityTypeSplitPane?.hideRightPane();
+  window.syncTypeRowSelection?.();
 }
 
 // Built once, when the Entity Types tab first renders.
 function initEntityTypeSplitPane() {
   if (entityTypeSplitPane || !document.getElementById('entityTypeSplitPane')) return;
+  // 50/50: the type editor is a form with fields, relationships and choice
+  // lists, so it needs as much room as the list beside it.
   entityTypeSplitPane = new SplitPane(
     'entityTypeSplitPane',
     'entityTypeListPane',
     'entityTypeDivider',
-    'entityTypeEditorPane'
+    'entityTypeEditorPane',
+    50
   );
 }
 window.initEntityTypeSplitPane = initEntityTypeSplitPane;
@@ -40,6 +54,7 @@ async function openEntityTypeEditor(typeId = null) {
       if (result.success) {
         currentEditingType = result.data;
         showEntityTypeEditorModal(result.data);
+        window.syncTypeRowSelection?.();
       }
     } catch (error) {
       console.error('Error loading entity type:', error);
@@ -49,6 +64,7 @@ async function openEntityTypeEditor(typeId = null) {
     // New type
     currentEditingType = null;
     showEntityTypeEditorModal(null);
+    window.syncTypeRowSelection?.();
   }
 }
 
@@ -59,30 +75,22 @@ function showEntityTypeEditorModal(type) {
   const content = document.createElement('div');
   content.innerHTML = `
     <form id="entityTypeForm">
-      <div class="row mb-3">
-        <div class="col-md-6">
+      <div class="row mb-3 align-items-end">
+        <div class="col-auto">
+          <label class="form-label">Icon</label>
+          <div>
+            <button type="button" class="btn btn-outline-secondary type-icon-btn" id="typeIconBtn"
+                    title="Click to choose an icon">${type?.icon || '❓'}</button>
+            <input type="hidden" id="typeIcon" value="${type?.icon || ''}">
+          </div>
+        </div>
+        <div class="col">
           <label class="form-label">Name *</label>
           <input type="text" class="form-control" id="typeName" placeholder="e.g., Project, Task" value="${type?.label || ''}" required>
         </div>
-        <div class="col-md-6">
+        <div class="col">
           <label class="form-label">Singular Form *</label>
           <input type="text" class="form-control" id="typeSingular" placeholder="e.g., Project, Task" value="${type?.label_singular || ''}" required>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-6">
-          <label class="form-label">Icon (Emoji)</label>
-          <input type="text" class="form-control" id="typeIcon" placeholder="😊" value="${type?.icon || ''}" maxlength="5">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Supports Hierarchy</label>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="typeHierarchy" ${type?.supports_hierarchy ? 'checked' : ''}>
-            <label class="form-check-label" for="typeHierarchy">
-              Items can have parents/children of the same type
-            </label>
-          </div>
         </div>
       </div>
 
@@ -92,8 +100,19 @@ function showEntityTypeEditorModal(type) {
           <h6 class="mb-0">Fields</h6>
           <button type="button" class="btn btn-sm btn-outline-primary" id="addFieldBtn">+ Add Field</button>
         </div>
-        <div id="fieldsList" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+        <div id="fieldsList" style="border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
           <!-- Fields will be added here -->
+        </div>
+      </div>
+
+      <!-- Hierarchy sits with the relationships it governs: it decides whether
+           a type can nest inside itself at all. -->
+      <div class="mb-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="typeHierarchy" ${type?.supports_hierarchy ? 'checked' : ''}>
+          <label class="form-check-label" for="typeHierarchy">
+            <strong>Supports Hierarchy</strong> - items can have parents/children of the same type
+          </label>
         </div>
       </div>
 
@@ -103,13 +122,13 @@ function showEntityTypeEditorModal(type) {
         <div class="row">
           <div class="col-md-6">
             <label class="form-label">Can have parents:</label>
-            <div id="parentTypesList" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
+            <div id="parentTypesList" style="border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
               <!-- Parent types will be listed here -->
             </div>
           </div>
           <div class="col-md-6">
             <label class="form-label">Can have children:</label>
-            <div id="childTypesList" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
+            <div id="childTypesList" style="border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
               <!-- Child types will be listed here -->
             </div>
           </div>
@@ -120,9 +139,11 @@ function showEntityTypeEditorModal(type) {
 
   const footer = document.createElement('div');
   footer.innerHTML = `
-    <button type="button" class="btn btn-secondary" id="entityTypeCancelBtn">Cancel</button>
-    <button type="button" class="btn btn-danger me-2" id="entityTypeDeleteBtn" style="display: ${isNew ? 'none' : 'inline-block'};">Delete</button>
-    <button type="button" class="btn btn-primary" id="entityTypeSaveBtn">Save</button>
+    <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="entityTypeSaveBtn">Save</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="entityTypeCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" id="entityTypeDeleteBtn" style="display: ${isNew ? 'none' : 'inline-block'};">Delete</button>
+    </div>
   `;
 
   // Rendered into the split-pane on the right rather than a floating modal, so
@@ -141,7 +162,7 @@ function showEntityTypeEditorModal(type) {
   actionsEl.innerHTML = '';
   while (footer.firstChild) actionsEl.appendChild(footer.firstChild);
 
-  entityTypeSplitPane?.showRightPane();
+  entityTypeSplitPane?.showRightPane(50);   // half the width, matching init
 
   // Load types for relationships
   loadTypeRelationships(type);
@@ -156,6 +177,9 @@ function showEntityTypeEditorModal(type) {
 
   document.getElementById('addFieldBtn').addEventListener('click', addFieldRow);
 
+  const iconBtn = document.getElementById('typeIconBtn');
+  iconBtn?.addEventListener('click', () => openIconPicker(iconBtn, document.getElementById('typeIcon')));
+
   // Load existing fields if editing
   if (type && type.fields && type.fields.length > 0) {
     type.fields.forEach(field => {
@@ -163,6 +187,111 @@ function showEntityTypeEditorModal(type) {
     });
   }
 }
+
+// Which roll-up modes make sense per field type. A type absent from this table
+// is never offered a roll-up at all - that is how "only where it makes sense"
+// is enforced structurally rather than by asking the user to be careful.
+const ROLLUP_MODES = {
+  status: [
+    { value: '', label: 'No roll-up' },
+    { value: 'status', label: 'Roll up: status of children' },
+  ],
+  number: [
+    { value: '', label: 'No roll-up' },
+    { value: 'sum', label: 'Roll up: sum' },
+    { value: 'min', label: 'Roll up: minimum' },
+    { value: 'max', label: 'Roll up: maximum' },
+    { value: 'avg', label: 'Roll up: average' },
+  ],
+  date: [
+    { value: '', label: 'No roll-up' },
+    { value: 'min', label: 'Roll up: earliest' },
+    { value: 'max', label: 'Roll up: latest' },
+  ],
+  checkbox: [
+    { value: '', label: 'No roll-up' },
+    { value: 'all', label: 'Roll up: all children' },
+    { value: 'any', label: 'Roll up: any child' },
+  ],
+};
+
+// Icons to choose from. Deliberately excludes 📁 and 📂: every hierarchical
+// type can hold folders, which render with 📁, so a folder-like type icon makes
+// items and the folders containing them indistinguishable. That rule is stated
+// in src/database/systemEntityTypes.js and enforced by the schema seeders.
+const ICON_CHOICES = [
+  // Work + planning
+  '⭐', '📍', '🎯', '✅', '☑️', '📝', '🗒️', '📋', '📌', '🔖', '🏷️', '🎟️',
+  '📅', '📆', '🗓️', '⏰', '⏳', '⌛', '🔔', '🔕', '🚩', '🏁', '🎌',
+  // Ideas + knowledge
+  '💡', '🧠', '🔍', '🔎', '📖', '📚', '📓', '📔', '📕', '📗', '📘', '📙',
+  '✏️', '🖊️', '🖍️', '🧾', '📄', '📃', '🗂️', '🗃️', '🗄️',
+  // Build + technical
+  '🚀', '🔧', '🛠️', '⚙️', '🧰', '🔩', '🪛', '🧱', '🏗️', '🖥️', '💻', '⌨️',
+  '🖱️', '💾', '💿', '🗜️', '🔌', '🔋', '📡', '🛰️', '🧪', '🔬', '⚗️',
+  // Status + signals
+  '🔥', '⚡', '❗', '❓', '⚠️', '🚦', '🚧', '🛑', '✋', '👀', '🐛', '🩹',
+  '♻️', '🔄', '🔁', '⏩', '⏸️', '▶️',
+  // Data + money
+  '📊', '📈', '📉', '🧮', '💰', '💳', '🏦', '💵',
+  // People + comms
+  '👤', '👥', '🤝', '💬', '🗣️', '📞', '☎️', '✉️', '📧', '📢', '📣', '🎧',
+  // Places + things
+  '🏠', '🏢', '🏛️', '🏭', '🌍', '🌐', '🧭', '🗺️', '✈️', '🚗', '🚚', '⛵',
+  // Misc
+  '🎨', '🎬', '🎵', '🎮', '🕹️', '🏆', '🥇', '🎁', '❤️', '⭕', '🔵', '🟢',
+  '🟡', '🟠', '🔴', '🟣', '⚫', '⚪', '🔺', '🔷', '⬛', '⬜', '🧩', '🪄',
+  '🔒', '🔑', '🛡️', '☁️', '🌙', '☀️', '🌱', '🌳', '🍀', '🧊', '🪵', '📦',
+];
+
+// Opens under the icon button; picking writes the hidden input the form reads.
+function openIconPicker(btn, hiddenInput) {
+  document.querySelectorAll('.type-icon-picker').forEach(el => el.remove());
+
+  const picker = document.createElement('div');
+  picker.className = 'type-icon-picker';
+  picker.innerHTML = ICON_CHOICES
+    .map(i => '<button type="button" class="type-icon-choice" data-icon="' + i + '">' + i + '</button>')
+    .join('');
+  document.body.appendChild(picker);
+
+  const b = btn.getBoundingClientRect();
+  const p = picker.getBoundingClientRect();
+  picker.style.top = (b.bottom + window.innerHeight - b.bottom > p.height ? b.bottom + 4 : b.top - p.height - 4) + 'px';
+  picker.style.left = Math.min(b.left, window.innerWidth - p.width - 8) + 'px';
+
+  picker.addEventListener('click', (e) => {
+    const choice = e.target.closest('.type-icon-choice');
+    if (!choice) return;
+    hiddenInput.value = choice.dataset.icon;
+    btn.textContent = choice.dataset.icon;
+    hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    picker.remove();
+  });
+
+  const away = (e) => {
+    if (picker.contains(e.target) || e.target === btn) return;
+    picker.remove();
+    document.removeEventListener('mousedown', away);
+  };
+  setTimeout(() => document.addEventListener('mousedown', away), 0);
+}
+
+// The emoji a field is configured with: the single default for `emoji`, or the
+// whole set for `emojis`. Rendered as plain text so it round-trips through the
+// hidden input without any encoding games.
+function EMOJI_CONFIG_OF(field) {
+  const o = field?.field_options || {};
+  if (field?.field_type === 'emojis') return (o.values || []).join('');
+  if (field?.field_type === 'emoji') return o.default || '';
+  return '';
+}
+
+// Field types whose choices are edited as a list rather than a comma string.
+// `status` is included deliberately: without it a user-created status field had
+// no way to declare its values at all, so it saved with none and the row badge
+// had nothing to show.
+const LIST_TYPES = ['select', 'radio', 'status'];
 
 function addFieldRow(field = null) {
   const fieldsList = document.getElementById('fieldsList');
@@ -189,10 +318,8 @@ function addFieldRow(field = null) {
         <span class="field-drag-handle" title="Drag to reorder" style="cursor: grab; user-select: none; font-size: 0.8em; color: #999;">⋮⋮</span>
       </div>
       <div class="col">
-        <input type="text" class="form-control form-control-sm field-key" placeholder="field_name" value="${field?.field_key || ''}" required>
-      </div>
-      <div class="col">
-        <input type="text" class="form-control form-control-sm field-label" placeholder="Label" value="${field?.label || ''}" required>
+        <input type="text" class="form-control form-control-sm field-label" placeholder="Field name" value="${field?.label || ''}" required>
+        <input type="hidden" class="field-key" value="${field?.field_key || ''}">
       </div>
       <div class="col">
         <select class="form-select form-select-sm field-type">
@@ -207,10 +334,44 @@ function addFieldRow(field = null) {
           <option value="checkbox" ${field?.field_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
           <option value="status" ${field?.field_type === 'status' ? 'selected' : ''}>Status</option>
           <option value="recurrence" ${field?.field_type === 'recurrence' ? 'selected' : ''}>Recurrence</option>
+          <option value="emoji" ${field?.field_type === 'emoji' ? 'selected' : ''}>Emoji (free pick)</option>
+          <option value="emojis" ${field?.field_type === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
         </select>
       </div>
-      <div class="col field-options-col" style="display: ${['select', 'radio', 'checkbox'].includes(field?.field_type) ? 'block' : 'none'};">
-        <input type="text" class="form-control form-control-sm field-options" placeholder="Options (comma-separated)" value="${optionsStr}">
+      <div class="col-auto field-emoji-col" style="display: ${['emoji', 'emojis'].includes(field?.field_type) ? 'block' : 'none'};">
+        <span class="field-emoji-list">${EMOJI_CONFIG_OF(field)}</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary field-emoji-add" title="Add an emoji">+</button>
+        <input type="hidden" class="field-emoji-values" value="${EMOJI_CONFIG_OF(field)}">
+      </div>
+      <div class="col field-options-col" style="display: ${LIST_TYPES.includes(field?.field_type) ? 'block' : 'none'};">
+        <div class="d-flex gap-1 align-items-center">
+          <select class="form-select form-select-sm field-options-list" title="The choices this field offers"></select>
+          <button type="button" class="btn btn-sm btn-outline-secondary field-option-add" title="Add a choice">+</button>
+          <button type="button" class="btn btn-sm btn-outline-danger field-option-del" title="Remove the selected choice">&minus;</button>
+        </div>
+        <input type="hidden" class="field-options" value="${optionsStr}">
+      </div>
+      <div class="col field-checkbox-options-col" style="display: ${field?.field_type === 'checkbox' ? 'block' : 'none'};">
+        <input type="text" class="form-control form-control-sm field-checkbox-options" placeholder="Options (comma-separated)" value="${field?.field_type === 'checkbox' ? optionsStr : ''}">
+      </div>
+      <div class="col-auto field-rollup-col" style="display: ${ROLLUP_MODES[field?.field_type] ? 'block' : 'none'};">
+        <select class="form-select form-select-sm field-rollup" title="How a folder derives this field from the items inside it">
+          ${(ROLLUP_MODES[field?.field_type] || []).map(m =>
+            '<option value="' + m.value + '"' + (field?.rollup === m.value ? ' selected' : '') + '>' + m.label + '</option>'
+          ).join('')}
+        </select>
+      </div>
+      <div class="col-auto ms-auto">
+        <div class="form-check form-switch" title="Show this field as a column in the row">
+          <input class="form-check-input field-show-in-row" type="checkbox" ${field?.show_in_row ? 'checked' : ''}>
+          <label class="form-check-label small text-muted">Column</label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check form-switch" title="Show this column's name in the header">
+          <input class="form-check-input field-show-label" type="checkbox" ${field?.show_column_label !== 0 && field?.show_column_label !== false ? 'checked' : ''}>
+          <label class="form-check-label small text-muted">Name</label>
+        </div>
       </div>
       <div class="col-auto">
         <button type="button" class="btn btn-sm btn-outline-danger remove-field-btn">×</button>
@@ -224,12 +385,84 @@ function addFieldRow(field = null) {
   const optionsCol = fieldRow.querySelector('.field-options-col');
 
   // Show/hide options input based on field type
+  // ----- choice list (dropdown / radio / status) -----
+  const optionsHidden = fieldRow.querySelector('.field-options');
+  const optionsList = fieldRow.querySelector('.field-options-list');
+
+  const readOptions = () =>
+    optionsHidden.value.split(',').map(v => v.trim()).filter(Boolean);
+
+  const paintOptions = () => {
+    const vals = readOptions();
+    optionsList.innerHTML = vals.length
+      ? vals.map(v => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('')
+      : '<option value="">(no choices yet)</option>';
+  };
+  paintOptions();
+
+  fieldRow.querySelector('.field-option-add').addEventListener('click', async () => {
+    const value = await app.prompt('What should this choice be called?', {
+      title: 'Add a choice', placeholder: 'e.g. In Review',
+    });
+    if (!value) return;
+    const vals = readOptions();
+    if (vals.includes(value)) return;
+    optionsHidden.value = [...vals, value].join(', ');
+    paintOptions();
+    optionsList.value = value;
+  });
+
+  fieldRow.querySelector('.field-option-del').addEventListener('click', () => {
+    const chosen = optionsList.value;
+    if (!chosen) return;
+    optionsHidden.value = readOptions().filter(v => v !== chosen).join(', ');
+    paintOptions();
+  });
+
+  const emojiCol = fieldRow.querySelector('.field-emoji-col');
+  const emojiList = fieldRow.querySelector('.field-emoji-list');
+  const emojiValues = fieldRow.querySelector('.field-emoji-values');
+
+  fieldRow.querySelector('.field-emoji-add').addEventListener('click', async (ev) => {
+    const picked = await app.pickEmoji(ev.currentTarget);
+    if (picked === null) return;
+    if (!picked) { emojiValues.value = ''; emojiList.textContent = ''; return; }
+    // `emoji` holds one default; `emojis` accumulates the set to cycle through.
+    emojiValues.value = fieldTypeSelect.value === 'emojis'
+      ? [...new Set([...Array.from(emojiValues.value), picked])].join('')
+      : picked;
+    emojiList.textContent = emojiValues.value;
+  });
+
+  // Clicking an emoji in the list removes it from the set.
+  emojiList.addEventListener('click', (ev) => {
+    if (fieldTypeSelect.value !== 'emojis') return;
+    const chars = Array.from(emojiValues.value);
+    if (!chars.length) return;
+    chars.pop();
+    emojiValues.value = chars.join('');
+    emojiList.textContent = emojiValues.value;
+  });
+
+  const rollupCol = fieldRow.querySelector('.field-rollup-col');
+  const rollupSelect = fieldRow.querySelector('.field-rollup');
+
+  const checkboxOptionsCol = fieldRow.querySelector('.field-checkbox-options-col');
+
   fieldTypeSelect.addEventListener('change', () => {
-    if (['select', 'radio', 'checkbox'].includes(fieldTypeSelect.value)) {
-      optionsCol.style.display = 'block';
-    } else {
-      optionsCol.style.display = 'none';
-    }
+    optionsCol.style.display = LIST_TYPES.includes(fieldTypeSelect.value) ? 'block' : 'none';
+    checkboxOptionsCol.style.display = fieldTypeSelect.value === 'checkbox' ? 'block' : 'none';
+
+    // Re-offer only the modes valid for the new type. Without this, changing a
+    // number field to text would leave a stale 'sum' selected and saved.
+    emojiCol.style.display = ['emoji', 'emojis'].includes(fieldTypeSelect.value) ? 'block' : 'none';
+
+    const modes = ROLLUP_MODES[fieldTypeSelect.value];
+    rollupCol.style.display = modes ? 'block' : 'none';
+    rollupSelect.innerHTML = (modes || [])
+      .map(m => '<option value="' + m.value + '">' + m.label + '</option>')
+      .join('');
+    if (!modes) rollupSelect.value = '';
   });
 
   // Remove button
@@ -332,25 +565,69 @@ async function saveEntityType() {
   }
 
   const typeData = {
+    // A new type needs a slug and the form has no field for one - it is derived
+    // from the Name, the same way a field's storage key is derived from its
+    // label. Creating a type failed with "slug is required" without this.
+    //
+    // Only ever sent when CREATING. An existing type's slug is its identity -
+    // tabs, ?tab= URLs, relationship rules and the generic engine all key off
+    // it - so renaming a type must never move it.
+    ...(currentEditingType ? {} : {
+      slug: document.getElementById('typeName').value
+        .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
+    }),
     label: document.getElementById('typeName').value,
     label_singular: document.getElementById('typeSingular').value,
     icon: document.getElementById('typeIcon').value || null,
     supports_hierarchy: document.getElementById('typeHierarchy').checked,
     fields: Array.from(document.querySelectorAll('.field-row')).map(row => {
       const fieldType = row.querySelector('.field-type').value;
+      // The storage key is derived from the label rather than typed twice.
+      // It is only ever set for a NEW field: changing an existing field's key
+      // would orphan every value already stored under the old one, so the
+      // hidden input keeps it once assigned. entityTypeService normalises it
+      // the same way.
+      const label = row.querySelector('.field-label').value;
+      const keyInput = row.querySelector('.field-key');
+      if (!keyInput.value) {
+        keyInput.value = label.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
+      }
       const fieldData = {
-        field_key: row.querySelector('.field-key').value,
-        label: row.querySelector('.field-label').value,
-        field_type: fieldType
+        field_key: keyInput.value,
+        label,
+        field_type: fieldType,
+        // Which columns a page shows is this one value, edited either here or
+        // through the column chooser on the page itself - one value, two views.
+        show_in_row: row.querySelector('.field-show-in-row').checked,
+        show_column_label: row.querySelector('.field-show-label').checked,
+        rollup: row.querySelector('.field-rollup')?.value || null
       };
 
-      // Add field_options for select, radio, checkbox fields
-      if (['select', 'radio', 'checkbox'].includes(fieldType)) {
-        const optionsInput = row.querySelector('.field-options');
-        if (optionsInput && optionsInput.value.trim()) {
-          const values = optionsInput.value.split(',').map(v => v.trim()).filter(v => v);
+      // Emoji configuration: one default, or the set to cycle through.
+      if (fieldType === 'emoji' || fieldType === 'emojis') {
+        const chars = Array.from(row.querySelector('.field-emoji-values').value || '');
+        if (chars.length) {
+          fieldData.field_options = fieldType === 'emojis'
+            ? { values: chars }
+            : { default: chars[0] };
+        }
+      }
+
+      // Choices for the list types, and for checkbox from its own input.
+      if (LIST_TYPES.includes(fieldType) || fieldType === 'checkbox') {
+        const input = fieldType === 'checkbox'
+          ? row.querySelector('.field-checkbox-options')
+          : row.querySelector('.field-options');
+        if (input && input.value.trim()) {
+          const values = input.value.split(',').map(v => v.trim()).filter(v => v);
           if (values.length > 0) {
             fieldData.field_options = { values };
+            // A status needs to know which value means finished, or the row
+            // badge can never show a "done" state. The last choice is taken as
+            // the terminal one; re-order the list to change which that is.
+            if (fieldType === 'status') {
+              fieldData.field_options.doneValues = [values[values.length - 1]];
+            }
           }
         }
       }
@@ -375,9 +652,11 @@ async function saveEntityType() {
     const result = await response.json();
     if (result.success) {
       app.notify('Entity type saved', 'success');
-      closeEntityTypeEditor();
-      // Reload entity types
-      location.reload();
+      // Stay open on what was just saved. This used to close the editor and
+      // reload the whole page, which threw away your place for every edit.
+      const savedId = result.data?.id || currentEditingType?.id;
+      await loadEntityTypesUI();
+      if (savedId) await openEntityTypeEditor(savedId);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -389,7 +668,7 @@ async function saveEntityType() {
 
 async function deleteEntityType() {
   if (!currentEditingType) return;
-  if (!confirm(`Delete entity type "${currentEditingType.label}"?`)) return;
+  if (!(await app.confirm(`Delete entity type "${currentEditingType.label}"?`, 'Confirm Delete'))) return;
 
   try {
     const response = await fetch(`/api/entity-types/${currentEditingType.id}`, {
@@ -402,8 +681,9 @@ async function deleteEntityType() {
     const result = await response.json();
     if (result.success) {
       app.notify('Entity type deleted', 'success');
+      // Deleting genuinely has nothing left to show, so this one does close.
       closeEntityTypeEditor();
-      location.reload();
+      await loadEntityTypesUI();
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }

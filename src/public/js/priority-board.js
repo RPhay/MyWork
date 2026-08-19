@@ -20,11 +20,12 @@ function getDescendants(priorityId, byParent) {
   return result;
 }
 
-function renderChildRow(child) {
+function renderChildRow(child, byParent) {
+  const childCount = (byParent?.get(child.id) || []).length;
   return `
-    <div class="priority-strip-child" style="padding-left: ${20 + (child.depth - 1) * 16}px;">
+    <div class="priority-strip-child" data-priority-id="${child.id}" style="padding-left: ${20 + (child.depth - 1) * 16}px;">
       <span class="badge bg-${statusBadgeColor(child.status)}" style="font-size: 0.65rem;">${child.status}</span>
-      <span>${app.escapeHtml(child.title)}</span>
+      <span>${app.escapeHtml(child.title)}${app.childCountBadge(childCount)}</span>
       <button class="btn btn-sm btn-link p-0 ms-auto" data-action="edit" data-id="${child.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
     </div>
   `;
@@ -33,12 +34,15 @@ function renderChildRow(child) {
 function renderStrip(priority, byParent) {
   const descendants = getDescendants(priority.id, byParent);
   const hasChildren = descendants.length > 0;
+  // The badge counts direct children; the expanded list below is still every
+  // descendant, flattened and indented.
+  const childCount = (byParent.get(priority.id) || []).length;
   const isExpanded = expandedStrips.has(String(priority.id));
 
   const areaBadges = (priority.areas || []).map(a => `<span class="badge bg-secondary"><i class="bi ${APP_ICONS.area}"></i> ${app.escapeHtml(a.path || a.name)}</span>`).join('');
 
   const childrenHtml = hasChildren
-    ? `<div class="priority-strip-children">${descendants.map(renderChildRow).join('')}</div>`
+    ? `<div class="priority-strip-children">${descendants.map(c => renderChildRow(c, byParent)).join('')}</div>`
     : '';
 
   return `
@@ -48,7 +52,7 @@ function renderStrip(priority, byParent) {
           ? '<i class="bi bi-chevron-right priority-strip-toggle" data-action="toggle-expand"></i>'
           : '<span class="priority-strip-toggle"></span>'}
         <i class="bi ${APP_ICONS.priorityBoard} text-muted"></i>
-        <span class="priority-strip-title">${app.escapeHtml(priority.title)}</span>
+        <span class="priority-strip-title-cell"><span class="priority-strip-title">${app.escapeHtml(priority.title)}</span>${app.childCountBadge(childCount)}</span>
         <span class="priority-strip-badges">${areaBadges}</span>
         <span class="priority-strip-actions">
           <button class="btn btn-sm btn-link p-0" data-action="edit" data-id="${priority.id}" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></button>
@@ -68,6 +72,26 @@ function getTopLevelForStatus(status) {
   return getTopLevel().filter(p => (p.status || 'Not Started') === status);
 }
 
+// The project the strip editor currently has open. One project can be on
+// screen twice - as a board strip (or a strip's child row) and as a Weekly
+// Priorities row - so every row carrying its id is marked.
+let selectedStripId = null;
+
+const STRIP_ROW_SELECTOR =
+  '.priority-strip, .priority-strip-child, .weekly-priority-row';
+
+function syncStripRowSelection() {
+  const rows =
+    selectedStripId != null
+      ? document.querySelectorAll(
+          STRIP_ROW_SELECTOR.split(', ')
+            .map((sel) => `${sel}[data-priority-id="${selectedStripId}"]`)
+            .join(', ')
+        )
+      : null;
+  app.selectRow(rows, STRIP_ROW_SELECTOR);
+}
+
 function renderBoard() {
   const byParent = app.groupByParent(currentPriorities);
 
@@ -81,6 +105,8 @@ function renderBoard() {
       bay.innerHTML = strips.map(p => renderStrip(p, byParent)).join('');
     }
   });
+
+  syncStripRowSelection();
 }
 
 // Splices draggedId into the full top-level list (every status, every project),
@@ -187,6 +213,9 @@ function openStripEditForm(priorityId) {
   document.getElementById('stripNotes').value = priority.notes || '';
   document.getElementById('stripStatus').value = priority.status || 'Not Started';
 
+  selectedStripId = priority.id;
+  syncStripRowSelection();
+
   const modal = new bootstrap.Modal(document.getElementById('stripModal'));
   modal.show();
 }
@@ -233,6 +262,12 @@ function clearBoardDropTargets() {
 
 function initPriorityBoardEventListeners() {
   document.getElementById('saveStripBtn').addEventListener('click', saveStrip);
+
+  // Nothing is being edited once the editor is gone, however it was dismissed.
+  document.getElementById('stripModal').addEventListener('hidden.bs.modal', () => {
+    selectedStripId = null;
+    syncStripRowSelection();
+  });
 
   document.querySelectorAll('.priority-bay').forEach(bay => {
     bay.addEventListener('dragstart', (e) => {
@@ -312,6 +347,10 @@ function initPriorityBoardEventListeners() {
 function renderWeeklyPriorities() {
   const container = document.getElementById('weeklyPrioritiesList');
   const weekly = getTopLevel().filter(p => p.is_weekly);
+  // Grouped from every priority, not just top-level ones - the `byParent`
+  // declared further down for the right-hand panel groups getTopLevel() only,
+  // so it holds no children to count.
+  const childrenByParent = app.groupByParent(currentPriorities);
 
   if (weekly.length === 0) {
     container.innerHTML = '<p class="text-center text-muted">No weekly priorities yet - drag projects in from the right.</p>';
@@ -320,7 +359,7 @@ function renderWeeklyPriorities() {
       <div class="weekly-priority-row" draggable="true" data-priority-id="${p.id}">
         <span class="weekly-priority-title">
           <i class="bi ${APP_ICONS.priorityBoard} text-muted"></i>
-          ${app.escapeHtml(p.title)}
+          <span class="weekly-priority-text">${app.escapeHtml(p.title)}</span>${app.childCountBadge((childrenByParent.get(p.id) || []).length)}
         </span>
         <span class="badge bg-${statusBadgeColor(p.status)}">${p.status}</span>
         <button class="btn btn-sm btn-danger" data-action="remove-weekly" data-id="${p.id}" title="Remove from Weekly Priorities" aria-label="Remove">
@@ -345,6 +384,8 @@ function renderWeeklyPriorities() {
     `).join('');
     setupDragListeners();
   }
+
+  syncStripRowSelection();
 }
 
 async function removeFromWeekly(priorityId) {

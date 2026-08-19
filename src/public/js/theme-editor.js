@@ -42,6 +42,18 @@ function applyThemePreferences(prefs) {
 function initThemeEditor() {
   const prefs = loadThemePreferences();
 
+  // Date display format. Kept with the other display preferences: it changes
+  // only how a stored date is rendered, never what is stored.
+  const dateFormat = document.getElementById('dateFormatSelect');
+  if (dateFormat) {
+    dateFormat.value = prefs.dateFormat || 'YYYY-MM-DD';
+    dateFormat.addEventListener('change', () => {
+      prefs.dateFormat = dateFormat.value;
+      saveThemePreferences(prefs);
+      app.notify('Date format updated', 'success');
+    });
+  }
+
   // Set current theme mode
   document.querySelector(`input[name="theme"][value="${prefs.mode}"]`).checked = true;
 
@@ -93,8 +105,8 @@ function initThemeEditor() {
   });
 
   // Reset button
-  document.getElementById('resetThemeBtn').addEventListener('click', () => {
-    if (confirm('Reset theme to default settings?')) {
+  document.getElementById('resetThemeBtn').addEventListener('click', async () => {
+    if (await app.confirm('Reset theme to default settings?', 'Reset Theme')) {
       const defaultPrefs = {
         mode: 'system',
         accentColor: 'blue',

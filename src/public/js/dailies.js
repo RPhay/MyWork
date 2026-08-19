@@ -415,7 +415,10 @@ function renderWorkItemsList(items) {
 
   items.forEach((item) => {
     const isExpanded = expandedWorkItems.has(String(item.id));
-    const hasChildren = (item.priorities?.length || 0) + (item.goals?.length || 0) + (item.areas?.length || 0) + (item.todos?.length || 0) + (item.tasks?.length || 0) + (item.tickets?.length || 0) + (item.ideas?.length || 0) > 0;
+    // Everything renderChildItem() will emit below - the associated records of
+    // every type - is what "children" means for a work item.
+    const childCount = (item.priorities?.length || 0) + (item.goals?.length || 0) + (item.areas?.length || 0) + (item.todos?.length || 0) + (item.tasks?.length || 0) + (item.tickets?.length || 0) + (item.ideas?.length || 0);
+    const hasChildren = childCount > 0;
 
     // Render work item row
     html += `
@@ -424,7 +427,7 @@ function renderWorkItemsList(items) {
           <span class="work-item-title-cell">
             <i class="bi bi-chevron-right work-item-toggle" data-action="toggle-expand" title="Expand/collapse"></i>
             <i class="bi ${APP_ICONS.workItem} text-muted" title="Work Item"></i>
-            <span class="work-item-title">${app.escapeHtml(item.title)}</span>
+            <span class="work-item-title">${app.escapeHtml(item.title)}</span>${app.childCountBadge(childCount)}
           </span>
           <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || "")}</span>
           <span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>
@@ -486,6 +489,7 @@ function renderWorkItemsList(items) {
   });
 
   container.innerHTML = html;
+  syncDailiesRowSelection();
 }
 
 function renderChildItem(type, id, label, icon, parentWorkItemId) {
@@ -795,6 +799,24 @@ async function saveWorkItem() {
 
 let workItemEditorRequestId = 0;
 
+// Keeps the selected-row indicator in step with whichever editor is open. The
+// work item editor and the child item editor share one pane, so exactly one
+// row is selected across both lists. Called on open, on close, and after every
+// re-render (the list is rebuilt via innerHTML, which drops the class).
+function syncDailiesRowSelection() {
+  let row = null;
+  if (currentEditingChild) {
+    row = document.querySelector(
+      `.work-item.child-item-row[data-item-type="${currentEditingChild.type}"][data-child-id="${currentEditingChild.id}"]`
+    );
+  } else if (currentWorkItemId != null) {
+    row = document.querySelector(
+      `.work-item:not(.child-item-row)[data-work-id="${currentWorkItemId}"]`
+    );
+  }
+  app.selectRow(row, ".work-item");
+}
+
 async function editWorkItem(workId) {
   try {
     // Check if clicking on same row that's already open
@@ -851,6 +873,8 @@ async function editWorkItem(workId) {
     if (dailiesSplitPane) {
       dailiesSplitPane.showRightPane();
     }
+
+    syncDailiesRowSelection();
   } catch (error) {
     console.error("Error loading work item:", error);
     app.notify("Error loading work item", "danger");
@@ -863,6 +887,7 @@ function closeWorkItemEditor() {
   if (dailiesSplitPane) {
     dailiesSplitPane.hideRightPane();
   }
+  syncDailiesRowSelection();
 }
 
 async function deleteWorkItem(workId) {
@@ -2489,7 +2514,7 @@ async function associateIdea(workItemId, ideaId) {
 
 // Create and associate functions
 async function createAndAssociateProject(workItemId) {
-  const title = prompt('Enter project name:');
+  const title = await app.prompt('Enter project name:', { title: 'New Project', placeholder: 'Project name' });
   if (!title) return;
   try {
     const response = await fetch('/api/priorities', {
@@ -2511,7 +2536,7 @@ async function createAndAssociateProject(workItemId) {
 }
 
 async function createAndAssociateArea(workItemId) {
-  const name = prompt('Enter category name:');
+  const name = await app.prompt('Enter category name:', { title: 'New Category', placeholder: 'Category name' });
   if (!name) return;
   try {
     const response = await fetch('/api/areas', {
@@ -2533,7 +2558,7 @@ async function createAndAssociateArea(workItemId) {
 }
 
 async function createAndAssociateGoal(workItemId) {
-  const name = prompt('Enter goal name:');
+  const name = await app.prompt('Enter goal name:', { title: 'New Goal', placeholder: 'Goal name' });
   if (!name) return;
   try {
     const response = await fetch('/api/goals', {
@@ -2555,7 +2580,7 @@ async function createAndAssociateGoal(workItemId) {
 }
 
 async function createAndAssociateTodo(workItemId) {
-  const title = prompt('Enter todo title:');
+  const title = await app.prompt('Enter todo title:', { title: 'New Todo', placeholder: 'Todo title' });
   if (!title) return;
   try {
     const response = await fetch('/api/to-dos', {
@@ -2577,7 +2602,7 @@ async function createAndAssociateTodo(workItemId) {
 }
 
 async function createAndAssociateTask(workItemId) {
-  const title = prompt('Enter task title:');
+  const title = await app.prompt('Enter task title:', { title: 'New Task', placeholder: 'Task title' });
   if (!title) return;
   try {
     const response = await fetch('/api/tasks', {
@@ -2599,7 +2624,7 @@ async function createAndAssociateTask(workItemId) {
 }
 
 async function createAndAssociateTicket(workItemId) {
-  const title = prompt('Enter ticket title:');
+  const title = await app.prompt('Enter ticket title:', { title: 'New Ticket', placeholder: 'Ticket title' });
   if (!title) return;
   try {
     const response = await fetch('/api/tickets', {
@@ -2621,7 +2646,7 @@ async function createAndAssociateTicket(workItemId) {
 }
 
 async function createAndAssociateIdea(workItemId) {
-  const title = prompt('Enter idea title:');
+  const title = await app.prompt('Enter idea title:', { title: 'New Idea', placeholder: 'Idea title' });
   if (!title) return;
   try {
     const response = await fetch('/api/ideas', {
@@ -2675,7 +2700,7 @@ function showChildItemContextMenu(x, y, itemType, itemId) {
     </button>
   `;
 
-  menu.addEventListener('click', (e) => {
+  menu.addEventListener('click', async (e) => {
     const actionBtn = e.target.closest('[data-child-action]');
     if (!actionBtn) return;
 
@@ -2685,7 +2710,7 @@ function showChildItemContextMenu(x, y, itemType, itemId) {
     if (action === 'edit') {
       editChildItem(itemType, itemId);
     } else if (action === 'delete') {
-      if (confirm(`Remove this ${typeName}?`)) {
+      if (await app.confirm(`Remove this ${typeName}?`, 'Confirm Remove')) {
         deleteChildItem(itemType, itemId);
       }
     }
@@ -2785,7 +2810,7 @@ async function createAndEditItem(itemType, parentWorkItemId) {
 
 // Template creation (was missing)
 async function createAndAssociateTemplate(workItemId) {
-  const title = prompt('Enter template name:');
+  const title = await app.prompt('Enter template name:', { title: 'New Template', placeholder: 'Template name' });
   if (!title) return;
   try {
     const response = await fetch('/api/work-item-templates', {
@@ -2858,6 +2883,7 @@ function openChildItemEditor(type, id) {
 
   loadChildItemForEditing(type, id);
   childItemChangeTracker.trackFormChanges();
+  syncDailiesRowSelection();
 }
 
 function closeChildItemEditor() {
@@ -2867,6 +2893,9 @@ function closeChildItemEditor() {
   const workPane = document.getElementById('workItemEditorPane');
   if (childPane) childPane.classList.add('hidden');
   if (workPane) workPane.classList.remove('hidden');
+  // Falls back to the work item whose children these are, which is still open
+  // behind the child editor.
+  syncDailiesRowSelection();
 }
 
 async function loadChildItemForEditing(type, id) {
@@ -2976,10 +3005,8 @@ function initDailiesEventListeners() {
   const calendarEl = document.getElementById("calendar");
   console.log("[Dailies] Calendar element found:", !!calendarEl);
 
-  const addWorkItemBtn = document.getElementById("addWorkItemBtn");
-  if (addWorkItemBtn) {
-    addWorkItemBtn.addEventListener("click", openNewWorkForm);
-  }
+  // The + Add button is gone - work reaches a day by being dragged in from a
+  // typed page. openNewWorkForm is left in place; nothing calls it now.
 
   const importOutlookEmailsBtn = document.getElementById("importOutlookEmailsBtn");
   if (importOutlookEmailsBtn) {
