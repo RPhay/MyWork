@@ -14,15 +14,29 @@ This existence check and read are pre-authorized: perform them at session start 
 npm run dev              # Start dev server with hot reload (nodemon), http://localhost:3000
 npm start                # Start production server
 npm run db:init          # Create the MySQL database and tables (scripts/initDatabase.js)
-npm test                 # Run Jest tests (no unit tests exist yet; suite is currently empty)
-npm run test:watch       # Jest watch mode
-npx playwright test      # Run e2e tests (tests/e2e/*.spec.js); auto-starts `npm run dev` as needed
-npx playwright test tests/e2e/dailies.spec.js   # Run a single e2e spec
 npm run lint              # ESLint over src (no .eslintrc is checked in)
 npm run format            # Prettier --write src
 ```
 
 `npm run db:migrate` (scripts/migrate.js) is a placeholder that just logs a message — there is no real migration runner. Schema changes go directly into `src/database/schema/mysqlSchema.js` / `mssqlSchema.js`, and `npm run db:init` re-applies the current schema.
+
+## Bump the version on every change
+
+**Increment the version every time you change anything.** Run:
+
+```bash
+npm run version:bump
+```
+
+`src/utils/version.js` derives `[yyyy].[mm].[dd].[rev]` and persists it to
+`.version` (gitignored); `readVersion()` is what the dashboard and Settings
+display. The revision resets when the date rolls over, so several changes on one
+day give `.0`, `.1`, `.2`.
+
+Nothing calls `updateVersion()` automatically — it only happens if you run it.
+`.version` had sat at `2026.07.28.0` for three weeks because of that, so the
+number on screen did not correspond to the code being run. Bump it as part of
+making the change, not as a separate step you might forget.
 
 ## Database schema changes must cover every supported database type
 
@@ -32,40 +46,37 @@ When translating, don't assume a 1:1 mapping of referential actions: SQL Server 
 
 Local config: copy `.env.example` to `.env.local` (not `.env`). `CONFIG_ENCRYPTION_KEY` (used to encrypt stored DB credentials in Settings) is optional — if left unset, `src/config/environment.js#getOrCreateConfigEncryptionKey` generates one on first boot and persists it to `data/.config-encryption-key`, mirroring how `SESSION_SECRET` is self-managed. Only set it explicitly for a multi-process/load-balanced deployment, where every process needs the same key. If a stored password ever fails to decrypt ("could not be decrypted... machine"), it means the key changed since that password was saved (e.g. `.env.local` was hand-edited, or the persisted file was deleted) — the fix is to re-enter and save the password, not to recover the old key.
 
-## Browser testing after changes
+## The shell: Dailies is a rail, not a page
 
-**Always test UI changes in a real browser before pushing.** Start the dev server (`npm run dev`) and verify the feature works end-to-end — this catches issues Playwright might miss and ensures the feature actually works as intended. Type checking and tests verify code correctness, not feature correctness.
+`dashboard.ejs` renders Dailies once, as a resizable rail down the left of
+whichever tab is showing - not as a tab pane. Its button in the tab bar carries
+`data-rail-toggle` rather than `data-tab`, and `tabs.js` keys off that to show
+and hide the rail instead of switching panes.
 
-After any significant change (new features, bug fixes, security updates), also run Playwright to check for browser errors:
+Consequences worth knowing before touching either file:
 
-```bash
-npx playwright test tests/e2e/debug.spec.js  # Quick check for CSP and JS errors
-npx playwright test                          # Full suite (slower but catches more)
-```
+- **There is no `#tab-work_item`.** Anything looking for a Dailies *page* will
+  find nothing.
+- **Dailies cannot be the landing tab.** The default resolves to the first tab
+  button that actually exists.
+- **Dailies initialises on every page load**, since the rail is always in the
+  DOM - not when a tab is opened.
+- Rail width, rail open/closed and calendar open/closed are per-browser view
+  state in `localStorage`.
 
-Fix any console errors (CSP violations, unhandled exceptions, etc.) before committing. CSP violations in particular indicate security policy conflicts that need resolution.
+## Testing
 
-## Editable Types Testing (Data Types)
+**All testing guidance lives in `CLAUDE_TESTING.md`** — commands, when to run
+what, the headed-mode requirement for editable type pages, how to read a run,
+and the rule that you must delete the rows your testing creates. Read it before
+running or writing tests; do not duplicate any of it back into this file.
 
-**ALWAYS run these tests in headed mode when modifying any editable type pages** (Areas/Categories, Goals, Todos, Tasks, Tickets, Ideas):
+Two things from it that are easy to get wrong and expensive when you do:
 
-```bash
-npx playwright test tests/e2e/editable-types.spec.js --headed
-```
-
-These tests verify:
-- ✓ UI elements present (add button, folder button, expand/collapse buttons)
-- ✓ Expand/collapse tree navigation works
-- ✓ Folder creation dialog triggers
-- ✓ Tab layout centering (editable types centered between fixed left/right tabs)
-
-**Do NOT commit changes to editable type templates/code without running these tests in headed mode.** The tests catch duplicate IDs, missing event handlers, broken form rendering, and other UI issues that static analysis misses.
-
-Related files requiring this testing:
-- `src/views/tabs/generic-entity-tab.ejs` — Generic template for all editable types
-- `src/public/js/genericEntity.js` — Generic entity renderer and editor
-- `src/services/entityService.js` — Entity CRUD operations
-- `tests/e2e/editable-types.spec.js` — Comprehensive browser tests
+- **Clean up test data.** Any run that creates rows must delete them again. The
+  database is the user's real working data.
+- **Read both numbers.** The Playwright line reporter prints `N failed` *above*
+  `N passed`, so a truncated log makes a badly failing run look clean.
 
 ## Credentials
 

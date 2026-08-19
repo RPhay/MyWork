@@ -146,7 +146,10 @@ for (const type of TYPES) {
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
 
-      await page.locator('.entity-row', { hasText: original.title }).click();
+      // Click the TITLE, not the row centre. Control cells (status badge, date
+      // picker) deliberately do not open the editor, and the centre of a wide
+      // row can land on one.
+      await page.locator('.entity-row', { hasText: original.title }).locator('.entity-title').click();
       await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
       const titleInput = page.locator('#entity-editor-form input[name="title"]');
@@ -155,8 +158,16 @@ for (const type of TYPES) {
       await page.click(`#${type.slug}SaveBtn`);
 
       await expect(page.locator('.entity-row', { hasText: updated })).toBeVisible({ timeout: 5000 });
-      const stored = await apiGet(page, type.slug, original.id);
-      expect(stored.title).toBe(updated);
+      // The row showing the new title no longer proves it was saved: the editor
+      // mirrors unsaved edits into the row as a preview (marked with a dot).
+      // Poll the API so this asserts persistence rather than what is on screen.
+      await expect
+        // Optional chaining on purpose: a THROW inside expect.poll propagates
+        // instead of retrying, so one transient response would fail the test
+        // outright. Returning undefined lets it retry, and a genuine problem
+        // still fails - on the timeout, with a readable diff.
+        .poll(async () => (await apiGet(page, type.slug, original.id))?.title, { timeout: 5000 })
+        .toBe(updated);
     });
 
     test('deletes an existing item', async ({ page }) => {
@@ -365,7 +376,7 @@ for (const type of TYPES) {
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
 
-      await page.locator('.entity-row', { hasText: item.title }).click();
+      await page.locator('.entity-row', { hasText: item.title }).locator('.entity-title').click();
       await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
       const notes = page.locator('#entity-editor-form [name="notes"]');

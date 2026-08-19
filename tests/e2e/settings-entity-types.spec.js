@@ -49,7 +49,10 @@ test('disabling a type removes its dashboard tab', async ({ page }) => {
   expect(await page.locator('button[data-tab="ticket"]').count()).toBe(1);
 });
 
-test('returning from settings restores the last dashboard tab', async ({ page }) => {
+// The dashboard deliberately no longer restores a remembered tab: a bare load
+// of / always lands on Dailies (see restoresRememberedTab in tabs.js). Settings
+// still restores its own strip.
+test('returning from settings lands on the dashboard default, not the last tab', async ({ page }) => {
   await page.goto('/'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1200);
   await page.locator('button[data-tab="idea"]').click();
   await page.waitForTimeout(600);
@@ -60,7 +63,11 @@ test('returning from settings restores the last dashboard tab', async ({ page })
   await page.locator('a:has-text("Back to Dashboard")').click();
   await page.waitForLoadState('networkidle'); await page.waitForTimeout(1400);
 
-  await expect(page.locator('button[data-tab="idea"]')).toHaveClass(/active/);
+  // The point of the test is that the tab you were last on is NOT restored -
+  // the dashboard always opens on its own default. Which tab that is depends on
+  // the configured types, so assert the behaviour rather than a specific slug.
+  const active = await page.locator('button[data-tab].active').getAttribute('data-tab');
+  expect(active).not.toBe('idea');
 });
 test('reordering types in Settings changes the dashboard tab order', async ({ page }) => {
   await page.goto('/settings?tab=entity-types');
@@ -99,8 +106,9 @@ test('the type editor opens in a right-hand pane, not a modal', async ({ page })
 
   await expect(page.locator('#entityTypeEditorPane')).toBeHidden();
 
-  await page.locator('#editableTypesList .type-list-item').filter({hasText:'Projects'}).first()
-    .locator('.type-edit-btn').click();
+  // The row itself opens the editor - the separate edit button was removed as
+  // a second control for the same action.
+  await page.locator('#editableTypesList .type-list-item').filter({hasText:'Projects'}).first().click();
   await page.waitForTimeout(1000);
 
   await expect(page.locator('#entityTypeEditorPane')).toBeVisible();

@@ -8,6 +8,12 @@
 
 Only **Dailies** (calendar, recurrence, time boxes) and **Templates** (instantiate-to-work-item) still have bespoke tabs. Everything else was converged, Projects most recently — which required migrating `priorities` into `entities` first, because a template swap alone would have rendered an empty list.
 
+### One definition of the system types
+
+`src/database/systemEntityTypes.js` is the only place the system entity types, their fields and their relationship rules are written down. `mysqlSchema.js`, `mssqlSchema.js`, `schemaMigrationService.js`, `scripts/phase0-seed-entity-types.js` and `SYSTEM_TYPE_DEFAULTS` all read from it. There were previously five hand-maintained copies that disagreed on `supports_hierarchy`, icons and labels, so which values an install got depended on which path created it — and `npm run db:init` runs the schema file, never phase 0, so the schema file's stale copy is what fresh installs actually received. **Add a type, rename one, or change a flag in that file and nowhere else.**
+
+The schema seeders insert what is missing and reconcile only the attributes Settings does not expose (`display_order`, `show_in_row`, `is_completion_signal`, plus a forbidden folder-like icon). They deliberately never overwrite a `label`, `field_type` or `field_options`, because those are editable and a rename is a legitimate choice.
+
 ### Settings → Entity Types is the control surface
 
 `entity_types.is_visible` decides whether a type gets a dashboard tab; `entity_types.order_index` decides the tab order. Both are **global, single sources of truth** — the Settings list and the dashboard tab bar are two views of the same values, editable from either end. A per-context layer (`context_tab_settings`) used to reorder tabs after render; it was removed, because two mechanisms owning one property disagree the moment either is used.
@@ -122,6 +128,34 @@ const EntityEditor = (() => {
 
 **Consistency guaranteed by single source of truth:** Because all types use the same generic editor + dynamic schema, there's no risk of two "interpretations" of which fields a type has (the problem that spawned the `ff2b943` fix). The schema is consulted once at render time and is authoritative.
 
+## 4b. Rows are a table: columns, header, cells
+
+Every typed page renders its rows as a CSS grid whose template is published once
+on `.entity-list`, so the header and every row share one definition and cannot
+drift apart. What that buys, and the rules that come with it:
+
+- **Columns are the type's fields with `show_in_row`**, in `display_order`, plus
+  Title. Title carries the indent, expand arrow, icon and child count, and can be
+  dragged anywhere among them - its position is `entity_types.title_order`.
+- **Never scrolls horizontally, never truncates.** Tracks are fractional and long
+  values wrap, so a row grows taller rather than being cut off or pushing the
+  grid wider. Title keeps a pixel floor: with no floor it collapses to nothing on
+  a narrow pane and the row loses its name.
+- **Columns are only as wide as their content needs.** Status, select and radio
+  are measured from a real control rendered offscreen; checkbox, emoji, number
+  and date get fixed widths; open-ended text shares what is left.
+- **Cells are controls, not text.** Status cycles, dropdown/radio are selects,
+  checkbox toggles, dates open a picker, emoji opens a picker or cycles a set.
+  A cell control never opens or closes the editor - it only redirects an editor
+  that is already open, because opening one re-flows the tab and moves the cell
+  out from under the pointer.
+- **Folders show roll-ups.** A folder has no field values; a column declaring
+  `rollup` shows what its descendants add up to, derived at render time and never
+  stored. That badge is not clickable.
+- **One value, many views.** `show_in_row`, `show_column_label` and
+  `display_order` are each editable from the column chooser, the row editor and
+  Settings. They all write the same field record - never add a per-view store.
+
 ## 5. CSS & Class Naming (Generic System)
 
 - **kebab-case with entity-prefix**: `entity-node`, `entity-node-header`, `entity-node-children`, `entity-row`, `entity-toggle` — consistency across all types
@@ -148,7 +182,12 @@ The menu carries `entity-context-menu` alongside the shared `.context-menu` clas
 
 - **Creating** an item or a folder leaves the editor open on the new record, with its row marked `.selected`, so you can keep working. Editing an existing item closes on save.
 - **Save starts disabled** and enables on the first change. `populate()` must reset `disabled = true`; it previously only reset `hasChanges`, so once any edit enabled the button it stayed enabled for every item opened afterwards.
-- **No browser dialogs.** Use `app.confirm` (`main.js`) and the editor pane — never `prompt()`/`confirm()`.
+- **Saving never closes an editor**, and neither does **Revert** - which reloads
+  the stored record rather than discarding the editor. Both buttons are disabled
+  until something changes. An editor is closed by clicking its row again.
+- **No browser dialogs.** Use `app.confirm(message, title)` / `app.prompt(message, {title, defaultValue, placeholder})` (`main.js`) and the editor pane — never `confirm()`/`prompt()`/`alert()`; for `alert()` use `app.notify(message, 'danger'|'warning')`. Both dialogs are one modal built on demand by `app._dialog`, so they behave identically on the dashboard and on Settings — the `#confirmModal` markup they used to need lived only in `dashboard.ejs`, which meant `app.confirm` silently fell back to `window.confirm` on Settings, which is why Settings code called the browser dialog directly.
+- **Cmd+S / Ctrl+S saves the open editor**, on every surface — `src/public/js/save-shortcut.js`. It resolves the button by walking up from the focused element to the tightest enclosing scope (`.modal.show`, `.draggable-modal`, `.split-pane-right`, `.tab-content-pane.active`, `form`) that holds a visible, enabled Save button, so it needs to know nothing about any particular editor. A new editor is covered for free provided its Save button id is `save…` or `…SaveBtn`, or it carries `data-action="save"` — if you name one something else, the shortcut silently skips it.
+- **The selected row carries `.selected`**, styled once in `main.css` for every list in the app. Set it with `app.selectRow(rows, groupSelector)` (`main.js`) when the editor opens and when it closes, and re-apply after any re-render — these lists are rebuilt with `innerHTML`, which drops the class. Add a new row type to the shared selector list in `main.css` rather than restyling selection per page; note the deliberate `.selected.selected` there, which outranks the per-tab `:hover` rules that would otherwise erase the indicator under the pointer.
 
 ## 6. Generic API Calls
 

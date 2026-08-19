@@ -11,6 +11,8 @@ import { test, expect } from '@playwright/test';
 const RENDERED_TYPES = [
   'text', 'textarea', 'number', 'date', 'url', 'links',
   'select', 'radio', 'checkbox', 'status', 'recurrence',
+  // `emoji` is a free pick; `emojis` cycles through a set declared on the field.
+  'emoji', 'emojis',
 ];
 
 test('every field type in use is renderable, editable and valid', async ({ page }) => {

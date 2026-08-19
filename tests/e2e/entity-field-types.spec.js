@@ -64,7 +64,11 @@ test('a type with a links field holds 0-n named links', async ({ page }) => {
   await page.evaluate(async () => {
     const t=document.body.dataset.csrfToken;
     const all=(await (await fetch('/api/entities/priority')).json()).data||[];
-    for (const e of all.filter(x=>(x.title||'').startsWith('ZZZ')))
+    // Only this spec's own records. Deleting every ZZZ-prefixed Project also
+    // deleted the fixtures generic-entity-crud.spec.js was mid-test on - both
+    // files use Projects and run in parallel, which is why that spec failed
+    // intermittently on Projects alone.
+    for (const e of all.filter(x=>(x.title||'').startsWith('ZZZ linked project')))
       await fetch(`/api/entities/priority/${e.id}`,{method:'DELETE',headers:{'X-CSRF-Token':t}});
   });
 });
