@@ -30,7 +30,32 @@ import { getCurrentConfig } from '../src/database/connectionPool.js';
 import {
   migrateRetiredWorkJunctions,
   surveyRetiredWorkJunctions,
+  dropRetiredTables,
+  discoverOrphanTables,
 } from '../src/services/schemaMigrationService.js';
+
+// Build a throwaway schema and report anything this database has that a fresh
+// one would not. The authoritative way to find retired tables - scanning the
+// schema source for CREATE TABLE misses the bridge junctions, which are created
+// by a loop, and would report four live tables as junk.
+async function discover() {
+  const { canonicalCount, liveCount, orphans } = await discoverOrphanTables();
+  console.log(`\nBuilt a reference schema: ${canonicalCount} tables. This database has ${liveCount}.`);
+  if (orphans.length === 0) {
+    console.log('\nNothing here that a fresh schema would not create.');
+    return;
+  }
+  console.log(`\n${orphans.length} table(s) present here but not in a fresh schema:\n`);
+  for (const o of orphans) {
+    const rows = o.rows === null ? '  ?  ' : String(o.rows).padStart(5);
+    console.log(`  ${rows} rows   ${o.table.padEnd(30)} ${o.listed ? '(known retired)' : '<- NOT in RETIRED_TABLES'}`);
+  }
+  const unlisted = orphans.filter(o => !o.listed);
+  if (unlisted.length > 0) {
+    console.log('\nThe unlisted ones are not dropped by anything. If they really are');
+    console.log('retired, add them to RETIRED_TABLES in schemaMigrationService.js.');
+  }
+}
 
 async function main() {
   const migrate = process.argv.includes('--migrate');
@@ -38,6 +63,22 @@ async function main() {
 
   const cfg = getCurrentConfig();
   console.log(`\nDatabase: ${cfg.database} on ${cfg.host} (${cfg.type})`);
+
+  if (process.argv.includes('--discover')) {
+    await discover();
+    process.exit(0);
+  }
+
+  if (process.argv.includes('--drop-retired')) {
+    const r = await dropRetiredTables({ dryRun: !drop });
+    console.log(drop ? '\nDropping retired tables:' : '\nDry run - pass --drop to actually remove:');
+    for (const t of r.dropped) console.log(`  ${drop ? 'dropped' : 'would drop'}  ${t}`);
+    for (const k of r.keptWithRows) console.log(`  KEPT     ${k.table} - still holds ${k.rows} row(s)`);
+    for (const u of r.uncountable) console.log(`  KEPT     ${u} - could not be counted`);
+    if (r.dropped.length === 0 && r.keptWithRows.length === 0) console.log('  nothing to do');
+    process.exit(0);
+  }
+
   console.log(migrate ? (drop ? 'Mode: migrate + drop\n' : 'Mode: migrate\n') : 'Mode: report only\n');
 
   const survey = await surveyRetiredWorkJunctions();

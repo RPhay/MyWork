@@ -163,6 +163,28 @@ export async function analyzeAndMigrate() {
       }
     }
 
+    // Step 5c: Remove tables the schema stopped creating, where they are empty.
+    // Anything still holding rows is reported, never dropped - see
+    // dropRetiredTables for why empty is the only safe test.
+    const retired = await dropRetiredTables();
+    if (retired.dropped.length > 0) {
+      report.actions.push(
+        `✓ Dropped ${retired.dropped.length} retired table(s): ${retired.dropped.join(', ')}`
+      );
+    }
+    if (retired.keptWithRows.length > 0) {
+      report.warnings.push(
+        'These retired tables still hold rows and were NOT dropped: '
+        + retired.keptWithRows.map(k => `${k.table} (${k.rows})`).join(', ')
+        + '. Their data was never migrated - decide what to do with it before removing them.'
+      );
+    }
+    if (retired.uncountable.length > 0) {
+      report.warnings.push(
+        `Could not count ${retired.uncountable.join(', ')}, so they were left alone.`
+      );
+    }
+
     // Step 6: Verify schema consistency
     let verification = await verifySchema();
 
@@ -334,6 +356,37 @@ async function countRows(tableName) {
 }
 
 /**
+ * Tables the schema no longer creates, which some databases still have.
+ *
+ * Removing a table from mysqlSchema.js / mssqlSchema.js stops it being created
+ * on new installs; it does nothing whatsoever to installs that already have it,
+ * because db:init only ever creates. So a table can be "retired" in the repo
+ * and still sitting in every real database - which is exactly what happened to
+ * these, and to the seven junctions below.
+ *
+ * This list is written out explicitly rather than computed, and that is
+ * deliberate. The obvious shortcut - scan the schema file for CREATE TABLE and
+ * treat anything else as junk - gets the answer WRONG: priority_areas,
+ * priority_goals, template_areas and template_goals are live bridge tables
+ * created by a data-driven loop, not by a literal CREATE TABLE statement, so a
+ * source scan reports them as retired and would drop four tables the app is
+ * actively using. Ground truth is a real schema build, not a regex.
+ *
+ * `node scripts/migrate-work-junctions.js --discover` does that build and
+ * reports anything present in a database but absent from a freshly built
+ * schema, so this list can be kept honest. Add to it by hand after checking
+ * what the discovery reports.
+ */
+const RETIRED_TABLES = [
+  // Per-type link tables, replaced by the generic entity_relationships.
+  'priority_links', 'task_links', 'ticket_links', 'to_do_links',
+  // Tab visibility moved onto entity_types.is_visible.
+  'context_tab_settings',
+  // Templates instantiate through work_entity_associations now.
+  'work_template_associations',
+];
+
+/**
  * The seven per-type work_*_associations junctions, and the column in each that
  * holds the entity id.
  *
@@ -382,6 +435,80 @@ export async function surveyRetiredWorkJunctions() {
   }
 
   return { skipped: null, present, target: await countRows('work_entity_associations') };
+}
+
+/**
+ * Drop the retired tables above, but only the ones that are empty.
+ *
+ * Empty is the whole safety rule, and it is not the same test as "unused". A
+ * retired table holding rows is a table whose data was never migrated - `tasks`
+ * on the MySQL database still has 124 rows the migrator reports as pending - so
+ * a drop there destroys the only copy. Anything with rows is reported and left
+ * alone, for a human to decide about.
+ *
+ * A table that cannot be counted is also left alone: countRows returns null
+ * rather than 0 when the count fails, and treating that as empty is how a
+ * populated table would get dropped on an engine whose count query was broken.
+ *
+ * On SQL Server the DROP is schema-qualified to [MyWork] via quoteIdentifier,
+ * so it cannot reach objects belonging to anything else in that database.
+ */
+export async function dropRetiredTables({ dryRun = false } = {}) {
+  const result = { dropped: [], keptWithRows: [], uncountable: [], absent: [] };
+
+  for (const table of RETIRED_TABLES) {
+    if (!await tableExists(table)) { result.absent.push(table); continue; }
+
+    const rows = await countRows(table);
+    if (rows === null) { result.uncountable.push(table); continue; }
+    if (rows > 0) { result.keptWithRows.push({ table, rows }); continue; }
+
+    if (!dryRun) await query(`DROP TABLE ${quoteIdentifier(table)}`);
+    result.dropped.push(table);
+  }
+
+  return result;
+}
+
+/**
+ * Tables present in this database but absent from a freshly built schema.
+ *
+ * A development aid for keeping RETIRED_TABLES current, not something the app
+ * calls: it needs CREATE DATABASE rights and builds a whole throwaway schema to
+ * get an authoritative answer. MySQL only, since that is where the scratch
+ * build is cheap; the MSSQL equivalent is the parity check in CLAUDE.md.
+ */
+export async function discoverOrphanTables() {
+  const cfg = getCurrentConfig();
+  if (cfg.type === 'mssql') throw new Error('Discovery is MySQL-only; see the parity check in CLAUDE.md for MSSQL.');
+
+  const mysql = (await import('mysql2/promise')).default;
+  const { createMysqlSchema } = await import('../database/schema/mysqlSchema.js');
+
+  const scratch = `mywork_canon_${Date.now()}`;
+  const conn = await mysql.createConnection({
+    host: cfg.host, port: cfg.port, user: cfg.user, password: cfg.password,
+  });
+
+  let canonical;
+  try {
+    await conn.query(`CREATE DATABASE \`${scratch}\``);
+    await conn.changeUser({ database: scratch });
+    await createMysqlSchema(conn);
+    const [rows] = await conn.query('SHOW TABLES');
+    canonical = new Set(rows.map(r => Object.values(r)[0].toLowerCase()));
+  } finally {
+    await conn.query(`DROP DATABASE IF EXISTS \`${scratch}\``);
+    await conn.end();
+  }
+
+  const live = (await query('SHOW TABLES')).map(r => Object.values(r)[0]);
+  const orphans = [];
+  for (const t of live) {
+    if (canonical.has(t.toLowerCase())) continue;
+    orphans.push({ table: t, rows: await countRows(t), listed: RETIRED_TABLES.includes(t) });
+  }
+  return { canonicalCount: canonical.size, liveCount: live.length, orphans };
 }
 
 /** Copy the stranded links across. See the block comment above. */
