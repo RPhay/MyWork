@@ -406,7 +406,9 @@ class TabManager {
           // The buttons these drive live inside the tab, so it has to be the
           // tab on screen before they mean anything.
           items.push({
-            icon: '➕', label: `New ${label.replace(/s$/, '')}`,
+            // No "New": the ➕ already says it, the same way the tab's own
+            // button reads "+ Task" rather than "+ New Task".
+            icon: '➕', label: `${label.replace(/s$/, '')}`,
             action: showOnly(() => {
               this.switchTab(slug);
               setTimeout(() => document.getElementById(`add${slug}Btn`)?.click(), 250);
@@ -423,11 +425,11 @@ class TabManager {
           }
           items.push({ separator: true });
           items.push({
-            icon: '⬇️', label: 'Expand all',
+            icon: '⬇️', label: 'Expand',
             action: () => { this.switchTab(slug); setTimeout(() => document.getElementById(`expandAll${slug}Btn`)?.click(), 250); },
           });
           items.push({
-            icon: '⬆️', label: 'Collapse all',
+            icon: '⬆️', label: 'Collapse',
             action: () => { this.switchTab(slug); setTimeout(() => document.getElementById(`collapseAll${slug}Btn`)?.click(), 250); },
           });
           items.push({ separator: true });
