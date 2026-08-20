@@ -147,7 +147,7 @@ function initTypeReordering(listEl) {
   listEl.addEventListener('dragstart', (e) => {
     dragged = e.target.closest('.type-list-item[draggable="true"]');
     if (dragged) {
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
       dragged.style.opacity = '0.5';
     }
   });

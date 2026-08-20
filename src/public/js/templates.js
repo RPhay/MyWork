@@ -599,17 +599,17 @@ function initTemplatesEventListeners() {
     const header = e.target.closest('.template-node-header');
     if (!header) return;
     const nodeEl = header.closest('.template-node');
-    // copyMove: dropping a template on a day COPIES it into that day (the
-    // template itself stays put), so the target asks for dropEffect 'copy'.
-    // With effectAllowed='move' that pair is incompatible and Chromium refuses
-    // the drop outright - which is why a template dragged onto a day did
-    // nothing, no error, in a real browser.
-    e.dataTransfer.effectAllowed = 'copyMove';
-    e.dataTransfer.setData('template-id', nodeEl.dataset.templateId);
+    // Dropping a template on a day COPIES it there (the template stays put), so
+    // the target asks for 'copy'. The source/target pairing that makes that
+    // work is the drag protocol's job now - see dragDropUtils.js.
+    //
     // The Dailies rail reads `type`/`id`; `template-id` alone meant a template
-    // dropped on a day did nothing at all.
-    e.dataTransfer.setData('type', 'template');
-    e.dataTransfer.setData('id', nodeEl.dataset.templateId);
+    // dropped on a day did nothing at all, so both are set.
+    beginDrag(e, {
+      'template-id': nodeEl.dataset.templateId,
+      type: 'template',
+      id: nodeEl.dataset.templateId,
+    });
     e.dataTransfer.setData('name', header.textContent.trim());
     e.dataTransfer.setData('text/plain', header.textContent.trim());
     header.classList.add('dragging-item');
@@ -618,9 +618,7 @@ function initTemplatesEventListeners() {
   container.addEventListener('dragend', (e) => {
     const header = e.target.closest('.template-node-header');
     if (header) header.classList.remove('dragging-item');
-    container.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
-      el.classList.remove('drop-indicator-before', 'drop-indicator-after');
-    });
+    clearDropIndicators(container);   // dragDropUtils.js - one implementation
   });
 
   container.addEventListener('dragover', (e) => {

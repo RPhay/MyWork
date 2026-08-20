@@ -570,7 +570,7 @@ const app = {
       const item = e.target.closest(itemSelector);
       if (!item) return;
       draggingEl = item;
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
       item.classList.add('dragging-tab');
     });
 

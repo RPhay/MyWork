@@ -85,7 +85,8 @@ folders", Goals only, reproducible (not a flake).
 
 What is established:
 
-- Only Goals fails; Categories and Ideas pass the identical test.
+- **Todos now fails it too** (measured 2026-08-19). The earlier "Goals only"
+  finding is out of date — do not start from it. Categories and Ideas still pass.
 - Goals has the most columns (8), so its rows wrap to **66px** against **49px**
   elsewhere.
 - With the rail open the tab content is **609px**; closed it is 1256px.
@@ -138,6 +139,19 @@ the pattern.
 
 ## 5. Smaller open items
 
+- **`templates.js` (987 lines) and `templates.ejs` (293 lines) are dead code** —
+  found while doing #05, verified against the rendered page, not inferred:
+  `templates.ejs` is included nowhere (`customTemplateMap` is now `{}` and the
+  Templates rail renders `generic-entity-tab.ejs`), and it was the only thing
+  that loaded `templates.js`. The rendered dashboard contains **zero**
+  references to either `templates.js` or `#templatesList`. The three surviving
+  `loadTemplates()` calls are all `typeof`-guarded, which is why nothing ever
+  errored. **Recommend deleting both**; that also retires 8 of the drag handlers
+  #05 counted. Not deleted yet — the user has not been asked.
+- **`template-drops.spec.js` and `real-drag-drop.spec.js:89` fail against the
+  removed bespoke templates UI** (`getElementById('templatesList')` → null), not
+  against a bug. They go with the deletion above, as part of #09.
+
 - **`app.fetch` adoption** — `UI_STANDARDS.md` §6 is aspirational;
   `generic-entity-init.js` still uses raw `fetch` with hand-rolled CSRF headers.
 - **Retire the legacy ↔ entity bridge** — seven junction tables, documented in
@@ -174,6 +188,7 @@ matches the artifact.
 | 11 | Nothing could be undone | `deleted_at` + `deleted_batch` soft delete, Recently Deleted panel, restore and purge |
 | 12 | Everything drag-only | Palette `Tab` actions call the same endpoints as the drop handlers |
 | 14 | Looked protected, had no auth | Documented in `CLAUDE.md` as an explicit assumption |
+| 05 | Drag handlers spread across 9 files; `dragDropUtils.js` held 2 | One protocol in `dragDropUtils.js` — `DRAG_EFFECT_ALLOWED` / `beginDrag` / `acceptDrop` / `showDropIndicator` / `clearDropIndicators`. **0 hand-written `effectAllowed` or `dropEffect` left** in live files; indicator clearing has one implementation. Guarded by `drag-protocol.spec.js` |
 
 Plus two features the user asked for directly, neither in the artifact:
 **the priorities board as a rail** (any type, as references, board-local bays)
@@ -184,7 +199,6 @@ drag-to-pin).
 
 | # | Finding | Note |
 |---|---|---|
-| 05 | 48 drag handlers across 9 files; `dragDropUtils.js` holds 2 | This is where the `effectAllowed`/`dropEffect` bug hid for a session. **Next up.** |
 | 06 | Dailies outside the generic engine, 3,666 lines | Blocked on §1's naming contradiction |
 | 07 | 25 of 42 tables empty | Dual-schema deletion pass |
 | 09 | 45 of 92 specs are debug-named | Keep / fix / delete triage |

@@ -658,7 +658,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       const cell = e.target.closest('.entity-header-cell[draggable="true"]');
       if (!cell) return;
       draggedColKey = cell.dataset.colKey;
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
       // Firefox needs data set or the drag never starts.
       e.dataTransfer.setData('text/plain', draggedColKey);
       cell.classList.add('col-dragging');
@@ -937,7 +937,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (!wrap) return;
       draggedField = wrap;
       wrap.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
       e.dataTransfer.setData('text/plain', wrap.dataset.fieldKey);
     });
 
@@ -1175,9 +1175,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (!linksField() || !isExternalUrlDrag(e)) return;
       const row = e.target.closest('.entity-row');
       if (!row || row.dataset.isFolder === '1') return;   // folders hold no field values
-      e.preventDefault();
+      acceptDrop(e, 'copy');
       e.stopPropagation();
-      e.dataTransfer.dropEffect = 'copy';
       listContainer.querySelectorAll('.entity-link-drop-target')
         .forEach(el => el.classList.remove('entity-link-drop-target'));
       row.classList.add('entity-link-drop-target');
@@ -1267,7 +1266,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       const row = e.target.closest('.entity-row');
       if (row) {
         draggedEntityId = row.dataset.entityId;
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
 
         // Publish what the Dailies rail reads on drop (`type`, `id`, `name`).
         // Without these the row dragged fine within its own list but arrived at
@@ -1281,7 +1280,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
         // effectAllowed='move' Chromium treats a 'copy' dropEffect as
         // incompatible and refuses the drop - every dragover was accepted and no
         // drop ever fired.
-        e.dataTransfer.effectAllowed = 'copyMove';
+        e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
         e.dataTransfer.setData('type', dropType);
         e.dataTransfer.setData('id', String(draggedEntityId));
         e.dataTransfer.setData('name', entity?.title || '');
@@ -1306,7 +1305,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
     }
 
     function clearDropIndicator(row) {
-      row.classList.remove('drop-indicator-before', 'drop-indicator-after', 'entity-drop-target-nest');
+      clearDropIndicators(row);       // dragDropUtils.js - one implementation
+      row.classList.remove('entity-drop-target-nest');
     }
 
     // Chromium will not deliver a `drop` unless the target accepts the drag on
@@ -1379,8 +1379,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     dropPane.addEventListener('dragover', (e) => {
       if (draggedEntityId) return;
       if (!e.dataTransfer?.types?.includes('type')) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
+      acceptDrop(e, 'copy');
       const row = e.target.closest('.entity-row');
       listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
       if (row) row.classList.add('entity-drop-target-nest');
@@ -1398,8 +1397,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     listContainer.addEventListener('dragover', (e) => {
       if (!draggedEntityId) {
         if (!e.dataTransfer?.types?.includes('type')) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
+        acceptDrop(e, 'copy');
         const row = e.target.closest('.entity-row');
         listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
         if (row) row.classList.add('entity-drop-target-nest');
@@ -1416,7 +1414,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
         } else {
           row.classList.add(zone === 'before' ? 'drop-indicator-before' : 'drop-indicator-after');
         }
-        e.dataTransfer.dropEffect = 'move';
+        acceptDrop(e, 'move');
       }
     });
 

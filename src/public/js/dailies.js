@@ -1879,7 +1879,7 @@ function initWorkItemsListEventListeners() {
     const header = e.target.closest(".work-item-header");
     if (!header) return;
     const workItemEl = header.closest(".work-item");
-    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
     e.dataTransfer.setData("type", "work-item");
     e.dataTransfer.setData("id", workItemEl.dataset.workId);
     currentDragType = "work-item";

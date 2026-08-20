@@ -131,9 +131,7 @@ async function removeFromBoard(entityId) {
 
 function clearDropTargets() {
   document.querySelectorAll('.bay-drop-target').forEach(el => el.classList.remove('bay-drop-target'));
-  document.querySelectorAll('.drop-indicator-before, .drop-indicator-after').forEach(el => {
-    el.classList.remove('drop-indicator-before', 'drop-indicator-after');
-  });
+  clearDropIndicators();          // dragDropUtils.js - one implementation
 }
 
 let cardMenuEl = null;
@@ -178,9 +176,8 @@ function initBoardListeners() {
     bay.addEventListener('dragstart', (e) => {
       const card = e.target.closest('.board-card');
       if (!card) return;
-      // copyMove, not move: a source whose effectAllowed does not overlap the
-      // target's dropEffect is refused silently by Chromium.
-      e.dataTransfer.effectAllowed = 'copyMove';
+      // Effect pairing is the drag protocol's job - see dragDropUtils.js.
+      e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
       e.dataTransfer.setData('type', 'board-card');
       e.dataTransfer.setData('id', card.dataset.entityId);
       card.classList.add('dragging-item');
@@ -193,8 +190,7 @@ function initBoardListeners() {
     });
 
     bay.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
+      acceptDrop(e, 'copy');
       clearDropTargets();
       const card = e.target.closest('.board-card');
       if (card) {

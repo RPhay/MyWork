@@ -1096,11 +1096,11 @@ function initContextsEventListeners() {
     const row = e.target.closest(".context-row");
     const folderHeader = e.target.closest(".context-folder-header");
     if (row) {
-      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
       e.dataTransfer.setData("context-id", row.dataset.contextId);
       row.classList.add("dragging-item");
     } else if (folderHeader) {
-      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
       e.dataTransfer.setData("folder-id", folderHeader.dataset.folderId);
     }
   });

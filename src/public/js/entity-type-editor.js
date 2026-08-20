@@ -479,7 +479,7 @@ function addFieldRow(field = null) {
 
   // Drag and drop for reordering
   fieldRow.addEventListener('dragstart', (e) => {
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
     fieldRow.classList.add('dragging');
   });
 
@@ -489,8 +489,7 @@ function addFieldRow(field = null) {
   });
 
   fieldRow.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    acceptDrop(e, 'move');
     const draggingRow = document.querySelector('.field-row.dragging');
     if (draggingRow && draggingRow !== fieldRow) {
       fieldRow.classList.add('drag-over');

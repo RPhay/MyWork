@@ -411,6 +411,68 @@ function isEmailData(text) {
   );
 }
 
+// ===========================================================================
+// The drag protocol
+// ===========================================================================
+//
+// Every drag in this app goes through these three helpers. They exist because
+// the same Chromium rule was rediscovered and fixed locally three separate
+// times (templates.js, priority-board.js, generic-entity-init.js), each with
+// its own comment:
+//
+//   A drag is REFUSED SILENTLY when the source's effectAllowed and the
+//   target's dropEffect do not overlap. A source that says 'move' and a target
+//   that asks for 'copy' produces no drop, no error and no console warning -
+//   the drop simply never fires.
+//
+// Nine sources still said plain 'move' while several targets asked for 'copy',
+// so that failure was one pairing away at any time. The fix is not to remember
+// the rule: it is to stop hand-writing the protocol.
+//
+// beginDrag() always offers 'copyMove', which overlaps whatever a target asks
+// for. Deciding move-vs-copy is the TARGET's job - it is the one that knows
+// whether the drop reorders a row or references it somewhere else.
+
+const DRAG_EFFECT_ALLOWED = 'copyMove';
+
+// Call in dragstart. `data` is a plain object of dataTransfer entries.
+function beginDrag(event, data = {}) {
+  event.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
+  for (const [key, value] of Object.entries(data)) {
+    if (value === null || value === undefined) continue;
+    event.dataTransfer.setData(key, String(value));
+  }
+}
+
+// Call in dragover/dragenter on a target that will accept the drop. Without the
+// preventDefault the browser refuses the drop, which is the other half of the
+// same silent failure.
+function acceptDrop(event, effect = 'move') {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = effect;
+}
+
+// ---------------------------------------------------------------------------
+// Drop indicators
+//
+// The before/after insertion lines were reimplemented in four files (26 places)
+// with the same two class names. One implementation, so a change to how a drop
+// target looks happens once.
+// ---------------------------------------------------------------------------
+
+const DROP_INDICATOR_CLASSES = ['drop-indicator-before', 'drop-indicator-after'];
+
+function showDropIndicator(element, position) {
+  if (!element) return;
+  element.classList.remove(...DROP_INDICATOR_CLASSES);
+  element.classList.add(position === 'before' ? 'drop-indicator-before' : 'drop-indicator-after');
+}
+
+function clearDropIndicators(root = document) {
+  root.querySelectorAll('.drop-indicator-before, .drop-indicator-after')
+    .forEach(el => el.classList.remove(...DROP_INDICATOR_CLASSES));
+}
+
 // Setup drag listeners for draggable items (tabs, priorities, etc.)
 let currentDragType = null;
 function setupDragListeners() {
@@ -419,10 +481,11 @@ function setupDragListeners() {
     item.dataset.dragBound = 'true';
 
     item.addEventListener('dragstart', (e) => {
-      e.dataTransfer.effectAllowed = 'copy';
-      e.dataTransfer.setData('type', item.dataset.type);
-      e.dataTransfer.setData('id', item.dataset.id);
-      e.dataTransfer.setData('name', item.dataset.name || item.textContent.trim());
+      beginDrag(e, {
+        type: item.dataset.type,
+        id: item.dataset.id,
+        name: item.dataset.name || item.textContent.trim(),
+      });
       currentDragType = item.dataset.type;
       item.classList.add('dragging-item');
       console.log('[setupDragListeners] dragstart:', { type: item.dataset.type, id: item.dataset.id });

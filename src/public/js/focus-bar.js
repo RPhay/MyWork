@@ -165,10 +165,7 @@
     });
 
     bar.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      // copyMove on the sources, copy here: a pair that does not overlap is
-      // refused silently by Chromium.
-      e.dataTransfer.dropEffect = 'copy';
+      acceptDrop(e, 'copy');
       showTarget(true);
     });
 

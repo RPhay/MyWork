@@ -84,6 +84,10 @@
   <script src="/js/save-shortcut.js"></script>
   <script src="/js/systemDatabase.js"></script>
   <script src="/js/splitPane.js"></script>
+  <%# The drag protocol (DRAG_EFFECT_ALLOWED / beginDrag / acceptDrop) lives in
+      dragDropUtils.js. The type editor and the entity-types list both drag,
+      so it has to load here too, before either of them. %>
+  <script src="/js/dragDropUtils.js"></script>
   <script src="/js/draggable-modal.js"></script>
   <script src="/js/entity-type-editor.js"></script>
   <script src="/js/settings-entity-types.js"></script>
