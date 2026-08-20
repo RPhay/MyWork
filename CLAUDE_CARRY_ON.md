@@ -8,21 +8,62 @@ Last updated: 2026-08-19.
 
 ## Read this first if you are picking the work up
 
-Everything is committed to **`main`**. Run the app with `npm run dev` ->
+Everything is committed and pushed to **`main`**. `npm run dev` ->
 http://localhost:3000, after copying `.env.example` to `.env.local`.
 
-The work is implementing a full code/product audit of MyWork:
+**Testing rules are in `CLAUDE_TESTING.md`.** The one that matters most: e2e
+runs write to the user's REAL database, so they leave rows in the app the user
+is looking at. Sweep after every run.
 
-> **https://claude.ai/code/artifact/ba20de4f-f4e1-4f66-976f-aef567635e49**
+### Where the work stands
 
-Fourteen numbered findings plus six feature suggestions. Section 6 tracks which
-are done; the artifact is the reasoning behind each.
+The audit (§6) is **12 of 14 findings closed** and **5 of 6 features built**.
+What is left is two decisions, three pieces of open work, and two risks.
 
-**Testing rules live in `CLAUDE_TESTING.md`** - including the one that matters
-most here: e2e runs write to the user's REAL database, so they leave rows in the
-app the user is looking at. Clean up after every run.
+### Two decisions that block work - ASK, do not guess
 
----
+1. **Dailies-as-a-type (finding 06).** Still blocked on the naming
+   contradiction in §1. The ground has shifted, though:
+   `work_entity_associations` now lets a day hold a row of ANY type WITH its
+   tree, so the original reason for the migration is half gone. What remains is
+   collapsing `work_items` itself into `entities`.
+2. **Recurrence.** The audit suggests extending recurrence beyond Dailies. The
+   user instructed on 2026-08-19 to REMOVE the recurrence property entirely,
+   "we will figure out a better way to implement that later". Those conflict.
+   The instruction was followed; the suggestion was not. Do not reverse the
+   user on the strength of the artifact.
+
+### Open, not blocked
+
+- **Rows grow past 500px on a narrow pane.** Goals renders
+  `90px 4.39px 90px 88px 4.4px 120px 4.4px 4.4px 4.4px 78px` - several columns
+  collapsed to about four pixels, their content wrapping. It follows from two
+  rules that are each right on their own (never scroll horizontally, never
+  truncate) meeting more columns than the width can hold. Needs a decision on
+  which rule bends: drop columns when the pane is narrow, allow horizontal
+  scroll, or truncate. **This is why `Time Box` ships hidden as a column.**
+- **A clean full-suite run is still owed.** The last one is void - files were
+  being edited throughout it, so early and late specs tested different code.
+  Worth running now: 18 noise specs are retired and the number would mean
+  something.
+- **`work_items` and `priorities` are the last legacy tables**, with four
+  bridge junctions (`priority_areas`, `priority_goals`, `template_areas`,
+  `template_goals`) that go when they become entities.
+
+### Two risks worth carrying forward
+
+- **The type editor has corrupted data twice.** It rebuilt `field_options`
+  from its visible inputs and destroyed the status roles (`doneValues` became
+  `['Ignored']`, so every folder roll-up was wrong); and `supports_hierarchy`
+  was `0` on the template type in the database while the seed said `true`, so
+  templates silently never nested. Both are fixed and guarded, but the save
+  path rebuilds a type from what is on screen - other flags may be drifting the
+  same way. **An audit of that save path is unclaimed work.**
+- **Tests run against the user's live database, by their choice.** `ZZZ` rows
+  appear and vanish in the app while a run is in progress, and a run that dies
+  before its teardown leaves residue. Sweep after every run; the helper is
+  `tests/e2e/helpers/cleanup.js`, and the API delete is a SOFT delete, so real
+  cleanup is two calls.
 
 ## 1. Dailies-as-a-type refactor — DESIGN NEEDED BEFORE CODE
 
@@ -114,9 +155,11 @@ used to be, which is how the project ended up with two different guard lists
 that overlapped on one spec. This file tracks what is in flight; the standing
 list of what to run is testing documentation.
 
-The wider suite was **188 failed / 213 passed of 401** at the last full run and
-is mostly stale specs asserting against deliberately removed UI. Do not read
-that number as 188 bugs — see `CLAUDE_TESTING.md`.
+**There is no trustworthy suite-wide number right now.** The last full run was
+149 passed / ~42 failed / 84 not run over 1.3 hours, and it is void: files were
+being edited throughout it, so early and late specs tested different code. 18
+of the noisiest specs have since been retired. Getting a clean number is open
+work, not a formality.
 
 **The suite is serial now, deliberately.** `playwright.config.js` sets
 `workers: 1` / `fullyParallel: false`, and the comment there carries the
@@ -168,6 +211,15 @@ the pattern.
   `priorities.is_weekly`.
 - **`openNewWorkForm`** in `dailies.js` is now unreferenced — the "+ Add" button
   it served was removed in favour of dragging work in from a typed page.
+- **Dailies still has no column header, sorting, filtering or column chooser.**
+  It is the one page not on the generic engine, which is finding 06.
+- **`to_dos` (258 rows), `tasks` (161), `ideas` (26), `areas` (6)** are legacy
+  tables still holding the pre-migration copies. They are not read by the typed
+  pages, which run on `entities`. `recurrenceService` still reads `to_dos` and
+  `tasks`, which is why the recurrence engine is effectively orphaned.
+- **Empty is not the same as unread.** `sources`, `quotes`, `day_highlights`,
+  `sso_identities`, `source_auth` and `to_do_items` are empty because nothing
+  has used them yet - they were deliberately NOT dropped in the finding 07 pass.
 
 
 ## 6. The audit — what is done and what is left
@@ -191,6 +243,10 @@ matches the artifact.
 | 11 | Nothing could be undone | `deleted_at` + `deleted_batch` soft delete, Recently Deleted panel, restore and purge |
 | 12 | Everything drag-only | Palette `Tab` actions call the same endpoints as the drop handlers |
 | 14 | Looked protected, had no auth | Documented in `CLAUDE.md` as an explicit assumption |
+| 05 | Drag-and-drop implemented nine times | Negotiation, indicators **and the drop-zone geometry** in `dragDropUtils.js`; surfaces pass a `nesting` flag. `showDropZone()` paints the indicator that matches a zone, so the two cannot disagree |
+| 07 | 25 of 42 tables empty | The eight per-type `work_*` junctions, the four `*_links` and `context_tab_settings` are gone from both schema files, the health check and the database. **45 tables -> 37.** Backed up first; `ticket_links` was not actually empty |
+| 09 | 45 of 92 specs debug-named | 18 retired to `tests/e2e/retired/` (out of the run, not deleted), each with a written reason. 111 -> 96 live |
+| 13 | No multi-select or bulk operations | Click / cmd / shift selection, bulk delete, bulk move (refuses a row into itself or its own subtree), and a value menu opened inside a selection sets that field on every selected row |
 | 07 | 25 of 42 tables empty | The four per-type `*_links` tables and `context_tab_settings` dropped from both schema files, the health check and the database - backed up first, since `ticket_links` was not actually empty |
 | 13 | No multi-select or bulk operations | Multi-select (click / cmd / shift) with a selection bar and bulk delete; a value menu opened inside a selection now sets that field on **every** selected row and says how many |
 | 05 | Drag handlers spread across 9 files; `dragDropUtils.js` held 2 | One protocol in `dragDropUtils.js` — `DRAG_EFFECT_ALLOWED` / `beginDrag` / `acceptDrop` / `showDropIndicator` / `clearDropIndicators`. **0 hand-written `effectAllowed` or `dropEffect` left** in live files; indicator clearing has one implementation. Guarded by `drag-protocol.spec.js` |
@@ -204,14 +260,48 @@ drag-to-pin).
 
 | # | Finding | Note |
 |---|---|---|
-| 06 | Dailies outside the generic engine, 3,666 lines | Blocked on §1's naming contradiction. **Half the reason for it is gone**: `work_entity_associations` lets a day hold a row of ANY type, with its tree, so the seven per-type junctions are no longer the only way in. The remaining work is collapsing `work_items` itself into `entities` |
-| 09 | 45 of 92 specs are debug-named | Keep / fix / delete triage |
+| 06 | Dailies outside the generic engine, 3,666 lines | Blocked - see the two decisions at the top. Half the reason for it is already gone |
 
-Features still open: saved views per type, scheduled status email
-(`buildEmailDraft` already composes it and deliberately never sends),
-recurrence beyond Dailies, time tracking on the board.
+**Features built:** global search + palette (10, 12), Recently Deleted (11),
+saved views per type, time worked vs planned on board cards, and the scheduled
+status digest.
+
+**Feature not built:** recurrence beyond Dailies - it contradicts a direct
+instruction, see the decisions at the top.
+
+**The digest sends nothing, and that is the design.** The app holds no mail
+credentials and no mail dependency; it writes the update on a schedule, keeps
+it, and hands it to the mail client with `mailto:`. Real SMTP delivery would be
+a dependency plus credentials - the user's call, not an oversight.
 
 ### Traps hit while doing the above — do not rediscover these
+
+- **A type's flags can disagree with the seed, and the app just behaves
+  strangely.** `template.supports_hierarchy` was 0 in the database while the
+  seed said true. The renderer took its FLAT branch and the client never
+  fetched the edges, so anything dropped into a template arrived with its tree
+  stripped. Nothing errored. There is a guard now: a type that allows children
+  must support hierarchy.
+- **"A template may contain any editable type" is enumerated per child type**,
+  so it could only ever list the types that existed when it was written. A type
+  created afterwards was refused silently. `createEntityType` adds the row now.
+- **Deleting a type is a SOFT delete that permanently reserves its slug.** The
+  row stays and the UNIQUE index still blocks reuse, so a type named "Tests"
+  can never be recreated once deleted. Do not create types in tests.
+- **`DELETE /api/entities/...` is a soft delete too.** A spec that "cleans up"
+  with it leaves its rows in Recently Deleted forever. `DELETE /api/trash/:id`
+  is the only hard delete; real cleanup is both calls.
+- **A copy recorded what it came FROM only for the root**, so a deep copy
+  arrived looking like one copy holding a pile of references - the opposite of
+  what had happened. Every copied node records its origin now.
+- **Scroll events are delivered asynchronously.** Bringing a row into view and
+  right-clicking it delivers that scroll AFTER the menu opens, so the menu was
+  dismissed the instant it appeared - for any row far enough down to need
+  scrolling. The same shape killed a chip mid-drag: the focus bar's timer
+  rebuilt every chip and deleted the element under the cursor.
+- **The editor is a SINGLETON.** Remembering an open editor per TYPE made every
+  tab restore its own on load: several visible panes, several elements sharing
+  `id="entity-editor-form"`, and clicking a row could not resolve a form.
 
 - **`setEntityFieldValue` picks its storage column from the SHAPE of the value,
   not the field's declared type.** An ISO timestamp was routed into
