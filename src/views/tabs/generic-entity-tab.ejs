@@ -811,6 +811,19 @@
 /* An editor control that cycles looks and behaves like its cell: same icon,
    same click. The label beside it is the one concession to a form, where you
    are reading rather than scanning. */
+/* Time box: an icon saying what it is, and the value beside it. One control,
+   drawn the same in a row and in the editor. */
+.timebox-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.timebox-icon { color: #6c757d; }
+
 .editor-cycle {
   display: inline-flex;
   align-items: center;

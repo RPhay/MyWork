@@ -202,6 +202,23 @@ const GenericEntity = (() => {
       </div>
       `;
     },
+    // An icon that says what it is, and a value you cycle by clicking - the very
+    // same control the row shows, so it behaves identically in both places.
+    timebox: (field, value = '') => {
+      const current = TIME_BOX_LEVELS.includes(value) ? value : '';
+      return `
+      <div class="form-group" data-field-type="timebox" data-cycle-values="${escapeAttr(JSON.stringify(TIME_BOX_LEVELS))}">
+        <div>
+          <span class="timebox-cell editor-cycle" data-cycle="timebox" role="button" tabindex="0"
+                title="Time box - click to change">
+            <i class="bi bi-hourglass-split timebox-icon" aria-hidden="true"></i>
+            <span class="editor-cycle-label">${escapeHtml(timeBoxLabel(current))}</span>
+          </span>
+        </div>
+        <input type="hidden" name="${field.field_key}" value="${escapeAttr(current)}">
+      </div>
+      `;
+    },
     // The value the form collects is the hidden seconds; the visible box is a
     // readable rendering of it, parsed back on input.
     duration: (field, value = '') => `
@@ -356,6 +373,11 @@ const GenericEntity = (() => {
     // people read and correct by hand. The rest are engine bookkeeping.
     'focus_slot', 'focus_started_at', 'focus_color',
   ]);
+
+  // How long something is MEANT to take. None first, so cycling always has a
+  // way back to "not boxed" rather than trapping you in a value.
+  const TIME_BOX_LEVELS = ['', '15m', '30m', '45m', '1h', '1.5h', '2h'];
+  const timeBoxLabel = (v) => (v ? v : 'None');
 
   const PRIORITY_LEVELS = ['', 'Low', 'Medium', 'High', 'Critical'];
 
@@ -887,6 +909,20 @@ const GenericEntity = (() => {
     }
 
     // A checkbox reads as a box, ticked or not, and toggles on click.
+    if (f.field_type === 'timebox' && !derived) {
+      const current = TIME_BOX_LEVELS.includes(value) ? value : '';
+      return `<span class="row-field timebox-cell" data-action="cycle-timebox-field"
+              data-entity-id="${entity.id}" data-field-key="${escapeAttr(f.field_key)}"
+              data-value="${escapeAttr(current)}" role="button" tabindex="0"
+              title="Time box - click to change">
+          <i class="bi bi-hourglass-split timebox-icon" aria-hidden="true"></i>
+          <span class="timebox-label">${escapeHtml(timeBoxLabel(current))}</span>
+        </span>`;
+    }
+    if (f.field_type === 'timebox') {
+      return value ? `<span class="row-field">${escapeHtml(value)}</span>` : '';
+    }
+
     if (f.field_type === 'duration') {
       return `<span class="row-field">${escapeHtml(formatDuration(value))}</span>`;
     }
@@ -1239,6 +1275,7 @@ const GenericEntity = (() => {
     switch (field.field_type) {
       case 'status':   return field.field_options?.values || null;
       case 'priority': return PRIORITY_LEVELS.slice();
+      case 'timebox':  return TIME_BOX_LEVELS.slice();
       case 'emojis':   return field.field_options?.values || null;
       case 'checkbox': return [false, true];
       case 'select':
@@ -1259,6 +1296,7 @@ const GenericEntity = (() => {
   function choiceLabel(field, value) {
     if (field.field_type === 'checkbox') return value ? 'Checked' : 'Unchecked';
     if (field.field_type === 'priority') return (PRIORITY_STYLE[value] || PRIORITY_STYLE['']).label;
+    if (field.field_type === 'timebox') return timeBoxLabel(value);
     return value === '' || value == null ? '(none)' : String(value);
   }
 
@@ -1472,6 +1510,12 @@ const GenericEntity = (() => {
     if (!control) return;
     const input = group.querySelector('input[type="hidden"]');
     if (input) input.value = value ?? '';
+
+    if (control.dataset.cycle === 'timebox') {
+      control.innerHTML = '<i class="bi bi-hourglass-split timebox-icon" aria-hidden="true"></i>'
+        + `<span class="editor-cycle-label">${escapeHtml(timeBoxLabel(value))}</span>`;
+      return;
+    }
 
     const style = PRIORITY_STYLE[value] || PRIORITY_STYLE[''];
     control.innerHTML = `${priorityGlyph(value)}<span class="editor-cycle-label">${escapeHtml(style.label)}</span>`;

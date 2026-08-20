@@ -84,7 +84,10 @@ test('each field shows its name once, in the gutter, with labelled toggles', asy
   // control as well, which read as a duplicate on any property named after its
   // type (Status, Priority).
   await expect(page.locator('#entity-editor-form .editor-field-name').first()).not.toBeEmpty();
-  expect(await page.locator('#entity-editor-form .editor-field-body label').count(),
+  // A radio's per-choice labels ("One", "Two") are part of ITS control, not a
+  // caption for the field - only a standalone caption is what moved to the
+  // gutter, so those are excluded rather than the assertion being dropped.
+  expect(await page.locator('#entity-editor-form .editor-field-body label:not(.form-check-label)').count(),
     'no field should caption itself above its control').toBe(0);
   expect(await page.locator('#entity-editor-form .editor-field-legend').count(),
     'the legend is replaced by per-toggle icons').toBe(0);

@@ -72,7 +72,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'select', required: false, show_in_row: false, field_options: { choices: ['15m', '30m', '45m', '1h', '1.5h', '2h'] } },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'date', label: 'Date', field_type: 'date', required: true, show_in_row: true },
       { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false },
@@ -112,7 +112,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'select', required: false, show_in_row: false, field_options: { choices: ['15m', '30m', '45m', '1h', '1.5h', '2h'] } },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, rollup: 'status' },
       // Projects carry links as a generic `links` field rather than through a
@@ -150,7 +150,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'select', required: false, show_in_row: false, field_options: { choices: ['15m', '30m', '45m', '1h', '1.5h', '2h'] } },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
@@ -185,7 +185,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'select', required: false, show_in_row: false, field_options: { choices: ['15m', '30m', '45m', '1h', '1.5h', '2h'] } },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // A plain number input gave a spinner, which is wrong for a year: it
       // implies arithmetic and offers 1 and 999999. A declared list makes it a
@@ -229,7 +229,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'select', required: false, show_in_row: false, field_options: { choices: ['15m', '30m', '45m', '1h', '1.5h', '2h'] } },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
       { field_key: 'target_date', label: 'Target Date', field_type: 'date', required: false, show_in_row: true, rollup: 'min' },
@@ -269,7 +269,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'select', required: false, show_in_row: false, field_options: { choices: ['15m', '30m', '45m', '1h', '1.5h', '2h'] } },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
@@ -304,7 +304,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'select', required: false, show_in_row: false, field_options: { choices: ['15m', '30m', '45m', '1h', '1.5h', '2h'] } },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, rollup: 'status' },
       { field_key: 'ticket_type', label: 'Ticket Type', field_type: 'text', required: false, show_in_row: true },
@@ -340,7 +340,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'select', required: false, show_in_row: false, field_options: { choices: ['15m', '30m', '45m', '1h', '1.5h', '2h'] } },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Ideas used to run their own ladder (Raw/Developing/Ready). One status
       // vocabulary across every type means a status reads the same wherever you

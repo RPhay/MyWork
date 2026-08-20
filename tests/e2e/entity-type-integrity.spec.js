@@ -15,6 +15,9 @@ const RENDERED_TYPES = [
   // from this list while being seeded 8 times, so the test reported it as
   // "not a known renderer" when the renderer was there all along.
   'priority',
+  // `timebox` is how long something is MEANT to take - an icon you click to
+  // cycle, None included.
+  'timebox',
   // `duration` is Worked Time: seconds stored, "1h 30m" shown.
   'duration',
   // `emoji` is a free pick; `emojis` cycles through a set declared on the field.

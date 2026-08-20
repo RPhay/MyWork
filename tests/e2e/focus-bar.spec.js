@@ -437,3 +437,28 @@ test('a refresh landing mid-drag does not delete the chip does not delete the ch
     }
   }, made);
 });
+
+// Two clicks on a chip goes to the record: its own page, that row highlighted,
+// its editor open. It reuses what already exists - `focus` for the highlight,
+// the remembered-editor key for the editor - rather than a second way in.
+test('double-clicking a chip opens its record on its own page', async ({ page }) => {
+  await page.goto('/?tab=idea');
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1500);
+
+  const made = await makeIdeas(page, ['ZZZ jump to me']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id }) });
+  await page.goto('/?tab=priority', { waitUntil: 'networkidle' });   // somewhere else entirely
+  await page.waitForTimeout(1600);
+
+  await page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`).dblclick();
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(2200);
+
+  expect(page.url(), 'it lands on the record\'s own tab').toContain('tab=idea');
+  await expect(page.locator('#tab-idea')).toHaveClass(/active/);
+  await expect(page.locator('#entity-editor-form input[name="title"]'),
+    'with the record open in the editor').toHaveValue('ZZZ jump to me');
+
+  await cleanup(page, made);
+});

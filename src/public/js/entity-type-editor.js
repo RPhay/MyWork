@@ -347,6 +347,7 @@ function addFieldRow(field = null) {
           <option value="textarea" ${field?.field_type === 'textarea' ? 'selected' : ''}>Long Text</option>
           <option value="number" ${field?.field_type === 'number' ? 'selected' : ''}>Number</option>
           <option value="duration" ${field?.field_type === 'duration' ? 'selected' : ''}>Duration (worked time)</option>
+          <option value="timebox" ${field?.field_type === 'timebox' ? 'selected' : ''}>Time Box (15m to 2h)</option>
           <option value="date" ${field?.field_type === 'date' ? 'selected' : ''}>Date</option>
           <option value="url" ${field?.field_type === 'url' ? 'selected' : ''}>URL (single link)</option>
           <option value="links" ${field?.field_type === 'links' ? 'selected' : ''}>Links (multiple, named)</option>

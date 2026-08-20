@@ -166,3 +166,48 @@ test('a rail can be reached again after opening Reporting', async ({ page }) => 
   await page.waitForTimeout(800);
   expect(await shown(page), 'Priorities too').toEqual(['priority-board']);
 });
+
+// Which panes you have open is a choice, and a refresh should not undo it. The
+// rail toggles were stored; whether the type pane was showing was not, so a
+// pane deliberately put away came back on reload.
+test('pane choices survive a hard refresh', async ({ page }) => {
+  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('button[data-tab="idea"]').click();
+  await page.waitForTimeout(700);
+  expect(await shown(page)).toEqual(['work_item', 'TYPE']);
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  expect(await shown(page), 'rail + type comes back').toEqual(['work_item', 'TYPE']);
+
+  // Put the type away, refresh again: it must STAY away.
+  await page.locator('button[data-tab="idea"]').click();
+  await page.waitForTimeout(700);
+  expect(await shown(page)).toEqual(['work_item']);
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  expect(await shown(page), 'a pane put away stays away').toEqual(['work_item']);
+
+  // Two rails survive too.
+  await page.locator('button[data-rail-toggle="template"]').click({ modifiers: ['Meta'] });
+  await page.waitForTimeout(600);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  expect(await shown(page), 'a pair of rails comes back').toEqual(['work_item', 'template']);
+});
+
+// Two clicks on a type tab means "just this" - every rail stands down.
+test('double-clicking a type tab leaves it the only pane', async ({ page }) => {
+  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('button[data-rail-toggle="template"]').click({ modifiers: ['Meta'] });
+  await page.waitForTimeout(600);
+  expect(await shown(page), 'two rails to start').toEqual(['work_item', 'template']);
+
+  await page.locator('button[data-tab="idea"]').dblclick();
+  await page.waitForTimeout(900);
+  expect(await shown(page), 'the type has the screen').toEqual(['TYPE']);
+  await expect(page.locator('#tab-idea')).toHaveClass(/active/);
+});

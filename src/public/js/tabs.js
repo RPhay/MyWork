@@ -62,6 +62,10 @@ class TabManager {
     const RAILS = ['work_item', 'template', 'priority-board'];
     const KEY = (slug) => `rail:${slug}`;
     const WIDTH_KEY = 'appRailWidth';
+    // Whether the type pane is showing. Stored beside the rail toggles, because
+    // it is the same kind of choice - which panes you want - and losing it on a
+    // refresh put a pane back that had deliberately been put away.
+    const CONTENT_KEY = 'typePaneVisible';
 
     const isOn = (slug) => localStorage.getItem(KEY(slug)) === 'true';
     // Dailies starts on, matching how the rail behaved when it was the only
@@ -72,6 +76,12 @@ class TabManager {
 
     const shell = document.getElementById('appShell');
     const content = document.getElementById('mainTabContent');
+
+    // Restored before the first apply(), or the first paint would show the pane
+    // and then hide it.
+    if (this.contentVisible === undefined) {
+      this.contentVisible = localStorage.getItem(CONTENT_KEY) !== 'false';
+    }
 
     const apply = () => {
       // A full-width view owns the screen: no rails, no dividers, and the tab
@@ -188,6 +198,12 @@ class TabManager {
     // A plain click on any of the three deselects everything else.
     const DAILIES = 'work_item';
     const setRail = (slug, on) => localStorage.setItem(KEY(slug), String(on));
+    // One place that writes it, so no path can change it without storing it.
+    const setContentVisible = (on) => {
+      this.contentVisible = on;
+      localStorage.setItem(CONTENT_KEY, String(on));
+    };
+    this.setContentVisible = setContentVisible;
 
     document.querySelectorAll('button[data-rail-toggle]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
@@ -201,7 +217,7 @@ class TabManager {
         const leavingFullWidth = !!this.fullWidthTab;
         if (leavingFullWidth) {
           this.fullWidthTab = false;
-          this.contentVisible = false;
+          setContentVisible(false);
         }
 
         // Coming out of a full-width view, the rail is stored as open but is not
@@ -210,7 +226,7 @@ class TabManager {
         // closed Dailies and showed the type pane instead.
         if (isOn(slug) && !leavingFullWidth) {
           setRail(slug, false);                       // clicking an open one closes it
-          if (!RAILS.some(isOn)) this.contentVisible = true;   // never leave a blank screen
+          if (!RAILS.some(isOn)) setContentVisible(true);   // never leave a blank screen
           apply();
           return;
         }
@@ -221,12 +237,12 @@ class TabManager {
           others.filter(s => s !== DAILIES).forEach(s => setRail(s, false));
           if (slug !== DAILIES) setRail(DAILIES, true);
           setRail(slug, true);
-          this.contentVisible = false;                // the two rails are the two panes
+          setContentVisible(false);                   // the two rails are the two panes
         } else {
           // Plain click: this is the only thing open.
           others.forEach(s => setRail(s, false));
           setRail(slug, true);
-          this.contentVisible = false;
+          setContentVisible(false);
         }
         apply();
       });
@@ -258,6 +274,7 @@ class TabManager {
   init() {
     this.setupRails();
     this.setupTabButtons();
+    this.setupTabMenus();
     this.showTab(this.currentTab);
     this.setupUrlSync();
     this.initializeTabContent();
@@ -318,12 +335,165 @@ class TabManager {
     });
   }
 
+  // ===== Tab context menus =====
+  //
+  // Right-clicking a tab offers what you would otherwise have to open the tab
+  // to do: make something, expand or collapse its tree, or give it the screen.
+  // The actions differ by what the tab IS - a type, a rail, or a full-width
+  // view - because "meaningful" is not the same list for each.
+  setupTabMenus() {
+    let menuEl = null;
+    const close = () => { menuEl?.remove(); menuEl = null; };
+
+    const open = (x, y, items) => {
+      close();
+      if (!items.length) return;
+      menuEl = document.createElement('div');
+      menuEl.className = 'context-menu tab-context-menu';
+      for (const item of items) {
+        if (item.separator) {
+          menuEl.insertAdjacentHTML('beforeend', '<hr style="margin:4px 0;">');
+          continue;
+        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'context-menu-item';
+        btn.innerHTML = `<span>${item.icon || ''}</span><span>${item.label}</span>`;
+        btn.addEventListener('click', async () => { close(); await item.action(); });
+        menuEl.appendChild(btn);
+      }
+      document.body.appendChild(menuEl);
+      const r = menuEl.getBoundingClientRect();
+      menuEl.style.left = `${Math.min(x, window.innerWidth - r.width - 8)}px`;
+      menuEl.style.top = `${Math.min(y, window.innerHeight - r.height - 8)}px`;
+    };
+
+    // A tab's text includes its icon span and the whitespace around it, so
+    // reading textContent straight gave labels like "New 💡\n   Idea".
+    const tabLabel = (btn) => [...btn.childNodes]
+      .filter(n => !(n.nodeType === 1 && n.classList?.contains('tab-icon')))
+      .map(n => n.textContent || '')
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Right-clicking a tab should not also leave it half-selected, so each
+    // action says explicitly what it does to the screen.
+    const showOnly = (fn) => () => {
+      document.querySelectorAll('button[data-rail-toggle]')
+        .forEach((rail) => this.closeRail?.(rail.dataset.railToggle));
+      this.setContentVisible?.(true);
+      this.fullWidthTab = false;
+      fn();
+      this.applyRails?.();
+    };
+
+    document.addEventListener('mousedown', (e) => {
+      if (menuEl && !menuEl.contains(e.target) && e.button !== 2) close();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+    // --- type tabs ---
+    document.querySelectorAll('button[data-tab]').forEach((btn) => {
+      btn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const slug = btn.dataset.tab;
+        const label = tabLabel(btn);
+        const isFullWidth = btn.dataset.fullwidth === 'true';
+        const items = [];
+
+        if (!isFullWidth) {
+          // The buttons these drive live inside the tab, so it has to be the
+          // tab on screen before they mean anything.
+          items.push({
+            icon: '➕', label: `New ${label.replace(/s$/, '')}`,
+            action: showOnly(() => {
+              this.switchTab(slug);
+              setTimeout(() => document.getElementById(`add${slug}Btn`)?.click(), 250);
+            }),
+          });
+          if (document.getElementById(`add${slug}FolderBtn`)) {
+            items.push({
+              icon: '📁', label: 'New Folder',
+              action: showOnly(() => {
+                this.switchTab(slug);
+                setTimeout(() => document.getElementById(`add${slug}FolderBtn`)?.click(), 250);
+              }),
+            });
+          }
+          items.push({ separator: true });
+          items.push({
+            icon: '⬇️', label: 'Expand all',
+            action: () => { this.switchTab(slug); setTimeout(() => document.getElementById(`expandAll${slug}Btn`)?.click(), 250); },
+          });
+          items.push({
+            icon: '⬆️', label: 'Collapse all',
+            action: () => { this.switchTab(slug); setTimeout(() => document.getElementById(`collapseAll${slug}Btn`)?.click(), 250); },
+          });
+          items.push({ separator: true });
+        }
+
+        items.push({ icon: '🔲', label: 'Show only this', action: showOnly(() => this.switchTab(slug)) });
+        if (!isFullWidth) {
+          items.push({ icon: '⚙️', label: 'Edit this type…', action: () => {
+            window.location.href = `/settings?tab=entity-types&type=${encodeURIComponent(slug)}`;
+          } });
+        }
+        open(e.clientX, e.clientY, items);
+      });
+    });
+
+    // --- rail tabs ---
+    document.querySelectorAll('button[data-rail-toggle]').forEach((btn) => {
+      btn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const slug = btn.dataset.railToggle;
+        const label = tabLabel(btn);
+        const items = [
+          { icon: '🔲', label: 'Show only this', action: showOnly(() => {
+            localStorage.setItem(`rail:${slug}`, 'true');
+            this.setContentVisible?.(false);
+          }) },
+        ];
+
+        // Dailies is the one rail the others may sit beside.
+        if (slug !== 'work_item') {
+          items.push({ icon: '📅', label: `Show beside Dailies`, action: () => {
+            document.querySelectorAll('button[data-rail-toggle]').forEach((r) => {
+              const s = r.dataset.railToggle;
+              localStorage.setItem(`rail:${s}`, String(s === slug || s === 'work_item'));
+            });
+            this.setContentVisible?.(false);
+            this.applyRails?.();
+          } });
+        }
+
+        items.push({ separator: true });
+        items.push({ icon: '✕', label: `Close ${label}`, action: () => this.closeRail?.(slug) });
+        open(e.clientX, e.clientY, items);
+      });
+    });
+  }
+
   setupTabButtons() {
     // button[data-tab] specifically - some tab <li> wrappers also carry a
     // data-tab attribute (for drag-reorder addressing), and matching those
     // too would double-fire this handler on every click via event bubbling.
     const tabButtons = document.querySelectorAll('button[data-tab]');
     tabButtons.forEach(button => {
+      // Two clicks means "just this": every rail stands down and the type has
+      // the screen to itself. One click still pairs it with whatever rail is
+      // open, which is the common case.
+      button.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('button[data-rail-toggle]')
+          .forEach((rail) => this.closeRail?.(rail.dataset.railToggle));
+        this.setContentVisible?.(true);
+        this.fullWidthTab = false;
+        this.switchTab(button.dataset.tab);
+        this.applyRails?.();
+      });
+
       button.addEventListener('click', (e) => {
         e.preventDefault();
         const tab = button.dataset.tab;
@@ -336,13 +506,13 @@ class TabManager {
         // type takes the other slot.
         const showingThis = this.contentVisible !== false && this.currentTab === tab;
         if (showingThis) {
-          this.contentVisible = false;
+          this.setContentVisible ? this.setContentVisible(false) : (this.contentVisible = false);
           this.applyRails?.();
           this.syncTabHighlight();
           return;
         }
 
-        this.contentVisible = true;
+        this.setContentVisible ? this.setContentVisible(true) : (this.contentVisible = true);
         this.switchTab(tab);
       });
     });

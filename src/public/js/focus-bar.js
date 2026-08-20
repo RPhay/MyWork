@@ -208,6 +208,29 @@
       }
     });
 
+    // Two clicks on a chip goes to the record: its own page, that row selected,
+    // its editor open. Done by asking for the tab and letting the machinery
+    // that already exists do the rest - `focus` scrolls to and highlights the
+    // row (search uses it), and the remembered-editor key is what reopens an
+    // editor after a load, so setting it here means the tab restores the record
+    // rather than needing a second, parallel way in.
+    bar.addEventListener('dblclick', (e) => {
+      const chip = e.target.closest('.focus-chip');
+      if (!chip) return;
+      e.preventDefault();
+      const id = chip.dataset.entityId;
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item?.typeSlug) return;
+
+      try {
+        localStorage.setItem('entityOpenEditor', JSON.stringify({ typeSlug: item.typeSlug, id: String(id) }));
+        // Whatever else was on screen, the point of this gesture is that record.
+        localStorage.setItem('typePaneVisible', 'true');
+      } catch { /* storage off: the tab still opens, just without the editor */ }
+
+      window.location.href = `/?tab=${encodeURIComponent(item.typeSlug)}&focus=${encodeURIComponent(id)}`;
+    });
+
     bar.addEventListener('contextmenu', (e) => {
       const chip = e.target.closest('.focus-chip');
       if (!chip) return;

@@ -532,6 +532,17 @@ renderList();
       // handler already ignores anything inside a [data-action] element.
       // Priority cycles through its ladder on click, like the status badge.
       // Only this field is sent, so nothing else on the row is disturbed.
+      const timeBoxBtn = e.target.closest('[data-action="cycle-timebox-field"]');
+      if (timeBoxBtn) {
+        const field = (typeSchema.fields || []).find(f => f.field_key === timeBoxBtn.dataset.fieldKey);
+        const LEVELS = GenericEntity.cellChoices(field) || [''];
+        const current = timeBoxBtn.dataset.value || '';
+        const next = LEVELS[(LEVELS.indexOf(current) + 1) % LEVELS.length];
+        await saveFieldFromCell(timeBoxBtn.dataset.entityId, timeBoxBtn.dataset.fieldKey,
+          next === '' ? null : next, 'Could not change the time box');
+        return;
+      }
+
       const priorityBtn = e.target.closest('[data-action="cycle-priority"]');
       if (priorityBtn) {
         // Shared with the right-click menu, so the two cannot disagree.
@@ -1218,7 +1229,7 @@ renderList();
     // from "Not Started" was four clicks and passed through three states that
     // each got saved on the way.
     const VALUE_CELL_ACTIONS = [
-      'cycle-status', 'cycle-priority', 'toggle-checkbox', 'set-choice',
+      'cycle-status', 'cycle-priority', 'cycle-timebox-field', 'toggle-checkbox', 'set-choice',
     ].map(a => `[data-action="${a}"]`).join(', ');
 
     // Emoji cells are deliberately NOT in that list: right-clicking one does
@@ -1238,6 +1249,7 @@ renderList();
       // as data-value '1'/'0', status as data-status, priority as data-priority,
       // and a <select> only through its own .value.
       const current = field.field_type === 'checkbox' ? d.value === '1'
+        : field.field_type === 'timebox' ? (d.value ?? '')
         : field.field_type === 'status' ? (d.status ?? '')
         : field.field_type === 'priority' ? (d.priority ?? '')
         : (d.value ?? control.value ?? '');
