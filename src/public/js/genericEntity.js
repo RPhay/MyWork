@@ -202,18 +202,21 @@ const GenericEntity = (() => {
       </div>
       `;
     },
-    // An icon that says what it is, and a value you cycle by clicking - the very
-    // same control the row shows, so it behaves identically in both places.
+    // Every option shown at once with a box round the current one, exactly like
+    // status. The row still cycles - there is no space there for seven choices -
+    // but the editor has the room, and cycling is a poor way to pick a value
+    // when you cannot see what the choices are without clicking through them.
     timebox: (field, value = '') => {
       const current = TIME_BOX_LEVELS.includes(value) ? value : '';
       return `
-      <div class="form-group" data-field-type="timebox" data-cycle-values="${escapeAttr(JSON.stringify(TIME_BOX_LEVELS))}">
-        <div>
-          <span class="timebox-cell editor-cycle" data-cycle="timebox" role="button" tabindex="0"
-                title="Time box - click to change">
-            <i class="bi bi-hourglass-split timebox-icon" aria-hidden="true"></i>
-            <span class="editor-cycle-label">${escapeHtml(timeBoxLabel(current))}</span>
-          </span>
+      <div class="form-group" data-field-type="timebox">
+        <div class="option-choice-row" role="radiogroup" aria-label="${escapeAttr(field.label)}">
+          ${TIME_BOX_LEVELS.map(v => `
+            <button type="button"
+                    class="option-choice timebox-option${v === current ? ' selected' : ''}"
+                    data-action="pick-option" data-value="${escapeAttr(v)}"
+                    role="radio" aria-checked="${v === current}"
+                    title="${escapeAttr(timeBoxLabel(v))}">${escapeHtml(timeBoxLabel(v))}</button>`).join('')}
         </div>
         <input type="hidden" name="${field.field_key}" value="${escapeAttr(current)}">
       </div>
@@ -1569,12 +1572,9 @@ const GenericEntity = (() => {
     const input = group.querySelector('input[type="hidden"]');
     if (input) input.value = value ?? '';
 
-    if (control.dataset.cycle === 'timebox') {
-      control.innerHTML = '<i class="bi bi-hourglass-split timebox-icon" aria-hidden="true"></i>'
-        + `<span class="editor-cycle-label">${escapeHtml(timeBoxLabel(value))}</span>`;
-      return;
-    }
-
+    // Time box used to have a branch here. It shows every value now, like
+    // status, so it reaches the editor through markOptionChoice instead and
+    // this could never fire again.
     const style = PRIORITY_STYLE[value] || PRIORITY_STYLE[''];
     control.innerHTML = `${priorityGlyph(value)}<span class="editor-cycle-label">${escapeHtml(style.label)}</span>`;
     control.title = `${style.label} - click to change`;

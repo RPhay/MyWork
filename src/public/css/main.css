@@ -168,6 +168,27 @@
   display: inline-block;
 }
 
+/* --- time box: the same "show them all, box the current one" control as
+   status. No state colours - a duration has no good or bad value, so the text
+   stays neutral and the black box is the only marker. --- */
+.timebox-option {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  color: #212529;
+}
+
+.timebox-option:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.timebox-option.selected {
+  border-color: #000;
+}
+
 .status-option:hover {
   background: rgba(128, 128, 128, 0.12);
 }
