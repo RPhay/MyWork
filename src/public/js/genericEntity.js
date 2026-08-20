@@ -303,6 +303,11 @@ const GenericEntity = (() => {
   // The iconography is the escalating chevron every issue tracker uses - down
   // for low, up for high, doubled for the top - so it reads without a legend.
   // Colour carries the same signal for anyone scanning rather than reading.
+  // Field keys the engine writes for itself. They are real entity_type_fields
+  // (so they store and query like anything else) but they are never rendered as
+  // an editable control, and never offered as a column.
+  const INTERNAL_FIELD_KEYS = new Set(['board_bay', 'board_order']);
+
   const PRIORITY_LEVELS = ['', 'Low', 'Medium', 'High', 'Critical'];
 
   // Signal bars, not chevrons. Priority is an INTENSITY, and rising bars read as
@@ -360,7 +365,7 @@ const GenericEntity = (() => {
 
   function visibleColumns(typeSchema) {
     return (typeSchema.fields || [])
-      .filter(f => f.show_in_row)
+      .filter(f => f.show_in_row && !INTERNAL_FIELD_KEYS.has(f.field_key))
       .slice()
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   }
@@ -1173,7 +1178,14 @@ const GenericEntity = (() => {
   function buildForm(typeSchema, entity = {}) {
     // A folder only organizes - it has no field values of its own, so its
     // editor is the name and nothing else, for every type alike.
-    const fields = entity.is_folder ? [] : (typeSchema.fields || []);
+    // Internal state that happens to live in the field table is not a field a
+    // person edits. board_bay and board_order are written by dragging a row
+    // onto the priorities board; rendered as a text box and a number box on
+    // every record, they are clutter at best - and at worst a stray value puts
+    // an unrelated record on the board, which is exactly what happened.
+    const fields = entity.is_folder
+      ? []
+      : (typeSchema.fields || []).filter(f => !INTERNAL_FIELD_KEYS.has(f.field_key));
     return `
       <form id="entity-editor-form" class="entity-editor-form" onsubmit="return false;">
         <div class="form-group">

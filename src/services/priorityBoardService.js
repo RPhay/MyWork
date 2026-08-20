@@ -31,12 +31,6 @@ import { ValidationError, NotFoundError } from '../config/errors.js';
 
 export const BOARD_BAYS = ['Not Started', 'In Progress', 'Complete'];
 
-// Templates are patterns rather than work, so they are not placeable; every
-// other editable type is.
-function boardableTypes(types) {
-  return types.filter(t => t.slug !== 'template');
-}
-
 /**
  * Every row currently on the board, whatever its type, in board order.
  *
@@ -47,31 +41,41 @@ function boardableTypes(types) {
 export async function getBoardItems(contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
-  const types = boardableTypes(await entityTypeService.getAllEntityTypes('editable'));
+  // One indexed lookup for the rows that are actually on the board, rather than
+  // loading every entity of every type and filtering in JavaScript.
+  const rows = await entityService.getEntitiesByFieldKey('board_bay', contextId);
+  if (rows.length === 0) return [];
+
+  // Status field keys are per type, so the types are fetched once and indexed -
+  // not re-fetched per row.
+  const types = new Map(
+    (await entityTypeService.getAllEntityTypes('editable')).map(t => [t.slug, t])
+  );
 
   const items = [];
-  for (const type of types) {
+  for (const entity of rows) {
+    const type = types.get(entity.type_slug);
+    if (!type || type.slug === 'template') continue;
+
+    const bay = entity.fields?.board_bay;
+    if (!bay) continue;
+
     const statusField = (type.fields || []).find(f => f.field_type === 'status');
 
-    for (const entity of await entityService.getAllEntities(type.slug, contextId)) {
-      const bay = entity.fields?.board_bay;
-      if (!bay) continue;
-
-      items.push({
-        id: entity.id,
-        title: entity.title,
-        typeSlug: type.slug,
-        typeLabel: type.label,
-        icon: type.icon,
-        bay: BOARD_BAYS.includes(bay) ? bay : BOARD_BAYS[0],
-        // The record's own status, shown as information. It is deliberately not
-        // what the bay means, so a row can sit in "In Progress" while its type
-        // calls its own state "Developing".
-        status: statusField ? (entity.fields?.[statusField.field_key] || '') : '',
-        priority: entity.fields?.priority || '',
-        boardOrder: Number(entity.fields?.board_order ?? 0),
-      });
-    }
+    items.push({
+      id: entity.id,
+      title: entity.title,
+      typeSlug: type.slug,
+      typeLabel: type.label,
+      icon: type.icon,
+      bay: BOARD_BAYS.includes(bay) ? bay : BOARD_BAYS[0],
+      // The record's own status, shown as information. It is deliberately not
+      // what the bay means, so a row can sit in "In Progress" while its type
+      // calls its own state "Developing".
+      status: statusField ? (entity.fields?.[statusField.field_key] || '') : '',
+      priority: entity.fields?.priority || '',
+      boardOrder: Number(entity.fields?.board_order ?? 0),
+    });
   }
 
   return items.sort((a, b) => a.boardOrder - b.boardOrder || a.id - b.id);

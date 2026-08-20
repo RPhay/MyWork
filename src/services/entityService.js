@@ -108,6 +108,44 @@ export async function getAllEntities(entityTypeSlug, contextId = null) {
   return entities;
 }
 
+/**
+ * Every entity in the context that has a value stored for `fieldKey`, whatever
+ * its type, with its type joined on.
+ *
+ * This exists so that "find the handful of rows that are on the board" is three
+ * queries instead of one per type. The board and the reports used to loop every
+ * editable type calling getAllEntities - which loads EVERY row of that type
+ * plus all of its field values - and then filter in JavaScript. That is the
+ * whole dataset walked to find a dozen rows, and it was invisible only because
+ * the dataset is small.
+ *
+ * `entity_field_values` already carries idx_field_key_text(field_key,
+ * value_text), so the lookup is indexed rather than a scan.
+ */
+export async function getEntitiesByFieldKey(fieldKey, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const rows = await queryPool(
+    `SELECT e.*, et.slug AS type_slug, et.label AS type_label, et.icon AS type_icon
+     FROM entity_field_values v
+     JOIN entities e ON e.id = v.entity_id
+     JOIN entity_types et ON et.id = e.entity_type_id
+     WHERE v.field_key = ?
+       AND e.context_id = ?
+       AND et.deleted_at IS NULL
+       AND (v.value_text IS NOT NULL OR v.value_long IS NOT NULL
+            OR v.value_number IS NOT NULL OR v.value_date IS NOT NULL
+            OR v.value_bool IS NOT NULL OR v.value_json IS NOT NULL)
+     ORDER BY e.id`,
+    [fieldKey, contextId]
+  );
+
+  const fieldMap = await attachFieldValues(rows.map(e => e.id));
+  for (const entity of rows) entity.fields = fieldMap.get(entity.id) || {};
+
+  return rows;
+}
+
 // Entities of ANOTHER type that sit inside one of this type. Only templates
 // have such children today (they may contain any editable type), but this is
 // driven by the data, not by the slug: any type whose rules permit a cross-type
