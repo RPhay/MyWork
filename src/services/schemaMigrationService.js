@@ -118,6 +118,38 @@ export async function analyzeAndMigrate() {
       report.actions.push('✓ No old entity data found (fresh database)');
     }
 
+    // Step 5b: Move any links still stranded in the retired work junctions.
+    //
+    // This is the half of audit 07 that never ran: the reads moved to
+    // work_entity_associations, the rows did not, so a database that predates
+    // that change holds links the app cannot see. Copy only - the tables are
+    // left in place, matching this button's promise that migration is
+    // non-destructive. Dropping them is scripts/migrate-work-junctions.js.
+    const junctions = await migrateRetiredWorkJunctions({ drop: false });
+    if (junctions.skipped) {
+      report.warnings.push(`Skipped work junction migration: ${junctions.skipped}`);
+    } else if (junctions.present.length === 0) {
+      report.actions.push('✓ No retired work junctions present');
+    } else {
+      const held = junctions.present.map(p => `${p.table} (${p.rows})`).join(', ');
+      const carried = junctions.alreadyPresent > 0
+        ? `, ${junctions.alreadyPresent} already present`
+        : '';
+      report.actions.push(
+        `✓ Migrated ${junctions.migrated} link(s)${carried} into work_entity_associations from: ${held}`
+      );
+      if (junctions.dangling > 0) {
+        report.warnings.push(
+          `${junctions.dangling} link(s) skipped - their entity or work item no longer exists.`
+        );
+      }
+      report.warnings.push(
+        'The retired junction tables were left in place. Run '
+        + '"node scripts/migrate-work-junctions.js --migrate --drop" to remove them '
+        + 'once you are satisfied the links are correct.'
+      );
+    }
+
     // Step 6: Verify schema consistency
     let verification = await verifySchema();
 
@@ -247,18 +279,121 @@ async function tableExists(tableName) {
  * Returning null instead of 0 keeps "I could not count this" distinguishable
  * from "this is empty". Callers must not treat null as empty.
  */
-async function countRows(tableName) {
-  const quoted = getCurrentConfig().type === 'mssql'
-    ? `[${tableName.replace(/]/g, ']]')}]`
-    : `\`${tableName.replace(/`/g, '``')}\``;
+export function quoteIdentifier(name) {
+  return getCurrentConfig().type === 'mssql'
+    ? `[${String(name).replace(/]/g, ']]')}]`
+    : `\`${String(name).replace(/`/g, '``')}\``;
+}
 
+async function countRows(tableName) {
   try {
-    const result = await query(`SELECT COUNT(*) as count FROM ${quoted}`);
+    const result = await query(`SELECT COUNT(*) as count FROM ${quoteIdentifier(tableName)}`);
     return result[0]?.count ?? 0;
   } catch (error) {
     logger.error(`Error counting rows in ${tableName}:`, error);
     return null;
   }
+}
+
+/**
+ * The seven per-type work_*_associations junctions, and the column in each that
+ * holds the entity id.
+ *
+ * That column name lies about what it points at. These tables were converted to
+ * the legacy<->entity bridge before they were retired, so `todo_id` holds an
+ * entities.id, NOT a to_dos.id. Reading them as legacy ids resolves to nothing
+ * and reads like total data loss; it is not.
+ */
+const RETIRED_WORK_JUNCTIONS = [
+  ['work_area_associations', 'area_id'],
+  ['work_goal_associations', 'goal_id'],
+  ['work_idea_associations', 'idea_id'],
+  ['work_priority_associations', 'priority_id'],
+  ['work_todo_associations', 'todo_id'],
+  ['work_task_associations', 'task_id'],
+  ['work_ticket_associations', 'ticket_id'],
+];
+
+/**
+ * Move whatever the retired junctions still hold into work_entity_associations.
+ *
+ * Audit 07 moved the READS to that one junction and removed these seven tables
+ * from both schema files, but never moved the ROWS. On MySQL that left 20 links
+ * present in the database and invisible in the app - erroring nowhere, because
+ * nothing looked at them any more. Any database that predates that change is in
+ * the same state until this runs.
+ *
+ * Shared deliberately: scripts/migrate-work-junctions.js calls this rather than
+ * carrying its own copy. Two implementations of one migration is how the schema
+ * files and the services drifted apart in the first place.
+ *
+ * Copy-only by default. Dropping is a separate decision - see the script.
+ *
+ * surveyRetiredWorkJunctions() reports what is there without touching it, so a
+ * caller can show the damage before deciding.
+ */
+export async function surveyRetiredWorkJunctions() {
+  if (!await tableExists('work_entity_associations')) {
+    return { skipped: 'work_entity_associations does not exist yet', present: [], target: 0 };
+  }
+
+  const present = [];
+  for (const [table, column] of RETIRED_WORK_JUNCTIONS) {
+    if (!await tableExists(table)) continue;
+    present.push({ table, column, rows: await countRows(table) });
+  }
+
+  return { skipped: null, present, target: await countRows('work_entity_associations') };
+}
+
+/** Copy the stranded links across. See the block comment above. */
+export async function migrateRetiredWorkJunctions({ drop = false } = {}) {
+  const result = { present: [], migrated: 0, alreadyPresent: 0, dangling: 0, dropped: [], skipped: null };
+
+  // One survey feeding both, so what is reported and what is copied cannot
+  // disagree about which tables are there.
+  const survey = await surveyRetiredWorkJunctions();
+  if (survey.skipped) {
+    result.skipped = survey.skipped;
+    return result;
+  }
+  result.present = survey.present.map(({ table, rows }) => ({ table, rows }));
+
+  for (const { table, column } of survey.present) {
+    const rows = await query(`SELECT work_item_id, ${column} AS entity_id FROM ${quoteIdentifier(table)}`);
+    for (const r of rows) {
+      // A link whose entity or work item is gone would fail the foreign key and
+      // abort the run, and describes nothing worth keeping.
+      const [e] = await query('SELECT id FROM entities WHERE id = ?', [r.entity_id]);
+      const [w] = await query('SELECT id FROM work_items WHERE id = ?', [r.work_item_id]);
+      if (!e || !w) { result.dangling++; continue; }
+
+      // Checked rather than relying on the insert to no-op, so `migrated`
+      // counts rows actually written. Reporting "migrated 2" on a re-run that
+      // wrote nothing is the kind of true-sounding number that hides whether
+      // the migration ever really happened.
+      const [already] = await query(
+        'SELECT work_item_id FROM work_entity_associations WHERE work_item_id = ? AND entity_id = ?',
+        [r.work_item_id, r.entity_id]
+      );
+      if (already) { result.alreadyPresent++; continue; }
+
+      await query(
+        'INSERT INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
+        [r.work_item_id, r.entity_id]
+      );
+      result.migrated++;
+    }
+  }
+
+  if (drop) {
+    for (const { table } of result.present) {
+      await query(`DROP TABLE ${quoteIdentifier(table)}`);
+      result.dropped.push(table);
+    }
+  }
+
+  return result;
 }
 
 async function ensureGenericSchema() {
