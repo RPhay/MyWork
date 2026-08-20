@@ -20,75 +20,15 @@ async function attachAssociations(items) {
   const ids = items.map(i => i.id);
   const placeholders = ids.map(() => '?').join(',');
 
-  const [priorityRows, goalRows, areaRows, templateRows, todoRows, taskRows, ticketRows, ideaRows, allPriorities, allAreas] = await Promise.all([
-    db.query(
-      `SELECT wpa.work_item_id, p.id, p.title
-       FROM work_priority_associations wpa
-       JOIN entities p ON wpa.priority_id = p.id
-       WHERE wpa.work_item_id IN (${placeholders})`,
-      ids
-    ),
-    // Goals, areas and ideas are entities now (Phases 1-3); the junction
-    // tables bridge work_items to them. `title` is aliased to `name` because
-    // that's the shape the Dailies frontend still reads.
-    db.query(
-      `SELECT wga.work_item_id, g.id, g.title AS name
-       FROM work_goal_associations wga
-       JOIN entities g ON wga.goal_id = g.id
-       WHERE wga.work_item_id IN (${placeholders})`,
-      ids
-    ),
-    db.query(
-      `SELECT waa.work_item_id, a.id, a.title AS name
-       FROM work_area_associations waa
-       JOIN entities a ON waa.area_id = a.id
-       WHERE waa.work_item_id IN (${placeholders})`,
-      ids
-    ),
-    db.query(
-      `SELECT wta.work_item_id, t.id, t.title
-       FROM work_template_associations wta
-       JOIN work_item_templates t ON wta.template_id = t.id
-       WHERE wta.work_item_id IN (${placeholders})`,
-      ids
-    ),
-    // Todos, tasks and tickets are entities now too (phase 6-7), so these join
-    // `entities` like the rest. Leaving them on the legacy tables made the join
-    // match nothing: the junction held an entity id, the legacy table did not.
-    db.query(
-      `SELECT wtd.work_item_id, td.id, td.title
-       FROM work_todo_associations wtd
-       JOIN entities td ON wtd.todo_id = td.id
-       WHERE wtd.work_item_id IN (${placeholders})`,
-      ids
-    ),
-    db.query(
-      `SELECT wtk.work_item_id, tk.id, tk.title
-       FROM work_task_associations wtk
-       JOIN entities tk ON wtk.task_id = tk.id
-       WHERE wtk.work_item_id IN (${placeholders})`,
-      ids
-    ),
-    db.query(
-      `SELECT wti.work_item_id, ti.id, ti.title
-       FROM work_ticket_associations wti
-       JOIN entities ti ON wti.ticket_id = ti.id
-       WHERE wti.work_item_id IN (${placeholders})`,
-      ids
-    ),
-    db.query(
-      `SELECT wid.work_item_id, i.id, i.title
-       FROM work_idea_associations wid
-       JOIN entities i ON wid.idea_id = i.id
-       WHERE wid.work_item_id IN (${placeholders})`,
-      ids
-    ),
-    // Projects are entities now (Phase 4); like areas, their hierarchy is in
-    // entity_relationships rather than a parent_id column.
+  // The seven per-type junctions are gone: every link a day holds lives in
+  // work_entity_associations now, so these lists are DERIVED from that one
+  // place rather than read from seven tables that no longer receive writes.
+  // The shape is unchanged, because Reporting reads `priorities` and `areas`.
+  const [allPriorities, allAreas] = await Promise.all([
+    // Projects and Areas are entities, and their hierarchy lives in
+    // entity_relationships rather than a parent_id column - the lookup reshapes
+    // it so buildPathMap below still works unchanged.
     entityService.getEntityPathLookup('priority'),
-    // Areas moved to `entities`, whose hierarchy lives in entity_relationships
-    // rather than a parent_id column - the lookup reshapes it so buildPathMap
-    // below still works unchanged.
     entityService.getEntityPathLookup('area'),
   ]);
 
@@ -103,47 +43,30 @@ async function attachAssociations(items) {
   // cloned from something (an instantiated_from edge); a reference points at
   // the original, so editing it edits the original. Dailies badges the two
   // differently, since that difference is invisible otherwise.
-  const associatedEntityIds = [
-    ...priorityRows.map(r => r.id),
-    ...goalRows.map(r => r.id),
-    ...areaRows.map(r => r.id),
-    ...ideaRows.map(r => r.id),
-    // The generic children too, at every depth. Leaving them out meant a
-    // subtree copied onto a day came back badged as references - the opposite
-    // of what had happened to it.
-    ...[...genericChildren.values()].flat().map(r => r.id),
-  ];
+  const associatedEntityIds = [...genericChildren.values()].flat().map(r => r.id);
   const copies = await entityService.findClonedEntityIds(associatedEntityIds).catch(() => new Set());
+
+  // One list per type, cut from the generic children. Only the DIRECT children
+  // (depth 0) appear in these: they describe what was put on the day, and the
+  // tree beneath them is `entities`.
+  const ofType = (item, slug) => (genericChildren.get(item.id) || [])
+    .filter(c => c.type_slug === slug && c.depth === 0);
 
   return items.map(item => ({
     ...item,
-    priorities: priorityRows
-      .filter(r => r.work_item_id === item.id)
+    priorities: ofType(item, 'priority')
       .map(r => ({ id: r.id, title: r.title, path: priorityPaths.get(r.id) || r.title, isCopy: copies.has(r.id) })),
-    goals: goalRows
-      .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, name: r.name, isCopy: copies.has(r.id) })),
-    areas: areaRows
-      .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, name: r.name, path: areaPaths.get(r.id) || r.name, isCopy: copies.has(r.id) })),
-    templates: templateRows
-      .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, title: r.title })),
-    todos: todoRows
-      .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, title: r.title })),
-    tasks: taskRows
-      .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, title: r.title })),
-    tickets: ticketRows
-      .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, title: r.title })),
-    ideas: ideaRows
-      .filter(r => r.work_item_id === item.id)
-      .map(r => ({ id: r.id, title: r.title, isCopy: copies.has(r.id) })),
-    // Any type, at any depth. The seven lists above stay until their consumers
-    // move across; this one needs no entry per type and so covers types that
-    // did not exist when this code was written.
+    goals: ofType(item, 'goal')
+      .map(r => ({ id: r.id, name: r.title, isCopy: copies.has(r.id) })),
+    areas: ofType(item, 'area')
+      .map(r => ({ id: r.id, name: r.title, path: areaPaths.get(r.id) || r.title, isCopy: copies.has(r.id) })),
+    templates: ofType(item, 'template').map(r => ({ id: r.id, title: r.title })),
+    todos: ofType(item, 'to_do').map(r => ({ id: r.id, title: r.title })),
+    tasks: ofType(item, 'task').map(r => ({ id: r.id, title: r.title })),
+    tickets: ofType(item, 'ticket').map(r => ({ id: r.id, title: r.title })),
+    ideas: ofType(item, 'idea').map(r => ({ id: r.id, title: r.title, isCopy: copies.has(r.id) })),
+    // Every child, at any depth, whatever its type - the list the eight above
+    // are cut from.
     entities: (genericChildren.get(item.id) || []).map(r => ({
       id: r.id,
       title: r.title,
@@ -210,24 +133,13 @@ export async function createWorkItem(data, contextId) {
     [date, title, description ?? null, notes ?? null, emoji ?? null, status || 'Not Started', normalizeTimeBox(time_box_minutes), start_time || null, nextOrder, contextId]
   );
 
-  // Add goal associations
-  if (goal_ids && Array.isArray(goal_ids)) {
-    for (const goalId of goal_ids) {
-      await db.insert(
-        'INSERT INTO work_goal_associations (work_item_id, goal_id) VALUES (?, ?)',
-        [workItemId, goalId]
-      );
-    }
-  }
-
-  // Add priority associations
-  if (priority_ids && Array.isArray(priority_ids)) {
-    for (const priorityId of priority_ids) {
-      await db.insert(
-        'INSERT INTO work_priority_associations (work_item_id, priority_id) VALUES (?, ?)',
-        [workItemId, priorityId]
-      );
-    }
+  // Goals and projects passed at creation are just children, like anything
+  // else on a day - one junction, so a caller can pass any type's ids.
+  for (const entityId of [...(goal_ids || []), ...(priority_ids || [])]) {
+    await db.query(
+      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
+      [workItemId, entityId]
+    );
   }
 
   // Add source association
@@ -281,28 +193,23 @@ export async function updateWorkItem(id, data) {
     await db.update(`UPDATE work_items SET ${setClauses.join(', ')} WHERE id = ?`, values);
   }
 
-  // Update associations
-  if (goal_ids !== undefined) {
-    await db.query('DELETE FROM work_goal_associations WHERE work_item_id = ?', [id]);
-    if (Array.isArray(goal_ids)) {
-      for (const goalId of goal_ids) {
-        await db.insert(
-          'INSERT INTO work_goal_associations (work_item_id, goal_id) VALUES (?, ?)',
-          [id, goalId]
-        );
-      }
-    }
-  }
-
-  if (priority_ids !== undefined) {
-    await db.query('DELETE FROM work_priority_associations WHERE work_item_id = ?', [id]);
-    if (Array.isArray(priority_ids)) {
-      for (const priorityId of priority_ids) {
-        await db.insert(
-          'INSERT INTO work_priority_associations (work_item_id, priority_id) VALUES (?, ?)',
-          [id, priorityId]
-        );
-      }
+  // Goals and projects are children like any other, through the one junction.
+  // Passing either list REPLACES that type's children, which is what the
+  // per-type delete-then-insert did before.
+  for (const [slug, ids] of [['goal', goal_ids], ['priority', priority_ids]]) {
+    if (ids === undefined || !Array.isArray(ids)) continue;
+    await db.query(
+      `DELETE wea FROM work_entity_associations wea
+       JOIN entities e ON e.id = wea.entity_id
+       JOIN entity_types t ON t.id = e.entity_type_id
+       WHERE wea.work_item_id = ? AND t.slug = ?`,
+      [id, slug]
+    );
+    for (const entityId of ids) {
+      await db.query(
+        'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
+        [id, entityId]
+      );
     }
   }
 
@@ -394,29 +301,18 @@ export async function cloneWorkItem(id, date) {
     [date, original.title, original.description, original.notes, original.emoji, 'Not Started', original.time_box_minutes, nextOrder, original.context_id]
   );
 
-  for (const p of original.priorities) {
-    await db.insert('INSERT INTO work_priority_associations (work_item_id, priority_id) VALUES (?, ?)', [newId, p.id]);
-  }
-  for (const g of original.goals) {
-    await db.insert('INSERT INTO work_goal_associations (work_item_id, goal_id) VALUES (?, ?)', [newId, g.id]);
-  }
-  for (const a of original.areas) {
-    await db.insert('INSERT INTO work_area_associations (work_item_id, area_id) VALUES (?, ?)', [newId, a.id]);
-  }
-  for (const t of original.templates) {
-    await db.insert('INSERT INTO work_template_associations (work_item_id, template_id) VALUES (?, ?)', [newId, t.id]);
-  }
-  for (const td of original.todos) {
-    await db.insert('INSERT INTO work_todo_associations (work_item_id, todo_id) VALUES (?, ?)', [newId, td.id]);
-  }
-  for (const tk of original.tasks) {
-    await db.insert('INSERT INTO work_task_associations (work_item_id, task_id) VALUES (?, ?)', [newId, tk.id]);
-  }
-  for (const ti of original.tickets) {
-    await db.insert('INSERT INTO work_ticket_associations (work_item_id, ticket_id) VALUES (?, ?)', [newId, ti.id]);
-  }
-  for (const i of original.ideas) {
-    await db.insert('INSERT INTO work_idea_associations (work_item_id, idea_id) VALUES (?, ?)', [newId, i.id]);
+  // One junction, so cloning copies every child whatever its type - including
+  // types that did not exist when this was written. Eight loops over eight
+  // tables could only ever copy the eight it knew about.
+  const children = await db.query(
+    'SELECT entity_id, order_index FROM work_entity_associations WHERE work_item_id = ? ORDER BY order_index, id',
+    [id]
+  );
+  for (const c of children) {
+    await db.query(
+      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
+      [newId, c.entity_id, c.order_index ?? 0]
+    );
   }
 
   return getWorkItemById(newId);
@@ -513,121 +409,65 @@ export async function getEntityAssociations(workItemIds) {
 }
 
 export async function addPriorityAssociation(workItemId, priorityId) {
-  await db.query(
-    'INSERT IGNORE INTO work_priority_associations (work_item_id, priority_id) VALUES (?, ?)',
-    [workItemId, priorityId]
-  );
-  return getWorkItemById(workItemId);
+  return addEntityAssociation(workItemId, priorityId);
 }
 
 export async function removePriorityAssociation(workItemId, priorityId) {
-  await db.deleteRecord(
-    'DELETE FROM work_priority_associations WHERE work_item_id = ? AND priority_id = ?',
-    [workItemId, priorityId]
-  );
+  return removeEntityAssociation(workItemId, priorityId);
 }
 
 export async function addGoalAssociation(workItemId, goalId) {
-  await db.query(
-    'INSERT IGNORE INTO work_goal_associations (work_item_id, goal_id) VALUES (?, ?)',
-    [workItemId, goalId]
-  );
-  return getWorkItemById(workItemId);
+  return addEntityAssociation(workItemId, goalId);
 }
 
 export async function removeGoalAssociation(workItemId, goalId) {
-  await db.deleteRecord(
-    'DELETE FROM work_goal_associations WHERE work_item_id = ? AND goal_id = ?',
-    [workItemId, goalId]
-  );
+  return removeEntityAssociation(workItemId, goalId);
 }
 
 export async function addAreaAssociation(workItemId, areaId) {
-  await db.query(
-    'INSERT IGNORE INTO work_area_associations (work_item_id, area_id) VALUES (?, ?)',
-    [workItemId, areaId]
-  );
-  return getWorkItemById(workItemId);
+  return addEntityAssociation(workItemId, areaId);
 }
 
 export async function removeAreaAssociation(workItemId, areaId) {
-  await db.deleteRecord(
-    'DELETE FROM work_area_associations WHERE work_item_id = ? AND area_id = ?',
-    [workItemId, areaId]
-  );
+  return removeEntityAssociation(workItemId, areaId);
 }
 
 export async function addTemplateAssociation(workItemId, templateId) {
-  await db.query(
-    'INSERT IGNORE INTO work_template_associations (work_item_id, template_id) VALUES (?, ?)',
-    [workItemId, templateId]
-  );
-  return getWorkItemById(workItemId);
+  return addEntityAssociation(workItemId, templateId);
 }
 
 export async function removeTemplateAssociation(workItemId, templateId) {
-  await db.deleteRecord(
-    'DELETE FROM work_template_associations WHERE work_item_id = ? AND template_id = ?',
-    [workItemId, templateId]
-  );
+  return removeEntityAssociation(workItemId, templateId);
 }
 
 export async function addTodoAssociation(workItemId, todoId) {
-  await db.query(
-    'INSERT IGNORE INTO work_todo_associations (work_item_id, todo_id) VALUES (?, ?)',
-    [workItemId, todoId]
-  );
-  return getWorkItemById(workItemId);
+  return addEntityAssociation(workItemId, todoId);
 }
 
 export async function removeTodoAssociation(workItemId, todoId) {
-  await db.deleteRecord(
-    'DELETE FROM work_todo_associations WHERE work_item_id = ? AND todo_id = ?',
-    [workItemId, todoId]
-  );
+  return removeEntityAssociation(workItemId, todoId);
 }
 
 export async function addTaskAssociation(workItemId, taskId) {
-  await db.query(
-    'INSERT IGNORE INTO work_task_associations (work_item_id, task_id) VALUES (?, ?)',
-    [workItemId, taskId]
-  );
-  return getWorkItemById(workItemId);
+  return addEntityAssociation(workItemId, taskId);
 }
 
 export async function removeTaskAssociation(workItemId, taskId) {
-  await db.deleteRecord(
-    'DELETE FROM work_task_associations WHERE work_item_id = ? AND task_id = ?',
-    [workItemId, taskId]
-  );
+  return removeEntityAssociation(workItemId, taskId);
 }
 
 export async function addTicketAssociation(workItemId, ticketId) {
-  await db.query(
-    'INSERT IGNORE INTO work_ticket_associations (work_item_id, ticket_id) VALUES (?, ?)',
-    [workItemId, ticketId]
-  );
-  return getWorkItemById(workItemId);
+  return addEntityAssociation(workItemId, ticketId);
 }
 
 export async function removeTicketAssociation(workItemId, ticketId) {
-  await db.deleteRecord(
-    'DELETE FROM work_ticket_associations WHERE work_item_id = ? AND ticket_id = ?',
-    [workItemId, ticketId]
-  );
+  return removeEntityAssociation(workItemId, ticketId);
 }
 
 export async function addIdeaAssociation(workItemId, ideaId) {
-  await db.query(
-    'INSERT IGNORE INTO work_idea_associations (work_item_id, idea_id) VALUES (?, ?)',
-    [workItemId, ideaId]
-  );
-  return getWorkItemById(workItemId);
+  return addEntityAssociation(workItemId, ideaId);
 }
 
 export async function removeIdeaAssociation(workItemId, ideaId) {
-  await db.deleteRecord(
-    'DELETE FROM work_idea_associations WHERE work_item_id = ? AND idea_id = ?',
-    [workItemId, ideaId]
-  );
+  return removeEntityAssociation(workItemId, ideaId);
 }

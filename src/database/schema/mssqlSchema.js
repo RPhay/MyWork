@@ -372,24 +372,8 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  // work_goal_associations: recreated as a legacy<->entity bridge at the end of this file
 
-  await createTableIfNotExists(
-    pool,
-    "work_priority_associations",
-    `
-    CREATE TABLE [MyWork].[work_priority_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      priority_id INT NOT NULL,
-      CONSTRAINT fk_wpa_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wpa_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_priority UNIQUE (work_item_id, priority_id)
-    )
-  `,
-  );
 
-  // work_area_associations: recreated as a legacy<->entity bridge at the end of this file
 
   await createTableIfNotExists(
     pool,
@@ -406,12 +390,7 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  // work_template_associations moved to after work_item_templates is created (see below)
-  // work_todo_associations moved to after to_dos is created (see below)
-  // work_task_associations moved to after tasks is created (see below)
-  // work_ticket_associations moved to after tickets is created (see below)
 
-  // work_idea_associations: recreated as a legacy<->entity bridge at the end of this file
 
   await createTableIfNotExists(
     pool,
@@ -457,21 +436,6 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  // Now that work_item_templates exists, create work_template_associations junction table
-  await createTableIfNotExists(
-    pool,
-    "work_template_associations",
-    `
-    CREATE TABLE [MyWork].[work_template_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      template_id INT NOT NULL,
-      CONSTRAINT fk_wta_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wta_template FOREIGN KEY (template_id) REFERENCES [MyWork].[work_item_templates](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_template UNIQUE (work_item_id, template_id)
-    )
-  `,
-  );
 
   // template_areas: recreated as a legacy<->entity bridge at the end of this file
 
@@ -599,8 +563,6 @@ export async function createMssqlSchema(pool) {
   // idea_items table removed in Phase 1 (ideas migrated to generic entities)
 
 
-  // work_todo_associations is created with the legacy <-> entity bridge at the end of
-  // this file: its todo_id points at [entities], not [to_dos].
 
   // idea_links table removed in Phase 1 (ideas migrated to generic entities)
 
@@ -683,8 +645,6 @@ export async function createMssqlSchema(pool) {
   }
 
 
-  // work_task_associations is created with the legacy <-> entity bridge at the end of
-  // this file: its task_id points at [entities], not [tasks].
 
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
   // distinct from the "areas" table, which backs the unrelated Categories tab)
@@ -752,8 +712,6 @@ export async function createMssqlSchema(pool) {
   }
 
 
-  // work_ticket_associations is created with the legacy <-> entity bridge at the end of
-  // this file: its ticket_id points at [entities], not [tickets].
 
   await createTableIfNotExists(
     pool,
@@ -1335,9 +1293,6 @@ export async function createMssqlSchema(pool) {
   // what makes the two engines behave the same from the app's point of view.
   const bridgeJunctions = [
     // [table, legacy column, legacy table, entity column]
-    ["work_area_associations", "work_item_id", "work_items", "area_id"],
-    ["work_goal_associations", "work_item_id", "work_items", "goal_id"],
-    ["work_idea_associations", "work_item_id", "work_items", "idea_id"],
     ["priority_areas", "priority_id", "priorities", "area_id"],
     ["priority_goals", "priority_id", "priorities", "goal_id"],
     ["template_areas", "template_id", "work_item_templates", "area_id"],
@@ -1347,9 +1302,6 @@ export async function createMssqlSchema(pool) {
     // referenced the legacy to_dos/tasks/tickets tables while those tabs
     // produced entity ids, so dragging one onto a day created the work item
     // and silently lost the link.
-    ["work_todo_associations", "work_item_id", "work_items", "todo_id"],
-    ["work_task_associations", "work_item_id", "work_items", "task_id"],
-    ["work_ticket_associations", "work_item_id", "work_items", "ticket_id"],
   ];
 
   // ONE junction for every type, including types invented after this was

@@ -284,21 +284,8 @@ export async function createMysqlSchema(connection) {
   // Note: This FK creation is moved to after to_dos and tasks tables are created
   // to avoid "Failed to open the referenced table" errors
 
-  // work_goal_associations: recreated as a legacy<->entity bridge at the end of this file
 
-  // Create work_priority_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_priority_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      priority_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_priority (work_item_id, priority_id)
-    )
-  `);
 
-  // work_area_associations: recreated as a legacy<->entity bridge at the end of this file
 
   // Create work_source_associations junction table
   await connection.query(`
@@ -312,12 +299,7 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // work_template_associations moved to after work_item_templates is created (see below)
-  // work_todo_associations moved to after to_dos is created (see below)
-  // work_task_associations moved to after tasks is created (see below)
-  // work_ticket_associations moved to after tickets is created (see below)
 
-  // work_idea_associations: recreated as a legacy<->entity bridge at the end of this file
 
   // Create work_item_templates table (reusable work item presets with pre-associated areas/goals/priorities)
   await connection.query(`
@@ -366,17 +348,6 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Now that work_item_templates exists, create work_template_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_template_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      template_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (template_id) REFERENCES work_item_templates(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_template (work_item_id, template_id)
-    )
-  `);
 
   // template_areas: recreated as a legacy<->entity bridge at the end of this file
 
@@ -483,8 +454,6 @@ export async function createMysqlSchema(connection) {
   // idea_items table removed in Phase 1 (ideas migrated to generic entities)
 
 
-  // work_todo_associations is created with the legacy <-> entity bridge at the end of
-  // this file: its todo_id points at `entities`, not `to_dos`.
 
   // Backfill target_date for pre-existing to_dos tables
   if (!(await columnExists(connection, "to_dos", "target_date"))) {
@@ -573,8 +542,6 @@ export async function createMysqlSchema(connection) {
   }
 
 
-  // work_task_associations is created with the legacy <-> entity bridge at the end of
-  // this file: its task_id points at `entities`, not `tasks`.
 
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
   // distinct from the "areas" table, which backs the unrelated Categories tab)
@@ -631,8 +598,6 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // work_ticket_associations is created with the legacy <-> entity bridge at the end of
-  // this file: its ticket_id points at `entities`, not `tickets`.
 
   // Create users table - identity is deliberately minimal (name only, no
   // password): logging in with a name that doesn't exist yet creates it.
@@ -1254,30 +1219,23 @@ export async function createMysqlSchema(connection) {
   // legacy tables they also reference, or MySQL raises "Failed to open the
   // referenced table" - the same ordering constraint noted for the other
   // junctions earlier in this file.
+  // What is left of the bridge. The eight work_* junctions are gone: every link
+  // a day holds is a row in work_entity_associations, which needs no entry per
+  // type and so covers types invented later. These four still join a legacy
+  // PROJECT or TEMPLATE row to an entity, and go when those two tables become
+  // entities themselves.
   const bridgeJunctions = [
     // [table, legacy column, legacy table, entity column]
-    ["work_area_associations", "work_item_id", "work_items", "area_id"],
-    ["work_goal_associations", "work_item_id", "work_items", "goal_id"],
-    ["work_idea_associations", "work_item_id", "work_items", "idea_id"],
     ["priority_areas", "priority_id", "priorities", "area_id"],
     ["priority_goals", "priority_id", "priorities", "goal_id"],
     ["template_areas", "template_id", "work_item_templates", "area_id"],
     ["template_goals", "template_id", "work_item_templates", "goal_id"],
-    // Todos, tasks and tickets are entities now too, so these three join a
-    // work item to an `entities` row like the rest. They previously still
-    // referenced the legacy to_dos/tasks/tickets tables while those tabs
-    // produced entity ids, so dragging one onto a day created the work item
-    // and silently lost the link.
-    ["work_todo_associations", "work_item_id", "work_items", "todo_id"],
-    ["work_task_associations", "work_item_id", "work_items", "task_id"],
-    ["work_ticket_associations", "work_item_id", "work_items", "ticket_id"],
   ];
 
   // ONE junction for every type, including types invented after this was
-  // written. The seven above each hard-code a type, which is why a user-created
-  // type could not be put on a day at all: there was no table for it and no way
-  // to add one from the app. New work should use this; the seven are kept only
-  // until their consumers move across.
+  // written. The eight per-type junctions it replaced could not hold a type the
+  // user created - no table existed for it and none could be added from the app
+  // - and having no order column, they could not order a day's children either.
   await connection.query(`
     CREATE TABLE IF NOT EXISTS work_entity_associations (
       id INT AUTO_INCREMENT PRIMARY KEY,

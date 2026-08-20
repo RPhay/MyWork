@@ -35,8 +35,9 @@ const ALL_SYSTEM_TABLES = [
   // The legacy <-> entity association bridge (right-hand column points at
   // `entities`); see the block of that name in mysqlSchema.js.
   'priority_areas', 'priority_goals',
-  'work_goal_associations', 'work_priority_associations', 'work_area_associations',
-  'work_idea_associations', 'work_source_associations',
+  // The eight per-type work_* junctions went on 2026-08-20: every link a day
+  // holds is a row in work_entity_associations, which needs no entry per type.
+  'work_source_associations', 'work_entity_associations',
   'template_areas', 'template_goals', 'template_priorities',
   // The generic entity engine.
   'entity_types', 'entity_type_fields', 'entity_type_relationships',
