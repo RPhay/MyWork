@@ -1145,6 +1145,26 @@ async function initGenericEntityTab(typeSlug, typeName) {
           renderList();
         }
       } });
+      // Folders organise, they are not work - there is nothing to be "working
+      // on" about a folder, so it cannot be pinned.
+      if (!isFolder && window.FocusBar) {
+        items.push({ separator: true });
+        items.push({
+          icon: '📌',
+          label: window.FocusBar.has(entityId) ? 'Already on the focus bar' : 'Pin to focus bar',
+          action: async () => {
+            if (window.FocusBar.has(entityId)) return;
+            try {
+              await window.FocusBar.add(entityId);
+              app.notify('Pinned to the focus bar', 'success');
+            } catch (error) {
+              app.notify(error.message || 'Could not pin that', 'danger');
+            }
+          },
+        });
+      }
+
+      items.push({ separator: true });
       items.push({ icon: '🗑️', label: isFolder ? 'Delete Folder' : `Delete ${singular}`, action: () => deleteEntity(entityId, isFolder) });
 
       openContextMenu(e.clientX, e.clientY, items);

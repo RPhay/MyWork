@@ -10,6 +10,95 @@
     integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
+
+  <style>
+  /* Top-centre, above whatever tab is open, and out of the way when empty. */
+  .focus-bar {
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid #e4e6ec;
+  }
+
+  .focus-bar.has-items { display: flex; }
+
+  /* An empty bar is invisible, which makes it impossible to drop onto. While a
+     drag is in flight it becomes a visible landing strip. */
+  .focus-bar.drop-ready {
+    display: flex;
+    min-height: 40px;
+    border-bottom: 1px dashed #adb5bd;
+  }
+
+  .focus-bar.drop-ready::after {
+    content: 'Drop here to track it';
+    font-size: 0.8rem;
+    color: #6c757d;
+  }
+
+  .focus-bar.has-items.drop-ready::after { content: ''; }
+
+  .focus-bar.drop-target {
+    background: rgba(13, 110, 253, 0.08);
+    border-bottom-color: #0d6efd;
+  }
+
+  .focus-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 22rem;
+    padding: 5px 10px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .focus-chip:hover { border-color: #adb5bd; }
+
+  /* A running clock is the one state worth seeing from across the room. */
+  .focus-chip.running {
+    border-color: #198754;
+    box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.14);
+  }
+
+  .focus-chip.running .focus-time { color: #146c43; font-weight: 600; }
+
+  .focus-rag {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .rag-red   { background: #dc3545; }
+  .rag-amber { background: #fd7e14; }
+  .rag-green { background: #198754; }
+  .rag-grey  { background: #ced4da; }
+
+  .focus-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .focus-time {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: #6c757d;
+    flex: none;
+  }
+  </style>
 </head>
 <body
   data-active-tab="<%= activeTab || 'work_item' %>"
@@ -22,6 +111,10 @@
   <script src="/js/changeTracker.js"></script>
   <%- include('../components/dbHealthBanner.ejs') %>
   <%- include('../components/navbar.ejs') %>
+
+  <!-- The two or three things being worked on right now. Sits above every tab
+       because the point of it is to be visible while you are somewhere else. -->
+  <div id="focusBar" class="focus-bar" role="toolbar" aria-label="Currently working on"></div>
 
   <div class="container-fluid mt-4">
     <%- include('../components/alerts.ejs') %>
@@ -267,6 +360,7 @@
   <script src="/js/generic-entity-init.js"></script>
   <script src="/js/calendarView.js"></script>
   <script src="/js/main.js"></script>
+  <script src="/js/focus-bar.js"></script>
   <script src="/js/tabs.js"></script>
   <script src="/js/forms.js"></script>
   <script src="/js/save-shortcut.js"></script>

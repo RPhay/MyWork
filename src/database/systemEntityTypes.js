@@ -65,6 +65,11 @@ export const SYSTEM_ENTITY_TYPES = [
       // row is on the board exactly when this has a value.
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+      // The focus bar - the two or three things being worked on right now.
+      // Engine-written, never rendered as a control (see INTERNAL_FIELD_KEYS).
+      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'date', label: 'Date', field_type: 'date', required: true, show_in_row: true },
       { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false },
       { field_key: 'emoji', label: 'Emoji', field_type: 'text', required: false, show_in_row: true },
@@ -91,6 +96,11 @@ export const SYSTEM_ENTITY_TYPES = [
       // is on the board at all, not something to show beside its title.
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+      // The focus bar - the two or three things being worked on right now.
+      // Engine-written, never rendered as a control (see INTERNAL_FIELD_KEYS).
+      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, rollup: 'status' },
       // Projects carry links as a generic `links` field rather than through a
       // priority_links table - that is the whole point of the field type.
@@ -115,6 +125,11 @@ export const SYSTEM_ENTITY_TYPES = [
       // is on the board at all, not something to show beside its title.
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+      // The focus bar - the two or three things being worked on right now.
+      // Engine-written, never rendered as a control (see INTERNAL_FIELD_KEYS).
+      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ],
@@ -136,6 +151,11 @@ export const SYSTEM_ENTITY_TYPES = [
       // is on the board at all, not something to show beside its title.
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+      // The focus bar - the two or three things being worked on right now.
+      // Engine-written, never rendered as a control (see INTERNAL_FIELD_KEYS).
+      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // A plain number input gave a spinner, which is wrong for a year: it
       // implies arithmetic and offers 1 and 999999. A declared list makes it a
       // picker, and 'currentYear' resolves when the form renders rather than
@@ -166,6 +186,11 @@ export const SYSTEM_ENTITY_TYPES = [
       // is on the board at all, not something to show beside its title.
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+      // The focus bar - the two or three things being worked on right now.
+      // Engine-written, never rendered as a control (see INTERNAL_FIELD_KEYS).
+      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
       { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
       { field_key: 'target_date', label: 'Target Date', field_type: 'date', required: false, show_in_row: true, rollup: 'min' },
@@ -193,6 +218,11 @@ export const SYSTEM_ENTITY_TYPES = [
       // is on the board at all, not something to show beside its title.
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+      // The focus bar - the two or three things being worked on right now.
+      // Engine-written, never rendered as a control (see INTERNAL_FIELD_KEYS).
+      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
       { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
@@ -215,6 +245,11 @@ export const SYSTEM_ENTITY_TYPES = [
       // is on the board at all, not something to show beside its title.
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+      // The focus bar - the two or three things being worked on right now.
+      // Engine-written, never rendered as a control (see INTERNAL_FIELD_KEYS).
+      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, rollup: 'status' },
       { field_key: 'ticket_type', label: 'Ticket Type', field_type: 'text', required: false, show_in_row: true },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
@@ -237,6 +272,11 @@ export const SYSTEM_ENTITY_TYPES = [
       // is on the board at all, not something to show beside its title.
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+      // The focus bar - the two or three things being worked on right now.
+      // Engine-written, never rendered as a control (see INTERNAL_FIELD_KEYS).
+      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
+      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: IDEA_STATUS, required: false, show_in_row: true, rollup: 'status' },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ],

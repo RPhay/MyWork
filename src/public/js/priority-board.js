@@ -146,6 +146,43 @@ function clearDropTargets() {
   });
 }
 
+let cardMenuEl = null;
+
+function closeCardMenu() { cardMenuEl?.remove(); cardMenuEl = null; }
+
+function openCardMenu(x, y, entityId) {
+  closeCardMenu();
+  cardMenuEl = document.createElement('div');
+  cardMenuEl.className = 'context-menu board-context-menu';
+
+  const pinned = window.FocusBar.has(entityId);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'context-menu-item';
+  btn.innerHTML = `<span>📌</span><span>${pinned ? 'Already on the focus bar' : 'Pin to focus bar'}</span>`;
+  btn.addEventListener('click', async () => {
+    closeCardMenu();
+    if (pinned) return;
+    try {
+      await window.FocusBar.add(entityId);
+      app.notify('Pinned to the focus bar', 'success');
+    } catch (error) {
+      app.notify(error.message || 'Could not pin that', 'danger');
+    }
+  });
+  cardMenuEl.appendChild(btn);
+
+  document.body.appendChild(cardMenuEl);
+  const rect = cardMenuEl.getBoundingClientRect();
+  cardMenuEl.style.left = `${Math.min(x, window.innerWidth - rect.width - 8)}px`;
+  cardMenuEl.style.top = `${Math.min(y, window.innerHeight - rect.height - 8)}px`;
+}
+
+document.addEventListener('mousedown', (e) => {
+  if (!cardMenuEl || e.button === 2) return;
+  if (!cardMenuEl.contains(e.target)) closeCardMenu();
+});
+
 function initBoardListeners() {
   document.querySelectorAll('.priority-bay').forEach(bay => {
     bay.addEventListener('dragstart', (e) => {
@@ -202,6 +239,15 @@ function initBoardListeners() {
     bay.addEventListener('click', (e) => {
       const removeBtn = e.target.closest('[data-action="remove"]');
       if (removeBtn) removeFromBoard(removeBtn.dataset.entityId);
+    });
+
+    // Right-click a card to pin it to the focus bar. The board says what
+    // matters this week; the focus bar says what you are doing right now.
+    bay.addEventListener('contextmenu', (e) => {
+      const card = e.target.closest('.board-card');
+      if (!card || !window.FocusBar) return;
+      e.preventDefault();
+      openCardMenu(e.clientX, e.clientY, card.dataset.entityId);
     });
   });
 

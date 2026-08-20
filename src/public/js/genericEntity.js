@@ -306,7 +306,10 @@ const GenericEntity = (() => {
   // Field keys the engine writes for itself. They are real entity_type_fields
   // (so they store and query like anything else) but they are never rendered as
   // an editable control, and never offered as a column.
-  const INTERNAL_FIELD_KEYS = new Set(['board_bay', 'board_order']);
+  const INTERNAL_FIELD_KEYS = new Set([
+    'board_bay', 'board_order',
+    'focus_slot', 'focus_seconds', 'focus_started_at',
+  ]);
 
   const PRIORITY_LEVELS = ['', 'Low', 'Medium', 'High', 'Critical'];
 
