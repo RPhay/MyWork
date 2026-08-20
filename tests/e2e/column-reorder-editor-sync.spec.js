@@ -81,10 +81,10 @@ test('dragging a column header reorders the open editor immediately', async ({ p
 
   // ...and it survives a reopen, which is what the missing sort broke.
   await page.locator(`#${TYPE}EntityList .entity-row`)
-    .filter({ hasText: 'ZZZ colsync' }).first().locator('.entity-cell-title').click();
+    .filter({ hasText: 'ZZZ colsync' }).first().locator('.entity-cell-title').dblclick();
   await page.waitForTimeout(400);
   await page.locator(`#${TYPE}EntityList .entity-row`)
-    .filter({ hasText: 'ZZZ colsync' }).first().locator('.entity-cell-title').click();
+    .filter({ hasText: 'ZZZ colsync' }).first().locator('.entity-cell-title').dblclick();
   await page.waitForTimeout(800);
   expect((await fieldOrder(page)).filter(k => editorCols.includes(k)),
     'reopened editor should still match').toEqual(editorCols);

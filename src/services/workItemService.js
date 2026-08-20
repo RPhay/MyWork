@@ -92,6 +92,10 @@ async function attachAssociations(items) {
     entityService.getEntityPathLookup('area'),
   ]);
 
+  // Any type at all, including ones created by the user, plus whatever is
+  // nested inside them.
+  const genericChildren = await getEntityAssociations(ids);
+
   const priorityPaths = buildPathMap(allPriorities, 'title');
   const areaPaths = buildPathMap(allAreas);
 
@@ -133,6 +137,19 @@ async function attachAssociations(items) {
     ideas: ideaRows
       .filter(r => r.work_item_id === item.id)
       .map(r => ({ id: r.id, title: r.title, isCopy: copies.has(r.id) })),
+    // Any type, at any depth. The seven lists above stay until their consumers
+    // move across; this one needs no entry per type and so covers types that
+    // did not exist when this code was written.
+    entities: (genericChildren.get(item.id) || []).map(r => ({
+      id: r.id,
+      title: r.title,
+      typeSlug: r.type_slug,
+      typeLabel: r.label_singular,
+      icon: r.icon,
+      isFolder: !!r.is_folder,
+      depth: r.depth,
+      isCopy: copies.has(r.id),
+    })),
   }));
 }
 
@@ -399,6 +416,96 @@ export async function cloneWorkItem(id, date) {
   }
 
   return getWorkItemById(newId);
+}
+
+/**
+ * Put ANY entity on a work item, whatever its type - including a type invented
+ * after this was written.
+ *
+ * The seven association tables above each hard-code one type, which is why a
+ * user-created type could not be put on a day at all: no table existed for it,
+ * and none could be added from the app. This one junction covers every type.
+ *
+ * INSERT IGNORE is rewritten for MSSQL in mssqlTranslation.js.
+ */
+export async function addEntityAssociation(workItemId, entityId) {
+  await db.query(
+    'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
+    [workItemId, entityId]
+  );
+  return getWorkItemById(workItemId);
+}
+
+export async function removeEntityAssociation(workItemId, entityId) {
+  await db.deleteRecord(
+    'DELETE FROM work_entity_associations WHERE work_item_id = ? AND entity_id = ?',
+    [workItemId, entityId]
+  );
+}
+
+/**
+ * The generic children of these work items, with their own type's slug, label
+ * and icon - so Dailies can render a row of a type it knows nothing about.
+ *
+ * Descendants come too, at their real depth: a row dropped onto a day used to
+ * arrive stripped of everything inside it. The walk stops at rows already seen,
+ * so a cycle cannot spin.
+ */
+export async function getEntityAssociations(workItemIds) {
+  if (workItemIds.length === 0) return new Map();
+  const placeholders = workItemIds.map(() => '?').join(',');
+
+  const direct = await db.query(
+    `SELECT wea.work_item_id, e.id, e.title, e.is_folder, t.slug AS type_slug,
+            t.label_singular, t.icon
+     FROM work_entity_associations wea
+     JOIN entities e ON e.id = wea.entity_id
+     JOIN entity_types t ON t.id = e.entity_type_id
+     WHERE wea.work_item_id IN (${placeholders}) AND e.deleted_at IS NULL
+     ORDER BY wea.order_index, wea.id`,
+    workItemIds
+  );
+
+  const byWorkItem = new Map();
+  for (const row of direct) {
+    if (!byWorkItem.has(row.work_item_id)) byWorkItem.set(row.work_item_id, []);
+    byWorkItem.get(row.work_item_id).push({ ...row, depth: 0 });
+  }
+
+  // Then everything nested inside them, level by level.
+  for (const [workItemId, roots] of byWorkItem) {
+    const seen = new Set(roots.map(r => r.id));
+    let frontier = roots.map(r => r.id);
+    let depth = 1;
+
+    while (frontier.length > 0) {
+      const ph = frontier.map(() => '?').join(',');
+      const kids = await db.query(
+        `SELECT er.parent_entity_id, e.id, e.title, e.is_folder, t.slug AS type_slug,
+                t.label_singular, t.icon
+         FROM entity_relationships er
+         JOIN entities e ON e.id = er.child_entity_id
+         JOIN entity_types t ON t.id = e.entity_type_id
+         WHERE er.relationship_kind = 'hierarchy'
+           AND er.parent_entity_id IN (${ph})
+           AND e.deleted_at IS NULL
+         ORDER BY er.order_index, er.id`,
+        frontier
+      );
+
+      const next = [];
+      for (const kid of kids) {
+        if (seen.has(kid.id)) continue;
+        seen.add(kid.id);
+        byWorkItem.get(workItemId).push({ ...kid, depth });
+        next.push(kid.id);
+      }
+      frontier = next;
+      depth += 1;
+    }
+  }
+
+  return byWorkItem;
 }
 
 export async function addPriorityAssociation(workItemId, priorityId) {

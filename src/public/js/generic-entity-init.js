@@ -381,10 +381,7 @@ renderList();
     listContainer.addEventListener('click', async (e) => {
       // Toggle expand
       if (e.target.closest('[data-action="toggle-expand"]')) {
-        const node = e.target.closest('[data-action="toggle-expand"]').closest('.entity-node');
-        node.classList.toggle('expanded');
-        localStorage.setItem(`entity-expanded-${node.dataset.entityId}`,
-          node.classList.contains('expanded') ? 'true' : 'false');
+        toggleExpanded(e.target.closest('[data-action="toggle-expand"]').closest('.entity-node'));
         return;
       }
 
@@ -623,18 +620,38 @@ renderList();
       // means. Cells that show a rolled-up value swallow the click instead.
       if (e.target.closest('.is-rollup')) return;
 
-      // Click on row itself: selection first, then the editor.
+      // Click on the row itself: selection first, then expand/collapse.
+      //
+      // One click opens and closes the row; TWO open and close the editor. The
+      // editor used to be a single click away, which made it impossible to look
+      // inside a folder without also loading its editor, and made an accidental
+      // click on a list a state change.
+      //
+      // The expand is deferred so a double click does not first toggle the row
+      // open and shut on its way to the editor.
       const row = e.target.closest('.entity-row');
       if (row && !e.target.closest('[data-action]')) {
         if (handleSelectionClick(e, row)) return;   // modifier click: selection only
-        const entityId = row.dataset.entityId;
-        const entity = entities.find(x => x.id == entityId);
-        // A row nested inside a template is of its own type, so edit it with
-        // that type's fields - and save it back to that type's endpoint.
-        if (entity) {
-          const schema = schemaForEntity(entity);
-          GenericEntity.populate(entity.id, entity, schema, typeSlug, schema.slug);
-        }
+        const node = row.closest('.entity-node');
+        if (!node) return;
+        clearTimeout(rowClickTimer);
+        rowClickTimer = setTimeout(() => toggleExpanded(node), DOUBLE_CLICK_MS);
+      }
+    });
+
+    // Two clicks: the editor.
+    listContainer.addEventListener('dblclick', (e) => {
+      const row = e.target.closest('.entity-row');
+      if (!row || e.target.closest('[data-action]')) return;
+      if (e.target.closest('.is-rollup')) return;   // a summary, not a control
+      clearTimeout(rowClickTimer);                  // cancel the pending expand
+
+      const entity = entities.find(x => x.id == row.dataset.entityId);
+      // A row nested inside a template is of its own type, so edit it with that
+      // type's fields - and save it back to that type's endpoint.
+      if (entity) {
+        const schema = schemaForEntity(entity);
+        GenericEntity.populate(entity.id, entity, schema, typeSlug, schema.slug);
       }
     });
 
@@ -1077,7 +1094,24 @@ renderList();
     const singular = typeSchema.label_singular || typeName;
 
     let pendingParentId = null; // set when creating something "inside" a row
+
+    // Long enough to catch a real double click, short enough that a single
+    // click still feels immediate.
+    const DOUBLE_CLICK_MS = 220;
+    let rowClickTimer = null;
+
+    // The chevron and a click on the row do the same thing, through here.
+    function toggleExpanded(node) {
+      if (!node) return;
+      node.classList.toggle('expanded');
+      localStorage.setItem(`entity-expanded-${node.dataset.entityId}`,
+        node.classList.contains('expanded') ? 'true' : 'false');
+    }
     let menuEl = null;
+
+    // When the current menu opened, so the scroll that brought its row into view
+    // is not mistaken for the user scrolling away from it.
+    let menuOpenedAt = 0;
 
     function closeContextMenu() {
       menuEl?.remove();
@@ -1109,6 +1143,7 @@ renderList();
         menuEl.appendChild(btn);
       }
       document.body.appendChild(menuEl);
+      menuOpenedAt = Date.now();
 
       // Keep it on screen when right-clicking near an edge.
       const rect = menuEl.getBoundingClientRect();
@@ -1170,14 +1205,29 @@ renderList();
         : field.field_type === 'priority' ? (d.priority ?? '')
         : (d.value ?? control.value ?? '');
 
+      // With rows multi-selected, the menu acts on ALL of them if the one you
+      // opened it from is part of that selection. Setting fifteen rows to
+      // Complete one at a time is the kind of thing multi-select exists for,
+      // and this needs no new UI to say so - the count in the label does.
+      // selectedIds holds row.dataset.entityId - STRINGS - while this reads the
+      // same attribute through Number(). A Set of strings never `has` a number,
+      // so the bulk path silently never triggered.
+      const selected = selectedIds.has(String(entityId)) && selectedIds.size > 1;
+      const targets = selected ? [...selectedIds] : [entityId];
+      const suffix = targets.length > 1 ? `  (${targets.length} rows)` : '';
+
       return choices.map(v => ({
         icon: String(v) === String(current) ? '✓' : '\u00a0',
-        label: GenericEntity.choiceLabel(field, v),
+        label: GenericEntity.choiceLabel(field, v) + suffix,
         // Statuses carry their state colour here too - a menu of them should
         // read the same as the cell it was opened from.
         labelClass: GenericEntity.choiceClass(field, v),
-        action: () => saveFieldFromCell(entityId, fieldKey, v === '' ? null : v,
-          `Could not change ${field.label}`),
+        action: async () => {
+          for (const id of targets) {
+            await saveFieldFromCell(id, fieldKey, v === '' ? null : v,
+              `Could not change ${field.label}`);
+          }
+        },
       }));
     }
 
@@ -1212,9 +1262,12 @@ renderList();
       // Right-clicking selects the row it is aimed at, so the menu that opens
       // visibly belongs to something. Without this you could act on a row while
       // a different one stayed highlighted.
+      // No renderList() here. populate() repaints the selection itself, and a
+      // re-render resets the list's scrollTop - the scroll event that follows
+      // is delivered asynchronously, so it arrived AFTER the menu had opened
+      // and the scroll handler closed it again. The menu appeared empty.
       if (entity && String(GenericEntity.getCurrentEntityId()) !== String(entityId)) {
         GenericEntity.populate(entity.id, entity, typeSchema, typeSlug);
-        renderList();
       }
 
       const items = [];
@@ -1269,7 +1322,17 @@ renderList();
       closeContextMenu();
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContextMenu(); });
-    window.addEventListener('scroll', closeContextMenu, true);
+    // Scrolling dismisses the menu, because it is positioned in viewport
+    // coordinates and would otherwise sit where the row no longer is.
+    //
+    // But scroll events are delivered ASYNCHRONOUSLY: bringing a row into view
+    // and right-clicking it delivers that scroll AFTER the menu has opened, so
+    // the menu was dismissed the instant it appeared - reliably, for any row
+    // far enough down the list to need scrolling to reach.
+    window.addEventListener('scroll', () => {
+      if (Date.now() - menuOpenedAt < 350) return;   // the scroll that got us here
+      closeContextMenu();
+    }, true);
 
     // ----- Dropping a link onto a row -----
     //

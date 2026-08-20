@@ -166,6 +166,30 @@ router.post('/:id/clone', async (req, res) => {
 });
 
 // Link/unlink a priority
+// Link/unlink ANY entity, whatever its type. The per-type routes below predate
+// this and are kept until their callers move across; this one is what a new
+// type uses, since no route can be written in advance for a type that does not
+// exist yet.
+router.post('/:id/entities/:entityId', async (req, res) => {
+  try {
+    const item = await workItemService.addEntityAssociation(req.params.id, req.params.entityId);
+    res.status(201).json({ success: true, message: 'Linked', data: item });
+  } catch (error) {
+    logger.error('Error linking entity to work item:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id/entities/:entityId', async (req, res) => {
+  try {
+    await workItemService.removeEntityAssociation(req.params.id, req.params.entityId);
+    res.json({ success: true, message: 'Unlinked' });
+  } catch (error) {
+    logger.error('Error unlinking entity from work item:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 router.post('/:id/priorities/:priorityId', async (req, res) => {
   try {
     const item = await workItemService.addPriorityAssociation(req.params.id, req.params.priorityId);

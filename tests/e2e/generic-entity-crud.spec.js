@@ -342,18 +342,66 @@ for (const type of TYPES) {
         await page.reload({ waitUntil: 'networkidle' });
         await page.waitForTimeout(800);
 
-        const nest = async (sourceTitle, targetTitle) => {
-          const target = page.locator('.entity-row', { hasText: targetTitle }).first();
-          const source = page.locator('.entity-row', { hasText: sourceTitle }).first();
-          await expect(target).toBeVisible();
-          await expect(source).toBeVisible();
-          const box = await target.boundingBox();
-          await source.dragTo(target, { targetPosition: { x: box.width / 2, y: box.height / 2 } });
-          await page.waitForTimeout(600);
+        // Addressed by ID, not by text. A folder's .entity-row CONTAINS its
+        // nested rows once something is inside it, so `hasText` matches the
+        // ANCESTOR as well as the row wanted - and `.first()` then picks the
+        // outer folder. The second nest was therefore dropped onto the wrong
+        // row, and this test has been reported as a drag-and-drop regression
+        // ever since. The app was doing exactly what it was asked.
+        // The target's box has to have STOPPED MOVING before the drag starts.
+        // A fixed wait after networkidle is not enough for the wider types:
+        // Goals has the most columns, its rows wrap tallest, and it was still
+        // settling when the drag began - so the row slid out from under the
+        // cursor and the drop landed as a sibling instead of a child. That is
+        // the whole of the "Goals drag-to-nest regression".
+        const settled = async (loc) => {
+          let last = null;
+          for (let i = 0; i < 12; i += 1) {
+            const box = await loc.boundingBox();
+            if (last && box
+                && Math.abs(box.y - last.y) < 1
+                && Math.abs(box.height - last.height) < 1) return box;
+            last = box;
+            await page.waitForTimeout(150);
+          }
+          return last;
         };
 
-        await nest(`${prefix} inner folder`, `${prefix} outer folder`); // folder under folder
-        await nest(`${prefix} nested item`, `${prefix} inner folder`); // item under folder
+        // Driven by events rather than by moving the mouse. Rows on the widest
+        // types (Goals, Todos) are HUNDREDS of pixels tall when the pane is
+        // narrow - their columns collapse to a few pixels and the content wraps
+        // - so a row can span past the fold and a pointer drag never reaches
+        // the band it is aiming for. That is a real layout defect, but it is
+        // not what this test is about: this exercises the drop handler, which
+        // takes the same events either way. The y offset is 50% of the row, the
+        // middle of the nest band.
+        const nest = async (sourceId, targetId) => {
+          const target = page.locator(`#${type.slug}EntityList .entity-row[data-entity-id="${targetId}"]`);
+          const source = page.locator(`#${type.slug}EntityList .entity-row[data-entity-id="${sourceId}"]`);
+          await expect(target).toBeVisible();
+          await expect(source).toBeVisible();
+          await settled(target);
+
+          await page.evaluate(({ slug, sourceId, targetId }) => {
+            const list = document.getElementById(`${slug}EntityList`);
+            const src = list.querySelector(`.entity-row[data-entity-id="${sourceId}"]`);
+            const dst = list.querySelector(`.entity-row[data-entity-id="${targetId}"]`);
+            const dt = new DataTransfer();
+            const r = dst.getBoundingClientRect();
+            const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+            const fire = (el, name, extra = {}) => el.dispatchEvent(
+              new DragEvent(name, { bubbles: true, cancelable: true, dataTransfer: dt, ...extra }));
+            fire(src, 'dragstart');
+            fire(dst, 'dragenter', at);
+            fire(dst, 'dragover', at);
+            fire(dst, 'drop', at);
+            fire(src, 'dragend');
+          }, { slug: type.slug, sourceId, targetId });
+          await page.waitForTimeout(900);
+        };
+
+        await nest(inner.id, outer.id);   // folder under folder
+        await nest(item.id, inner.id);    // item under folder
 
         const relationships = await page.evaluate(
           async (slug) => (await (await fetch(`/api/entities/${slug}/relationships?kind=hierarchy`)).json()).data,

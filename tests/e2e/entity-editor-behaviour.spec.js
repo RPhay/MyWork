@@ -50,14 +50,14 @@ test('save stays disabled across reopening different items', async ({ page }) =>
   // The TITLE, not the row's centre. A folder's centre is a rolled-up value,
   // which deliberately swallows its click - a roll-up summarises what is inside
   // and is not a control, so clicking it must not move the editor.
-  await rows.first().locator('.entity-cell-title').click();
+  await rows.first().locator('.entity-cell-title').dblclick();
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
   // make a change -> enabled
   const ti = page.locator('#entity-editor-form input[name="title"]');
   await ti.fill('temporary edit'); await ti.dispatchEvent('input');
   await expect(page.locator('#prioritySaveBtn')).toBeEnabled();
   // open a different item without saving -> must be disabled again
-  await rows.nth(1).locator('.entity-cell-title').click();
+  await rows.nth(1).locator('.entity-cell-title').dblclick();
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
 });
 
@@ -74,7 +74,7 @@ test('each field shows its name once, in the gutter, with labelled toggles', asy
 
   // Must be an ITEM: a folder gets a title-only editor with no fields.
   await page.locator('#ideaEntityList .entity-row:not([data-is-folder="1"])')
-    .first().locator('.entity-cell-title').click();
+    .first().locator('.entity-cell-title').dblclick();
   await page.waitForTimeout(800);
 
   const fields = page.locator('#entity-editor-form .editor-field');

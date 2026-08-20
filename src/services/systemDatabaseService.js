@@ -24,12 +24,14 @@ const VALID_TYPES = ['mysql', 'mssql'];
 // missing on a perfectly healthy database, and Fix Schema could never clear the
 // warning because nothing creates them any more. If you retire a table, remove
 // it here in the same change.
+//
+// The four per-type *_links tables went on 2026-08-19: a `links` field on the
+// entity replaced them, and nothing had read them for some time.
 const ALL_SYSTEM_TABLES = [
   // Still first-class tables of their own.
   'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
   'sources', 'source_auth', 'categories', 'years', 'priorities', 'work_items',
   'work_item_templates', 'to_dos', 'to_do_items', 'tasks', 'tickets',
-  'priority_links', 'to_do_links', 'task_links', 'ticket_links',
   // The legacy <-> entity association bridge (right-hand column points at
   // `entities`); see the block of that name in mysqlSchema.js.
   'priority_areas', 'priority_goals',

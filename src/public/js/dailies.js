@@ -424,7 +424,7 @@ function renderWorkItemsList(items) {
     const isExpanded = expandedWorkItems.has(String(item.id));
     // Everything renderChildItem() will emit below - the associated records of
     // every type - is what "children" means for a work item.
-    const childCount = (item.priorities?.length || 0) + (item.goals?.length || 0) + (item.areas?.length || 0) + (item.todos?.length || 0) + (item.tasks?.length || 0) + (item.tickets?.length || 0) + (item.ideas?.length || 0);
+    const childCount = (item.priorities?.length || 0) + (item.goals?.length || 0) + (item.areas?.length || 0) + (item.todos?.length || 0) + (item.tasks?.length || 0) + (item.tickets?.length || 0) + (item.ideas?.length || 0) + (item.entities?.length || 0);
     const hasChildren = childCount > 0;
 
     // Render work item row
@@ -489,6 +489,18 @@ function renderWorkItemsList(items) {
           childrenHtml += renderChildItem('idea', i.id, i.title, APP_ICONS.idea, item.id, i.isCopy);
         });
       }
+      // Everything else, whatever its type - including types created after this
+      // was written, which the seven lists above can never cover. Their own
+      // nesting comes with them: `depth` is how far inside the dropped row a
+      // node sits, so a Project arrives with its contents rather than alone.
+      if (item.entities?.length > 0) {
+        item.entities.forEach((c) => {
+          childrenHtml += renderChildItem(
+            c.typeSlug, c.id, c.title, null, item.id, c.isCopy,
+            { emoji: c.icon, depth: c.depth, isFolder: c.isFolder }
+          );
+        });
+      }
       html += `<div class="work-item-children">${childrenHtml}</div>`;
     }
 
@@ -499,18 +511,24 @@ function renderWorkItemsList(items) {
   syncDailiesRowSelection();
 }
 
-function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false) {
+function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false, extra = {}) {
+  // A type Dailies has never heard of has no entry in APP_ICONS, so it brings
+  // its OWN icon - the type's emoji, the same one its tab and rows show.
   const iconClass = icon || (APP_ICONS[type] || 'bi-circle');
+  const emoji = extra.emoji || null;
+  // Indented by how deep inside the dropped row it sits, so the tree reads as a
+  // tree instead of a flat list of everything that came along.
+  const indent = 30 + ((extra.depth || 0) * 18);
   // Copy vs reference is invisible otherwise, and the difference matters: edit
   // a reference and you edit the original record; edit a copy and you don't.
   const originBadge = isCopy
     ? '<i class="bi bi-files text-muted child-origin" title="Copy - edits stay here and do not change the original"></i>'
     : '<i class="bi bi-link-45deg text-muted child-origin" title="Reference - edits change the original record"></i>';
   return `
-    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" style="margin-left: 30px;" data-child-id="${id}" data-origin="${isCopy ? 'copy' : 'reference'}">
+    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" style="margin-left: ${indent}px;" data-child-id="${id}" data-origin="${isCopy ? 'copy' : 'reference'}">
       <div class="work-item-header" style="cursor: pointer;" title="Click to edit, right-click for menu">
         <span class="work-item-title-cell">
-          <i class="bi ${iconClass} text-muted"></i>
+          ${emoji ? `<span class="child-type-icon">${app.escapeHtml(emoji)}</span>` : `<i class="bi ${iconClass} text-muted"></i>`}
           ${originBadge}
           <span class="work-item-title">${app.escapeHtml(label)}</span>
         </span>
@@ -1644,8 +1662,10 @@ function toggleWorkItem(workItemEl) {
 }
 
 async function linkChild(workId, type, id) {
-  const path = ASSOCIATION_PATHS[type];
-  if (!path) return;
+  // Types with their own legacy junction keep using it; everything else - which
+  // includes every type the user creates - goes through the generic one. Before
+  // this, an unknown type simply returned and the drop did nothing at all.
+  const path = ASSOCIATION_PATHS[type] || `entities`;
 
   try {
     const response = await app.fetchRaw(`/api/work/${workId}/${path}/${id}`, {
@@ -1710,8 +1730,7 @@ async function createWorkItemFromChild(type, id, name, date, asCopy = false) {
 }
 
 async function unlinkChild(workId, type, id) {
-  const path = ASSOCIATION_PATHS[type];
-  if (!path) return;
+  const path = ASSOCIATION_PATHS[type] || `entities`;
 
   try {
     const response = await app.fetchRaw(`/api/work/${workId}/${path}/${id}`, {
@@ -2000,7 +2019,7 @@ function initWorkItemsListEventListeners() {
         // children - that is what a template is for. Nothing done to the copy
         // reaches back into the template.
         instantiateTemplateOnDate(id, date);
-      } else if (ASSOCIATION_PATHS[type]) {
+      } else if (type) {
         const name = e.dataTransfer.getData("name");
         const choice = await app.askCopyOrReference(name);
         if (!choice) return;                       // cancelled

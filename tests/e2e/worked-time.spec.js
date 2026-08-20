@@ -33,7 +33,7 @@ test('Worked Time can be typed by hand and is stored as seconds', async ({ page 
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
 
-  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"] .entity-cell-title`).click();
+  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"] .entity-cell-title`).dblclick();
   await page.waitForTimeout(900);
 
   const box = page.locator('#entity-editor-form [data-field-type="duration"] .duration-input');
@@ -53,7 +53,7 @@ test('Worked Time can be typed by hand and is stored as seconds', async ({ page 
   // Reopened, it reads back as time rather than a raw count.
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
-  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"] .entity-cell-title`).click();
+  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"] .entity-cell-title`).dblclick();
   await page.waitForTimeout(900);
   await expect(page.locator('#entity-editor-form .duration-input')).toHaveValue('1h 30m');
 });
@@ -82,7 +82,7 @@ test('a folder shows Worked Time in its editor, and it can be corrected', async 
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
 
-  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${folder.id}"] .entity-cell-title`).click();
+  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${folder.id}"] .entity-cell-title`).dblclick();
   await page.waitForTimeout(900);
 
   const box = page.locator('#entity-editor-form [data-field-type="duration"] .duration-input');

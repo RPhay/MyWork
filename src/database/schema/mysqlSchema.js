@@ -482,19 +482,6 @@ export async function createMysqlSchema(connection) {
 
   // idea_items table removed in Phase 1 (ideas migrated to generic entities)
 
-  // Create to_do_links table (1-n links associated with to dos)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS to_do_links (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      to_do_id INT NOT NULL,
-      url VARCHAR(2048) NOT NULL,
-      title VARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (to_do_id) REFERENCES to_dos(id) ON DELETE CASCADE
-    )
-  `);
 
   // work_todo_associations is created with the legacy <-> entity bridge at the end of
   // this file: its todo_id points at `entities`, not `to_dos`.
@@ -517,19 +504,6 @@ export async function createMysqlSchema(connection) {
 
   // ALTER TABLE ideas removed in Phase 1 (ideas migrated to generic entities)
 
-  // Create priority_links table (1-n links associated with priorities/projects)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS priority_links (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      priority_id INT NOT NULL,
-      url VARCHAR(2048) NOT NULL,
-      title VARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE CASCADE
-    )
-  `);
 
   // Create tasks table (supports nesting via parent_id, recurring via recurrence JSON)
   await connection.query(`
@@ -598,19 +572,6 @@ export async function createMysqlSchema(connection) {
     await connection.query("DROP TABLE IF EXISTS task_folders");
   }
 
-  // Create task_links table (1-n links associated with tasks)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS task_links (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      task_id INT NOT NULL,
-      url VARCHAR(2048) NOT NULL,
-      title VARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-    )
-  `);
 
   // work_task_associations is created with the legacy <-> entity bridge at the end of
   // this file: its task_id points at `entities`, not `tasks`.
@@ -662,19 +623,6 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create ticket_links table (1-n links associated with tickets)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS ticket_links (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      ticket_id INT NOT NULL,
-      url VARCHAR(2048) NOT NULL,
-      title VARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-    )
-  `);
 
   // Add priority_id column to tickets table (for project association)
   if (!(await columnExists(connection, "tickets", "priority_id"))) {
@@ -846,18 +794,7 @@ export async function createMysqlSchema(connection) {
   // shown first and can't be hidden, so it's deliberately not represented here
   // - the dashboard nav always pins it, then lays out whatever this table says
   // for the rest.
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS context_tab_settings (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      context_id INT NOT NULL,
-      tab_key VARCHAR(100) NOT NULL,
-      visible BOOLEAN DEFAULT TRUE,
-      order_index INT DEFAULT 0,
-      FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_context_tab (context_id, tab_key)
-    )
-  `);
-
+  
   // SSO user identities: maps Entra ID (or other SSO provider) users to MyWork users
   // One row per user per provider, allows same person to be identified across contexts
   await connection.query(`
@@ -1335,6 +1272,25 @@ export async function createMysqlSchema(connection) {
     ["work_task_associations", "work_item_id", "work_items", "task_id"],
     ["work_ticket_associations", "work_item_id", "work_items", "ticket_id"],
   ];
+
+  // ONE junction for every type, including types invented after this was
+  // written. The seven above each hard-code a type, which is why a user-created
+  // type could not be put on a day at all: there was no table for it and no way
+  // to add one from the app. New work should use this; the seven are kept only
+  // until their consumers move across.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_entity_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      entity_id INT NOT NULL,
+      order_index INT DEFAULT 0,
+      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_entity (work_item_id, entity_id),
+      INDEX idx_wea_work (work_item_id),
+      INDEX idx_wea_entity (entity_id)
+    )
+  `);
 
   for (const [table, legacyCol, legacyTable, entityCol] of bridgeJunctions) {
     await connection.query(`

@@ -166,10 +166,24 @@ class TabManager {
       applyCal(open);
     });
 
+    // One rail at a time unless you ask for more. Opening a second used to
+    // leave both showing, so two rails plus the tab you were reading split the
+    // screen three ways by accident. Cmd/Ctrl (or Alt) held means "add this one
+    // as well" - the same modifier that adds to a selection everywhere else.
     document.querySelectorAll('button[data-rail-toggle]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
         const slug = btn.dataset.railToggle;
-        localStorage.setItem(KEY(slug), String(!isOn(slug)));
+        const adding = e.metaKey || e.ctrlKey || e.altKey;
+        const turningOn = !isOn(slug);
+
+        if (turningOn && !adding) {
+          // Close the others first, so this becomes the only one open.
+          document.querySelectorAll('button[data-rail-toggle]').forEach((other) => {
+            const otherSlug = other.dataset.railToggle;
+            if (otherSlug !== slug) localStorage.setItem(KEY(otherSlug), 'false');
+          });
+        }
+        localStorage.setItem(KEY(slug), String(turningOn));
         apply();
       });
     });

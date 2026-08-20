@@ -83,3 +83,39 @@ test('emoji cells are not given a value menu, and carry no box', async ({ page }
   expect(await page.locator('.entity-context-menu').count(),
     'right-click on an emoji acts like left-click, it does not open a list').toBe(0);
 });
+
+// With rows multi-selected, a value menu acts on all of them. Setting fifteen
+// rows to Complete one at a time is exactly what multi-select is for.
+test('a value menu applies to every selected row', async ({ page }) => {
+  await page.goto(`/?tab=${TYPE}`, { waitUntil: 'networkidle' });
+  const made = [];
+  for (const t of ['ZZZ bulk a', 'ZZZ bulk b', 'ZZZ bulk c']) {
+    made.push((await api(page, `/api/entities/${TYPE}`, {
+      method: 'POST', body: JSON.stringify({ title: t, fields: { status: 'Not Started' } }),
+    })).data);
+  }
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1900);
+
+  const rowOf = (id) => page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${id}"]`);
+  // Select all three the industry-standard way: click, then shift-click.
+  await rowOf(made[0].id).locator('.entity-cell-title').click();
+  await rowOf(made[2].id).locator('.entity-cell-title').click({ modifiers: ['Shift'] });
+  await page.waitForTimeout(500);
+
+  await rowOf(made[1].id).locator('[data-action="cycle-status"]').first().click({ button: 'right' });
+  await page.waitForTimeout(500);
+
+  const menu = page.locator('.entity-context-menu');
+  const labels = await menu.locator('.context-menu-item').allTextContents();
+  console.log('bulk menu ->', JSON.stringify(labels));
+  expect(labels.some(l => /rows\)/.test(l)), 'the menu says how many rows it will change').toBe(true);
+
+  await menu.locator('.context-menu-item', { hasText: 'Complete' }).first().click();
+  await page.waitForTimeout(2000);
+
+  const after = await Promise.all(made.map(async (m) =>
+    (await api(page, `/api/entities/${TYPE}/${m.id}`)).data?.fields?.status));
+  console.log('statuses after ->', JSON.stringify(after));
+  expect(after, 'every selected row took the new value').toEqual(['Complete', 'Complete', 'Complete']);
+});

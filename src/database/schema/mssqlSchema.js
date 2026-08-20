@@ -598,44 +598,12 @@ export async function createMssqlSchema(pool) {
 
   // idea_items table removed in Phase 1 (ideas migrated to generic entities)
 
-  await createTableIfNotExists(
-    pool,
-    "to_do_links",
-    `
-    CREATE TABLE [MyWork].[to_do_links] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      to_do_id INT NOT NULL,
-      url NVARCHAR(2048) NOT NULL,
-      title NVARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_to_do_links_to_do FOREIGN KEY (to_do_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE
-    )
-  `,
-  );
 
   // work_todo_associations is created with the legacy <-> entity bridge at the end of
   // this file: its todo_id points at [entities], not [to_dos].
 
   // idea_links table removed in Phase 1 (ideas migrated to generic entities)
 
-  await createTableIfNotExists(
-    pool,
-    "priority_links",
-    `
-    CREATE TABLE [MyWork].[priority_links] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      priority_id INT NOT NULL,
-      url NVARCHAR(2048) NOT NULL,
-      title NVARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_priority_links_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE CASCADE
-    )
-  `,
-  );
 
   await createTableIfNotExists(
     pool,
@@ -714,22 +682,6 @@ export async function createMssqlSchema(pool) {
     // Constraint might already exist, ignore
   }
 
-  await createTableIfNotExists(
-    pool,
-    "task_links",
-    `
-    CREATE TABLE [MyWork].[task_links] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      task_id INT NOT NULL,
-      url NVARCHAR(2048) NOT NULL,
-      title NVARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_task_links_task FOREIGN KEY (task_id) REFERENCES [MyWork].[tasks](id) ON DELETE CASCADE
-    )
-  `,
-  );
 
   // work_task_associations is created with the legacy <-> entity bridge at the end of
   // this file: its task_id points at [entities], not [tasks].
@@ -799,22 +751,6 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  await createTableIfNotExists(
-    pool,
-    "ticket_links",
-    `
-    CREATE TABLE [MyWork].[ticket_links] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      ticket_id INT NOT NULL,
-      url NVARCHAR(2048) NOT NULL,
-      title NVARCHAR(255),
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_ticket_links_ticket FOREIGN KEY (ticket_id) REFERENCES [MyWork].[tickets](id) ON DELETE CASCADE
-    )
-  `,
-  );
 
   // work_ticket_associations is created with the legacy <-> entity bridge at the end of
   // this file: its ticket_id points at [entities], not [tickets].
@@ -953,21 +889,6 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  await createTableIfNotExists(
-    pool,
-    "context_tab_settings",
-    `
-    CREATE TABLE [MyWork].[context_tab_settings] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      context_id INT NOT NULL,
-      tab_key NVARCHAR(100) NOT NULL,
-      visible BIT DEFAULT 1,
-      order_index INT DEFAULT 0,
-      CONSTRAINT fk_context_tab_settings_context FOREIGN KEY (context_id) REFERENCES [MyWork].[contexts](id) ON DELETE CASCADE,
-      CONSTRAINT unique_context_tab UNIQUE (context_id, tab_key)
-    )
-  `,
-  );
 
   // Dailies calendar cell background/text color, set via the calendar day's
   // right-click "Highlight Day" / "Text Color" submenus. One row per date per
@@ -1430,6 +1351,34 @@ export async function createMssqlSchema(pool) {
     ["work_task_associations", "work_item_id", "work_items", "task_id"],
     ["work_ticket_associations", "work_item_id", "work_items", "ticket_id"],
   ];
+
+  // ONE junction for every type, including types invented after this was
+  // written - see the note in mysqlSchema.js. The entity side is NO ACTION
+  // rather than CASCADE: work_items already cascades from one side, and SQL
+  // Server refuses a second cascade path into the same table ("may cause
+  // cycles or multiple cascade paths"). Deleting an entity therefore leaves
+  // its rows here, which the service tolerates by joining through entities.
+  await createTableIfNotExists(
+    pool,
+    "work_entity_associations",
+    `
+    CREATE TABLE [MyWork].[work_entity_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      entity_id INT NOT NULL,
+      order_index INT DEFAULT 0,
+      CONSTRAINT fk_wea_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wea_entity FOREIGN KEY (entity_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
+      CONSTRAINT unique_work_entity UNIQUE (work_item_id, entity_id)
+    )
+  `,
+  );
+  await createIndexIfNotExists(
+    pool,
+    "idx_wea_entity",
+    "work_entity_associations",
+    "CREATE INDEX idx_wea_entity ON [MyWork].[work_entity_associations] (entity_id)",
+  );
 
   for (const [table, legacyCol, legacyTable, entityCol] of bridgeJunctions) {
     await createTableIfNotExists(
