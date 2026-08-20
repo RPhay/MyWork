@@ -48,8 +48,10 @@ export async function getRelationshipsForType(typeSlug, contextId = null, kind =
     `SELECT er.parent_entity_id, er.child_entity_id, er.order_index
      FROM entity_relationships er
      JOIN entities parent_e ON parent_e.id = er.parent_entity_id
+     JOIN entities child_e ON child_e.id = er.child_entity_id
      JOIN entity_types et ON et.id = parent_e.entity_type_id
      WHERE et.slug = ? AND er.context_id = ? AND er.relationship_kind = ?
+       AND parent_e.deleted_at IS NULL AND child_e.deleted_at IS NULL
      ORDER BY er.parent_entity_id, er.order_index, er.id`,
     [typeSlug, contextId, kind]
   );

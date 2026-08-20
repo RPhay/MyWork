@@ -158,6 +158,30 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // Soft delete. Deleting a folder deliberately takes everything inside it, so
+  // there has to be a way back - see entityService.deleteEntity and the
+  // Recently Deleted view. Reads filter on deleted_at IS NULL.
+  if (!(await columnExists(connection, "entities", "deleted_at"))) {
+    await connection.query(
+      "ALTER TABLE entities ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL",
+    );
+    await connection.query(
+      "CREATE INDEX idx_entities_deleted_at ON entities(deleted_at)",
+    );
+  }
+
+  // Which delete a row went out with. NOT the timestamp: deleted_at is a
+  // DATETIME with one-second granularity, so two unrelated deletes in the same
+  // second grouped together and restoring one brought back the other.
+  if (!(await columnExists(connection, "entities", "deleted_batch"))) {
+    await connection.query(
+      "ALTER TABLE entities ADD COLUMN deleted_batch VARCHAR(36) NULL DEFAULT NULL",
+    );
+    await connection.query(
+      "CREATE INDEX idx_entities_deleted_batch ON entities(deleted_batch)",
+    );
+  }
+
   // Backfill status for pre-existing priorities tables
   if (!(await columnExists(connection, "priorities", "status"))) {
     await connection.query(

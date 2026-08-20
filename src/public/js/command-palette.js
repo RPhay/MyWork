@@ -40,6 +40,14 @@
         run: () => { window.location.search = `?tab=${encodeURIComponent(tab.slug)}`; },
       });
     }
+    if (window.RecentlyDeleted) {
+      commands.push({
+        kind: 'command',
+        title: 'Recently deleted',
+        hint: 'Restore',
+        run: () => window.RecentlyDeleted.open(),
+      });
+    }
     commands.push({
       kind: 'command',
       title: 'Open Settings',

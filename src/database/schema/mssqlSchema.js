@@ -254,6 +254,32 @@ export async function createMssqlSchema(pool) {
   );
 
   // Backfill for priorities created before these existed - see mysqlSchema.js
+  // Soft delete - see the matching block in mysqlSchema.js.
+  if (!(await columnExists(pool, "entities", "deleted_at"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[entities] ADD deleted_at DATETIME2 NULL
+    `);
+    await createIndexIfNotExists(
+      pool,
+      "idx_entities_deleted_at",
+      "entities",
+      "CREATE INDEX idx_entities_deleted_at ON [MyWork].[entities](deleted_at)",
+    );
+  }
+
+  // See the matching note in mysqlSchema.js for why the batch is an id.
+  if (!(await columnExists(pool, "entities", "deleted_batch"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[entities] ADD deleted_batch NVARCHAR(36) NULL
+    `);
+    await createIndexIfNotExists(
+      pool,
+      "idx_entities_deleted_batch",
+      "entities",
+      "CREATE INDEX idx_entities_deleted_batch ON [MyWork].[entities](deleted_batch)",
+    );
+  }
+
   if (!(await columnExists(pool, "priorities", "status"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[priorities] ADD status NVARCHAR(50) NOT NULL DEFAULT 'Not Started'

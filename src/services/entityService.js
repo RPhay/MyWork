@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { query as queryPool } from '../database/connectionPool.js';
 import { getActiveContextId, setActiveContextId } from './activeContextService.js';
 import { ValidationError, NotFoundError } from '../config/errors.js';
@@ -96,7 +97,7 @@ export async function getAllEntities(entityTypeSlug, contextId = null) {
   const type = await entityTypeService.getEntityType(entityTypeSlug);
 
   const entities = await queryPool(
-    'SELECT * FROM entities WHERE entity_type_id = ? AND context_id = ? ORDER BY order_index, id',
+    'SELECT * FROM entities WHERE entity_type_id = ? AND context_id = ? AND deleted_at IS NULL ORDER BY order_index, id',
     [type.id, contextId]
   );
 
@@ -133,6 +134,7 @@ export async function getEntitiesByFieldKey(fieldKey, contextId = null) {
      WHERE v.field_key = ?
        AND e.context_id = ?
        AND et.deleted_at IS NULL
+       AND e.deleted_at IS NULL
        AND (v.value_text IS NOT NULL OR v.value_long IS NOT NULL
             OR v.value_number IS NOT NULL OR v.value_date IS NOT NULL
             OR v.value_bool IS NOT NULL OR v.value_json IS NOT NULL)
@@ -162,7 +164,7 @@ export async function getNestedEntitiesOfOtherTypes(entityTypeSlug, contextId = 
   const collected = [];
 
   let frontier = (await queryPool(
-    'SELECT id FROM entities WHERE entity_type_id = ? AND context_id = ?',
+    'SELECT id FROM entities WHERE entity_type_id = ? AND context_id = ? AND deleted_at IS NULL',
     [type.id, contextId]
   )).map(r => r.id);
 
@@ -186,7 +188,7 @@ export async function getNestedEntitiesOfOtherTypes(entityTypeSlug, contextId = 
 
     const nextPlaceholders = next.map(() => '?').join(', ');
     const rows = await queryPool(
-      `SELECT * FROM entities WHERE id IN (${nextPlaceholders}) AND entity_type_id <> ?`,
+      `SELECT * FROM entities WHERE id IN (${nextPlaceholders}) AND entity_type_id <> ? AND deleted_at IS NULL`,
       [...next, type.id]
     );
     collected.push(...rows);
@@ -214,7 +216,7 @@ export async function getEntityById(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
   const rows = await queryPool(
-    'SELECT * FROM entities WHERE id = ? AND context_id = ?',
+    'SELECT * FROM entities WHERE id = ? AND context_id = ? AND deleted_at IS NULL',
     [entityId, contextId]
   );
 
@@ -246,7 +248,7 @@ export async function createEntity(entityTypeSlug, data, contextId = null) {
   let orderIndex = data.order_index;
   if (orderIndex === undefined) {
     const maxResult = await queryPool(
-      'SELECT MAX(order_index) as max_idx FROM entities WHERE entity_type_id = ? AND context_id = ?',
+      'SELECT MAX(order_index) as max_idx FROM entities WHERE entity_type_id = ? AND deleted_at IS NULL AND context_id = ?',
       [type.id, contextId]
     );
     orderIndex = (maxResult[0].max_idx || 0) + 1;
@@ -432,22 +434,150 @@ async function setEntityFieldValue(entityId, fieldKey, value, contextId) {
 }
 
 // Delete an entity (cascade handled by DB FK)
+/**
+ * Delete an entity and everything nested under it - reversibly.
+ *
+ * Deleting a folder deliberately takes its contents, which is the intended
+ * behaviour and exactly why there has to be a way back: a mis-click used to be
+ * unrecoverable. Rows are stamped `deleted_at` rather than removed, every read
+ * filters them out, and Recently Deleted can put the whole batch back.
+ *
+ * The batch matters. The cascade already computes the affected subtree, so all
+ * of it is stamped with ONE timestamp - which is what makes "undo that delete"
+ * mean the folder AND its contents rather than one row of it.
+ */
 export async function deleteEntity(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
   const entity = await getEntityById(entityId, contextId);
 
-  // Clear the legacy<->entity association bridge first. MySQL would cascade
-  // these, but the MSSQL schema has to declare the entity side ON DELETE NO
-  // ACTION (two cascading FKs into one junction hit "multiple cascade paths"),
-  // so the delete would fail there. Doing it explicitly keeps both engines
-  // behaving identically. Retire this alongside the bridge tables themselves.
-  for (const [table, column] of BRIDGE_JUNCTION_COLUMNS) {
-    await queryPool(`DELETE FROM ${table} WHERE ${column} = ?`, [entityId]);
+  const affected = await collectSubtreeIds(entityId, contextId);
+  // A batch id, not the timestamp, identifies what went together. deleted_at is
+  // a DATETIME with one-second granularity, so two unrelated deletes in the
+  // same second grouped into one batch - and restoring one brought back the
+  // other. The id is unique per delete, whatever the clock says.
+  const batch = randomUUID();
+  const placeholders = affected.map(() => '?').join(', ');
+  await queryPool(
+    `UPDATE entities SET deleted_at = NOW(), deleted_batch = ?
+     WHERE id IN (${placeholders}) AND deleted_at IS NULL`,
+    [batch, ...affected]
+  );
+
+  return { ...entity, deletedIds: affected, deletedBatch: batch };
+}
+
+/** Put back everything that went in the same delete. */
+export async function restoreEntity(entityId, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const rows = await queryPool(
+    'SELECT deleted_batch FROM entities WHERE id = ? AND context_id = ?',
+    [entityId, contextId]
+  );
+  if (rows.length === 0) throw new NotFoundError(`Entity not found: ${entityId}`);
+  const batch = rows[0].deleted_batch;
+  if (!batch) return { restored: 0 };
+
+  // Same batch = same delete. Restoring a folder therefore brings back what was
+  // inside it, and nothing that merely happened to be deleted at the same time.
+  const result = await queryPool(
+    'UPDATE entities SET deleted_at = NULL, deleted_batch = NULL WHERE context_id = ? AND deleted_batch = ?',
+    [contextId, batch]
+  );
+
+  return { restored: result.affectedRows };
+}
+
+/** What is in the bin, newest first, one entry per delete rather than per row. */
+export async function getDeletedEntities(contextId = null, { limit = 50 } = {}) {
+  if (!contextId) contextId = await getActiveContextId();
+  const cap = Math.max(1, Math.min(Math.floor(Number(limit) || 50), 200));
+
+  const rows = await queryPool(
+    `SELECT e.id, e.title, e.is_folder, e.deleted_at, e.deleted_batch,
+            et.slug AS type_slug, et.label AS type_label, et.icon AS type_icon
+     FROM entities e
+     JOIN entity_types et ON et.id = e.entity_type_id
+     WHERE e.context_id = ? AND e.deleted_at IS NOT NULL
+     ORDER BY e.deleted_at DESC, e.id
+     LIMIT ${cap}`,
+    [contextId]
+  );
+
+  // Group by the batch, so a folder and its contents read as one undoable
+  // action instead of forty separate rows.
+  const batches = new Map();
+  for (const row of rows) {
+    const key = row.deleted_batch || `row-${row.id}`;
+    if (!batches.has(key)) batches.set(key, { batch: key, deletedAt: row.deleted_at, items: [] });
+    batches.get(key).items.push({
+      id: row.id,
+      title: row.title,
+      isFolder: !!row.is_folder,
+      typeSlug: row.type_slug,
+      typeLabel: row.type_label,
+      icon: row.type_icon,
+    });
   }
 
-  await queryPool('DELETE FROM entities WHERE id = ?', [entityId]);
-  return entity;
+  return [...batches.values()].map(b => ({
+    ...b,
+    // The row the delete was actually invoked on is the one to name.
+    lead: b.items[0],
+    alsoRemoved: b.items.length - 1,
+  }));
+}
+
+/** Really delete - the bin's own "delete forever", and the only hard delete. */
+export async function purgeEntity(entityId, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const affected = await collectSubtreeIds(entityId, contextId, { includeDeleted: true });
+
+  for (const [table, column] of BRIDGE_JUNCTION_COLUMNS) {
+    for (const id of affected) {
+      await queryPool(`DELETE FROM ${table} WHERE ${column} = ?`, [id]);
+    }
+  }
+
+  const placeholders = affected.map(() => '?').join(', ');
+  // Edges are kept through a soft delete so a restore can rebuild the tree;
+  // a purge is where they finally go. The FK is NO ACTION on the MSSQL side,
+  // so this is explicit rather than left to a cascade.
+  await queryPool(
+    `DELETE FROM entity_relationships
+     WHERE parent_entity_id IN (${placeholders}) OR child_entity_id IN (${placeholders})`,
+    [...affected, ...affected]
+  );
+  await queryPool(`DELETE FROM entities WHERE id IN (${placeholders})`, affected);
+  return { purged: affected.length };
+}
+
+// The entity and everything below it, breadth-first, tolerant of a pre-existing
+// cycle in the data (the `seen` set doubles as the guard).
+async function collectSubtreeIds(entityId, contextId, { includeDeleted = false } = {}) {
+  const seen = new Set([Number(entityId)]);
+  const queue = [Number(entityId)];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const children = await queryPool(
+      `SELECT er.child_entity_id FROM entity_relationships er
+       JOIN entities e ON e.id = er.child_entity_id
+       WHERE er.parent_entity_id = ? AND er.context_id = ?
+         AND er.relationship_kind = 'hierarchy'
+         ${includeDeleted ? '' : 'AND e.deleted_at IS NULL'}`,
+      [current, contextId]
+    );
+    for (const child of children) {
+      if (seen.has(child.child_entity_id)) continue;
+      seen.add(child.child_entity_id);
+      queue.push(child.child_entity_id);
+    }
+  }
+
+  return [...seen];
 }
 
 // Deep-clones an entity: the row, its field values, and everything nested under

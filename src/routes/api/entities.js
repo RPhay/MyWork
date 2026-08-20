@@ -123,9 +123,17 @@ router.put('/:typeSlug/:id', async (req, res) => {
 router.delete('/:typeSlug/:id', async (req, res) => {
   try {
     const contextId = await getActiveContextId();
-    await entityRelationshipService.cascadeDeleteEntity(parseInt(req.params.id), contextId);
-    await entityService.deleteEntity(parseInt(req.params.id), contextId);
-    res.json({ success: true, message: 'Entity deleted' });
+    // deleteEntity is the whole delete now, and the edges must SURVIVE it.
+    // This used to call cascadeDeleteEntity first, which removed the
+    // hierarchy edges - so the soft delete then found no children to stamp,
+    // leaving them orphaned but visible, and a restore would have had no tree
+    // left to rebuild. Reads filter deleted rows out instead.
+    const result = await entityService.deleteEntity(parseInt(req.params.id), contextId);
+    res.json({
+      success: true,
+      message: 'Entity deleted',
+      data: { deletedIds: result.deletedIds, deletedBatch: result.deletedBatch },
+    });
   } catch (error) {
     logger.error('Error deleting entity:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });

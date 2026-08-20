@@ -31,9 +31,16 @@
   .focus-bar.has-items { display: flex; }
 
   /* An empty bar is invisible, which makes it impossible to drop onto. While a
-     drag is in flight it becomes a visible landing strip. */
-  .focus-bar.drop-ready {
+     drag is in flight it becomes a visible landing strip.
+     It must NOT take part in the document flow to do that: revealing 40px of
+     bar mid-drag pushed every row down by 40px, so a drag already aimed at a
+     row landed above it. That broke reordering everywhere, not just here. */
+  .focus-bar.drop-ready:not(.has-items) {
     display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
     min-height: 40px;
     border-bottom: 1px dashed #adb5bd;
   }
@@ -68,6 +75,49 @@
   .focus-chip:hover { border-color: #adb5bd; }
 
   /* A running clock is the one state worth seeing from across the room. */
+  .trash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(15, 18, 24, 0.42);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 10vh;
+  }
+
+  .trash-panel {
+    width: min(40rem, 94vw);
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+  }
+
+  .trash-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e9ecef;
+  }
+
+  .trash-body { max-height: 26rem; overflow-y: auto; }
+
+  .trash-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #f1f3f5;
+  }
+
+  .trash-row:last-child { border-bottom: none; }
+  .trash-icon { width: 20px; text-align: center; flex: none; }
+  .trash-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .trash-title { overflow-wrap: anywhere; }
+  .trash-meta { font-size: 0.75rem; color: #6c757d; }
+
   /* Search palette. Deliberately plain: it is read at speed and dismissed. */
   .cmdk-overlay {
     position: fixed;
@@ -457,6 +507,7 @@
   <script src="/js/main.js"></script>
   <script src="/js/focus-bar.js"></script>
   <script src="/js/command-palette.js"></script>
+  <script src="/js/recently-deleted.js"></script>
   <script src="/js/tabs.js"></script>
   <script src="/js/forms.js"></script>
   <script src="/js/save-shortcut.js"></script>

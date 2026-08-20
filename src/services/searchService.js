@@ -56,7 +56,7 @@ export async function search(term, contextId = null, { limit = 30, typeSlug = nu
     `SELECT e.id, e.title, e.is_folder, et.slug AS type_slug, et.label AS type_label, et.icon AS type_icon
      FROM entities e
      JOIN entity_types et ON et.id = e.entity_type_id
-     WHERE e.context_id = ? AND et.deleted_at IS NULL AND e.title LIKE ? ESCAPE '\\\\'
+     WHERE e.context_id = ? AND et.deleted_at IS NULL AND e.deleted_at IS NULL AND e.title LIKE ? ESCAPE '\\\\'
      ORDER BY CHAR_LENGTH(e.title), e.title
      LIMIT ${rowCap}`,
     [contextId, like]
@@ -69,7 +69,7 @@ export async function search(term, contextId = null, { limit = 30, typeSlug = nu
      FROM entity_field_values v
      JOIN entities e ON e.id = v.entity_id
      JOIN entity_types et ON et.id = e.entity_type_id
-     WHERE e.context_id = ? AND et.deleted_at IS NULL
+     WHERE e.context_id = ? AND et.deleted_at IS NULL AND e.deleted_at IS NULL
        AND (v.value_text LIKE ? ESCAPE '\\\\' OR v.value_long LIKE ? ESCAPE '\\\\')
      ORDER BY e.title
      LIMIT ${rowCap}`,
