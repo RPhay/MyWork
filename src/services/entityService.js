@@ -58,14 +58,18 @@ async function attachFieldValues(entityIds) {
 // The junction tables that point at entities.id, and the column that does so.
 // Kept in sync with the "Legacy <-> entity association bridge" block in
 // mysqlSchema.js / mssqlSchema.js.
+//
+// The three work_*_associations entries that used to head this list are gone:
+// a day's links all live in work_entity_associations now. They were left here
+// after the tables were removed from both schema files, so a purge would have
+// thrown "table doesn't exist" on any database where that removal had actually
+// been applied - which is the only reason it never fired on MySQL.
 const BRIDGE_JUNCTION_COLUMNS = [
-  ['work_area_associations', 'area_id'],
-  ['work_goal_associations', 'goal_id'],
-  ['work_idea_associations', 'idea_id'],
   ['priority_areas', 'area_id'],
   ['priority_goals', 'goal_id'],
   ['template_areas', 'area_id'],
   ['template_goals', 'goal_id'],
+  ['work_entity_associations', 'entity_id'],
 ];
 
 // Legacy bridge: areas, goals and ideas are entities now, but workItemService,
@@ -667,8 +671,10 @@ export async function findClonedEntityIds(entityIds, contextId = null) {
 // is always a full copy (that is what distinguishes it from a reference), so
 // nothing done to the day's copy reaches back into the template.
 //
-// Association goes through the same work_*_associations junctions the Dailies
-// UI already reads, keyed by the child's own type.
+// Association goes through work_entity_associations - the one junction that
+// links a day to a row of ANY type. This used to be a map of seven per-type
+// junctions, which meant a type invented after it was written could never be
+// placed on a day: the lookup missed and the child was skipped in silence.
 export async function instantiateTemplate(templateEntityId, date, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
@@ -680,28 +686,16 @@ export async function instantiateTemplate(templateEntityId, date, contextId = nu
     [date, template.title, 'Not Started', 0, contextId]
   ).then(r => r.insertId);
 
-  // slug -> the junction that links a work item to that type
-  const JUNCTIONS = {
-    priority: ['work_priority_associations', 'priority_id'],
-    area: ['work_area_associations', 'area_id'],
-    goal: ['work_goal_associations', 'goal_id'],
-    idea: ['work_idea_associations', 'idea_id'],
-    to_do: ['work_todo_associations', 'todo_id'],
-    task: ['work_task_associations', 'task_id'],
-    ticket: ['work_ticket_associations', 'ticket_id'],
-  };
-
   const copied = [];
+  let order = 0;
   for (const child of children) {
     const type = await entityTypeService.getEntityType(child.entity_type_id);
-    const junction = JUNCTIONS[type.slug];
-    if (!junction) continue;                       // nested templates carry no work of their own
+    if (type.slug === 'template') continue;        // nested templates carry no work of their own
 
     const copy = await cloneEntity(child.child_entity_id, contextId);
-    const [table, column] = junction;
     await queryPool(
-      `INSERT IGNORE INTO ${table} (work_item_id, ${column}) VALUES (?, ?)`,
-      [workItemId, copy.id]
+      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
+      [workItemId, copy.id, order++]
     );
     copied.push({ id: copy.id, title: copy.title, type: type.slug });
   }

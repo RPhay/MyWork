@@ -12,11 +12,18 @@ import {
  * Intelligently analyzes and migrates database schema without destructive operations
  */
 
-// Tables the generic engine replaced. The work_*_associations and priority_*
-// junctions are deliberately NOT here: they were rebuilt as the legacy<->entity
-// bridge (their right-hand column now points at `entities`), so they are live
-// schema, not leftovers to migrate away from. See the "Legacy <-> entity
-// association bridge" block in mysqlSchema.js.
+// Tables the generic engine replaced.
+//
+// The priority_* / template_* junctions are deliberately NOT here: they were
+// rebuilt as the legacy<->entity bridge (their right-hand column now points at
+// `entities`), so they are live schema, not leftovers. See the "Legacy <->
+// entity association bridge" block in mysqlSchema.js, and
+// REQUIRED_SUPPORT_TABLES below, which now verifies they exist.
+//
+// The seven per-type work_*_associations junctions once described here are
+// gone - retired in favour of work_entity_associations, which links a day to a
+// row of ANY type. work_source_associations is the one that stayed: a source
+// is not an entity.
 const OLD_ENTITY_TABLES = [
   'priorities', 'areas', 'goals', 'to_dos', 'tasks', 'tickets', 'ideas', 'templates',
   'idea_folders'
@@ -25,6 +32,30 @@ const OLD_ENTITY_TABLES = [
 const NEW_GENERIC_TABLES = [
   'entity_types', 'entity_type_fields', 'entity_type_relationships',
   'entities', 'entity_field_values', 'entity_relationships'
+];
+
+/**
+ * Tables the running code queries that are NOT part of the generic engine, and
+ * so were invisible to verification while it only checked NEW_GENERIC_TABLES.
+ *
+ * This list exists because of a real failure. The seven per-type
+ * work_*_associations junctions were removed from both schema files, but three
+ * services went on writing to them; verification checked six generic tables,
+ * found them present, and reported "Schema verification passed". A database
+ * missing a junction the code writes to would have been declared healthy right
+ * up until a template instantiation or a purge threw at runtime.
+ *
+ * Add to this whenever code starts depending on a table outside the engine.
+ */
+const REQUIRED_SUPPORT_TABLES = [
+  // A day links to a row of any type through this one junction.
+  'work_entity_associations',
+  // Legacy <-> entity bridges, live until `priorities` and the templates table
+  // become entities themselves.
+  'priority_areas', 'priority_goals', 'template_areas', 'template_goals',
+  'template_priorities', 'work_source_associations',
+  // The two legacy tables the bridges hang off.
+  'work_items', 'priorities',
 ];
 
 export async function analyzeAndMigrate() {
@@ -46,6 +77,17 @@ export async function analyzeAndMigrate() {
     // Step 2: Check for old tables with data
     const hasOldData = report.analysis.oldTablesWithData.length > 0;
     const hasMissingGenericTables = report.analysis.missingGenericTables.length > 0;
+
+    // A table that could not be counted is not a table that is empty. Say so
+    // loudly: the conclusion "fresh database, nothing to migrate" is only
+    // trustworthy if every table actually answered.
+    if (report.analysis.uncountableTables.length > 0) {
+      report.warnings.push(
+        `Could not read row counts for: ${report.analysis.uncountableTables.join(', ')}. `
+        + 'These are NOT known to be empty, so any "no old data" result below is incomplete. '
+        + 'Check the server log for the underlying error.'
+      );
+    }
 
     // Step 3: Ensure generic schema exists
     if (hasMissingGenericTables) {
@@ -99,6 +141,9 @@ async function analyzeSchema() {
     oldTablesWithData: [],
     missingGenericTables: [],
     existingGenericTables: [],
+    // Tables that exist but could not be counted. NOT the same as empty - see
+    // countRows. Anything in here means the analysis below is incomplete.
+    uncountableTables: [],
     totalOldRows: 0,
     databaseType: getCurrentConfig().type
   };
@@ -110,7 +155,9 @@ async function analyzeSchema() {
       if (exists) {
         analysis.oldTables.push(table);
         const count = await countRows(table);
-        if (count > 0) {
+        if (count === null) {
+          analysis.uncountableTables.push(table);
+        } else if (count > 0) {
           analysis.oldTablesWithData.push({ table, rows: count });
           analysis.totalOldRows += count;
         }
@@ -123,7 +170,9 @@ async function analyzeSchema() {
       if (exists) {
         analysis.existingGenericTables.push(table);
         const count = await countRows(table);
-        if (count > 0) {
+        if (count === null) {
+          analysis.uncountableTables.push(table);
+        } else if (count > 0) {
           analysis[`${table}Count`] = count;
         }
       } else {
@@ -162,13 +211,29 @@ async function tableExists(tableName) {
   }
 }
 
+/**
+ * Row count, or null if the table could not be counted.
+ *
+ * The identifier quoting is per-engine: SQL Server rejects MySQL backticks
+ * outright, so this used to throw on EVERY table under MSSQL - and because the
+ * catch returned 0, the failure looked exactly like an empty table. The whole
+ * analysis then concluded "fresh database, nothing to migrate" and skipped the
+ * migration, silently, no matter how much data was really there.
+ *
+ * Returning null instead of 0 keeps "I could not count this" distinguishable
+ * from "this is empty". Callers must not treat null as empty.
+ */
 async function countRows(tableName) {
+  const quoted = getCurrentConfig().type === 'mssql'
+    ? `[${tableName.replace(/]/g, ']]')}]`
+    : `\`${tableName.replace(/`/g, '``')}\``;
+
   try {
-    const result = await query(`SELECT COUNT(*) as count FROM \`${tableName}\``);
-    return result[0]?.count || 0;
+    const result = await query(`SELECT COUNT(*) as count FROM ${quoted}`);
+    return result[0]?.count ?? 0;
   } catch (error) {
     logger.error(`Error counting rows in ${tableName}:`, error);
-    return 0;
+    return null;
   }
 }
 
@@ -444,6 +509,23 @@ async function verifySchema() {
     if (missingTables.length > 0) {
       verification.isValid = false;
       verification.issues.push(`Missing tables: ${missingTables.join(', ')}`);
+    }
+
+    // And the tables outside the engine that the code still queries - the gap
+    // that let a database with missing junctions report itself healthy.
+    const missingSupport = [];
+    for (const table of REQUIRED_SUPPORT_TABLES) {
+      if (!await tableExists(table)) {
+        missingSupport.push(table);
+      }
+    }
+
+    if (missingSupport.length > 0) {
+      verification.isValid = false;
+      verification.issues.push(
+        `Missing support tables the code queries: ${missingSupport.join(', ')}. `
+        + 'Run "Fix Schema" to recreate them.'
+      );
     }
 
     // Check that system types exist

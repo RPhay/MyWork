@@ -227,15 +227,23 @@ export async function instantiateTemplate(templateId, date) {
     [date, template.title, template.description, template.emoji, template.status || 'Not Started', template.time_box_minutes, nextOrder, template.context_id]
   );
 
-  for (const area of template.areas) {
-    await db.insert('INSERT INTO work_area_associations (work_item_id, area_id) VALUES (?, ?)', [workItemId, area.id]);
+  // areas, goals and priorities are all ENTITIES (getTemplateById joins each
+  // bridge junction to `entities`), so all three land in the one junction that
+  // links a day to a row of any type. This replaces three per-type inserts into
+  // tables that no longer exist in either schema file.
+  let order = 0;
+  for (const row of [...template.areas, ...template.goals, ...template.priorities]) {
+    await db.query(
+      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
+      [workItemId, row.id, order++]
+    );
   }
-  for (const goal of template.goals) {
-    await db.insert('INSERT INTO work_goal_associations (work_item_id, goal_id) VALUES (?, ?)', [workItemId, goal.id]);
-  }
-  for (const priority of template.priorities) {
-    await db.insert('INSERT INTO work_priority_associations (work_item_id, priority_id) VALUES (?, ?)', [workItemId, priority.id]);
-  }
+
+  // Sources are the exception, and stay where they were: source_id points at
+  // the legacy `sources` table, not at `entities`, so it cannot go into
+  // work_entity_associations (whose FK is to entities). work_source_associations
+  // was NOT retired with the seven per-type junctions - it is live schema in
+  // both files and workItemService still reads it.
   if (template.source_id) {
     await db.insert('INSERT INTO work_source_associations (work_item_id, source_id) VALUES (?, ?)', [workItemId, template.source_id]);
   }

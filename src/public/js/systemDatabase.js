@@ -340,6 +340,14 @@ async function analyzeAndMigrate() {
                     ${report.systemDatabase.actions.map(a => `<li>${app.escapeHtml(a)}</li>`).join('')}
                   </ul>
                 ` : ''}
+                ${report.systemDatabase.warnings?.length > 0 ? `
+                  <div class="alert alert-warning py-2 px-2 mb-2">
+                    <strong>Warnings:</strong>
+                    <ul class="mb-0">
+                      ${report.systemDatabase.warnings.map(w => `<li>${app.escapeHtml(w)}</li>`).join('')}
+                    </ul>
+                  </div>
+                ` : ''}
                 ${report.systemDatabase.errors?.length > 0 ? `
                   <div class="alert alert-danger py-2 px-2 mb-0">
                     <strong>Errors:</strong>
