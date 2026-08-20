@@ -1,101 +1,104 @@
 import { test, expect } from '@playwright/test';
+import { purgeByTitlePrefix } from './helpers/cleanup.js';
 
 /**
- * Templates sit at both ends of a drag:
- *   typed row -> templates list   (empty space: makes a template from the row)
- *   typed row -> a template node  (links the row into that template)
- *   template  -> a day            (instantiates it as work)
+ * Templates are containers you make deliberately with "+ Template", the way a
+ * folder is. Rows are dropped INTO one, and the template is then the reusable
+ * thing you drop onto a day.
  *
- * All three were broken. The templates container only accepted a drop that
- * landed on an existing .template-node, so with no templates there was no drop
- * target at all and dropping on empty space did nothing. And the template drag
- * published only `template-id` while Dailies reads `type`/`id`/`name`, so a
- * template dropped on a day was ignored.
+ * Two rules this covers:
+ *   - dropping on the templates ROOT does nothing. It used to invent a template
+ *     named after whatever was dropped, so templates appeared by accident.
+ *   - a row dropped in keeps its TREE. The relationship fetch used to return
+ *     only edges whose parent was a template, so a Project arrived with its
+ *     children present in the payload but no edges to place them by, and the
+ *     tree was silently flattened.
  */
-const today = () => new Date().toISOString().slice(0,10);
-async function api(page, path, options={}) {
-  return page.evaluate(async ({path,options,t}) => {
-    const r = await fetch(path,{...options,headers:{'Content-Type':'application/json','X-CSRF-Token':t,...(options.headers||{})}});
-    return {status:r.status, body: await r.json().catch(()=>null)};
-  }, {path,options,t: await page.evaluate(()=>document.body.dataset.csrfToken)});
+
+async function api(page, url, opts = {}) {
+  return page.evaluate(async ({ url, opts }) => {
+    const res = await fetch(url, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', 'CSRF-Token': window.APP_CONFIG?.csrfToken },
+    });
+    return res.json();
+  }, { url, opts });
 }
 
-test('a typed row dropped on the templates list makes a template', async ({ page }) => {
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
-  // show the Templates rail
-  await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(700);
+async function nest(page, slug, parentId, childId) {
+  return api(page, `/api/entities/${slug}/${childId}/relationships`, {
+    method: 'POST',
+    body: JSON.stringify({ parentEntityId: parentId, childEntityId: childId, relationshipKind: 'hierarchy' }),
+  });
+}
 
-  const area = (await api(page,'/api/entities/area',{method:'POST',body:JSON.stringify({title:'ZZZtpl source'})})).body.data;
-  await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1600);
-  await page.locator('button[data-rail-toggle="template"]').click().catch(()=>{});
-  await page.waitForTimeout(600);
-
-  await page.evaluate(({id}) => {
+// Drops carry `type`/`id`/`name`, the payload every draggable row publishes.
+async function dropOn(page, targetSelector, payload) {
+  await page.evaluate(({ targetSelector, payload }) => {
+    const target = document.querySelector(targetSelector);
     const dt = new DataTransfer();
-    dt.setData('type','area'); dt.setData('id',String(id)); dt.setData('name','ZZZtpl source'); dt.setData('text/plain','ZZZtpl source');
-    const list = document.getElementById('templatesList');
-    list.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt}));
-    list.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));
-  }, {id: area.id});
-  await page.waitForTimeout(1600);
+    for (const [k, v] of Object.entries(payload)) dt.setData(k, String(v));
+    const r = target.getBoundingClientRect();
+    const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    for (const name of ['dragover', 'drop']) {
+      target.dispatchEvent(new DragEvent(name, { bubbles: true, cancelable: true, dataTransfer: dt, ...at }));
+    }
+  }, { targetSelector, payload });
+}
 
-  const tpls = (await api(page,'/api/work-item-templates')).body.data;
-  console.log('templates ->', JSON.stringify(tpls.map(t=>({t:t.title, areas:(t.areas||[]).map(a=>a.name)}))));
-  const made = tpls.find(t => t.title === 'ZZZtpl source');
-  expect(made, 'a template should have been created').toBeTruthy();
-  expect((made.areas||[]).some(a=>a.id===area.id)).toBe(true);
+test.afterEach(async ({ page }) => {
+  await purgeByTitlePrefix(page, 'template', 'ZZZ');
+  await purgeByTitlePrefix(page, 'priority', 'ZZZ');
 });
 
-test('a template dropped on a day instantiates it', async ({ page }) => {
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
-  const tpls = (await api(page,'/api/work-item-templates')).body.data;
-  const tpl = tpls.find(t => t.title === 'ZZZtpl source') || tpls[0];
-  expect(tpl, 'need a template to drop').toBeTruthy();
+test('a row dropped on the templates root is refused, not turned into a template', async ({ page }) => {
+  await page.goto('/?tab=priority', { waitUntil: 'networkidle' });
+  const proj = (await api(page, '/api/entities/priority', {
+    method: 'POST', body: JSON.stringify({ title: 'ZZZ root drop' }),
+  })).data;
 
-  await page.evaluate(({id,title}) => {
-    const dt = new DataTransfer();
-    dt.setData('type','template'); dt.setData('id',String(id)); dt.setData('name',title); dt.setData('text/plain',title);
-    document.getElementById('dailiesCenterPane').dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt}));
-    document.getElementById('workItemsList').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));
-  }, {id: tpl.id, title: tpl.title});
-  await page.waitForTimeout(1800);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1600);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(800);
 
-  const items = (await api(page,`/api/work/date/${today()}`)).body.data;
-  console.log('day ->', JSON.stringify(items.map(w=>w.title)));
-  expect(items.length, 'the template should have produced work').toBeGreaterThan(0);
+  const before = ((await api(page, '/api/entities/template')).data || []).length;
+  await dropOn(page, '#templateEntityList', { type: 'priority', id: proj.id, name: 'ZZZ root drop' });
+  await page.waitForTimeout(1200);
 
-  for (const w of items) await api(page,`/api/work/${w.id}`,{method:'DELETE'});
-  for (const t of (await api(page,'/api/work-item-templates')).body.data.filter(x=>(x.title||'').startsWith('ZZZtpl')))
-    await api(page,`/api/work-item-templates/${t.id}`,{method:'DELETE'});
-  for (const a of (await api(page,'/api/entities/area')).body.data.filter(x=>(x.title||'').startsWith('ZZZtpl')))
-    await api(page,`/api/entities/area/${a.id}`,{method:'DELETE'});
+  const after = ((await api(page, '/api/entities/template')).data || []).length;
+  expect(after, 'no template should be created by dropping on the root').toBe(before);
 });
 
-test('a typed row dropped onto an existing template links to it', async ({ page }) => {
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
-  const tpl = (await api(page,'/api/work-item-templates',{method:'POST',body:JSON.stringify({title:'ZZZtpl target'})})).body.data;
-  const area = (await api(page,'/api/entities/area',{method:'POST',body:JSON.stringify({title:'ZZZtpl child'})})).body.data;
+test('a row dropped into a template keeps its tree', async ({ page }) => {
+  await page.goto('/?tab=priority', { waitUntil: 'networkidle' });
 
-  // The rail renders its list on load, so the new template has to exist first.
-  await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1600);
-  const railOpen = await page.locator('#rail-template').isVisible();
-  if (!railOpen) { await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(900); }
+  // Project with a child, and a template to drop it into.
+  const parent = (await api(page, '/api/entities/priority', { method: 'POST', body: JSON.stringify({ title: 'ZZZ tree parent' }) })).data;
+  const child = (await api(page, '/api/entities/priority', { method: 'POST', body: JSON.stringify({ title: 'ZZZ tree child' }) })).data;
+  await nest(page, 'priority', parent.id, child.id);
+  const tpl = (await api(page, '/api/entities/template', { method: 'POST', body: JSON.stringify({ title: 'ZZZ holder' }) })).data;
 
-  const linked = await page.evaluate(({tplId, areaId}) => {
-    const node = [...document.querySelectorAll('.template-node')].find(n => n.dataset.templateId === String(tplId));
-    if (!node) return 'no node';
-    const dt = new DataTransfer();
-    dt.setData('type','area'); dt.setData('id',String(areaId)); dt.setData('name','ZZZtpl child');
-    node.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt}));
-    node.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));
-    return 'dispatched';
-  }, {tplId: tpl.id, areaId: area.id});
+  await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1600);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(900);
 
-  const after = (await api(page,`/api/work-item-templates/${tpl.id}`)).body.data;
-  console.log('onto node ->', linked, JSON.stringify((after.areas||[]).map(a=>a.name)));
-  expect((after.areas||[]).some(a=>a.id===area.id)).toBe(true);
+  // Reference, not copy - the dialog offers both.
+  const rowSel = `#templateEntityList .entity-row[data-entity-id="${tpl.id}"]`;
+  await expect(page.locator(rowSel)).toHaveCount(1);
+  await dropOn(page, rowSel, { type: 'priority', id: parent.id, name: 'ZZZ tree parent' });
+  await page.locator('#copyOrReferenceRefBtn').click();
+  await page.waitForTimeout(1500);
 
-  await api(page,`/api/work-item-templates/${tpl.id}`,{method:'DELETE'});
-  await api(page,`/api/entities/area/${area.id}`,{method:'DELETE'});
+  // The edges the template's own fetch returns must reach the grandchild.
+  const edges = (await api(page, '/api/entities/template/relationships')).data || [];
+  const underTemplate = edges.some(e => String(e.parent_entity_id) === String(tpl.id)
+    && String(e.child_entity_id) === String(parent.id));
+  const underParent = edges.some(e => String(e.parent_entity_id) === String(parent.id)
+    && String(e.child_entity_id) === String(child.id));
+  console.log(`edges -> template>parent: ${underTemplate}, parent>child: ${underParent}`);
+
+  expect(underTemplate, 'the dropped row is inside the template').toBe(true);
+  expect(underParent, "the dropped row's own children come with it").toBe(true);
 });

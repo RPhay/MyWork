@@ -1347,18 +1347,18 @@ const GenericEntity = (() => {
     // onto the priorities board; rendered as a text box and a number box on
     // every record, they are clutter at best - and at worst a stray value puts
     // an unrelated record on the board, which is exactly what happened.
-    const fields = entity.is_folder
-      ? []
-      // Sorted here rather than relying on the order the array arrived in. The
-      // API hands fields back ORDER BY display_order, so on a fresh load the
-      // unsorted array looked right - but reordering columns only rewrites each
-      // field's display_order VALUE, it does not re-sort this array. Without
-      // this the editor kept rendering the pre-drag order until a page reload,
-      // while the rows and the column chooser (both of which do sort) moved.
-      : (typeSchema.fields || [])
-          .filter(f => !INTERNAL_FIELD_KEYS.has(f.field_key))
-          .slice()
-          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    // A folder organises rather than holding values, so its editor is normally
+    // just a name. Worked Time is the exception: a folder can be pinned to the
+    // focus bar and accumulate against it, and time recorded somewhere you
+    // cannot see or correct is worse than not recording it.
+    //
+    // Selected by TYPE, not by key, so another duration field added later
+    // appears here without this needing to know its name.
+    // Sorted by display_order rather than trusting the order the array arrived
+    // in: reordering columns rewrites each field's display_order VALUE without
+    // re-sorting this array, so the editor kept showing the pre-drag order
+    // until a reload while the rows and column chooser moved.
+    const fields = editableFields(typeSchema, entity.is_folder);
     return `
       <form id="entity-editor-form" class="entity-editor-form" onsubmit="return false;">
         <div class="form-group">
@@ -1401,14 +1401,27 @@ const GenericEntity = (() => {
   // entityService.js#createEntity/updateEntity reads. They used to be returned
   // flat, which meant every field value (notes, status, recurrence) was
   // silently dropped on save for every type.
+  // Which fields a record's editor shows - and therefore which ones its save
+  // collects. ONE definition, because these two had drifted: folders were given
+  // a Worked Time control that collectFormValues then threw away, so the edit
+  // appeared to work and vanished on reload.
+  //
+  // A folder organises rather than holding values, so it shows only what the
+  // engine can genuinely record against it: time, which it accumulates when
+  // pinned to the focus bar. Selected by TYPE so a second duration field needs
+  // no change here.
+  function editableFields(typeSchema, isFolder) {
+    const all = (typeSchema.fields || []).filter(f => !INTERNAL_FIELD_KEYS.has(f.field_key));
+    const usable = isFolder ? all.filter(f => f.field_type === 'duration') : all;
+    return usable.slice().sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  }
+
   function collectFormValues(typeSchema, isFolder = false) {
     const form = document.getElementById('entity-editor-form');
     const formData = new FormData(form);
     const data = { title: formData.get('title'), is_folder: isFolder, fields: {} };
 
-    if (isFolder) return data;
-
-    for (const field of typeSchema.fields || []) {
+    for (const field of editableFields(typeSchema, isFolder)) {
       const value = formData.get(field.field_key);
       if (field.field_type === 'links') {
         // Not a FormData field - the rows are built by the links renderer.

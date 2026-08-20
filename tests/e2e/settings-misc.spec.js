@@ -65,10 +65,20 @@ test('a saved palette is what the focus chip menu offers', async ({ page }) => {
 
   await chip.click({ button: 'right' });
   await page.waitForTimeout(400);
-  const titles = await page.locator('.focus-context-menu .focus-swatch').evaluateAll(els => els.map(e => e.title));
-  console.log('swatch titles ->', JSON.stringify(titles));
-  expect(titles, 'the configured name reaches the menu').toContain('Blocked on Bob');
-  expect(titles[0], 'None comes first, to clear the colour').toBe('None');
+  // The menu must show the NAME, not just a swatch to be memorised, and the
+  // swatch must actually be painted the configured colour.
+  const rows = await page.locator('.focus-context-menu .focus-swatch-row').evaluateAll(els => els.map(e => ({
+    text: e.querySelector('.focus-swatch-label')?.textContent.trim(),
+    colour: getComputedStyle(e.querySelector('.focus-swatch')).backgroundColor,
+  })));
+  console.log('colour menu ->', JSON.stringify(rows));
+
+  const labels = rows.map(r => r.text);
+  expect(labels, 'the configured name is shown as text').toContain('Blocked on Bob');
+  expect(labels[0], 'None comes first, to clear the colour').toBe('None');
+
+  const chosen = rows.find(r => r.text === 'Blocked on Bob');
+  expect(chosen.colour, 'the row shows its own colour').toBe('rgb(219, 234, 254)');
 
   await page.evaluate(() => localStorage.removeItem('focusColourPalette'));
 

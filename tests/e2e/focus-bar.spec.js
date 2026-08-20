@@ -380,3 +380,60 @@ test('clicking the chip body does not start the clock', async ({ page }) => {
 
   await cleanup(page, made);
 });
+
+// The bar re-reads from the server on a timer and rebuilds every chip. A
+// refresh landing mid-drag used to delete the element under the cursor, so the
+// gesture died and the item looked like it had vanished. Redraws are held until
+// the drag finishes.
+test('a refresh landing mid-drag does not delete the chip does not delete the chip', async ({ page }) => {
+  await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
+  const made = await page.evaluate(async () => {
+    const csrf = window.APP_CONFIG?.csrfToken; const out = [];
+    for (const t of ['ZZZg1', 'ZZZg2', 'ZZZg3']) {
+      const r = await (await fetch('/api/entities/idea', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+        body: JSON.stringify({ title: t }) })).json();
+      await fetch('/api/focus', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+        body: JSON.stringify({ entityId: r.data.id }) });
+      out.push(r.data.id);
+    }
+    return out;
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+
+  // Start a drag, force the periodic refresh mid-gesture, then finish the drop.
+  const result = await page.evaluate(async () => {
+    const chips = () => [...document.querySelectorAll('#focusBar .focus-chip')];
+    const src = chips()[2], dst = chips()[0];
+    const dt = new DataTransfer();
+    const fire = (el, name, x) => el.dispatchEvent(new DragEvent(name, {
+      bubbles: true, cancelable: true, dataTransfer: dt, clientX: x,
+      clientY: el.getBoundingClientRect().top + 5 }));
+
+    fire(src, 'dragstart', src.getBoundingClientRect().left + 5);
+    await window.FocusBar.refresh();                 // the timer, mid-drag
+    const survived = document.body.contains(src);
+    const r = dst.getBoundingClientRect();
+    fire(dst, 'dragover', r.left + 2);
+    fire(dst, 'drop', r.left + 2);
+    fire(src, 'dragend', r.left + 2);
+    return { survived };
+  });
+  console.log('dragged chip survived the mid-drag refresh:', result.survived);
+  expect(result.survived, 'the element being dragged must not be destroyed').toBe(true);
+
+  await page.waitForTimeout(1500);
+  const titles = await page.locator('#focusBar .focus-chip .focus-title').allTextContents();
+  console.log('order after ->', JSON.stringify(titles));
+  expect(titles.length, 'nothing vanished').toBe(3);
+
+  await page.evaluate(async (ids) => {
+    const csrf = window.APP_CONFIG?.csrfToken;
+    for (const id of ids) {
+      await fetch(`/api/focus/${id}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
+      await fetch(`/api/entities/idea/${id}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
+      await fetch(`/api/trash/${id}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
+    }
+  }, made);
+});

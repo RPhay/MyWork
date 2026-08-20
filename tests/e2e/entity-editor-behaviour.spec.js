@@ -47,14 +47,17 @@ test('save stays disabled across reopening different items', async ({ page }) =>
   // Every tab's rows are in the DOM at once (dashboard.ejs renders all panes
   // upfront), so an unscoped .entity-row can pick a row from a hidden tab.
   const rows = page.locator('#tab-priority .entity-row:visible');
-  await rows.first().click();
+  // The TITLE, not the row's centre. A folder's centre is a rolled-up value,
+  // which deliberately swallows its click - a roll-up summarises what is inside
+  // and is not a control, so clicking it must not move the editor.
+  await rows.first().locator('.entity-cell-title').click();
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
   // make a change -> enabled
   const ti = page.locator('#entity-editor-form input[name="title"]');
   await ti.fill('temporary edit'); await ti.dispatchEvent('input');
   await expect(page.locator('#prioritySaveBtn')).toBeEnabled();
   // open a different item without saving -> must be disabled again
-  await rows.nth(1).click();
+  await rows.nth(1).locator('.entity-cell-title').click();
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
 });
 

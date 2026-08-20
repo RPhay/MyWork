@@ -1465,20 +1465,18 @@ renderList();
           if (!cloneResult.success) throw new Error(cloneResult.message);
           childId = cloneResult.data.id;
         }
-        // Onto a row: nest inside it. Onto empty space: make a new row of this
-        // type named after what was dropped and nest it there - so dragging an
-        // Idea onto an empty Templates list gives you a template containing
-        // that idea, rather than doing nothing.
-        let parentId = targetRow ? Number(targetRow.dataset.entityId) : null;
+        // Must be dropped INTO a row. This used to invent a container when you
+        // dropped on empty space - drag an Idea at the Templates list and you
+        // got a new template named after the idea - which made templates appear
+        // by accident and meant the list filled up with one-item templates.
+        //
+        // A template is made deliberately with "+ Template", the way a folder
+        // is, and then things are dropped into it; the template itself is the
+        // reusable thing you drop onto a day.
+        const parentId = targetRow ? Number(targetRow.dataset.entityId) : null;
         if (!parentId) {
-          const created = await app.fetchRaw(`/api/entities/${typeSlug}`, {
-            method: 'POST',
-            
-            body: JSON.stringify({ title: childName || `New ${singular}` })
-          });
-          const result = await created.json();
-          if (!result.success) throw new Error(result.message);
-          parentId = result.data.id;
+          app.notify(`Drop it onto a ${singular.toLowerCase()} - use "+ ${singular}" to make one first`, 'info');
+          return;
         }
 
         const linked = await app.fetchRaw(`/api/entities/${typeSlug}/${parentId}/relationships`, {

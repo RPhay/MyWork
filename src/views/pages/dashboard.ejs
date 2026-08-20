@@ -100,23 +100,23 @@
   /* The type's own emoji, matching the tab and its rows. */
   .focus-icon { line-height: 1; }
 
-  /* Colour picker on the chip's own context menu. */
+  /* Colour picker on the chip's own context menu: one row per colour, showing
+     the colour beside the name given to it in Settings > Miscellaneous. */
   .focus-swatches {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
-    padding: 6px;
+    display: flex;
+    flex-direction: column;
   }
 
   .focus-swatch {
-    width: 22px;
-    height: 22px;
+    width: 16px;
+    height: 16px;
     border: 1px solid #ced4da;
-    border-radius: 4px;
-    cursor: pointer;
+    border-radius: 3px;
+    flex: none;
   }
 
-  .focus-swatch:hover { border-color: #0d6efd; }
+  .focus-swatch-row { cursor: pointer; }
+  .focus-swatch-label { white-space: nowrap; }
 
   /* A running clock is the one state worth seeing from across the room. */
   .trash-overlay {

@@ -44,6 +44,13 @@
   // local wrapper to add.
   const call = (path, options) => app.fetchData(`/api/focus${path}`, options);
 
+  // True between a chip's dragstart and its dragend. The bar re-reads from the
+  // server on a timer and rebuilds every chip, so a refresh landing mid-drag
+  // deletes the element under the cursor: the drag dies and the item appears to
+  // vanish. Redraws are held until the gesture finishes.
+  let dragging = false;
+  let redrawPending = false;
+
   function setItems(data) {
     items = (data || []).map(i => ({
       ...i,
@@ -53,6 +60,7 @@
         ? Math.floor((Date.now() - i.startedAt) / 1000)
         : 0,
     }));
+    if (dragging) { redrawPending = true; return; }
     render();
   }
 
@@ -126,13 +134,17 @@
 
     const swatches = document.createElement('div');
     swatches.className = 'focus-swatches';
-    // "None" first, then the configured colours.
+    // "None" first, then the configured colours. A row per colour, showing the
+    // colour AND what it means: a grid of bare swatches made you remember which
+    // shade you had decided was "Blocked", and naming them is the entire point
+    // of configuring the palette in Settings.
     for (const { color: hex, label } of [{ color: '#ffffff', label: 'None' }, ...chipColours()]) {
       const sw = document.createElement('button');
       sw.type = 'button';
-      sw.className = 'focus-swatch';
+      sw.className = 'context-menu-item focus-swatch-row';
       sw.title = label || hex;
-      sw.style.background = hex;
+      sw.innerHTML = `<span class="focus-swatch" style="background:${hex};"></span>`
+        + `<span class="focus-swatch-label">${app.escapeHtml(label || hex)}</span>`;
       sw.addEventListener('click', async () => {
         closeMenu();
         try {
@@ -252,13 +264,17 @@
     bar.addEventListener('dragstart', (e) => {
       const chip = e.target.closest('.focus-chip');
       if (!chip) return;
+      dragging = true;
       beginDrag(e, { 'focus-chip-id': chip.dataset.entityId });
       chip.classList.add('chip-dragging');
     });
 
     bar.addEventListener('dragend', () => {
+      dragging = false;
       bar.querySelectorAll('.chip-dragging').forEach(c => c.classList.remove('chip-dragging'));
       clearChipIndicators();
+      // Anything the timer wanted to draw while the gesture was in flight.
+      if (redrawPending) { redrawPending = false; render(); }
     });
 
     bar.addEventListener('dragover', (e) => {
@@ -288,6 +304,7 @@
       // pins exactly as before.
       const movingId = e.dataTransfer.getData('focus-chip-id');
       if (movingId) {
+        dragging = false;      // the gesture is over; this redraw is wanted
         const order = chipOrderAfterDrop(e, movingId);
         if (!order) return;
         try {

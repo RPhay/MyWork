@@ -69,3 +69,36 @@ test('Worked Time cannot be removed from a type', async ({ page }) => {
   await expect(row.locator('.remove-field-btn'), 'no delete button on a locked field').toHaveCount(0);
   await expect(row.locator('.field-locked'), 'it shows as locked instead').toHaveCount(1);
 });
+
+// A folder's editor is normally just a name, because a folder organises rather
+// than holds values. Worked Time is the exception: a folder can be pinned to
+// the focus bar and accumulate time, and time you cannot see or correct is
+// worse than time not recorded.
+test('a folder shows Worked Time in its editor, and it can be corrected', async ({ page }) => {
+  await page.goto(`/?tab=${TYPE}`, { waitUntil: 'networkidle' });
+  const folder = (await api(page, `/api/entities/${TYPE}`, {
+    method: 'POST', body: JSON.stringify({ title: 'ZZZ worked folder', is_folder: true }),
+  })).data;
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+
+  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${folder.id}"] .entity-cell-title`).click();
+  await page.waitForTimeout(900);
+
+  const box = page.locator('#entity-editor-form [data-field-type="duration"] .duration-input');
+  await expect(box, 'a folder shows Worked Time').toHaveCount(1);
+  await expect(box).toHaveValue('0h 0m');
+
+  // Still a folder's editor otherwise - no status, no notes, just the name and
+  // the time.
+  await expect(page.locator('#entity-editor-form [data-field-type="status"]'),
+    'a folder still holds no status of its own').toHaveCount(0);
+
+  await box.fill('45m');
+  await box.dispatchEvent('input');
+  await page.click(`#${TYPE}SaveBtn`);
+  await page.waitForTimeout(1300);
+
+  const stored = (await api(page, `/api/entities/${TYPE}/${folder.id}`)).data?.fields?.focus_seconds;
+  expect(Number(stored), '45m is 2700 seconds').toBe(2700);
+});

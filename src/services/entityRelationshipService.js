@@ -41,20 +41,59 @@ export async function getEntityRelationships(entityId, contextId = null, kind = 
 // of the very query the tree renders from - the row simply never appeared.
 // Which types may nest in which is enforced at write time by
 // validateRelationship, so there is nothing for this read to re-police.
+/**
+ * Every edge in the trees this type's rows own - at any depth, whatever type
+ * the nodes are.
+ *
+ * This used to filter on the PARENT's type, which was only ever correct for a
+ * type that contains its own kind. A template holding a Project returned the
+ * template->project edge and stopped: the project's own children came back from
+ * /contents as entities, but with no edge to place them by, so a row dropped
+ * into a template arrived stripped of its tree. Same for anything else that
+ * accepts foreign children.
+ *
+ * For an ordinary type the result is unchanged - its descendants are its own
+ * kind, so "parent is of this type" and "parent is in the subtree" describe the
+ * same edges.
+ */
 export async function getRelationshipsForType(typeSlug, contextId = null, kind = 'hierarchy') {
   if (!contextId) contextId = await getActiveContextId();
 
-  return queryPool(
-    `SELECT er.parent_entity_id, er.child_entity_id, er.order_index
-     FROM entity_relationships er
-     JOIN entities parent_e ON parent_e.id = er.parent_entity_id
-     JOIN entities child_e ON child_e.id = er.child_entity_id
-     JOIN entity_types et ON et.id = parent_e.entity_type_id
-     WHERE et.slug = ? AND er.context_id = ? AND er.relationship_kind = ?
-       AND parent_e.deleted_at IS NULL AND child_e.deleted_at IS NULL
-     ORDER BY er.parent_entity_id, er.order_index, er.id`,
-    [typeSlug, contextId, kind]
+  const roots = await queryPool(
+    `SELECT e.id FROM entities e
+     JOIN entity_types et ON et.id = e.entity_type_id
+     WHERE et.slug = ? AND e.context_id = ? AND e.deleted_at IS NULL`,
+    [typeSlug, contextId]
   );
+  if (roots.length === 0) return [];
+
+  const edges = [];
+  const seenParents = new Set();
+  let frontier = roots.map(r => r.id);
+
+  // Walked rather than joined: the depth is not known, and a single query
+  // cannot express "and their children, and theirs" portably.
+  while (frontier.length > 0) {
+    const placeholders = frontier.map(() => '?').join(', ');
+    const rows = await queryPool(
+      `SELECT er.parent_entity_id, er.child_entity_id, er.order_index
+       FROM entity_relationships er
+       JOIN entities child_e ON child_e.id = er.child_entity_id
+       WHERE er.context_id = ? AND er.relationship_kind = ?
+         AND er.parent_entity_id IN (${placeholders})
+         AND child_e.deleted_at IS NULL
+       ORDER BY er.parent_entity_id, er.order_index, er.id`,
+      [contextId, kind, ...frontier]
+    );
+
+    frontier.forEach(id => seenParents.add(id));
+    edges.push(...rows);
+
+    // A cycle would otherwise loop forever; only unvisited children go on.
+    frontier = [...new Set(rows.map(r => r.child_entity_id))].filter(id => !seenParents.has(id));
+  }
+
+  return edges;
 }
 
 // Get children of an entity (for hierarchy or association)
