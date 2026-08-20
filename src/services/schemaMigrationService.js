@@ -781,7 +781,25 @@ export async function analyzeAndMigrateAll() {
     contextDatabases: [],
     totalDatabasesMigrated: 0,
     totalErrors: 0,
+    // Flattened copy of every nested error, tagged with the database it came
+    // from. The per-database reports each carry their own `errors`, but the
+    // caller only ever looked HERE - so a failed run rendered the sentence
+    // "Analysis and migration encountered errors" and nothing else, with the
+    // actual message sitting unread one level down.
+    errors: [],
     success: true
+  };
+
+  const fail = (label, source) => {
+    report.success = false;
+    report.totalErrors++;
+    const messages = source?.errors?.length ? source.errors : ['No error detail was recorded.'];
+    for (const m of messages) {
+      report.errors.push(`${label}: ${m}`);
+      // Server-side too. A failure the user is told about but that leaves no
+      // trace in the log is a failure nobody can diagnose afterwards.
+      logger.error(`Schema migration failed - ${label}: ${m}`);
+    }
   };
 
   try {
@@ -791,8 +809,7 @@ export async function analyzeAndMigrateAll() {
     if (report.systemDatabase.success) {
       report.totalDatabasesMigrated++;
     } else {
-      report.success = false;
-      report.totalErrors++;
+      fail('System database', report.systemDatabase);
     }
 
     // Step 2: Get all contexts
@@ -825,8 +842,7 @@ export async function analyzeAndMigrateAll() {
         if (contextReport.success) {
           report.totalDatabasesMigrated++;
         } else {
-          report.success = false;
-          report.totalErrors++;
+          fail(`Context "${context.name}"`, contextReport);
         }
 
         logger.info(`Completed migration for context ${context.id} (${context.name})`);
@@ -843,13 +859,10 @@ export async function analyzeAndMigrateAll() {
         });
         report.success = false;
         report.totalErrors++;
+        report.errors.push(`Context "${context.name}": ${error.message}`);
       }
     }
 
-    // Step 4: Switch back to system database
-    const systemConfig = connectionPool.getCurrentConfig();
-    // The system config should still be set, but let's make sure by reconnecting
-    // Actually, we shouldn't need to do this as the system database should be the default
     logger.info('Schema migration completed for all databases');
 
   } catch (error) {
@@ -857,6 +870,7 @@ export async function analyzeAndMigrateAll() {
     report.success = false;
     report.totalErrors++;
     report.fatalError = error.message;
+    report.errors.push(`Fatal: ${error.message}`);
   }
 
   return report;

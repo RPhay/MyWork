@@ -295,27 +295,40 @@ async function analyzeAndMigrate() {
 
     const result = await response.json();
 
+    // A failed run used to render this banner and stop, throwing away the
+    // per-database report that actually says what went wrong. Now the banner
+    // carries the flattened errors AND the full report is rendered below it,
+    // so a failure is at least as informative as a success.
+    let failureBanner = '';
     if (!result.success) {
-      statusEl.innerHTML = `
+      const errors = result.data?.errors?.length
+        ? result.data.errors
+        : [result.data?.fatalError].filter(Boolean);
+
+      failureBanner = `
         <div class="alert alert-danger">
           <h6><i class="bi bi-exclamation-circle"></i> Analysis and Migration Failed</h6>
-          <p class="mb-2">${app.escapeHtml(result.message)}</p>
-          ${result.data?.errors?.length > 0 ? `
+          <p class="mb-2">${app.escapeHtml(result.message || 'The run reported a failure.')}</p>
+          ${errors.length > 0 ? `
             <div class="small">
               <strong>Errors:</strong>
               <ul class="mb-0">
-                ${result.data.errors.map(err => `<li>${app.escapeHtml(err)}</li>`).join('')}
+                ${errors.map(err => `<li>${app.escapeHtml(err)}</li>`).join('')}
               </ul>
             </div>
-          ` : ''}
+          ` : `
+            <p class="small mb-0">No error detail was returned. Check the server log
+            (<code>logs/</code>) for the underlying exception.</p>
+          `}
         </div>
       `;
       app.notify("Error: " + result.message, "danger");
-      return;
+      // Fall through: the detailed report below shows which database failed and
+      // how far it got before it did.
     }
 
     const report = result.data;
-    let html = `
+    let html = failureBanner + `
       <div class="alert ${report.success ? 'alert-success' : 'alert-warning'}">
         <h6><i class="bi ${report.success ? 'bi-check-circle' : 'bi-exclamation-circle'}"></i> Unified Schema Analysis & Migration</h6>
         <div class="small">
