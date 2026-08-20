@@ -340,6 +340,7 @@ function addFieldRow(field = null) {
           <option value="radio" ${field?.field_type === 'radio' ? 'selected' : ''}>Radio Buttons</option>
           <option value="checkbox" ${field?.field_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
           <option value="status" ${field?.field_type === 'status' ? 'selected' : ''}>Status</option>
+          <option value="priority" ${field?.field_type === 'priority' ? 'selected' : ''}>Priority (Low to Critical)</option>
           <option value="recurrence" ${field?.field_type === 'recurrence' ? 'selected' : ''}>Recurrence</option>
           <option value="emoji" ${field?.field_type === 'emoji' ? 'selected' : ''}>Emoji (free pick)</option>
           <option value="emojis" ${field?.field_type === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
