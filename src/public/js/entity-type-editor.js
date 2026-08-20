@@ -321,6 +321,17 @@ function addFieldRow(field = null) {
   // The markup below is a template literal: never use backticks inside it or
   // in comments placed within it.
 
+  // Fields the engine owns. Worked Time accumulates from the focus clock, the
+  // board and focus bar keep their own bookkeeping here, and a type that loses
+  // one stops working in a way that shows up nowhere until the feature is
+  // used. They are editable - rename Worked Time if you like - but not
+  // removable.
+  const LOCKED_FIELD_KEYS = new Set([
+    'focus_seconds', 'focus_slot', 'focus_started_at', 'focus_color',
+    'board_bay', 'board_order',
+  ]);
+  const isLocked = LOCKED_FIELD_KEYS.has(field?.field_key);
+
   fieldRow.innerHTML = `
     <div class="row g-2 align-items-center">
       <div class="col-auto">
@@ -335,6 +346,7 @@ function addFieldRow(field = null) {
           <option value="text" ${field?.field_type === 'text' ? 'selected' : ''}>Text</option>
           <option value="textarea" ${field?.field_type === 'textarea' ? 'selected' : ''}>Long Text</option>
           <option value="number" ${field?.field_type === 'number' ? 'selected' : ''}>Number</option>
+          <option value="duration" ${field?.field_type === 'duration' ? 'selected' : ''}>Duration (worked time)</option>
           <option value="date" ${field?.field_type === 'date' ? 'selected' : ''}>Date</option>
           <option value="url" ${field?.field_type === 'url' ? 'selected' : ''}>URL (single link)</option>
           <option value="links" ${field?.field_type === 'links' ? 'selected' : ''}>Links (multiple, named)</option>
@@ -383,7 +395,9 @@ function addFieldRow(field = null) {
         </div>
       </div>
       <div class="col-auto">
-        <button type="button" class="btn btn-sm btn-outline-danger remove-field-btn">×</button>
+        ${isLocked
+          ? '<span class="field-locked" title="Kept by the app - this field cannot be removed">🔒</span>'
+          : '<button type="button" class="btn btn-sm btn-outline-danger remove-field-btn">×</button>'}
       </div>
     </div>
   `;
@@ -486,7 +500,9 @@ function addFieldRow(field = null) {
   });
 
   // Remove button
-  fieldRow.querySelector('.remove-field-btn').addEventListener('click', () => {
+  // Locked fields render a padlock in place of the button, so there is nothing
+  // to bind here.
+  fieldRow.querySelector('.remove-field-btn')?.addEventListener('click', () => {
     fieldRow.remove();
   });
 

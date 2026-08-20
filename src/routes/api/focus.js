@@ -29,6 +29,17 @@ router.delete('/:entityId', async (req, res) => {
 
 // One endpoint for start and stop: the clock has two states and the caller
 // always wants the other one.
+// PATCH /api/focus/order - left-to-right order of the bar
+// Declared before /:entityId routes so "order" is not read as an id.
+router.patch('/order', async (req, res) => {
+  send(res, focusService.reorderFocus(req.body?.orderedIds || []));
+});
+
+// PATCH /api/focus/:entityId/color - chip background ('#rrggbb', or null)
+router.patch('/:entityId/color', async (req, res) => {
+  send(res, focusService.setFocusColor(req.params.entityId, req.body?.color ?? null));
+});
+
 router.post('/:entityId/toggle', async (req, res) => {
   const contextId = await activeContextService.getActiveContextId();
   send(res, focusService.toggleTimer(req.params.entityId, contextId));

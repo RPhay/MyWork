@@ -1203,6 +1203,10 @@ export async function createMssqlSchema(pool) {
       entity_type_id INT NOT NULL,
       field_key NVARCHAR(100) NOT NULL,
       label NVARCHAR(255) NOT NULL,
+      -- NVARCHAR, not a CHECK list: MySQL keeps this as an ENUM that has to be
+      -- widened for every new field type (see mysqlSchema.js), and mirroring
+      -- that here as a constraint would mean two places to change and a
+      -- migration to alter. A new field type needs no change on this side.
       field_type NVARCHAR(50) NOT NULL,
       field_options NVARCHAR(MAX),
       required BIT DEFAULT 0,

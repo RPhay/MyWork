@@ -70,9 +70,11 @@
     bar.classList.add('has-items');
     bar.innerHTML = items.map(item => `
       <button type="button" class="focus-chip ${item.running ? 'running' : ''}"
+              draggable="true"
               data-entity-id="${item.id}"
+              ${item.color ? `style="background:${app.escapeHtml(item.color)};"` : ''}
               title="${app.escapeHtml(item.typeLabel)} &#183; ${app.escapeHtml(RAG_TITLE[item.rag] || '')}: ${app.escapeHtml(item.why || '')}\n${item.running ? 'Click to stop the clock' : 'Click to start the clock'} &#183; right-click to remove">
-        <span class="focus-rag rag-${item.rag}" aria-hidden="true"></span>
+        <span class="focus-icon" aria-hidden="true">${app.escapeHtml(item.icon || '')}</span>
         <span class="focus-title">${app.escapeHtml(item.title)}</span>
         <span class="focus-time">${formatDuration(liveSeconds(item))}</span>
       </button>
@@ -95,10 +97,59 @@
 
   function closeMenu() { menuEl?.remove(); menuEl = null; }
 
+  // The palette is configured in Settings > Miscellaneous > Focus colours, where
+  // each colour is given a name, so this menu can say what a colour MEANS
+  // rather than showing swatches to be memorised. Falls back to a sensible set
+  // when nothing has been configured.
+  const DEFAULT_CHIP_COLOURS = [
+    { color: '#ffe0e0', label: 'Blocked' },
+    { color: '#ffedd5', label: 'Waiting' },
+    { color: '#fff7cc', label: 'Needs attention' },
+    { color: '#dcfce7', label: 'On track' },
+    { color: '#dbeafe', label: 'In review' },
+    { color: '#ede9fe', label: 'Someday' },
+    { color: '#e5e7eb', label: 'Parked' },
+  ];
+
+  function chipColours() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('focusColourPalette') || 'null');
+      if (Array.isArray(saved) && saved.length) return saved.filter(c => c && c.color);
+    } catch { /* fall through */ }
+    return DEFAULT_CHIP_COLOURS;
+  }
+
   function openMenu(x, y, entityId) {
     closeMenu();
     menuEl = document.createElement('div');
     menuEl.className = 'context-menu focus-context-menu';
+
+    const swatches = document.createElement('div');
+    swatches.className = 'focus-swatches';
+    // "None" first, then the configured colours.
+    for (const { color: hex, label } of [{ color: '#ffffff', label: 'None' }, ...chipColours()]) {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'focus-swatch';
+      sw.title = label || hex;
+      sw.style.background = hex;
+      sw.addEventListener('click', async () => {
+        closeMenu();
+        try {
+          // White is "no colour" rather than a colour, so the chip goes back to
+          // its default instead of being painted the same shade as the page.
+          const color = hex === '#ffffff' ? null : hex;
+          await app.fetchRaw(`/api/focus/${entityId}/color`, {
+            method: 'PATCH', body: JSON.stringify({ color }),
+          });
+          await refresh();
+        } catch { app.notify('Could not change the colour', 'danger'); }
+      });
+      swatches.appendChild(sw);
+    }
+    menuEl.appendChild(swatches);
+    menuEl.insertAdjacentHTML('beforeend', '<hr style="margin:4px 0;">');
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'context-menu-item';
@@ -130,8 +181,13 @@
     const bar = document.getElementById('focusBar');
     if (!bar) return;
 
+    // The CLOCK is what starts and stops the clock. Clicking anywhere on the
+    // chip used to do it, so nudging one while reading the bar silently began
+    // timing something.
     bar.addEventListener('click', async (e) => {
-      const chip = e.target.closest('.focus-chip');
+      const time = e.target.closest('.focus-time');
+      if (!time) return;
+      const chip = time.closest('.focus-chip');
       if (!chip) return;
       try {
         setItems(await call(`/${chip.dataset.entityId}/toggle`, { method: 'POST' }));
@@ -164,8 +220,56 @@
       showTarget(false);
     });
 
+    // Left/right, not up/down: the bar lays its chips out horizontally, so the
+    // midpoint that decides "before or after" is the vertical one.
+    function chipDropTarget(e) {
+      const chip = e.target.closest('.focus-chip');
+      if (!chip) return null;
+      const r = chip.getBoundingClientRect();
+      return { chip, before: e.clientX < r.left + r.width / 2 };
+    }
+
+    function clearChipIndicators() {
+      bar.querySelectorAll('.focus-chip').forEach(c =>
+        c.classList.remove('chip-drop-before', 'chip-drop-after'));
+    }
+
+    function chipOrderAfterDrop(e, movingId) {
+      const ids = [...bar.querySelectorAll('.focus-chip')].map(c => c.dataset.entityId);
+      const from = ids.indexOf(String(movingId));
+      if (from === -1) return null;
+      ids.splice(from, 1);
+
+      const target = chipDropTarget(e);
+      if (!target) return [...ids, String(movingId)];       // dropped past the end
+      let to = ids.indexOf(target.chip.dataset.entityId);
+      if (to === -1) return null;
+      if (!target.before) to += 1;
+      ids.splice(to, 0, String(movingId));
+      return ids;
+    }
+
+    bar.addEventListener('dragstart', (e) => {
+      const chip = e.target.closest('.focus-chip');
+      if (!chip) return;
+      beginDrag(e, { 'focus-chip-id': chip.dataset.entityId });
+      chip.classList.add('chip-dragging');
+    });
+
+    bar.addEventListener('dragend', () => {
+      bar.querySelectorAll('.chip-dragging').forEach(c => c.classList.remove('chip-dragging'));
+      clearChipIndicators();
+    });
+
     bar.addEventListener('dragover', (e) => {
-      acceptDrop(e, 'copy');
+      const reordering = e.dataTransfer.types.includes('focus-chip-id');
+      acceptDrop(e, reordering ? 'move' : 'copy');
+      if (reordering) {
+        clearChipIndicators();
+        const target = chipDropTarget(e);
+        if (target) target.chip.classList.add(target.before ? 'chip-drop-before' : 'chip-drop-after');
+        return;
+      }
       showTarget(true);
     });
 
@@ -177,6 +281,23 @@
       e.preventDefault();
       showTarget(false);
       bar.classList.remove('drop-ready');
+      clearChipIndicators();
+
+      // A chip dragged along the bar is a REORDER, not a pin. Distinguished by
+      // the payload the chip publishes, so a row dragged in from a list still
+      // pins exactly as before.
+      const movingId = e.dataTransfer.getData('focus-chip-id');
+      if (movingId) {
+        const order = chipOrderAfterDrop(e, movingId);
+        if (!order) return;
+        try {
+          await app.fetchRaw('/api/focus/order', {
+            method: 'PATCH', body: JSON.stringify({ orderedIds: order }),
+          });
+          await refresh();
+        } catch { app.notify('Could not reorder the focus bar', 'danger'); }
+        return;
+      }
 
       // Every draggable row in the app publishes `id`; board cards publish
       // theirs the same way. Anything else is not a record and is ignored.

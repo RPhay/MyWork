@@ -616,6 +616,13 @@ renderList();
         return;
       }
 
+      // A folder's status is a ROLL-UP of what is inside it, not a value of its
+      // own - there is nothing to change by clicking it. It carries no
+      // data-action for that reason, so a click on it used to fall through to
+      // the row and toggle the editor, which is not what aiming at a status
+      // means. Cells that show a rolled-up value swallow the click instead.
+      if (e.target.closest('.is-rollup')) return;
+
       // Click on row itself: selection first, then the editor.
       const row = e.target.closest('.entity-row');
       if (row && !e.target.closest('[data-action]')) {
@@ -1201,6 +1208,15 @@ renderList();
       const entityId = Number(row.dataset.entityId);
       const isFolder = row.dataset.isFolder === '1';
       const entity = entities.find(x => x.id === entityId);
+
+      // Right-clicking selects the row it is aimed at, so the menu that opens
+      // visibly belongs to something. Without this you could act on a row while
+      // a different one stayed highlighted.
+      if (entity && String(GenericEntity.getCurrentEntityId()) !== String(entityId)) {
+        GenericEntity.populate(entity.id, entity, typeSchema, typeSlug);
+        renderList();
+      }
+
       const items = [];
 
       if (canNestOwnType) {
@@ -1218,9 +1234,10 @@ renderList();
           renderList();
         }
       } });
-      // Folders organise, they are not work - there is nothing to be "working
-      // on" about a folder, so it cannot be pinned.
-      if (!isFolder && window.FocusBar) {
+      // Folders can be pinned as well: "the thing I am working on" is often a
+      // whole folder of work, and refusing it was a judgement about how someone
+      // should work rather than a limit of the feature.
+      if (window.FocusBar) {
         items.push({ separator: true });
         items.push({
           icon: '📌',

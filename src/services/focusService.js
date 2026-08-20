@@ -31,7 +31,7 @@ export const MAX_FOCUS_ITEMS = null;
 
 // Written by the engine, never rendered as an editable control. Kept in sync
 // with INTERNAL_FIELD_KEYS in public/js/genericEntity.js.
-export const FOCUS_FIELDS = ['focus_slot', 'focus_seconds', 'focus_started_at'];
+export const FOCUS_FIELDS = ['focus_slot', 'focus_seconds', 'focus_started_at', 'focus_color'];
 
 /**
  * A single record's RAG, as opposed to the portfolio-level RAG in
@@ -110,6 +110,7 @@ export async function getFocusItems(contextId = null) {
       typeLabel: type.label,
       icon: type.icon,
       slot: Number(entity.fields?.focus_slot ?? 0),
+      color: entity.fields?.focus_color || null,
       running: !!entity.fields?.focus_started_at,
       startedAt: Number(entity.fields?.focus_started_at ?? 0) || null,
       seconds: elapsedSeconds(entity.fields),
@@ -132,6 +133,41 @@ export async function addFocus(entityId, contextId = null) {
   while (used.has(slot)) slot++;
 
   await entityService.updateEntity(Number(entityId), { fields: { focus_slot: slot } }, contextId);
+  return getFocusItems(contextId);
+}
+
+/**
+ * Set the left-to-right order of the bar. Slots are renumbered from 1 in the
+ * order given, so the caller sends what it wants to see rather than computing
+ * slot numbers itself.
+ */
+export async function reorderFocus(orderedIds, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  const current = await getFocusItems(contextId);
+  const pinned = new Set(current.map(i => String(i.id)));
+
+  // Ignore anything not actually on the bar rather than pinning it by accident.
+  const ids = (orderedIds || []).map(String).filter(id => pinned.has(id));
+  if (ids.length === 0) return current;
+
+  // Anything the caller left out keeps its relative order, after the rest.
+  const rest = current.filter(i => !ids.includes(String(i.id))).map(i => String(i.id));
+  const finalOrder = [...ids, ...rest];
+
+  for (const [i, id] of finalOrder.entries()) {
+    await entityService.updateEntity(Number(id), { fields: { focus_slot: i + 1 } }, contextId);
+  }
+  return getFocusItems(contextId);
+}
+
+/**
+ * The chip's background. Stored on the record like every other focus field, so
+ * it survives a reload and follows the record between devices. Null clears it.
+ */
+export async function setFocusColor(entityId, color, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  const clean = color && /^#[0-9a-f]{6}$/i.test(color) ? color : null;
+  await entityService.updateEntity(Number(entityId), { fields: { focus_color: clean } }, contextId);
   return getFocusItems(contextId);
 }
 

@@ -1,0 +1,43 @@
+<%#
+  Miscellaneous settings. A page of subtabs rather than a growing row of
+  top-level tabs, so small preferences have somewhere to live without each one
+  claiming a tab of its own.
+%>
+<div id="miscSettings">
+  <%# Sub-TABS, not pills: pills read as buttons, and these select a page of
+      settings the way the tabs above them do. %>
+  <ul class="nav nav-tabs mb-3" id="miscSubTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" type="button" role="tab" data-misc-tab="focus-colours">
+        <i class="bi bi-palette2"></i> Focus colours
+      </button>
+    </li>
+  </ul>
+
+  <div class="misc-subpane" data-misc-pane="focus-colours">
+    <p class="text-muted small">
+      The colours offered when you right-click an item on the focus bar. Give each
+      one a name so the menu says what it means - "Blocked" reads better than a
+      swatch you have to remember. Stored in this browser, like the theme.
+    </p>
+
+    <table class="table table-sm align-middle" style="max-width: 34rem;">
+      <thead>
+        <tr>
+          <th style="width: 4rem;">Colour</th>
+          <th>Means</th>
+          <th style="width: 3rem;"></th>
+        </tr>
+      </thead>
+      <tbody id="focusColourRows"></tbody>
+    </table>
+
+    <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="addFocusColourBtn">+ Colour</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="saveFocusColoursBtn">Save</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="resetFocusColoursBtn">Reset to defaults</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/settings-misc.js"></script>

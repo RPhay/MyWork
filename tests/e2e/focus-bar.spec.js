@@ -2,7 +2,8 @@ import { test, expect } from '@playwright/test';
 
 /**
  * The focus bar: what is being worked on right now, pinned inside the navbar at
- * the top of every page, each with a RAG dot and a stop-the-clock timer. There
+ * the top of every page, each with its type's icon and a stop-the-clock timer.
+ * There
  * is no limit on how many can be pinned.
  */
 
@@ -53,7 +54,7 @@ async function cleanup(page, made) {
   for (const e of made) await api(page, `/api/entities/idea/${e.id}`, { method: 'DELETE' });
 }
 
-test('pinning from the row menu puts it on the bar with a RAG dot', async ({ page }) => {
+test('pinning from the row menu puts it on the bar with its type icon', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
@@ -73,7 +74,10 @@ test('pinning from the row menu puts it on the bar with a RAG dot', async ({ pag
 
   const chip = page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`);
   await expect(chip).toBeVisible();
-  await expect(chip.locator('.focus-rag')).toHaveCount(1);
+  // The chip shows the TYPE's emoji. It used to carry a RAG dot as well, which
+  // was never asked for; the RAG still reaches the user through the tooltip.
+  await expect(chip.locator('.focus-rag')).toHaveCount(0);
+  await expect(chip.locator('.focus-icon')).toHaveCount(1);
   await expect(chip.locator('.focus-time')).toHaveText('0:00');
 
   await cleanup(page, made);
@@ -93,7 +97,7 @@ test('clicking a chip runs the clock and clicking again banks it', async ({ page
   await expect(chip).toBeVisible();
   await expect(chip).not.toHaveClass(/running/);
 
-  await chip.click();
+  await chip.locator('.focus-time').click();
   await expect(chip).toHaveClass(/running/);
 
   // The displayed time is derived from the server's start moment, so it ticks
@@ -101,7 +105,7 @@ test('clicking a chip runs the clock and clicking again banks it', async ({ page
   await page.waitForTimeout(2500);
   await expect(chip.locator('.focus-time')).not.toHaveText('0:00');
 
-  await chip.click();
+  await chip.locator('.focus-time').click();
   await expect(chip).not.toHaveClass(/running/);
 
   const stored = (await api(page, `/api/entities/idea/${made[0].id}`)).body.data;
@@ -124,7 +128,7 @@ test('right-clicking a chip removes it from the bar', async ({ page }) => {
   const chip = page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`);
   await expect(chip).toBeVisible();
   await chip.click({ button: 'right' });
-  await page.locator('.focus-context-menu .context-menu-item').click();
+  await page.locator('.focus-context-menu .context-menu-item', { hasText: 'Remove from focus bar' }).click();
   await page.waitForTimeout(900);
 
   await expect(chip).toHaveCount(0);
@@ -205,10 +209,10 @@ test('only one clock runs at a time', async ({ page }) => {
   const a = page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`);
   const b = page.locator(`#focusBar .focus-chip[data-entity-id="${made[1].id}"]`);
 
-  await a.click();
+  await a.locator('.focus-time').click();
   await expect(a).toHaveClass(/running/);
 
-  await b.click();
+  await b.locator('.focus-time').click();
   await expect(b).toHaveClass(/running/);
   await expect(a, 'starting one stops the other, or the totals mean nothing').not.toHaveClass(/running/);
 
@@ -264,6 +268,115 @@ test('a row dragged onto the bar is tracked, not copied or linked', async ({ pag
 
   const rels = (await api(page, `/api/entities/idea/${made[1].id}/relationships`)).body.data || [];
   expect(rels, 'dropping on the bar creates no edge').toHaveLength(0);
+
+  await cleanup(page, made);
+});
+
+// Pinned items can be rearranged by dragging a chip along the bar, and each
+// chip carries its type's own emoji - the same one the tab and its rows show.
+test('chips can be dragged left and right to reorder, and show their type icon', async ({ page }) => {
+  await page.goto('/?tab=idea');
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1500);
+
+  const made = await makeIdeas(page, ['ZZZ ord A', 'ZZZ ord B', 'ZZZ ord C']);
+  for (const e of made) {
+    await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: e.id }) });
+  }
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+
+  const titles = () => page.locator('#focusBar .focus-chip .focus-title').allTextContents();
+  expect(await titles()).toEqual(['ZZZ ord A', 'ZZZ ord B', 'ZZZ ord C']);
+
+  // Every chip shows the type's emoji.
+  const icons = await page.locator('#focusBar .focus-chip .focus-icon').allTextContents();
+  console.log('chip icons ->', JSON.stringify(icons));
+  expect(icons.every(i => i.trim().length > 0), 'each chip carries its type icon').toBe(true);
+
+  // Drag the last chip onto the left half of the first - it should land first.
+  await page.evaluate(() => {
+    const chips = [...document.querySelectorAll('#focusBar .focus-chip')];
+    const src = chips[chips.length - 1], dst = chips[0];
+    const dt = new DataTransfer();
+    const fire = (el, name, x) => el.dispatchEvent(new DragEvent(name, {
+      bubbles: true, cancelable: true, dataTransfer: dt, clientX: x,
+      clientY: el.getBoundingClientRect().top + 5,
+    }));
+    const r = dst.getBoundingClientRect();
+    fire(src, 'dragstart', src.getBoundingClientRect().left + 5);
+    fire(dst, 'dragover', r.left + 2);
+    fire(dst, 'drop', r.left + 2);
+    fire(src, 'dragend', r.left + 2);
+  });
+  await page.waitForTimeout(1600);
+
+  const after = await titles();
+  console.log('after reorder ->', JSON.stringify(after));
+  expect(after, 'the dragged chip moves to the front').toEqual(['ZZZ ord C', 'ZZZ ord A', 'ZZZ ord B']);
+
+  // And it survives a reload - the order is stored, not just painted.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+  expect(await titles(), 'the new order persists').toEqual(['ZZZ ord C', 'ZZZ ord A', 'ZZZ ord B']);
+
+  await cleanup(page, made);
+});
+
+// Right-click offers a background colour for the chip, stored on the record so
+// it survives a reload. Removing is on the same menu.
+test('a chip can be given a background colour that persists', async ({ page }) => {
+  await page.goto('/?tab=idea');
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1500);
+
+  const made = await makeIdeas(page, ['ZZZ colour me']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id }) });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+
+  const chip = page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`);
+  await chip.click({ button: 'right' });
+  await page.waitForTimeout(400);
+
+  const swatches = page.locator('.focus-context-menu .focus-swatch');
+  await expect(swatches, 'the menu offers colours').not.toHaveCount(0);
+  await expect(page.locator('.focus-context-menu .context-menu-item', { hasText: 'Remove from focus bar' }))
+    .toHaveCount(1);
+
+  await swatches.nth(4).click();      // a non-white swatch
+  await page.waitForTimeout(1300);
+
+  const painted = await chip.evaluate(el => getComputedStyle(el).backgroundColor);
+  console.log('chip background ->', painted);
+  expect(painted, 'the chip takes the chosen colour').not.toBe('rgb(255, 255, 255)');
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+  const after = await page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`)
+    .evaluate(el => getComputedStyle(el).backgroundColor);
+  expect(after, 'the colour survives a reload').toBe(painted);
+
+  await cleanup(page, made);
+});
+
+// Only the clock is a control: clicking the chip elsewhere must not start timing.
+test('clicking the chip body does not start the clock', async ({ page }) => {
+  await page.goto('/?tab=idea');
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1500);
+
+  const made = await makeIdeas(page, ['ZZZ no autostart']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id }) });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+
+  const chip = page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`);
+  await chip.locator('.focus-title').click();
+  await page.waitForTimeout(900);
+
+  const running = (await api(page, '/api/focus')).body.data.find(i => String(i.id) === String(made[0].id))?.running;
+  expect(running, 'clicking the title must not start the clock').toBeFalsy();
 
   await cleanup(page, made);
 });

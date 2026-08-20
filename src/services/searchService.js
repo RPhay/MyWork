@@ -23,6 +23,7 @@ const MIN_QUERY = 2;
 // a record because its board column happened to contain the letters typed.
 const INTERNAL_FIELD_KEYS = new Set([
   'board_bay', 'board_order', 'focus_slot', 'focus_seconds', 'focus_started_at',
+  'focus_color',
 ]);
 
 function escapeLike(term) {

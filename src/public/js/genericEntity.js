@@ -202,6 +202,16 @@ const GenericEntity = (() => {
       </div>
       `;
     },
+    // The value the form collects is the hidden seconds; the visible box is a
+    // readable rendering of it, parsed back on input.
+    duration: (field, value = '') => `
+      <div class="form-group" data-field-type="duration">
+        <input type="text" class="form-control duration-input"
+               value="${escapeAttr(formatDuration(value))}"
+               placeholder="e.g. 1h 30m" title="Hours and minutes. A plain number means minutes.">
+        <input type="hidden" name="${field.field_key}" value="${escapeAttr(value ?? '')}">
+      </div>
+    `,
     recurrence: (field, value = null) => `
       <div class="form-group">
         <textarea name="${field.field_key}" class="form-control" data-field-type="recurrence" placeholder="JSON recurrence config">${value ? JSON.stringify(JSON.parse(value), null, 2) : ''}</textarea>
@@ -300,9 +310,51 @@ const GenericEntity = (() => {
   // Field keys the engine writes for itself. They are real entity_type_fields
   // (so they store and query like anything else) but they are never rendered as
   // an editable control, and never offered as a column.
+  // ===== Duration =====
+  //
+  // Stored as SECONDS, because that is what the focus clock accumulates and it
+  // must stay one value whether it grew by stopwatch or was typed in. Shown and
+  // typed as time, since nobody wants to read 5400 and work out that it is an
+  // hour and a half.
+  //
+  // Accepts what people actually type: "1h 30m", "90m", "1:30", "2h", "45".
+  // A bare number is MINUTES - it is the unit someone means when correcting a
+  // worked time by hand.
+  // Never blank: an unworked item reads "0h 0m", not empty. Blank looks like
+  // the field is missing or broken, while a zero says plainly that nothing has
+  // been logged against this yet.
+  function formatDuration(seconds) {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    if (!total) return '0h 0m';
+    const h = Math.floor(total / 3600);
+    const m = Math.round((total % 3600) / 60);
+    if (h && m) return `${h}h ${m}m`;
+    if (h) return `${h}h`;
+    return `${m}m`;
+  }
+
+  function parseDuration(text) {
+    const raw = String(text ?? '').trim();
+    if (!raw) return null;
+
+    const clock = raw.match(/^(\d+):([0-5]?\d)$/);              // 1:30
+    if (clock) return (Number(clock[1]) * 3600) + (Number(clock[2]) * 60);
+
+    const units = [...raw.matchAll(/(\d+(?:\.\d+)?)\s*([hm])/gi)];
+    if (units.length) {
+      return Math.round(units.reduce((total, [, n, unit]) =>
+        total + Number(n) * (unit.toLowerCase() === 'h' ? 3600 : 60), 0));
+    }
+
+    const bare = Number(raw);
+    return Number.isFinite(bare) ? Math.round(bare * 60) : null;   // bare = minutes
+  }
+
   const INTERNAL_FIELD_KEYS = new Set([
     'board_bay', 'board_order',
-    'focus_slot', 'focus_seconds', 'focus_started_at',
+    // focus_seconds is deliberately NOT here: it is Worked Time, a property
+    // people read and correct by hand. The rest are engine bookkeeping.
+    'focus_slot', 'focus_started_at', 'focus_color',
   ]);
 
   const PRIORITY_LEVELS = ['', 'Low', 'Medium', 'High', 'Critical'];
@@ -835,6 +887,10 @@ const GenericEntity = (() => {
     }
 
     // A checkbox reads as a box, ticked or not, and toggles on click.
+    if (f.field_type === 'duration') {
+      return `<span class="row-field">${escapeHtml(formatDuration(value))}</span>`;
+    }
+
     if (f.field_type === 'checkbox' && !derived) {
       const on = value === true || value === 1 || value === '1' || value === 'true';
       return `<span class="row-field checkbox-cell" data-action="toggle-checkbox"
@@ -1454,6 +1510,14 @@ const GenericEntity = (() => {
       // the editor never disagree about what is on screen. This is a PREVIEW of
       // unsaved state: closing or cancelling the editor re-renders the list
       // from persisted data, which discards it.
+      // Duration: the box is readable text, the stored value is seconds.
+      form.addEventListener('input', (e) => {
+        const box = e.target.closest('.duration-input');
+        if (!box) return;
+        const hidden = box.parentElement?.querySelector('input[type="hidden"]');
+        if (hidden) hidden.value = parseDuration(box.value) ?? '';
+      });
+
       const mirror = () => mirrorEditorToRow();
       form.addEventListener('input', mirror);
       form.addEventListener('change', mirror);

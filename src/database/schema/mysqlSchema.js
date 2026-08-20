@@ -1081,7 +1081,7 @@ export async function createMysqlSchema(connection) {
       entity_type_id INT NOT NULL,
       field_key VARCHAR(100) NOT NULL,
       label VARCHAR(255) NOT NULL,
-      field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence','emoji','emojis') NOT NULL,
+      field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence','emoji','emojis','duration') NOT NULL,
       field_options JSON,
       required BOOLEAN DEFAULT FALSE,
       display_order INT DEFAULT 0,
@@ -1129,7 +1129,7 @@ export async function createMysqlSchema(connection) {
   // accepts any value and needs no matching change.
   await connection.query(`
     ALTER TABLE entity_type_fields
-    MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence','emoji','emojis') NOT NULL
+    MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence','emoji','emojis','duration') NOT NULL
   `);
 
   // Seed default fields for system entity types. Array order is display_order.

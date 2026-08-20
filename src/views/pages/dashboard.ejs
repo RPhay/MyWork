@@ -76,11 +76,47 @@
     border-radius: 999px;
     font-size: 0.8rem;
     line-height: 1.4;
-    cursor: pointer;
+    /* Default cursor on the chip itself: only the clock is clickable, so a
+       pointer (or the grab hand that came with draggable) over the whole chip
+       promised something the rest of it does not do. */
+    cursor: default;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
 
+  /* The one part that IS a control. */
+  .focus-time { cursor: pointer; }
+  .focus-time:hover { text-decoration: underline; }
+
   .focus-chip:hover { border-color: #adb5bd; }
+
+  /* Reordering: the chip being moved fades, and its landing place is shown as a
+     bar on the LEFT or RIGHT edge of a neighbour - the bar is horizontal, so
+     before/after is a left/right question, not the top/bottom one used in
+     lists. Inset shadows, so nothing shifts as the indicator moves. */
+  .focus-chip.chip-dragging { opacity: 0.45; }
+  .focus-chip.chip-drop-before { box-shadow: inset 3px 0 0 0 #0d6efd; }
+  .focus-chip.chip-drop-after  { box-shadow: inset -3px 0 0 0 #0d6efd; }
+
+  /* The type's own emoji, matching the tab and its rows. */
+  .focus-icon { line-height: 1; }
+
+  /* Colour picker on the chip's own context menu. */
+  .focus-swatches {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .focus-swatch {
+    width: 22px;
+    height: 22px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .focus-swatch:hover { border-color: #0d6efd; }
 
   /* A running clock is the one state worth seeing from across the room. */
   .trash-overlay {
@@ -227,17 +263,6 @@
   }
 
   .focus-chip.running .focus-time { color: #146c43; font-weight: 600; }
-
-  .focus-rag {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    flex: none;
-  }
-  .rag-red   { background: #dc3545; }
-  .rag-amber { background: #fd7e14; }
-  .rag-green { background: #198754; }
-  .rag-grey  { background: #ced4da; }
 
   .focus-title {
     overflow: hidden;
