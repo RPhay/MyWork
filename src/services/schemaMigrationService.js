@@ -119,7 +119,31 @@ export async function analyzeAndMigrate() {
     }
 
     // Step 6: Verify schema consistency
-    const verification = await verifySchema();
+    let verification = await verifySchema();
+
+    // A missing support table is repairable, and this is the button whose job
+    // is to repair things - so repair it rather than printing an instruction.
+    // The canonical schema modules are idempotent and know both dialects, so
+    // this reconciles MSSQL correctly too; the DDL in ensureGenericSchema above
+    // is MySQL-only and deliberately not used for this.
+    //
+    // It used to say 'Run "Fix Schema"'. That button no longer exists - only
+    // its endpoint survives - so the advice was unfollowable.
+    if (verification.missingSupport?.length > 0) {
+      try {
+        const { updateSystemDbSchema } = await import('./systemDatabaseService.js');
+        await updateSystemDbSchema();
+        report.actions.push(
+          `✓ Recreated missing support tables (${verification.missingSupport.join(', ')})`
+        );
+        verification = await verifySchema();
+      } catch (error) {
+        report.warnings.push(
+          `Could not recreate missing support tables automatically: ${error.message}`
+        );
+      }
+    }
+
     if (!verification.isValid) {
       report.warnings.push(...verification.issues);
     } else {
@@ -523,10 +547,10 @@ async function verifySchema() {
     if (missingSupport.length > 0) {
       verification.isValid = false;
       verification.issues.push(
-        `Missing support tables the code queries: ${missingSupport.join(', ')}. `
-        + 'Run "Fix Schema" to recreate them.'
+        `Missing support tables the code queries: ${missingSupport.join(', ')}.`
       );
     }
+    verification.missingSupport = missingSupport;
 
     // Check that system types exist
     const systemTypeCount = await countSystemTypes();
