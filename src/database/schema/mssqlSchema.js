@@ -122,10 +122,32 @@ export async function createMssqlSchema(pool) {
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'MyWork')
       EXEC('CREATE SCHEMA [MyWork]')
   `);
-  await pool.request().query(`
-    DECLARE @sql NVARCHAR(MAX) = 'ALTER USER [' + USER_NAME() + '] WITH DEFAULT_SCHEMA = [MyWork]'
-    EXEC(@sql)
-  `);
+  // Point this login's default schema at [MyWork] so unqualified runtime queries
+  // (SELECT * FROM work_items) resolve here rather than in dbo.
+  //
+  // dbo cannot be altered - SQL Server rejects it with error 15150 - and that is
+  // exactly who you are when you connect as sa or as the database owner. The
+  // build used to die on that statement before creating a single table. It is
+  // not fatal to the SCHEMA, so it no longer stops the build.
+  //
+  // It does matter at RUNTIME though: dbo's default schema is dbo, and an
+  // unqualified name resolves against the caller's default schema and then dbo,
+  // never [MyWork]. So an app connecting as dbo/sa will build a perfectly good
+  // schema it then cannot query. Connect as a dedicated user instead - that
+  // user can be given the default schema, which is what this statement is for.
+  try {
+    await pool.request().query(`
+      DECLARE @sql NVARCHAR(MAX) = 'ALTER USER [' + USER_NAME() + '] WITH DEFAULT_SCHEMA = [MyWork]'
+      EXEC(@sql)
+    `);
+  } catch (error) {
+    if (error.number !== 15150) throw error;
+    console.warn(
+      '[mssqlSchema] Connected as dbo, whose default schema cannot be changed. '
+      + 'The schema will build, but unqualified queries will not find it at runtime. '
+      + 'Connect as a dedicated (non-dbo) user for normal operation.'
+    );
+  }
 
   await createTableIfNotExists(
     pool,
@@ -1141,8 +1163,14 @@ export async function createMssqlSchema(pool) {
       max_children_per_parent INT,
       max_parents_per_child INT,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      -- Two FKs into the same parent table cannot both cascade: SQL Server
+      -- rejects it as "may cause cycles or multiple cascade paths". The parent
+      -- side keeps the cascade, the child side is NO ACTION.
+      -- Behavioural difference from MySQL: deleting an entity type does NOT
+      -- automatically remove rules where it is the CHILD, so entityTypeService
+      -- must clear those itself. See the same pattern on entity_relationships.
       FOREIGN KEY (parent_type_id) REFERENCES [MyWork].[entity_types](id) ON DELETE CASCADE,
-      FOREIGN KEY (child_type_id) REFERENCES [MyWork].[entity_types](id) ON DELETE CASCADE,
+      FOREIGN KEY (child_type_id) REFERENCES [MyWork].[entity_types](id) ON DELETE NO ACTION,
       UNIQUE (parent_type_id, child_type_id, relationship_kind)
     )
   `,

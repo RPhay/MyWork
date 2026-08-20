@@ -44,6 +44,41 @@ Any change to the schema — a new/dropped column, table, index, or constraint �
 
 When translating, don't assume a 1:1 mapping of referential actions: SQL Server rejects `ON DELETE CASCADE`/`SET NULL`/`SET DEFAULT` on a foreign key if it would form a cycle or multiple cascade path ("may cause cycles or multiple cascade paths") — MySQL has no such restriction. Where mirroring MySQL's action would hit this, use `ON DELETE NO ACTION` in `mssqlSchema.js` instead (see the `parent_id` self-references and the `to_dos`/`tickets`/`areas` cross-references for precedent) and leave a comment noting the behavioral difference.
 
+### Verifying MSSQL: run it, do not read it
+
+`mssqlSchema.js` accumulated four separate build-stopping faults while looking
+correct in review, because it was dual-maintained by editing and never once
+executed end to end: MySQL-only DDL, a backfill placed 950 lines above the
+`CREATE TABLE` it altered, six calls to a `columnExistsAsync()` that does not
+exist, and two cascading FKs SQL Server rejects. Each one hid the next. **The
+dual-schema rule above asks for the change to be MADE in both files; it does
+not, on its own, mean the T-SQL parses.** Run it:
+
+```bash
+docker run -d --name mssql-probe -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='<pw>' \
+  -e MSSQL_PID=Developer -p 14333:1433 mcr.microsoft.com/mssql/server:2022-latest
+```
+
+Then build the schema into a scratch database with `createMssqlSchema(pool)`,
+and compare the resulting `INFORMATION_SCHEMA.COLUMNS` against a fresh
+`createMysqlSchema()` build. At the time of writing that comparison is clean:
+**30 tables on both, no table or column drift.** Anything else is drift to fix
+before shipping.
+
+Two things that test will only reveal if it is set up like the real thing:
+
+- **Never connect as `dbo`/`sa`.** Every object lives in the `[MyWork]` schema,
+  and the app's runtime SQL is unqualified (`SELECT * FROM work_items`), which
+  resolves against the caller's `DEFAULT_SCHEMA` and then `dbo` — never
+  `[MyWork]`. `createMssqlSchema` sets `DEFAULT_SCHEMA = [MyWork]` on the
+  connecting user, but **`dbo` cannot be altered** (error 15150). Connect as a
+  dedicated login and it works; connect as `sa` and you build a perfect schema
+  that every query then fails to see with "Invalid object name".
+- **TLS defaults target Azure SQL** (`encrypt: true`,
+  `trustServerCertificate: false`). An on-prem server with a self-signed or
+  internal-CA certificate needs `DB_MSSQL_ENCRYPT` / `DB_MSSQL_TRUST_SERVER_CERT`
+  (see `.env.example`). Only relax the second on a network you trust.
+
 ### Which database each machine actually talks to
 
 There are three machines, two databases, and it is not one-per-machine:

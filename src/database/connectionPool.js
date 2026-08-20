@@ -130,10 +130,15 @@ async function getPool() {
       password: currentConfig.password,
       database: currentConfig.database,
       connectionTimeout: 10000,
-      // Azure SQL requires encrypted connections; this app only targets
-      // SQL-login auth against Azure SQL for MSSQL (see contexts.ejs), so
-      // these are fixed rather than user-configurable for now.
-      options: { encrypt: true, trustServerCertificate: false },
+      // Azure SQL requires encrypted connections, so that stays the default.
+      // These used to be hardcoded, which made an on-prem SQL Server
+      // unreachable - a self-signed or internal-CA certificate fails validation
+      // and there was no way to say otherwise. See DB_MSSQL_ENCRYPT and
+      // DB_MSSQL_TRUST_SERVER_CERT in .env.example.
+      options: {
+        encrypt: config.database.mssqlEncrypt,
+        trustServerCertificate: config.database.mssqlTrustServerCertificate,
+      },
       pool: { max: config.database.poolMax, min: config.database.poolMin },
     });
     mssqlPool.on("error", (err) => {

@@ -73,6 +73,13 @@ const config = {
     poolMin: parseInt(process.env.DB_POOL_MIN || '2', 10),
     poolMax: parseInt(process.env.DB_POOL_MAX || '10', 10),
     timeout: parseInt(process.env.DB_TIMEOUT || '30000', 10),
+    // MSSQL TLS. The defaults are Azure SQL's requirements and are what the
+    // pool used to hardcode, so nothing changes unless these are set. They
+    // exist because those defaults make an on-prem SQL Server unreachable: a
+    // self-signed or internal-CA certificate fails validation, and there was no
+    // way to say so. Only relax the second one on a network you trust.
+    mssqlEncrypt: process.env.DB_MSSQL_ENCRYPT !== 'false',
+    mssqlTrustServerCertificate: process.env.DB_MSSQL_TRUST_SERVER_CERT === 'true',
   },
   session: {
     secret: getOrCreateSessionSecret(),
