@@ -44,6 +44,33 @@ Any change to the schema — a new/dropped column, table, index, or constraint �
 
 When translating, don't assume a 1:1 mapping of referential actions: SQL Server rejects `ON DELETE CASCADE`/`SET NULL`/`SET DEFAULT` on a foreign key if it would form a cycle or multiple cascade path ("may cause cycles or multiple cascade paths") — MySQL has no such restriction. Where mirroring MySQL's action would hit this, use `ON DELETE NO ACTION` in `mssqlSchema.js` instead (see the `parent_id` self-references and the `to_dos`/`tickets`/`areas` cross-references for precedent) and leave a comment noting the behavioral difference.
 
+### Which database each machine actually talks to
+
+There are three machines, two databases, and it is not one-per-machine:
+
+- **Both development machines point at the same MySQL database.** They are two
+  working copies over one shared dataset, not two independent installs. So a
+  schema change applied by hand on one machine is *already applied* for the
+  other, and a `DROP` run from either is gone for both — there is no second
+  MySQL copy to fall back on. Conversely, if a table still exists after a commit
+  claims to have dropped it, the drop did not run, rather than "it ran somewhere
+  else".
+- **The work machine points at MSSQL**, and is used for manual testing, with
+  little to no active development happening on it.
+
+Two consequences worth holding onto:
+
+1. **MSSQL is exercised by hand, on a different machine, on the user's
+   schedule** — so a break in the T-SQL path is found late and away from the
+   code that caused it. This is the practical reason the dual-schema rule above
+   is strict: there is no MSSQL run in the dev loop to catch drift.
+2. **The two databases drift independently.** `db:init` only *creates*, never
+   drops, so a table removed from `mysqlSchema.js`/`mssqlSchema.js` keeps
+   existing on any database that already had it. Code referencing a
+   "retired" table can therefore keep working on MySQL while failing on MSSQL,
+   or vice versa. **Check the live database before trusting the schema files to
+   describe it.**
+
 Local config: copy `.env.example` to `.env.local` (not `.env`). `CONFIG_ENCRYPTION_KEY` (used to encrypt stored DB credentials in Settings) is optional — if left unset, `src/config/environment.js#getOrCreateConfigEncryptionKey` generates one on first boot and persists it to `data/.config-encryption-key`, mirroring how `SESSION_SECRET` is self-managed. Only set it explicitly for a multi-process/load-balanced deployment, where every process needs the same key. If a stored password ever fails to decrypt ("could not be decrypted... machine"), it means the key changed since that password was saved (e.g. `.env.local` was hand-edited, or the persisted file was deleted) — the fix is to re-enter and save the password, not to recover the old key.
 
 ## The shell: Dailies is a rail, not a page
