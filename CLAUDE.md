@@ -78,6 +78,18 @@ Two things from it that are easy to get wrong and expensive when you do:
 - **Read both numbers.** The Playwright line reporter prints `N failed` *above*
   `N passed`, so a truncated log makes a badly failing run look clean.
 
+## There is no authentication
+
+The app has sessions, CSRF, helmet and rate limiting, which makes it *look*
+secured. It has **no authentication of any kind** — no login, no user model, no
+auth middleware on any route. Anyone who can reach the port has full read/write
+access to every context.
+
+That is a reasonable trade for a single-user app on `localhost`, and it is not a
+bug to be fixed in place. It is written down here so that **putting this on a
+network is recognised as a change that needs an auth layer first**, rather than
+as a deployment detail.
+
 ## Credentials
 
 Never paste, print, or otherwise reproduce credential values (`.env.local` contents, `DB_PASSWORD`, API keys, tokens, connection strings, etc.) in conversation or command output. They stay local to the machine/file only, 100% of the time. When verifying or testing credentials, check presence/validity without echoing the value — e.g., attempt the actual connection and report success/failure by exit code, or mask the value if a file's structure needs to be shown.
@@ -87,7 +99,9 @@ Never paste, print, or otherwise reproduce credential values (`.env.local` conte
 **Layering**: `routes/api/*.js` → `services/*.js` → `database/connectionPool.js`. Routes only parse the request, call a service function, and shape the JSON response (`{ success, data|message }`); all query logic and validation lives in services. Services throw `ValidationError` / `NotFoundError` / etc. from `src/config/errors.js`, which routes catch and map to `error.statusCode`. Follow this pattern (see `src/routes/api/work.js` + `src/services/workItemService.js`) when adding endpoints rather than querying the DB from a route.
 
 **Two separate notions of "database"**:
-- `src/database/connectionPool.js` is the pool the app actually queries against at runtime. It is hardcoded to the `mysql2` driver regardless of any mssql configuration — `config.database.type` / `DB_TYPE` is not read by it. Since `mysql2` speaks the MySQL wire protocol, this same code path works against either a MySQL or a MariaDB server with no branching — there is no separate "mariadb" type anywhere in the codebase, and none should be added; `mysqlSchema.js` uses only standard DDL/SQL that both engines support identically.
+- `src/database/connectionPool.js` is the pool the app actually queries against at runtime. It **does** branch on `type === 'mssql'` and build a real `mssql.ConnectionPool` (see `getPool`), so MSSQL is a live runtime target, not just a schema-creation flow. Since `mysql2` speaks the MySQL wire protocol, the MySQL path works against either MySQL or MariaDB with no branching — there is no separate "mariadb" type anywhere in the codebase, and none should be added; `mysqlSchema.js` uses only standard DDL/SQL that both engines support identically.
+
+  **The constraint that follows, and it is the one that matters:** every service writes MySQL-flavoured SQL, and anything MSSQL cannot parse is translated in `src/database/mssqlTranslation.js` — nowhere else. That file is a few dozen lines standing between the whole app and a second dialect, so **any MySQL-specific syntax you add to a service must have a rewrite there and a unit test in `tests/unit/mssqlTranslation.test.js`.** Currently covered: `INSERT IGNORE`, `ON DUPLICATE KEY UPDATE` (→ `MERGE`), `NOW()`, `JSON_EXTRACT`, `LIMIT` (→ `OFFSET/FETCH`), and `?` → `@p` placeholders. This section previously claimed the pool ignored mssql entirely, which is how the generic engine's only field-write path came to emit an un-translated `ON DUPLICATE KEY UPDATE` — MSSQL connected, created its schema, then threw on every single field save.
 - `src/services/databaseConfigService.js` (behind Settings → Database Configuration) lets a user test connections and create schema against either MySQL/MariaDB (`type: 'mysql'`) or MSSQL, storing profiles encrypted at `data/db-connections.enc.json` via `src/utils/credentialCrypto.js`. Setting the MySQL/MariaDB profile active (`setActiveType`) tests it, then calls `connectionPool.reconfigure()` to actually swap the live pool — the running app really does start querying that target, no restart needed. MSSQL has no such path: `mssqlSchema.js` exists only for the create-schema flow, and every service (`workItemService.js`, etc.) queries exclusively through `connectionPool.js`'s `mysql2` pool, so setting MSSQL active only records intent.
 
 **Data model**: work items, priorities, goals, and areas are the core entities (`work_items`, `priorities`, `goals`, `areas` tables). Priorities and areas are self-referencing hierarchies (`parent_id`); `src/utils/hierarchyPath.js#buildPathMap` walks that into a flat `id -> "Parent\Child"` path map, used whenever a hierarchical label needs to be shown flat. Work items relate to priorities/goals/areas/sources through join tables (`work_*_associations`); `workItemService.js#attachAssociations` batch-loads and stitches these onto items after every read.

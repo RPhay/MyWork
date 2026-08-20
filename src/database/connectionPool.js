@@ -5,7 +5,9 @@ import logger from "../utils/logger.js";
 import {
   rewriteInsertIgnoreForMssql,
   rewriteJsonExtractForMssql,
+  rewriteLimitForMssql,
   rewriteNowForMssql,
+  rewriteUpsertForMssql,
   toNamedParams,
 } from "./mssqlTranslation.js";
 
@@ -74,9 +76,13 @@ function describeDbError(error) {
 // that covers.
 
 async function executeMssql(sqlText, values) {
-  const rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
+  let rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
+  // Upsert before the rest: it rewrites the whole statement, so anything that
+  // edits fragments has to see the finished shape.
+  rewritten = rewriteUpsertForMssql(rewritten.sql, rewritten.values);
   rewritten.sql = rewriteNowForMssql(rewritten.sql);
   rewritten.sql = rewriteJsonExtractForMssql(rewritten.sql);
+  rewritten.sql = rewriteLimitForMssql(rewritten.sql);
   const { translatedSql, params } = toNamedParams(
     rewritten.sql,
     rewritten.values,
