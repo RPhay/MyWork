@@ -32,6 +32,7 @@ import priorityBoardRouter from "./api/priorityBoard.js";
 import focusRouter from "./api/focus.js";
 import searchRouter from "./api/search.js";
 import trashRouter from "./api/trash.js";
+import statusDigestRouter from "./api/statusDigest.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
 import * as entityTypeService from "../services/entityTypeService.js";
@@ -118,6 +119,7 @@ router.use("/api/priority-board", priorityBoardRouter);
 router.use("/api/focus", focusRouter);
 router.use("/api/search", searchRouter);
 router.use("/api/trash", trashRouter);
+router.use("/api/status-digest", statusDigestRouter);
 
 // First-run bootstrap page: gets the app pointed at a working database and
 // schema before contexts (or anything else) can exist. Redirects itself back

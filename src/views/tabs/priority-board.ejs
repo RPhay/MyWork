@@ -75,6 +75,22 @@
 
   /* The record's own status, shown because it is worth knowing and greyed
      because it is not what the column means. */
+  /* Time worked against time planned. Amber when it has run over, because that
+     is the only state worth interrupting a scan for - the rest is reference. */
+  .board-card-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.7rem;
+    color: #6c757d;
+    white-space: nowrap;
+  }
+
+  .board-card-time.over {
+    color: #b54708;
+    font-weight: 600;
+  }
+
   .board-card-status {
     font-size: 0.7rem;
     color: #868e96;

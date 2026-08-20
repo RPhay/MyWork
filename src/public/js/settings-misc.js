@@ -75,6 +75,89 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  // ===== Sub-tabs =====
+  function initSubTabs() {
+    const tabs = document.getElementById('miscSubTabs');
+    if (!tabs) return;
+    tabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-misc-tab]');
+      if (!btn) return;
+      const want = btn.dataset.miscTab;
+      tabs.querySelectorAll('[data-misc-tab]').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.misc-subpane').forEach(p => {
+        p.hidden = p.dataset.miscPane !== want;
+      });
+    });
+  }
+
+  // ===== Status digest =====
+  //
+  // Nothing is sent from here. The digest is written on a schedule and kept;
+  // "Open in mail client" hands it to whatever the person already uses, so no
+  // credentials live in this app and nothing leaves the machine unless they
+  // press send themselves.
+  async function initDigest() {
+    const pane = document.querySelector('[data-misc-pane="status-digest"]');
+    if (!pane) return;
+
+    const el = (id) => document.getElementById(id);
+    const paint = (data) => {
+      const s = data.schedule || {};
+      el('digestEnabled').checked = !!s.enabled;
+      el('digestDay').value = String(s.dayOfWeek ?? 5);
+      el('digestTime').value = s.time || '16:00';
+      el('digestDays').value = String(s.days ?? 7);
+
+      const latest = data.latest;
+      el('digestPreview').hidden = !latest;
+      if (!latest) return;
+      el('digestSubject').textContent = latest.subject || 'Status update';
+      el('digestWhen').textContent = latest.generatedAt
+        ? `written ${new Date(latest.generatedAt).toLocaleString()}`
+        : '';
+      el('digestBody').value = latest.body || '';
+      el('mailDigestBtn').href =
+        `mailto:?subject=${encodeURIComponent(latest.subject || '')}&body=${encodeURIComponent(latest.body || '')}`;
+    };
+
+    const load = async () => {
+      const res = await app.fetchRaw('/api/status-digest', {});
+      const body = await res.json();
+      if (body.success) paint(body.data);
+    };
+
+    el('saveDigestBtn')?.addEventListener('click', async () => {
+      await app.fetchRaw('/api/status-digest/schedule', {
+        method: 'PUT',
+        body: JSON.stringify({
+          enabled: el('digestEnabled').checked,
+          dayOfWeek: Number(el('digestDay').value),
+          time: el('digestTime').value,
+          days: Number(el('digestDays').value),
+        }),
+      });
+      app.notify('Schedule saved', 'success');
+    });
+
+    el('runDigestBtn')?.addEventListener('click', async () => {
+      const res = await app.fetchRaw('/api/status-digest/run', { method: 'POST' });
+      const body = await res.json();
+      if (!body.success) { app.notify(body.message || 'Could not write it', 'danger'); return; }
+      await load();
+      app.notify('Digest written', 'success');
+    });
+
+    el('copyDigestBtn')?.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(el('digestBody').value).catch(() => {});
+      app.notify('Copied', 'info');
+    });
+
+    await load();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { init(); initSubTabs(); initDigest(); });
+  } else {
+    init(); initSubTabs(); initDigest();
+  }
 })();

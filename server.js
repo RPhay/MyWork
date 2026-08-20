@@ -1,3 +1,4 @@
+import * as statusDigestService from './src/services/statusDigestService.js';
 import app from './src/app.js';
 import config from './src/config/environment.js';
 import logger from './src/utils/logger.js';
@@ -15,6 +16,10 @@ const port = config.app.port;
 await applyCachedConnectionAtBoot();
 
 const server = app.listen(port, () => {
+  // The weekly status digest. Node's own timer inside the service; nothing is
+  // sent anywhere - it builds the draft and keeps it for the Settings page.
+  statusDigestService.startScheduler();
+
   logger.info(`${config.app.name} server running on port ${port}`);
 });
 

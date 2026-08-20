@@ -661,6 +661,49 @@
 /* Fixed, not absolute: .entity-list scrolls horizontally, and a scroll
    container clips absolutely-positioned descendants - which cut these menus
    off. Position is set from the button's rect when the menu opens. */
+/* The saved-views menu shares the column chooser's box; only its rows differ,
+   because a view is picked or forgotten rather than toggled. */
+.entity-views-menu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 14rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.entity-view-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.entity-view-apply {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 3px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.entity-view-apply:hover { background: #e7f1ff; }
+
+.entity-view-delete {
+  background: none;
+  border: 0;
+  color: #adb5bd;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.entity-view-delete:hover { color: #dc3545; }
+
 .entity-columns-menu {
   position: fixed;
   z-index: 1050;

@@ -74,6 +74,12 @@ export async function getBoardItems(contextId = null) {
       // calls its own state "Developing".
       status: statusField ? (entity.fields?.[statusField.field_key] || '') : '',
       priority: entity.fields?.priority || '',
+      // Time worked against time planned. Both already exist on every type -
+      // Worked Time is what the focus clock accumulates, Time Box is what the
+      // work was meant to take - and until now nothing put the two side by
+      // side, which is the whole point of the comparison.
+      workedSeconds: Number(entity.fields?.focus_seconds ?? 0) || 0,
+      timeBox: entity.fields?.time_box || '',
       boardOrder: Number(entity.fields?.board_order ?? 0),
     });
   }

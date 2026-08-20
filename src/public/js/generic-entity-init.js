@@ -503,6 +503,48 @@ renderList();
         return;
       }
 
+      // ----- Saved views -----
+      const viewsBtn = e.target.closest('[data-action="toggle-views"]');
+      if (viewsBtn) {
+        const menu = viewsBtn.closest('.entity-header-actions')?.querySelector('.entity-views-menu');
+        if (menu) {
+          renderSavedViews(menu);
+          menu.hidden = !menu.hidden;
+          if (!menu.hidden) positionMenu(viewsBtn, menu);
+        }
+        return;
+      }
+
+      if (e.target.closest('[data-action="save-view"]')) {
+        const name = await app.prompt(
+          'Filters, sorting and column order, under a name.',
+          { title: 'Save this view', placeholder: 'e.g. My open tickets' });
+        if (!name) return;
+        GenericEntity.saveCurrentView(typeSlug, name);
+        const menu = listContainer.querySelector('.entity-views-menu');
+        if (menu) renderSavedViews(menu);
+        app.notify(`Saved "${name}"`, 'success');
+        return;
+      }
+
+      const applyView = e.target.closest('[data-action="apply-view"]');
+      if (applyView) {
+        if (GenericEntity.applySavedView(typeSlug, applyView.dataset.viewName)) {
+          renderList();
+          const menu = listContainer.querySelector('.entity-views-menu');
+          if (menu) menu.hidden = true;
+        }
+        return;
+      }
+
+      const dropView = e.target.closest('[data-action="delete-view"]');
+      if (dropView) {
+        GenericEntity.deleteSavedView(typeSlug, dropView.dataset.viewName);
+        const menu = dropView.closest('.entity-views-menu');
+        if (menu) renderSavedViews(menu);
+        return;
+      }
+
       const columnsBtn = e.target.closest('[data-action="toggle-columns"]');
       if (columnsBtn) {
         // closest(), not parentElement: the button now sits inside a .btn-group,
@@ -1232,6 +1274,31 @@ renderList();
     // When the current menu opened, so the scroll that brought its row into view
     // is not mistaken for the user scrolling away from it.
     let menuOpenedAt = 0;
+
+    // Redrawn each time it opens, so a view saved in another tab of the same
+    // browser shows up without a reload.
+    function renderSavedViews(menu) {
+      const list = menu.querySelector('.entity-views-list');
+      if (!list) return;
+      const views = GenericEntity.readSavedViews(typeSlug);
+      list.innerHTML = views.length
+        ? views.map(v => `
+            <label class="entity-column-option entity-view-option">
+              <button type="button" class="entity-view-apply" data-action="apply-view"
+                      data-view-name="${escapeAttr(v.name)}">${escapeHtml(v.name)}</button>
+              <button type="button" class="entity-view-delete" data-action="delete-view"
+                      data-view-name="${escapeAttr(v.name)}" title="Forget this view">&times;</button>
+            </label>`).join('')
+        : '<div class="text-muted small px-2 py-1">Nothing saved yet</div>';
+    }
+
+    // Local copies: this file has no escaping helpers of its own, and a view
+    // name is user input that goes straight into markup.
+    function escapeHtml(text) {
+      return String(text ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    const escapeAttr = escapeHtml;
 
     function closeContextMenu() {
       menuEl?.remove();

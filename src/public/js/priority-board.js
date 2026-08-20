@@ -27,6 +27,48 @@ function itemsInBay(bay) {
   return boardItems.filter(i => bayOf(i) === bay);
 }
 
+// Time WORKED against time PLANNED, on the card. Neither number is new - the
+// focus clock has been accumulating one and the Time Box field holds the other
+// - but nothing showed them together, so "is this overrunning?" could only be
+// answered by opening the record.
+//
+// Shown only when at least one of them exists: a card with neither is not
+// improved by "0h 0m of none".
+function renderTimeUsed(item) {
+  const worked = Number(item.workedSeconds || 0);
+  const planned = timeBoxMinutes(item.timeBox);
+  if (!worked && !planned) return '';
+
+  const workedMin = Math.round(worked / 60);
+  const over = planned > 0 && workedMin > planned;
+  const label = planned > 0
+    ? `${formatMinutes(workedMin)} of ${formatMinutes(planned)}`
+    : formatMinutes(workedMin);
+
+  return `<span class="board-card-time${over ? ' over' : ''}"
+                title="${over ? 'Over its time box' : 'Time worked against its time box'}">
+            <i class="bi bi-hourglass-split"></i> ${label}
+          </span>`;
+}
+
+// "1.5h" and "45m" are what the Time Box field stores; minutes are what can be
+// compared with a worked total.
+function timeBoxMinutes(value) {
+  if (!value) return 0;
+  const m = String(value).match(/^([\d.]+)([hm])$/);
+  if (!m) return 0;
+  return m[2] === 'h' ? Math.round(Number(m[1]) * 60) : Math.round(Number(m[1]));
+}
+
+function formatMinutes(mins) {
+  if (!mins) return '0m';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
+}
+
 function renderCard(item) {
   // The type is named on every card. On a mixed board "Renew the certificate"
   // means something different as a Ticket than as an Idea, and the icon alone
@@ -39,6 +81,7 @@ function renderCard(item) {
         <span class="board-card-meta">
           <span class="board-card-type">${app.escapeHtml(item.typeLabel)}</span>
           ${item.status ? `<span class="board-card-status">${app.escapeHtml(item.status)}</span>` : ''}
+          ${renderTimeUsed(item)}
         </span>
       </span>
       <button class="btn btn-sm btn-link board-card-remove" data-action="remove"

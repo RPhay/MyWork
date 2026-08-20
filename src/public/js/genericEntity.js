@@ -673,6 +673,54 @@ const GenericEntity = (() => {
     localStorage.setItem(viewStateKey(typeSlug), JSON.stringify(state));
   }
 
+  // ===== Saved views =====
+  //
+  // A view is the filters, sort and visible columns you already set up per type
+  // - they simply had no name, so "my open tickets" or "this quarter's goals"
+  // had to be rebuilt by hand every time. Saving one stores the same state
+  // object under a name; applying one writes it back and re-renders.
+  //
+  // Per browser, like the view state it is made of. Column VISIBILITY is a
+  // property of the type (show_in_row) rather than of the browser, so a view
+  // records which columns it wants and applying it only changes the local
+  // filters and sort - it does not silently rewrite the type for everyone.
+  const savedViewsKey = (typeSlug) => `entityViews:${typeSlug}`;
+  // The header carries a bookmark button beside the filter and column ones; it
+  // lists what has been saved for this type and offers to save what is on
+  // screen now.
+
+  function readSavedViews(typeSlug) {
+    try {
+      const all = JSON.parse(localStorage.getItem(savedViewsKey(typeSlug)));
+      return Array.isArray(all) ? all : [];
+    } catch { return []; }
+  }
+
+  function writeSavedViews(typeSlug, views) {
+    localStorage.setItem(savedViewsKey(typeSlug), JSON.stringify(views));
+  }
+
+  function saveCurrentView(typeSlug, name) {
+    const views = readSavedViews(typeSlug).filter(v => v.name !== name);
+    views.push({ name, state: readViewState(typeSlug) });
+    views.sort((a, b) => a.name.localeCompare(b.name));
+    writeSavedViews(typeSlug, views);
+    return views;
+  }
+
+  function applySavedView(typeSlug, name) {
+    const view = readSavedViews(typeSlug).find(v => v.name === name);
+    if (!view) return false;
+    writeViewState(typeSlug, view.state || {});
+    return true;
+  }
+
+  function deleteSavedView(typeSlug, name) {
+    const views = readSavedViews(typeSlug).filter(v => v.name !== name);
+    writeSavedViews(typeSlug, views);
+    return views;
+  }
+
   // Sorting compares by the column's own semantics: a status sorts by its
   // position in the type's status list (Not Started before Complete), numbers
   // sort numerically, everything else compares as text.
@@ -864,6 +912,16 @@ const GenericEntity = (() => {
                     data-action="toggle-columns" title="Choose columns">
               <i class="bi bi-layout-three-columns"></i>
             </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary entity-views-btn"
+                    data-action="toggle-views" title="Saved views">
+              <i class="bi bi-bookmark"></i>
+            </button>
+          </div>
+          <div class="entity-views-menu" hidden>
+            <div class="entity-columns-menu-title">Saved views</div>
+            <div class="entity-views-list"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-1"
+                    data-action="save-view">Save this view…</button>
           </div>
           <div class="entity-columns-menu" hidden>
             <div class="entity-columns-menu-title">Columns</div>
@@ -1697,6 +1755,10 @@ const GenericEntity = (() => {
     forgetOpenEditor: (typeSlug) => rememberOpenEditor(typeSlug, null),
     readViewState,
     writeViewState,
+    readSavedViews,
+    saveCurrentView,
+    applySavedView,
+    deleteSavedView,
     renderTree: renderTree,
     buildForm: buildForm,
     collectFormValues: collectFormValues,
