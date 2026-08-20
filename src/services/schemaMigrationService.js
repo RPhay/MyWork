@@ -1,5 +1,4 @@
-import { query } from '../database/connectionPool.js';
-import { getCurrentConfig } from '../database/connectionPool.js';
+import { query, getCurrentConfig, getPool } from '../database/connectionPool.js';
 import * as entityTypeService from './entityTypeService.js';
 import logger from '../utils/logger.js';
 import {
@@ -169,9 +168,7 @@ export async function analyzeAndMigrate() {
 
     // A missing support table is repairable, and this is the button whose job
     // is to repair things - so repair it rather than printing an instruction.
-    // The canonical schema modules are idempotent and know both dialects, so
-    // this reconciles MSSQL correctly too; the DDL in ensureGenericSchema above
-    // is MySQL-only and deliberately not used for this.
+    // Same canonical, dual-dialect schema modules that step 3 now uses.
     //
     // It used to say 'Run "Fix Schema"'. That button no longer exists - only
     // its endpoint survives - so the advice was unfollowable.
@@ -459,148 +456,55 @@ export async function migrateRetiredWorkJunctions({ drop = false } = {}) {
   return result;
 }
 
+/**
+ * Bring the database up to the current schema.
+ *
+ * This used to carry its own hand-written copy of the generic-engine DDL, in
+ * MySQL dialect only: CREATE TABLE IF NOT EXISTS, AUTO_INCREMENT, ENUM(...),
+ * ON UPDATE CURRENT_TIMESTAMP, ADD COLUMN IF NOT EXISTS. On SQL Server the very
+ * first statement failed with "Incorrect syntax near 'entity_types'" - there is
+ * no IF NOT EXISTS clause on CREATE TABLE there, so the parser stops at the
+ * table name. Analyze & Migrate could not create a schema on MSSQL at all.
+ *
+ * It now delegates to the canonical schema modules, which are idempotent, know
+ * both dialects, and are the files everything else already treats as the source
+ * of truth. A second copy of the schema in a second dialect was always going to
+ * drift from them; deleting it is the fix, not translating it.
+ *
+ * Deliberately built on getPool() rather than the saved system-database config:
+ * analyzeAndMigrateAll reconfigures the pool to each context database in turn
+ * and calls through here, so this has to follow the pool, not the settings.
+ */
 async function ensureGenericSchema() {
   try {
-    const dbType = getCurrentConfig().type;
+    const pool = await getPool();
 
-    // Create generic entity tables
-    const createTableStatements = [
-      `CREATE TABLE IF NOT EXISTS entity_types (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        slug VARCHAR(100) NOT NULL UNIQUE,
-        label VARCHAR(255) NOT NULL,
-        label_singular VARCHAR(255) NOT NULL,
-        icon VARCHAR(50),
-        supports_hierarchy BOOLEAN DEFAULT FALSE,
-        is_system BOOLEAN DEFAULT FALSE,
-        primary_date_field VARCHAR(100),
-        order_index INT DEFAULT 0,
-        is_visible BOOLEAN DEFAULT TRUE,
-        deleted_at TIMESTAMP NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_slug (slug),
-        INDEX idx_deleted (deleted_at)
-      )`,
-      `CREATE TABLE IF NOT EXISTS entity_type_fields (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        entity_type_id INT NOT NULL,
-        field_key VARCHAR(100) NOT NULL,
-        label VARCHAR(255) NOT NULL,
-        field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence') NOT NULL,
-        field_options JSON,
-        required BOOLEAN DEFAULT FALSE,
-        display_order INT DEFAULT 0,
-        show_in_row BOOLEAN DEFAULT FALSE,
-        is_completion_signal BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (entity_type_id) REFERENCES entity_types(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_type_field (entity_type_id, field_key),
-        INDEX idx_type (entity_type_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS entity_type_relationships (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        parent_type_id INT NOT NULL,
-        child_type_id INT NOT NULL,
-        relationship_kind ENUM('hierarchy','association','recurrence','instantiated_from') NOT NULL,
-        max_children_per_parent INT,
-        max_parents_per_child INT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (parent_type_id) REFERENCES entity_types(id) ON DELETE CASCADE,
-        FOREIGN KEY (child_type_id) REFERENCES entity_types(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_relationship (parent_type_id, child_type_id, relationship_kind),
-        INDEX idx_parent (parent_type_id),
-        INDEX idx_child (child_type_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS entities (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        entity_type_id INT NOT NULL,
-        context_id INT NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        order_index INT DEFAULT 0,
-        legacy_work_item_id INT UNIQUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
-        INDEX idx_type (entity_type_id),
-        INDEX idx_context (context_id),
-        INDEX idx_type_context (entity_type_id, context_id),
-        INDEX idx_legacy (legacy_work_item_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS entity_field_values (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        entity_id INT NOT NULL,
-        field_key VARCHAR(100) NOT NULL,
-        value_text VARCHAR(500),
-        value_long LONGTEXT,
-        value_number DECIMAL(15,2),
-        value_date DATE,
-        value_bool BOOLEAN,
-        value_json JSON,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_entity_field (entity_id, field_key),
-        INDEX idx_entity (entity_id),
-        INDEX idx_field_key_date (field_key, value_date),
-        INDEX idx_field_key_text (field_key, value_text)
-      )`,
-      `CREATE TABLE IF NOT EXISTS entity_relationships (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        context_id INT NOT NULL,
-        parent_entity_id INT NOT NULL,
-        child_entity_id INT NOT NULL,
-        relationship_kind ENUM('hierarchy','association','recurrence','instantiated_from') NOT NULL,
-        is_generated BOOLEAN DEFAULT FALSE,
-        order_index INT DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
-        FOREIGN KEY (parent_entity_id) REFERENCES entities(id) ON DELETE NO ACTION,
-        FOREIGN KEY (child_entity_id) REFERENCES entities(id) ON DELETE NO ACTION,
-        UNIQUE KEY unique_relationship (parent_entity_id, child_entity_id, relationship_kind),
-        INDEX idx_context (context_id),
-        INDEX idx_parent (parent_entity_id),
-        INDEX idx_child (child_entity_id)
-      )`
-    ];
-
-    for (const statement of createTableStatements) {
-      await query(statement);
+    if (getCurrentConfig().type === 'mssql') {
+      const { createMssqlSchema } = await import('../database/schema/mssqlSchema.js');
+      await createMssqlSchema(pool);          // uses pool.request()
+    } else {
+      const { createMysqlSchema } = await import('../database/schema/mysqlSchema.js');
+      await createMysqlSchema(pool);          // uses connection.query(); a pool has it
     }
-
-    // CREATE TABLE IF NOT EXISTS does nothing to a table that already exists,
-    // so anything added to these tables after their first release has to be
-    // reconciled explicitly here too - otherwise a database migrated through
-    // this path silently lacks it. Each statement is idempotent.
-    //
-    // Canonical definitions live in src/database/schema/mysqlSchema.js; this
-    // path exists to bring an older database forward, so it must not drift
-    // from that file.
-    const reconcileStatements = [
-      // Settings > Entity Types can hide a type's tab.
-      "ALTER TABLE entity_types ADD COLUMN IF NOT EXISTS is_visible BOOLEAN DEFAULT TRUE",
-      // Every field type the generic renderer supports. Missing values make
-      // saving such a field fail with "Data truncated for column 'field_type'".
-      "ALTER TABLE entity_type_fields MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence') NOT NULL",
-      // A folder is a row of its own type carrying this flag.
-      "ALTER TABLE entities ADD COLUMN IF NOT EXISTS is_folder BOOLEAN DEFAULT FALSE",
-    ];
-
-    for (const statement of reconcileStatements) {
-      try {
-        await query(statement);
-      } catch (error) {
-        // MySQL before 8.0.29 has no ADD COLUMN IF NOT EXISTS; a duplicate
-        // column there means the reconcile has already happened.
-        if (!/duplicate column|check that column/i.test(error.message || '')) throw error;
-      }
-    }
-
   } catch (error) {
     logger.error('Error ensuring generic schema:', error);
     throw new Error(`Failed to create generic schema: ${error.message}`);
   }
+}
+
+/**
+ * Is this error a unique-constraint violation?
+ *
+ * `error.code === 'ER_DUP_ENTRY'` is a mysql2 code and SQL Server never sets
+ * it: there a duplicate arrives as error number 2601 or 2627. The seeding
+ * below treats a duplicate as "already done, carry on", so on MSSQL every
+ * re-seed would instead rethrow and fail the whole migration.
+ */
+function isDuplicateKeyError(error) {
+  if (error?.code === 'ER_DUP_ENTRY') return true;
+  if (error?.number === 2601 || error?.number === 2627) return true;
+  return /duplicate key|duplicate entry|violation of (unique|primary key) constraint/i
+    .test(error?.message || '');
 }
 
 async function seedSystemTypes() {
@@ -622,7 +526,7 @@ async function seedSystemTypes() {
         );
         typeMap.set(typeData.slug, result.insertId);
       } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (isDuplicateKeyError(error)) {
           const existing = await query('SELECT id FROM entity_types WHERE slug = ?', [typeData.slug]);
           typeMap.set(typeData.slug, existing[0].id);
         } else {
@@ -642,7 +546,7 @@ async function seedSystemTypes() {
             [typeId, field.field_key, field.label, field.field_type, field.field_options ? JSON.stringify(field.field_options) : null, field.required ? 1 : 0, i, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0]
           );
         } catch (error) {
-          if (error.code !== 'ER_DUP_ENTRY') throw error;
+          if (!isDuplicateKeyError(error)) throw error;
         }
       }
     }
@@ -666,7 +570,7 @@ async function seedSystemTypes() {
             [parentId, childId, rel.relationship_kind, rel.max_children_per_parent, rel.max_parents_per_child]
           );
         } catch (error) {
-          if (error.code !== 'ER_DUP_ENTRY') throw error;
+          if (!isDuplicateKeyError(error)) throw error;
         }
       }
     }
