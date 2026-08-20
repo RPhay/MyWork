@@ -36,15 +36,6 @@ test('every field type in use is renderable, editable and valid', async ({ page 
     expect(editorJs, `the type editor has no <option> for "${fieldType}"`).toContain(`value="${fieldType}"`);
   }
 
-  // The editor gutter names each property's type. A type missing from the label
-  // map falls back to its raw slug, so it renders as lowercase "priority" beside
-  // properly-named neighbours - which is exactly what happened.
-  const labelBlock = rendererJs.match(/FIELD_TYPE_LABELS\s*=\s*\{([\s\S]*?)\}/);
-  expect(labelBlock, 'FIELD_TYPE_LABELS not found in genericEntity.js').toBeTruthy();
-  for (const fieldType of inUse) {
-    expect(labelBlock[1], `no display label for field type "${fieldType}"`)
-      .toMatch(new RegExp(`\\b${fieldType}:`));
-  }
 });
 
 test('no type lost its status field to the editor bug', async ({ page }) => {

@@ -4,13 +4,16 @@ import * as entityService from './entityService.js';
 import { ValidationError } from '../config/errors.js';
 
 /**
- * The focus bar: the two or three things you are actually working on right now,
- * pinned to the top of every page.
+ * The focus bar: what you are actually working on right now, pinned to the top
+ * of every page.
  *
- * This is deliberately NOT another list. The priorities board answers "what
- * matters this week"; the focus bar answers "what am I doing this hour", and it
- * is capped at three because a list of everything you are focused on is a list
- * of nothing.
+ * The priorities board answers "what matters this week"; the focus bar answers
+ * "what am I doing this hour".
+ *
+ * It used to refuse past three, on the argument that a list of everything you
+ * are focused on is a list of nothing. That is a judgement about how someone
+ * should work, and it is not the app's to make - the cap was removed, and the
+ * bar wraps to as many rows as it needs.
  *
  * Like the board, a pinned row is the record itself - the pin is a field on it,
  * so there is no copy to drift.
@@ -22,7 +25,9 @@ import { ValidationError } from '../config/errors.js';
  * time since `focus_started_at`, computed wherever it is asked for.
  */
 
-export const MAX_FOCUS_ITEMS = 3;
+// No cap. Kept exported and null so the API can keep reporting a limit, and
+// any caller reading it sees "there isn't one" rather than a missing field.
+export const MAX_FOCUS_ITEMS = null;
 
 // Written by the engine, never rendered as an editable control. Kept in sync
 // with INTERNAL_FIELD_KEYS in public/js/genericEntity.js.
@@ -115,21 +120,12 @@ export async function getFocusItems(contextId = null) {
   return items.sort((a, b) => a.slot - b.slot);
 }
 
-/**
- * Pin a record. Refuses past the cap rather than silently evicting something -
- * which of your three current tasks to drop is your call, not the app's.
- */
+/** Pin a record. Pin as many as you like; slots are handed out in order. */
 export async function addFocus(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
   const current = await getFocusItems(contextId);
   if (current.some(i => String(i.id) === String(entityId))) return current;
-
-  if (current.length >= MAX_FOCUS_ITEMS) {
-    throw new ValidationError(
-      `The focus bar holds ${MAX_FOCUS_ITEMS} things at a time. Remove one before adding another.`
-    );
-  }
 
   const used = new Set(current.map(i => i.slot));
   let slot = 1;

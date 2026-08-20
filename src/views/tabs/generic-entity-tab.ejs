@@ -53,8 +53,11 @@
     <!-- Right Pane: Editor -->
     <div class="split-pane-right hidden" id="<%= typeSlug %>EditorPane">
       <div class="split-pane-editor">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <div class="split-pane-editor-title">Edit <%= typeNameSingular %></div>
+        <%# No "Edit <Type>" heading: the tab already names the type and the row
+            being edited is highlighted, so it only cost vertical space.
+            flex-end, not space-between - with the title gone there is nothing
+            for the buttons to be spaced against. %>
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
           <div class="editor-actions-bar">
             <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
               <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>CloseBtn" title="Discard your changes and close the editor">Revert</button>
@@ -433,29 +436,68 @@
   flex: none;
 }
 
-/* Only the field rows stack; the legend above them stays a single row. */
+/* The gutter carries the property's identity now: its NAME on top, then the two
+   toggles stacked beneath it, each followed by the icon saying what it does.
+   The name used to sit above the control on the right while the field's TYPE
+   sat here, which read as the same thing printed twice on any property named
+   after its type (Status, Priority). */
 .editor-field > .editor-field-gutter {
   flex-direction: column;
   align-items: flex-start;
   height: auto;
-  gap: 3px;
+  gap: 4px;
 }
 
-.editor-field-gutter-controls {
+.editor-field-caption {
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 24px;
+  min-height: 24px;
 }
 
-/* Sits under the toggles, reading as a caption for the property rather than
-   competing with its label. */
-.editor-field-type {
-  font-size: 0.68rem;
-  line-height: 1;
-  color: #6c757d;
+/* A bar down the whole row, not a glyph beside the caption: the row is the
+   thing being dragged, so its grip spans it and everything else sits to the
+   right of it. align-self: stretch rather than a height, so it follows however
+   tall the control makes the row. */
+.editor-field > .editor-field-handle {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  margin: -8px 0 -8px -10px;   /* out to the row's padding edge */
+  border-radius: 6px 0 0 6px;
+  background: rgba(128, 128, 128, 0.10);
+  color: #adb5bd;
+  font-size: 0.85rem;
+  cursor: grab;
+  user-select: none;
+}
+
+.editor-field > .editor-field-handle:hover {
+  background: rgba(13, 110, 253, 0.14);
+  color: #0d6efd;
+}
+
+.editor-field-name {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #212529;
   white-space: nowrap;
-  padding-left: 3px;
+}
+
+/* Switch first, then its icon - the icon labels the toggle it follows. */
+.editor-field > .editor-field-gutter .editor-field-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+}
+
+.editor-toggle-glyph {
+  font-size: 0.8rem;
+  color: #6c757d;
+  line-height: 1;
 }
 
 .editor-field-gutter .form-switch {
@@ -696,52 +738,9 @@
 /* The two icons sit ONCE, above the switch columns they label - repeating them
    on every field turned a legend into noise. The legend uses the same gutter
    as the rows, so each icon lands directly over its own switch. */
-.editor-field-legend .editor-toggle-icon {
-  color: #adb5bd;
-  line-height: 1;
-  text-align: center;
-}
-
-.editor-field-legend {
-  margin-bottom: 2px;
-  /* The field rows gained a 1px border and 10px of horizontal padding when each
-     property became a delineated row; the legend has neither, so its icons sat
-     11px left of the switches they label. This puts its content edge back on
-     theirs. Keep the two in step if either box changes. */
-  padding-left: 11px;
-}
-
-/* The legend has to sit directly over the switches it labels, so it copies
-   their box exactly: the same 2.2em gutter padding, with the icon floated back
-   out of that padding the way Bootstrap floats .form-check-input. Both are em,
-   so the legend must also match the switches' font-size - inheriting the
-   smaller legend size resolved 2.2em to 26.4px against the rows' 35.2px, which
-   is precisely the drift that made every earlier centring attempt miss. */
-.editor-field-legend .editor-toggle-icon {
-  display: block;
-  font-size: 1rem;
-  padding-left: 2.2em;
-}
-
-.editor-field-legend .editor-toggle-icon i {
-  float: left;
-  width: 2em;
-  margin-left: -2.5em;
-  text-align: center;
-  line-height: 1;
-}
-
 /* The glyph is scaled on the pseudo-element, not the <i>: the <i>'s own width
    and margin are in em, so shrinking its font-size shrinks the box it is being
    positioned by, and the icon lands right of its switch again. */
-.editor-field-legend .editor-toggle-icon i::before {
-  font-size: 0.75rem;
-}
-
-.editor-field-legend .editor-field-handle {
-  visibility: hidden;
-}
-
 /* The priority icon is a control, so it responds to the pointer. Its size is
    not its own business - see --cell-icon-size below. */
 .priority-cell {
@@ -925,8 +924,15 @@ span.badge.editor-cycle {
   flex-shrink: 0;
 }
 
-.row-field {
+/* The grey is the default for plain field TEXT. A status cell is excluded: it
+   carries the state in its colour (black/blue/green/red/grey), and this rule is
+   declared later than main.css, so without the :not() it silently repainted all
+   five states the same grey - the classes were right and the colour was not. */
+.row-field:not(.status-cell) {
   color: #6c757d;
+}
+
+.row-field {
   font-size: 0.875rem;
   /* No margin-left: fields are grid cells now and the row's `gap` spaces them.
      The leftover margin pushed every field 8px right inside its own cell, which

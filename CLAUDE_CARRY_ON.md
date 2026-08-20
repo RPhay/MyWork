@@ -60,10 +60,12 @@ Once settled, the shape is:
 The board is a rail holding rows of **any** type, dragged in from a typed tab or
 from Dailies. Everything below is built and covered by `priorities-rail.spec.js`.
 
-**The bay is not the record's status**, and that was forced by the data rather
-than chosen: the types do not share a status vocabulary (Ideas run
-Raw/Developing/Ready; Categories and Templates have no status field at all), so
-a bay that wrote status would corrupt an Idea and could not place a Category.
+**The bay is not the record's status.** It was forced by the data at the time -
+the types did not share a status vocabulary (Ideas ran Raw/Developing/Ready) -
+and it still holds for a simpler reason: Categories and Templates have no status
+field at all, so a bay that wrote status could not place one. Ideas were moved
+onto the shared ladder on 2026-08-19, so that half of the original argument no
+longer applies; the design does not change.
 Placement lives in `board_bay`, ordering in `board_order`, both per-record field
 values. `entities.order_index` is deliberately NOT reused — that is a row's
 position on its own page, and sharing it would mean arranging the board silently

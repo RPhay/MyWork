@@ -13,19 +13,20 @@
 
   <style>
   /* Top-centre, above whatever tab is open, and out of the way when empty. */
+  /* In the navbar now, between the brand and the context switcher. It takes the
+     space left over between them and wraps to as many rows as it needs - there
+     is no cap on how many things can be pinned, so it must grow rather than
+     overflow. */
   .focus-bar {
     display: none;
-    position: sticky;
-    top: 0;
-    z-index: 1030;
+    flex: 1 1 auto;
+    min-width: 0;
     justify-content: center;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
-    padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(6px);
-    border-bottom: 1px solid #e4e6ec;
+    padding: 2px 8px;
+    margin-left: 12px;
   }
 
   .focus-bar.has-items { display: flex; }
@@ -35,39 +36,46 @@
      It must NOT take part in the document flow to do that: revealing 40px of
      bar mid-drag pushed every row down by 40px, so a drag already aimed at a
      row landed above it. That broke reordering everywhere, not just here. */
+  /* An empty bar is invisible, which makes it impossible to drop onto. While a
+     drag is in flight it becomes a visible landing strip - in place now, since
+     it no longer spans the page. It still must not disturb the document flow,
+     which is why it lives inside the navbar's own row rather than revealing a
+     strip that pushes every row below it down. */
   .focus-bar.drop-ready:not(.has-items) {
     display: flex;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    min-height: 40px;
-    border-bottom: 1px dashed #adb5bd;
+    min-height: 30px;
+    border: 1px dashed rgba(255, 255, 255, 0.45);
+    border-radius: 4px;
   }
 
   .focus-bar.drop-ready::after {
     content: 'Drop here to track it';
-    font-size: 0.8rem;
-    color: #6c757d;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.75);
   }
 
   .focus-bar.has-items.drop-ready::after { content: ''; }
 
   .focus-bar.drop-target {
-    background: rgba(13, 110, 253, 0.08);
-    border-bottom-color: #0d6efd;
+    background: rgba(13, 110, 253, 0.25);
+    border-color: #6ea8fe;
   }
 
+  /* Denser than when the bar was a strip of its own: there is no cap on how
+     many can be pinned, and they share the navbar's height with the brand and
+     the context switcher. Kept light on the dark bar so the title stays
+     readable at this size. */
   .focus-chip {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    max-width: 22rem;
-    padding: 5px 10px;
+    gap: 6px;
+    max-width: 16rem;
+    padding: 2px 8px;
     background: #fff;
     border: 1px solid #dee2e6;
     border-radius: 999px;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
     cursor: pointer;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
@@ -257,9 +265,6 @@
   <%- include('../components/dbHealthBanner.ejs') %>
   <%- include('../components/navbar.ejs') %>
 
-  <!-- The two or three things being worked on right now. Sits above every tab
-       because the point of it is to be visible while you are somewhere else. -->
-  <div id="focusBar" class="focus-bar" role="toolbar" aria-label="Currently working on"></div>
 
   <div class="container-fluid mt-4">
     <%- include('../components/alerts.ejs') %>
@@ -291,6 +296,11 @@
         // presets you drag from). Only one rail is ever open, so opening one
         // closes the other - see setupRails() in tabs.js.
         const RAIL_SLUGS = ['work_item', 'template'];
+        // Left-to-right order of the rail toggles in the tab bar. Priority
+        // Board sits between Dailies and Templates. It is named here rather
+        // than coming from sortedTypes because it is a view, not an entity
+        // type - there is no row in entity_types to sort it by.
+        const RAIL_TAB_ORDER = ['work_item', 'priority-board', 'template'];
         const fixedTypes = sortedTypes.filter(t => RAIL_SLUGS.includes(t.slug));
         const editableTypes = sortedTypes.filter(t => !RAIL_SLUGS.includes(t.slug));
       %>
@@ -298,7 +308,16 @@
       <%# Dailies is not a page any more - it is a rail down the left of
           whichever tab you are on. Its button toggles that rail, so it carries
           data-rail-toggle instead of data-tab; tabs.js keys off that. %>
-      <% fixedTypes.forEach(type => { %>
+      <% RAIL_TAB_ORDER.forEach(railSlug => { %>
+        <% if (railSlug === 'priority-board') { %>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="priority-board-tab" data-rail-toggle="priority-board" type="button" title="Priorities beside whatever you are working on. Drag rows in from a type tab or Dailies to place a reference to them.">
+              <span class="tab-icon">📊</span> Priority Board
+            </button>
+          </li>
+        <% return; } %>
+        <% const type = fixedTypes.find(t => t.slug === railSlug); %>
+        <% if (!type) return; %>
         <li class="nav-item" role="presentation" data-rail-toggle="<%= type.slug %>" data-type-id="<%= type.id %>">
           <button class="nav-link type-tab type-<%= type.slug %>" id="<%= type.slug %>-tab" data-rail-toggle="<%= type.slug %>" type="button"
                   title="Show or hide <%= type.label %> beside the tab you are on. Drag rows from a type tab onto it to add them.">
@@ -333,12 +352,8 @@
       <!-- Right spacer for centered editable types -->
       <li class="nav-item" style="flex: 1;"></li>
 
-      <!-- Special View Tabs (right-aligned) -->
-      <li class="nav-item" role="presentation" draggable="true">
-        <button class="nav-link" id="priority-board-tab" data-rail-toggle="priority-board" type="button" title="Priorities beside whatever you are working on. Drag rows in from a type tab or Dailies to place a reference to them.">
-          <span class="tab-icon">📊</span> Priority Board
-        </button>
-      </li>
+      <!-- Special View Tabs (right-aligned). Priority Board is NOT here - it is
+           a rail toggle rendered between Dailies and Templates above. -->
       <li class="nav-item" role="presentation" draggable="true">
         <%# data-fullwidth: this view wants the whole screen. Reporting is dense -
             tables, charts and a portfolio breakdown - and reading it beside a

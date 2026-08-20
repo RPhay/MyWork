@@ -33,37 +33,42 @@ const GenericEntity = (() => {
   const fieldRenderers = {
     text: (field, value = '') => `
       <div class="form-group">
-        <label>${field.label}</label>
         <input type="text" name="${field.field_key}" value="${value || ''}" class="form-control" data-field-type="text">
       </div>
     `,
     textarea: (field, value = '') => `
       <div class="form-group">
-        <label>${field.label}</label>
         <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="textarea">${value || ''}</textarea>
       </div>
     `,
     number: (field, value = '') => `
       <div class="form-group">
-        <label>${field.label}</label>
         <input type="number" name="${field.field_key}" value="${value || ''}" class="form-control" data-field-type="number">
       </div>
     `,
+    // Every emoji in the set is shown at once with the current one marked,
+    // rather than hidden behind a dropdown: the set is small and the glyphs ARE
+    // the labels, so a select made you open it to see what the choices even
+    // were. The hidden input is what the form collects and what
+    // syncEditorFromRow writes, so the row cell and this stay in step.
     emojis: (field, value = '') => {
       const set = field.field_options?.values || [];
       const current = value || set[0] || '';
       return `
-      <div class="form-group">
-        <label>${field.label}</label>
-        <select name="${field.field_key}" class="form-select" data-field-type="emojis">
-          ${set.map(e => `<option value="${escapeAttr(e)}" ${e === current ? 'selected' : ''}>${e}</option>`).join('')}
-        </select>
+      <div class="form-group" data-field-type="emojis">
+        <div class="option-choice-row" role="radiogroup" aria-label="${escapeAttr(field.label)}">
+          ${set.map(e => `
+            <button type="button" class="option-choice emoji-option${e === current ? ' selected' : ''}"
+                    data-action="pick-option" data-value="${escapeAttr(e)}"
+                    role="radio" aria-checked="${e === current}"
+                    title="${escapeAttr(e)}">${escapeHtml(e)}</button>`).join('')}
+        </div>
+        <input type="hidden" name="${field.field_key}" value="${escapeAttr(current)}">
       </div>
     `;
     },
     emoji: (field, value = '') => `
       <div class="form-group">
-        <label>${field.label}</label>
         <div>
           <button type="button" class="btn btn-outline-secondary emoji-field-btn" data-action="pick-emoji-field"
                   data-field-key="${escapeAttr(field.field_key)}" title="Click to choose an emoji">${value || resolveFieldDefault(field) || '＋'}</button>
@@ -73,7 +78,6 @@ const GenericEntity = (() => {
     `,
     date: (field, value = '') => `
       <div class="form-group">
-        <label>${field.label}</label>
         <input type="date" name="${field.field_key}" value="${isoDatePart(value)}" class="form-control" data-field-type="date">
       </div>
     `,
@@ -84,7 +88,6 @@ const GenericEntity = (() => {
       const choices = field.field_options?.values || field.field_options?.choices || [];
       return `
       <div class="form-group">
-        <label>${field.label}</label>
         <select name="${field.field_key}" class="form-select" data-field-type="select">
           <option value="">-- Select --</option>
           ${choices.map(c =>
@@ -94,21 +97,28 @@ const GenericEntity = (() => {
       </div>
     `;
     },
-    // A control behaves the same wherever it appears. In a row you click the
-    // status badge to move it on; in the editor you click the same badge, not a
-    // dropdown that happens to hold the same values. The hidden input is what
-    // the form collects, so nothing downstream needs to know.
+    // Every status on screen at once, the current one boxed - same pattern as
+    // the emojis field. The row's cell still CYCLES on click, which is right
+    // there: a row has space for one badge, and cycling is the quickest way to
+    // move an item on. The editor has room to show the whole ladder, and
+    // picking beats cycling when the target is three steps away.
+    //
+    // No fill here: the state is carried by the TEXT colour, and the box marks
+    // which one is current. Filled badges are the row's treatment, where one
+    // badge has to be findable at a glance among many columns; a column of
+    // five filled badges in the editor is just loud.
     status: (field, value = '') => {
       const statuses = field.field_options?.values || ['incomplete', 'in_progress', 'complete'];
       const current = statuses.includes(value) ? value : statuses[0];
-      const role = statusRole(field, current);
       return `
-        <div class="form-group" data-field-type="status" data-cycle-values="${escapeAttr(JSON.stringify(statuses))}">
-          <label>${field.label}</label>
-          <div>
-            <span class="badge bg-${STATUS_BADGE_VARIANT[role]} status-badge editor-cycle"
-                  data-cycle="status" role="button" tabindex="0"
-                  title="Click to change">${escapeHtml(current)}</span>
+        <div class="form-group" data-field-type="status">
+          <div class="option-choice-row" role="radiogroup" aria-label="${escapeAttr(field.label)}">
+            ${statuses.map(v => `
+              <button type="button"
+                      class="option-choice status-option status-role-${statusRole(field, v)}${v === current ? ' selected' : ''}"
+                      data-action="pick-option" data-value="${escapeAttr(v)}"
+                      role="radio" aria-checked="${v === current}"
+                      title="${escapeAttr(v)}">${escapeHtml(v)}</button>`).join('')}
           </div>
           <input type="hidden" name="${field.field_key}" value="${escapeAttr(current)}">
         </div>
@@ -116,17 +126,13 @@ const GenericEntity = (() => {
     },
     checkbox: (field, value = false) => `
       <div class="form-group">
-        <label>
-          <input type="checkbox" name="${field.field_key}" class="form-check-input" ${value ? 'checked' : ''} data-field-type="checkbox">
-          ${field.label}
-        </label>
+        <input type="checkbox" name="${field.field_key}" class="form-check-input" ${value ? 'checked' : ''} data-field-type="checkbox">
       </div>
     `,
     // A single named URL. The field's own label names it ("Repo", "Spec"...),
     // so one type can carry several distinct url fields.
     url: (field, value = '') => `
       <div class="form-group">
-        <label>${field.label}</label>
         <input type="url" name="${field.field_key}" value="${escapeAttr(value)}" class="form-control" placeholder="https://example.com" data-field-type="url">
       </div>
     `,
@@ -134,7 +140,6 @@ const GenericEntity = (() => {
       const choices = field.field_options?.choices || [];
       return `
         <div class="form-group">
-          <label>${field.label}</label>
           <div data-field-type="radio" data-field-key="${field.field_key}">
             ${choices.map((c, i) => `
               <div class="form-check">
@@ -174,7 +179,6 @@ const GenericEntity = (() => {
       `;
       return `
         <div class="form-group" data-field-type="links" data-field-key="${field.field_key}">
-          <label>${field.label}</label>
           <div class="entity-links-list">${links.map(l => row(l)).join('')}</div>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-action="add-link">
             <i class="bi bi-plus-lg"></i> Add link
@@ -187,7 +191,6 @@ const GenericEntity = (() => {
       const current = PRIORITY_LEVELS.includes(value) ? value : '';
       return `
       <div class="form-group" data-field-type="priority" data-cycle-values="${escapeAttr(JSON.stringify(PRIORITY_LEVELS))}">
-        <label>${field.label}</label>
         <div>
           <span class="priority-cell editor-cycle" data-cycle="priority" role="button" tabindex="0"
                 title="${escapeAttr(PRIORITY_STYLE[current].label)} - click to change">
@@ -201,7 +204,6 @@ const GenericEntity = (() => {
     },
     recurrence: (field, value = null) => `
       <div class="form-group">
-        <label>${field.label}</label>
         <textarea name="${field.field_key}" class="form-control" data-field-type="recurrence" placeholder="JSON recurrence config">${value ? JSON.stringify(JSON.parse(value), null, 2) : ''}</textarea>
       </div>
     `,
@@ -259,14 +261,6 @@ const GenericEntity = (() => {
 
   // Colour follows the same convention as the Templates rows' status badge:
   // secondary / warning / success, keyed by role rather than by literal value.
-  const STATUS_BADGE_VARIANT = {
-    todo: 'secondary',
-    active: 'warning',
-    done: 'success',
-    failed: 'danger',
-    ignored: 'light',
-  };
-
   function renderStatusToggle(entity, field, rawValue, derived = false) {
     const values = field.field_options?.values || [];
     if (values.length === 0) return '';
@@ -277,7 +271,7 @@ const GenericEntity = (() => {
     if (derived) {
       if (!rawValue) return '';
       const role = statusRole(field, rawValue);
-      return `<span class="badge bg-${STATUS_BADGE_VARIANT[role]} row-field status-badge is-rollup"
+      return `<span class="row-field status-badge status-cell status-role-${role} is-rollup"
               title="Rolled up from the items inside">${escapeHtml(rawValue)}</span>`;
     }
 
@@ -285,7 +279,7 @@ const GenericEntity = (() => {
     // one by clicking, which is the whole point of the control.
     const current = rawValue || values[0];
     const role = statusRole(field, current);
-    return `<span class="badge bg-${STATUS_BADGE_VARIANT[role]} row-field status-badge"
+    return `<span class="row-field status-badge status-cell status-role-${role}"
             data-action="cycle-status"
             data-entity-id="${entity.id}"
             data-field-key="${escapeAttr(field.field_key)}"
@@ -1168,16 +1162,127 @@ const GenericEntity = (() => {
 
   // Row -> editor. Called after a row-side change has been persisted, so the
   // editor is updated without being marked dirty - the value is already saved.
+  // Moves the "this one is current" mark within a set of visible choices.
+  // Used by both directions: a click here, and a change made from the row cell.
+  function markOptionChoice(group, value) {
+    group?.querySelectorAll('.option-choice').forEach(opt => {
+      const on = String(opt.dataset.value) === String(value ?? '');
+      opt.classList.toggle('selected', on);
+      opt.setAttribute('aria-checked', String(on));
+    });
+  }
+
+  // The values a cell can be set to, for one field. Single source for both ways
+  // of changing a cell: clicking it (which advances to the next) and
+  // right-clicking it (which offers the lot). generic-entity-init.js used to
+  // carry its own copy of the priority ladder, so the two could drift.
+  function cellChoices(field) {
+    if (!field) return null;
+    switch (field.field_type) {
+      case 'status':   return field.field_options?.values || null;
+      case 'priority': return PRIORITY_LEVELS.slice();
+      case 'emojis':   return field.field_options?.values || null;
+      case 'checkbox': return [false, true];
+      case 'select':
+      case 'radio':    return field.field_options?.choices || null;
+      default:         return null;
+    }
+  }
+
+  // The colour class a value carries, so a menu of statuses reads the same as
+  // the cell and the editor - one definition of what each state looks like,
+  // used everywhere it is shown.
+  function choiceClass(field, value) {
+    if (field?.field_type !== 'status') return '';
+    return `status-role-${statusRole(field, value)}`;
+  }
+
+  // How one of those values should read in a menu.
+  function choiceLabel(field, value) {
+    if (field.field_type === 'checkbox') return value ? 'Checked' : 'Unchecked';
+    if (field.field_type === 'priority') return (PRIORITY_STYLE[value] || PRIORITY_STYLE['']).label;
+    return value === '' || value == null ? '(none)' : String(value);
+  }
+
   function syncEditorFromRow(entityId, fieldKey, value) {
     if (currentEntityId == null || String(currentEntityId) !== String(entityId)) return;
     const form = document.getElementById('entity-editor-form');
     const control = form?.querySelector(`[name="${CSS.escape(fieldKey)}"]`);
     if (!control) return;
+
+    // Several field types render a hidden input PLUS a visible control, and
+    // some render a GROUP of inputs. Writing `.value` on whatever the first
+    // [name=] match happens to be is only correct for the plain ones, which is
+    // why changing these from a row cell left the editor showing the old value.
+    // Each shape is handled explicitly below; the plain case is last.
+
+    // status, priority - hidden input + a badge/meter span
+    const cycleGroup = control.closest('[data-cycle-values]');
+    if (cycleGroup) return paintCycleControl(cycleGroup, value);
+
+    // radio - N inputs sharing the name. `.value = x` on the first one would
+    // rewrite that radio's value attribute and check nothing.
+    if (control.type === 'radio') {
+      form.querySelectorAll(`input[type="radio"][name="${CSS.escape(fieldKey)}"]`)
+        .forEach(r => { r.checked = String(r.value) === String(value ?? ''); });
+      return;
+    }
+
+    // emoji - hidden input + a button showing the glyph
+    if (control.type === 'hidden') {
+      control.value = value ?? '';
+      const group = control.closest('.form-group') || control.parentElement;
+
+      // emoji - a button showing the chosen glyph
+      const btn = control.parentElement?.querySelector('[data-action="pick-emoji-field"]');
+      if (btn) btn.textContent = value || '＋';
+
+      // emojis, status - the whole set is on screen, so the MARK has to move
+      markOptionChoice(group, value);
+      return;
+    }
+
     if (control.type === 'checkbox') control.checked = !!value;
     else control.value = value ?? '';
   }
 
   // ========== EDITOR ==========
+  // ===== Reopening after a reload =====
+  //
+  // A hard refresh used to drop whatever was open, which is jarring when the
+  // refresh was incidental to what you were doing. Only the record's identity
+  // is kept, in localStorage alongside the other per-browser view state (rail
+  // width, calendar open) - it is a view preference, not data.
+  const OPEN_EDITOR_KEY = 'entityOpenEditor';
+
+  // ONE entry, not one per type. There is a single editor - `currentEntityId`
+  // and `currentTypeSlug` are module-level - so storing a record per type meant
+  // every tab reopened its own on load: several visible editor panes, several
+  // elements sharing id="entity-editor-form", and the singleton left pointing
+  // at whichever tab happened to initialise last. Clicking a row then could not
+  // resolve a form at all.
+  function rememberOpenEditor(typeSlug, entityId) {
+    if (!typeSlug) return;
+    try {
+      if (entityId == null) {
+        // Only clear if THIS type owns the remembered editor; another tab
+        // closing its (never-restored) editor must not wipe ours.
+        const cur = JSON.parse(localStorage.getItem(OPEN_EDITOR_KEY) || 'null');
+        if (!cur || cur.typeSlug === typeSlug) localStorage.removeItem(OPEN_EDITOR_KEY);
+        return;
+      }
+      localStorage.setItem(OPEN_EDITOR_KEY, JSON.stringify({ typeSlug, id: String(entityId) }));
+    } catch { /* storage disabled or full - the editor just will not reopen */ }
+  }
+
+  // Returns the id only for the type that actually owns the remembered editor.
+  function recallOpenEditor(typeSlug) {
+    try {
+      const cur = JSON.parse(localStorage.getItem(OPEN_EDITOR_KEY) || 'null');
+      return cur && cur.typeSlug === typeSlug ? cur.id : null;
+    } catch { return null; }
+  }
+
   function buildForm(typeSchema, entity = {}) {
     // A folder only organizes - it has no field values of its own, so its
     // editor is the name and nothing else, for every type alike.
@@ -1204,18 +1309,7 @@ const GenericEntity = (() => {
           <label>${entity.is_folder ? 'Folder Name' : 'Title'} *</label>
           <input type="text" name="title" value="${entity.title || ''}" class="form-control" required>
         </div>
-        ${fields.length ? `
-          <div class="editor-field-legend">
-            <div class="editor-field-gutter">
-              <span class="editor-field-handle" aria-hidden="true">⋮⋮</span>
-              <div class="form-check form-switch editor-field-toggle editor-toggle-icon" title="Show this field as a column">
-                <i class="bi bi-layout-three-columns"></i>
-              </div>
-              <div class="form-check form-switch editor-field-toggle editor-toggle-icon" title="Show this column's name in the header">
-                <i class="bi bi-tag"></i>
-              </div>
-            </div>
-          </div>` : ''}
+
         ${fields.map(field => {
           const renderer = fieldRenderers[field.field_type] || fieldRenderers.text;
           const value = entity.fields?.[field.field_key];
@@ -1226,17 +1320,19 @@ const GenericEntity = (() => {
           return `
             <div class="editor-field" draggable="true"
                  data-field-id="${field.id}" data-field-key="${escapeAttr(field.field_key)}">
+              <span class="editor-field-handle" title="Drag to reorder">⋮⋮</span>
               <div class="editor-field-gutter">
-                <div class="editor-field-gutter-controls">
-                  <span class="editor-field-handle" title="Drag to reorder">⋮⋮</span>
-                  <div class="form-check form-switch editor-field-toggle" title="Show this field as a column">
-                    <input type="checkbox" class="form-check-input editor-field-col" ${field.show_in_row ? 'checked' : ''}>
-                  </div>
-                  <div class="form-check form-switch editor-field-toggle" title="Show this column's name in the header">
-                    <input type="checkbox" class="form-check-input editor-field-label" ${field.show_column_label !== 0 && field.show_column_label !== false ? 'checked' : ''}>
-                  </div>
+                <div class="editor-field-caption">
+                  <span class="editor-field-name">${escapeHtml(field.label)}</span>
                 </div>
-                <span class="editor-field-type" title="Field type">${escapeHtml(FIELD_TYPE_LABELS[field.field_type] || field.field_type)}</span>
+                <div class="form-check form-switch editor-field-toggle" title="Show this field as a column">
+                  <input type="checkbox" class="form-check-input editor-field-col" ${field.show_in_row ? 'checked' : ''}>
+                  <i class="bi bi-layout-three-columns editor-toggle-glyph" aria-hidden="true"></i>
+                </div>
+                <div class="form-check form-switch editor-field-toggle" title="Show this column's name in the header">
+                  <input type="checkbox" class="form-check-input editor-field-label" ${field.show_column_label !== 0 && field.show_column_label !== false ? 'checked' : ''}>
+                  <i class="bi bi-tag editor-toggle-glyph" aria-hidden="true"></i>
+                </div>
               </div>
               <div class="editor-field-body">${renderer(field, value)}</div>
             </div>`;
@@ -1244,21 +1340,6 @@ const GenericEntity = (() => {
       </form>
     `;
   }
-
-  // The field-type names shown in the editor gutter. entity-type-editor.js has
-  // the long forms in its <select>, but that file only loads on Settings, and
-  // its wording is for PICKING a type rather than labelling one.
-  const FIELD_TYPE_LABELS = {
-    text: 'Text', textarea: 'Long text', number: 'Number', date: 'Date',
-    url: 'URL', links: 'Links', select: 'Dropdown', radio: 'Radio',
-    checkbox: 'Checkbox', status: 'Status', priority: 'Priority',
-    recurrence: 'Recurrence', emoji: 'Emoji', emojis: 'Emojis',
-  };
-  // Must cover every value of the entity_type_fields.field_type ENUM - a type
-  // missing here renders its raw slug in the editor gutter, which is how
-  // 'priority' (seeded 8 times, and absent from the Settings type picker)
-  // showed up as lowercase "priority" next to properly-named neighbours.
-  window.__FIELD_TYPE_LABELS = FIELD_TYPE_LABELS;
 
   // Field values go under `fields`, not alongside `title` - that's the shape
   // entityService.js#createEntity/updateEntity reads. They used to be returned
@@ -1307,9 +1388,29 @@ const GenericEntity = (() => {
     if (revertBtn) revertBtn.disabled = false;
   }
 
+  // Repaints the priority meter in the editor to show `value`. Both directions
+  // need it: clicking the meter, and a click on the ROW's cell syncing back. It
+  // used to live inside the editor's own click handler, so a change made from
+  // the cell updated the hidden input and left the meter showing the old value.
+  //
+  // Priority is the only cycling control now - status shows its whole ladder -
+  // so this no longer branches on which field it is.
+  function paintCycleControl(group, value) {
+    if (!group) return;
+    const control = group.querySelector('.editor-cycle');
+    if (!control) return;
+    const input = group.querySelector('input[type="hidden"]');
+    if (input) input.value = value ?? '';
+
+    const style = PRIORITY_STYLE[value] || PRIORITY_STYLE[''];
+    control.innerHTML = `${priorityGlyph(value)}<span class="editor-cycle-label">${escapeHtml(style.label)}</span>`;
+    control.title = `${style.label} - click to change`;
+  }
+
   // One handler for every editor control that cycles. The field group carries
-  // its own ladder in data-cycle-values, so status and priority - and anything
-  // added later - share this without it knowing what they mean.
+  // its own ladder in data-cycle-values. Only priority uses this now - status
+  // moved to showing every value at once - but nothing here knows which field
+  // it is driving, so a future cycling field needs no changes.
   function wireEditorCycles() {
     const form = document.getElementById('entity-editor-form');
     if (!form) return;
@@ -1331,19 +1432,14 @@ const GenericEntity = (() => {
       if (input) input.value = next;
 
       // Redraw the control in place so it looks exactly like its cell would.
-      if (control.dataset.cycle === 'priority') {
-        const style = PRIORITY_STYLE[next] || PRIORITY_STYLE[''];
-        control.innerHTML = `${priorityGlyph(next)}<span class="editor-cycle-label">${escapeHtml(style.label)}</span>`;
-        control.title = `${style.label} - click to change`;
-      } else {
-        const fieldKey = group.querySelector('input[type="hidden"]')?.name;
-        const field = (typeSchema.fields || []).find(f => f.field_key === fieldKey) || { field_options: { values } };
-        const role = statusRole(field, next);
-        control.className = `badge bg-${STATUS_BADGE_VARIANT[role]} status-badge editor-cycle`;
-        control.textContent = next;
-      }
+      paintCycleControl(group, next);
 
       markChanged();
+      // A <span> click fires neither `input` nor `change`, so the form-level
+      // mirror listeners never see it. Without this the editor's badge/meter
+      // moved while the row's cell kept the old value - the other half of the
+      // two-way sync.
+      mirrorEditorToRow();
     });
   }
 
@@ -1365,6 +1461,19 @@ const GenericEntity = (() => {
       // Add/remove rows for `links` fields. Delegated, so it covers every
       // links field on the form without per-field wiring.
       form.addEventListener('click', async (e) => {
+        // Shared by every "pick one of these" field - emojis, status, and
+        // anything later that shows its whole set instead of hiding it.
+        const picked = e.target.closest('[data-action="pick-option"]');
+        if (picked) {
+          const group = picked.closest('.form-group');
+          const input = group?.querySelector('input[type="hidden"]');
+          if (input) input.value = picked.dataset.value || '';
+          markOptionChoice(group, picked.dataset.value);
+          markChanged();
+          mirrorEditorToRow();   // a button click fires no input/change event
+          return;
+        }
+
         const emojiBtn = e.target.closest('[data-action="pick-emoji-field"]');
         if (emojiBtn) {
           const picked = await app.pickEmoji(emojiBtn);
@@ -1458,6 +1567,11 @@ const GenericEntity = (() => {
     renderFlatList,
     orderedColumns,
     syncEditorFromRow,
+    cellChoices,
+    choiceLabel,
+    choiceClass,
+    recallOpenEditor,
+    forgetOpenEditor: (typeSlug) => rememberOpenEditor(typeSlug, null),
     readViewState,
     writeViewState,
     renderTree: renderTree,
@@ -1482,6 +1596,10 @@ const GenericEntity = (() => {
 
       currentEntityId = entityId;
       hasChanges = false;
+      // Remembered so a reload can put the editor back. Only the identity is
+      // stored, never field values: what comes back is the SAVED record, and
+      // anything unsaved was already lost with the page.
+      rememberOpenEditor(typeSlugOverride || currentTypeSlug, entityId);
       currentIsFolder = !!entity.is_folder;
       currentSaveSlug = saveTypeSlug || null;
       typeSchema = typeConfig;
@@ -1577,6 +1695,7 @@ const GenericEntity = (() => {
       }));
       currentEntityId = null;
       currentIsFolder = false;
+      rememberOpenEditor(currentTypeSlug, null);   // closed on purpose - stay closed
       // Clear the editor content
       const editorPaneId = `${currentTypeSlug}-editor-pane`;
       const editorPane = document.getElementById(editorPaneId);

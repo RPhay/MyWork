@@ -2,7 +2,13 @@
   <div class="container-fluid">
     <a class="navbar-brand" href="/">MyWork<span id="navVersion" style="font-size: 0.8em; margin-left: 10px; opacity: 0.7;"></span></a>
 
-    <div class="dropdown ms-auto me-3" id="contextSwitcher">
+    <%# The focus bar lives IN the navbar, between the brand and the context
+        switcher - what you are working on now belongs at the very top, not on
+        a strip of its own below it. It is only rendered on pages that load
+        focus-bar.js; elsewhere it stays empty and collapsed. %>
+    <div id="focusBar" class="focus-bar" role="toolbar" aria-label="Currently working on"></div>
+
+    <div class="dropdown ms-3 me-3" id="contextSwitcher">
       <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" id="contextSwitcherBtn" data-bs-toggle="dropdown" aria-expanded="false" title="Switch context">
         <i class="bi bi-circle-fill" style="font-size: 0.5rem; vertical-align: middle;"></i>
         <span id="contextSwitcherLabel">Context</span>

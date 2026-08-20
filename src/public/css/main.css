@@ -29,9 +29,9 @@
   user-select: none;
 }
 
-/* Black on every state. Bootstrap's .badge sets white text, which is unreadable
-   on bg-warning and inconsistent across the four states; the two-class selector
-   outranks it regardless of stylesheet order. */
+/* Kept for any .badge.status-badge left elsewhere (e.g. Dailies, which does not
+   run through the generic renderer). Typed-page cells are .status-cell now and
+   take their colour from .status-role-*. */
 .badge.status-badge {
   color: #000;
 }
@@ -89,6 +89,91 @@
 
 .emoji-cell-empty {
   color: #ced4da;
+}
+
+/* The emojis field shows its whole set at once, with the current one marked.
+   Styled off .app-emoji-choice so a choice looks the same wherever it appears.
+   The selected one is marked by a BOX only - no fill, which would swamp the
+   glyph it is meant to be showing you. Hover therefore tints the background
+   instead of the border, so hovering a neighbour cannot be mistaken for the
+   selection moving. */
+/* A field that shows its whole set of choices instead of hiding them behind a
+   dropdown: emojis, status. The current one is marked by a BOX - no fill, which
+   would swamp the glyph or recolour the badge it is meant to be showing you.
+   Each variant marks itself differently because their backgrounds differ. */
+.option-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.option-choice {
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* --- emojis: plain glyphs, so a border reads clearly --- */
+.emoji-option {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 1.4rem;
+  padding: 4px 6px;
+}
+
+/* Tints the background rather than the border: with the box as the only
+   marker, a hover border would look like the selection had moved. */
+.emoji-option:hover {
+  background: #e7f1ff;
+}
+
+.emoji-option.selected {
+  border-color: #000;
+}
+
+/* --- status: no fill. The STATE is the text colour; the BOX is the marker for
+   which one is current. The border is currentColor, so the box round Complete
+   is green and round Failed is red - the mark never introduces a sixth colour
+   competing with the five that mean something. The transparent border on the
+   unselected ones reserves the space, so nothing shifts as the mark moves. --- */
+.status-option {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 3px 8px;
+}
+
+/* One definition of what each state looks like, used by the row cell AND the
+   editor option - they are two views of one value, so the colour cannot be
+   allowed to drift between them. */
+.status-role-todo    { color: #000000; }   /* Not Started */
+.status-role-active  { color: #0d6efd; }   /* In Progress */
+.status-role-done    { color: #198754; }   /* Complete    */
+.status-role-failed  { color: #dc3545; }   /* Failed      */
+.status-role-ignored { color: #6c757d; }   /* Ignored     */
+
+/* The box is always black, in the cell and in the editor alike - one control,
+   one look. The state is carried by the TEXT colour in both places; the box
+   only says "this is the one". */
+.status-cell {
+  background: none;
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.status-option:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.status-option.selected {
+  border-color: #000;
 }
 
 .emoji-field-btn {
@@ -216,8 +301,13 @@ body:not(.dailies-calendar-open) #dailiesContentRight {
 .work-item.selected.selected > .work-item-header,
 .template-node.selected.selected > .template-node-header,
 .priority-strip.selected.selected > .priority-strip-header {
-  background-color: #e3f2fd;
-  box-shadow: inset 3px 0 0 0 #2196f3;
+  background-color: #cfe4fb;
+  /* Three layers, all inset so nothing shifts: a thicker left bar, a hairline
+     round the whole row so it reads as one object rather than a tinted strip,
+     and a deeper fill than before. The earlier #e3f2fd was close enough to
+     white that on a long list you had to hunt for the selected row. */
+  box-shadow: inset 5px 0 0 0 #1565c0,
+              inset 0 0 0 1px #64b5f6;
 }
 
 body {

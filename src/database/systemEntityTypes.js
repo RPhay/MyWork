@@ -39,11 +39,6 @@ const DONE_STATUS = {
   ignoredValues: ['Ignored'],
 };
 
-const IDEA_STATUS = {
-  values: ['Raw', 'Developing', 'Ready'],
-  doneValues: ['Ready'],
-};
-
 export const SYSTEM_ENTITY_TYPES = [
   {
     slug: 'work_item',
@@ -192,7 +187,6 @@ export const SYSTEM_ENTITY_TYPES = [
       { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
-      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
       { field_key: 'target_date', label: 'Target Date', field_type: 'date', required: false, show_in_row: true, rollup: 'min' },
       // Not a number: "importance 7" means nothing to a reader, and a spinner
       // invites arithmetic on a value that is really a grade. The four levels
@@ -224,7 +218,6 @@ export const SYSTEM_ENTITY_TYPES = [
       { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
-      { field_key: 'recurrence', label: 'Recurrence', field_type: 'recurrence', required: false, show_in_row: false },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ],
   },
@@ -277,7 +270,11 @@ export const SYSTEM_ENTITY_TYPES = [
       { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'focus_seconds', label: 'Focus time (seconds)', field_type: 'number', required: false, show_in_row: false },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
-      { field_key: 'status', label: 'Status', field_type: 'status', field_options: IDEA_STATUS, required: false, show_in_row: true, rollup: 'status' },
+      // Ideas used to run their own ladder (Raw/Developing/Ready). One status
+      // vocabulary across every type means a status reads the same wherever you
+      // see it, rolls up the same, and a row moved between types keeps meaning
+      // what it meant.
+      { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, rollup: 'status' },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ],
   },

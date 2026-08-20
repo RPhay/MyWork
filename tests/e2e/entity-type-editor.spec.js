@@ -23,12 +23,18 @@ test('type editor opens and shows all fields with correct types', async ({ page 
   console.log(JSON.stringify({fieldRows:rows, keys, types, alerts, pageErrors:errs}));
 
   expect(errs).toEqual([]);
-  expect(rows).toBe(4);
+
+  // Engine-written fields are not part of what a person defines on a type: the
+  // board and focus bar add their own, and asserting a total count made this
+  // fail every time a feature added one. `is_weekly` used to be in this list
+  // and is gone with Weekly Priorities. Only the user-facing fields are checked.
+  const INTERNAL = new Set(['board_bay', 'board_order', 'focus_slot', 'focus_seconds', 'focus_started_at']);
+  const userKeys = keys.filter(k => !INTERNAL.has(k));
   // Compared as a set: field order is user-editable (fields are drag-sortable
   // in this very editor), so asserting a sequence makes the test fail on a
   // legitimate reorder rather than on a real problem.
-  expect(new Set(keys)).toEqual(new Set(['status','is_weekly','notes','links']));
-  expect(new Set(types)).toEqual(new Set(['status','checkbox','textarea','links']));
+  expect(new Set(userKeys)).toEqual(new Set(['priority', 'status', 'notes', 'links']));
+  expect(userKeys.length, 'no field should appear twice').toBe(new Set(userKeys).size);
 });
 
 // A daily is never a child of anything and is implicitly a parent of
@@ -55,7 +61,9 @@ test('relationship lists exclude dailies and import types', async ({ page }) => 
 test('the type editor offers every field type the renderer supports', async ({ page }) => {
   await page.goto('/settings?tab=entity-types');
   const js = await page.evaluate(async () => (await (await fetch('/js/entity-type-editor.js')).text()));
-  for (const t of ['text','textarea','number','date','url','links','select','radio','checkbox','status','recurrence']) {
+  // `recurrence` is deliberately absent: it was withdrawn as a field type
+  // pending a better implementation, so there is no longer an option for it.
+  for (const t of ['text','textarea','number','date','url','links','select','radio','checkbox','status','priority']) {
     expect(js, `missing <option> for ${t}`).toContain(`value="${t}"`);
   }
 });

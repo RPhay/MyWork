@@ -70,7 +70,9 @@ async function openEntityTypeEditor(typeId = null) {
 
 function showEntityTypeEditorModal(type) {
   const isNew = !type;
-  const title = isNew ? 'Create New Entity Type' : `Edit: ${type.label}`;
+  // Nothing when editing: the type is selected in the list beside this pane, so
+  // "Edit: X" repeated it. Creating has no selection to read, so it keeps a label.
+  const title = isNew ? 'Create New Entity Type' : '';
 
   const content = document.createElement('div');
   content.innerHTML = `
@@ -341,7 +343,6 @@ function addFieldRow(field = null) {
           <option value="checkbox" ${field?.field_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
           <option value="status" ${field?.field_type === 'status' ? 'selected' : ''}>Status</option>
           <option value="priority" ${field?.field_type === 'priority' ? 'selected' : ''}>Priority (Low to Critical)</option>
-          <option value="recurrence" ${field?.field_type === 'recurrence' ? 'selected' : ''}>Recurrence</option>
           <option value="emoji" ${field?.field_type === 'emoji' ? 'selected' : ''}>Emoji (free pick)</option>
           <option value="emojis" ${field?.field_type === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
         </select>
@@ -450,6 +451,17 @@ function addFieldRow(field = null) {
     chars.pop();
     emojiValues.value = chars.join('');
     emojiList.textContent = emojiValues.value;
+  });
+
+  // A status field's roles (which value means done, failed, ignored) have no UI
+  // here, but they MUST survive a save. Stashed on the row rather than written
+  // into the markup, so no escaping question arises. Without this, saving a type
+  // rebuilt field_options from the visible inputs alone and silently dropped
+  // them - which is how types ended up with doneValues = ['Ignored'].
+  fieldRow.dataset.statusRoles = JSON.stringify({
+    doneValues: fieldOptions?.doneValues || null,
+    failedValues: fieldOptions?.failedValues || null,
+    ignoredValues: fieldOptions?.ignoredValues || null,
   });
 
   const rollupCol = fieldRow.querySelector('.field-rollup-col');
@@ -608,7 +620,12 @@ async function saveEntityType() {
         // through the column chooser on the page itself - one value, two views.
         show_in_row: row.querySelector('.field-show-in-row').checked,
         show_column_label: row.querySelector('.field-show-label').checked,
-        rollup: row.querySelector('.field-rollup')?.value || null
+        // A status field with no roll-up mode leaves every folder of that type
+        // blank no matter what it contains, which is never what someone means
+        // by adding a status. The select is empty until its type is chosen, so
+        // saving before touching it used to store null - default it instead.
+        rollup: row.querySelector('.field-rollup')?.value
+          || (fieldType === 'status' ? 'status' : null)
       };
 
       // Emoji configuration: one default, or the set to cycle through.
@@ -630,11 +647,32 @@ async function saveEntityType() {
           const values = input.value.split(',').map(v => v.trim()).filter(v => v);
           if (values.length > 0) {
             fieldData.field_options = { values };
-            // A status needs to know which value means finished, or the row
-            // badge can never show a "done" state. The last choice is taken as
-            // the terminal one; re-order the list to change which that is.
+            // A status needs to know which value means finished, failed or
+            // ignored - the row badge, the colours and the folder roll-up all
+            // key off those, not off position.
+            //
+            // Previously this set doneValues to the LAST value and wrote
+            // nothing else, which was wrong twice over: it discarded whatever
+            // the field already knew, and the standard ladder ends in
+            // "Ignored", so every saved type came back claiming Ignored meant
+            // done - showing Complete and Failed as merely in-progress.
             if (fieldType === 'status') {
-              fieldData.field_options.doneValues = [values[values.length - 1]];
+              let prev = {};
+              try { prev = JSON.parse(row.dataset.statusRoles || '{}'); } catch { prev = {}; }
+              // Keep only roles whose value still exists in the list.
+              const keep = (l) => (Array.isArray(l) ? l.filter(v => values.includes(v)) : []);
+              const byName = (re) => values.filter(v => re.test(v));
+
+              const done = keep(prev.doneValues).length ? keep(prev.doneValues)
+                : (byName(/^(complete|completed|done|ready|finished|closed)$/i).length
+                    ? byName(/^(complete|completed|done|ready|finished|closed)$/i)
+                    : [values[values.length - 1]]);
+              const failed = keep(prev.failedValues).length ? keep(prev.failedValues) : byName(/^(failed|failure|blocked)$/i);
+              const ignored = keep(prev.ignoredValues).length ? keep(prev.ignoredValues) : byName(/^(ignored|ignore|skipped|parked)$/i);
+
+              fieldData.field_options.doneValues = done;
+              if (failed.length) fieldData.field_options.failedValues = failed;
+              if (ignored.length) fieldData.field_options.ignoredValues = ignored;
             }
           }
         }

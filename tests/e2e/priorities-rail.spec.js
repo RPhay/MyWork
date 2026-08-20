@@ -40,6 +40,9 @@ test('an idea dragged onto a bay lands as a reference, not a copy', async ({ pag
   const idea = (await api(page, '/api/entities/idea', {
     method: 'POST', body: JSON.stringify({ title: 'ZZZ board idea' }),
   })).body.data;
+  // Recorded before the drop so the check below is "unchanged", not "not equal
+  // to whatever the bay happens to be called".
+  const statusBeforeDrop = idea.fields?.status ?? '';
 
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1600);
@@ -64,11 +67,13 @@ test('an idea dragged onto a bay lands as a reference, not a copy', async ({ pag
   expect(ideas, 'dropping on the board must not clone the record').toHaveLength(1);
   expect(String(ideas[0].id)).toBe(String(idea.id));
 
-  // The bay is board-local placement, NOT the record's status. An Idea's own
-  // status vocabulary is Raw/Developing/Ready and has no "In Progress" in it,
-  // so a bay that wrote status would have corrupted this record.
+  // The bay is board-local placement, NOT the record's status. This used to
+  // lean on Ideas having their own vocabulary (Raw/Developing/Ready) with no
+  // "In Progress" in it; every type shares one ladder now, so the check is the
+  // one that actually matters: the drop changed the bay and left status alone.
   expect(ideas[0].fields?.board_bay).toBe('In Progress');
-  expect(ideas[0].fields?.status ?? '').not.toBe('In Progress');
+  expect(ideas[0].fields?.status ?? '', 'placing a card must not write status')
+    .toBe(statusBeforeDrop);
 
   // Nothing on the board is editable - only move, reorder, remove.
   await expect(card.locator('[data-action="edit"]')).toHaveCount(0);

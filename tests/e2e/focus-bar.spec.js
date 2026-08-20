@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * The focus bar: the two or three things being worked on right now, pinned to
- * the top of every page, each with a RAG dot and a stop-the-clock timer.
+ * The focus bar: what is being worked on right now, pinned inside the navbar at
+ * the top of every page, each with a RAG dot and a stop-the-clock timer. There
+ * is no limit on how many can be pinned.
  */
 
 test.describe.configure({ mode: 'serial' });
@@ -17,7 +18,7 @@ async function api(page, path, options = {}) {
   }, { path, options, t: await page.evaluate(() => document.body.dataset.csrfToken) });
 }
 
-// The bar is capped at three, so a run that dies before its cleanup leaves the
+// A run that dies before its cleanup leaves the
 // next run unable to pin anything - which looks exactly like a broken feature.
 // Every test starts from an empty bar and no stale rows of its own.
 test.beforeEach(async ({ page }) => {
@@ -63,7 +64,10 @@ test('pinning from the row menu puts it on the bar with a RAG dot', async ({ pag
 
   const row = page.locator('#ideaEntityList .entity-row', { hasText: 'ZZZ focus one' }).first();
   await row.scrollIntoViewIfNeeded();
-  await row.click({ button: 'right' });
+  // The TITLE, not the row's centre: a right-click on a value cell (status,
+  // priority, checkbox) now offers that cell's values instead of the row menu,
+  // and the centre of a row is usually one of those cells.
+  await row.locator('.entity-cell-title').click({ button: 'right' });
   await page.locator('.entity-context-menu .context-menu-item', { hasText: 'Pin to focus bar' }).click();
   await page.waitForTimeout(900);
 
@@ -132,26 +136,56 @@ test('right-clicking a chip removes it from the bar', async ({ page }) => {
   await cleanup(page, made);
 });
 
-test('the bar holds three and refuses a fourth', async ({ page }) => {
+// There is no cap any more. It used to refuse a fourth, on the argument that a
+// list of everything you are focused on is a list of nothing - but how many
+// things to track is the user's call, not the app's.
+test('the bar takes as many as you pin, past the old limit of three', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  const made = await makeIdeas(page, ['ZZZ cap 1', 'ZZZ cap 2', 'ZZZ cap 3', 'ZZZ cap 4']);
-  for (const e of made.slice(0, 3)) {
+  const titles = ['ZZZ cap 1', 'ZZZ cap 2', 'ZZZ cap 3', 'ZZZ cap 4', 'ZZZ cap 5', 'ZZZ cap 6'];
+  const made = await makeIdeas(page, titles);
+  for (const e of made) {
     const r = await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: e.id }) });
-    expect(r.status).toBe(200);
+    expect(r.status, `pinning ${e.title} should be accepted`).toBe(200);
   }
 
-  const fourth = await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[3].id }) });
-  expect(fourth.status).toBeGreaterThanOrEqual(400);
-  // It refuses rather than evicting - which of your three to drop is the
-  // user's call, not the app's.
-  expect(fourth.body.message).toMatch(/3 things|Remove one/i);
-
   await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(1600);
-  await expect(page.locator('#focusBar .focus-chip')).toHaveCount(3);
+  await page.waitForTimeout(1800);
+  await expect(page.locator('#focusBar .focus-chip')).toHaveCount(titles.length);
+
+  // Every pin gets its own slot - no two share one, whatever the count.
+  const slots = (await api(page, '/api/focus')).body.data.map(i => i.slot);
+  expect(new Set(slots).size, 'slots are unique').toBe(slots.length);
+
+  await cleanup(page, made);
+});
+
+// It lives in the navbar, between the brand and the context switcher.
+test('the focus bar sits in the navbar, between the brand and the context', async ({ page }) => {
+  await page.goto('/?tab=idea');
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1500);
+
+  const made = await makeIdeas(page, ['ZZZ place 1']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id }) });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+
+  const where = await page.evaluate(() => {
+    const bar = document.getElementById('focusBar');
+    const brand = document.querySelector('.navbar-brand');
+    const ctx = document.getElementById('contextSwitcher');
+    const r = (el) => el.getBoundingClientRect();
+    return {
+      insideNavbar: !!bar.closest('nav.navbar'),
+      barLeft: r(bar).left, brandRight: r(brand).right, ctxLeft: r(ctx).left,
+    };
+  });
+  expect(where.insideNavbar, 'the bar is inside the navbar').toBe(true);
+  expect(where.barLeft, 'to the right of the brand').toBeGreaterThanOrEqual(where.brandRight);
+  expect(where.barLeft, 'to the left of the context switcher').toBeLessThan(where.ctxLeft);
 
   await cleanup(page, made);
 });

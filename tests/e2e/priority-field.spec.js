@@ -94,13 +94,24 @@ test('status cycles in the editor too, not a dropdown', async ({ page }) => {
   await page.waitForTimeout(800);
 
   expect(await page.locator('#entity-editor-form select[name="status"]').count(), 'no status dropdown').toBe(0);
-  const badge = page.locator('#entity-editor-form [data-field-type="status"] .editor-cycle');
-  await expect(badge).toHaveCount(1);
-  const before = await page.locator('#entity-editor-form [data-field-type="status"] input[type="hidden"]').inputValue();
-  await badge.click(); await page.waitForTimeout(250);
-  const after = await page.locator('#entity-editor-form [data-field-type="status"] input[type="hidden"]').inputValue();
-  console.log('status cycled ->', before, '->', after);
+
+  // The editor shows every status at once now, with the current one boxed, so
+  // this picks a different badge instead of clicking one badge to cycle it.
+  const options = page.locator('#entity-editor-form [data-field-type="status"] .option-choice');
+  await expect(options).not.toHaveCount(0);
+  const hidden = page.locator('#entity-editor-form [data-field-type="status"] input[type="hidden"]');
+  const before = await hidden.inputValue();
+
+  const target = options.filter({ hasNotText: before }).first();
+  await target.click(); await page.waitForTimeout(250);
+
+  const after = await hidden.inputValue();
+  console.log('status picked ->', before, '->', after);
   expect(after).not.toBe(before);
+  await expect(
+    page.locator('#entity-editor-form [data-field-type="status"] .option-choice.selected'),
+    'exactly one status is marked current'
+  ).toHaveCount(1);
 
   await api(page,`/api/entities/idea/${idea.id}`,{method:'DELETE'});
 });

@@ -166,12 +166,17 @@ be read. They are merged above.
 
 ## Choosing what to run — ask first
 
-**Do not launch a comprehensive run unsolicited. Show this table, ask which
-tier, and wait for the answer.**
+Two rules, covering different runs:
 
-**Tier 3 is the standing default** — run the specs covering the edit in hand
-without asking, and ask before anything broader. That is a decision, not a
-suggestion; do not quietly escalate to tier 6 because a change "feels big".
+1. **Always run the specs covering an individual fix — without asking.** A fix
+   is not finished until they have been run, and reporting it as done before
+   that is reporting an unverified claim.
+2. **Always ask before a BROAD run** — anything above the specs covering the
+   change in hand. Show this table, name the tier, and wait for an answer.
+
+Breadth is what costs the user: a broad run spends 6-12 minutes of session
+time, and every e2e run writes to the user's REAL database, so it is never a
+read-only diagnostic.
 
 Times are wall-clock on this machine. **Measured** ones were observed in a real
 run; **est.** ones are derived from the specs' measured neighbours.

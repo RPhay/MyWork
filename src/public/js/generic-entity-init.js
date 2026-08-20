@@ -212,7 +212,24 @@ async function initGenericEntityTab(typeSlug, typeName) {
       _bySlug: {},
     })._bySlug[typeSlug] = refreshEntities;
 
-    renderList();
+renderList();
+
+    // A refresh should not close whatever was open. The record's identity was
+    // remembered when the editor opened; if that row is still here, put it back.
+    // Deliberately after the first render, so the row it selects already exists.
+    // Only the visible tab restores. A hidden pane opening an editor would put
+    // a second #entity-editor-form in the DOM and hand the singleton to a tab
+    // nobody is looking at.
+    const pane = document.getElementById(`tab-${typeSlug}`);
+    const isShowing = !!pane && (pane.classList.contains('active') || pane.offsetParent !== null);
+    const reopenId = isShowing ? GenericEntity.recallOpenEditor(typeSlug) : null;
+    if (reopenId != null) {
+      const reopen = entities.find(x => String(x.id) === String(reopenId));
+      // Gone (deleted elsewhere, or filtered out of this type) - forget it
+      // rather than leaving a pointer that can never resolve.
+      if (reopen) GenericEntity.populate(reopen.id, reopen, typeSchema, typeSlug);
+      else GenericEntity.forgetOpenEditor(typeSlug);
+    }
 
     // Another view saved a record. Redraw if this page shows it - either it is
     // one of ours, or it is nested here as a reference. Without this, editing an
@@ -511,7 +528,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
       // Only this field is sent, so nothing else on the row is disturbed.
       const priorityBtn = e.target.closest('[data-action="cycle-priority"]');
       if (priorityBtn) {
-        const LEVELS = ['', 'Low', 'Medium', 'High', 'Critical'];
+        // Shared with the right-click menu, so the two cannot disagree.
+        const LEVELS = GenericEntity.cellChoices({ field_type: 'priority' })
+          || ['', 'Low', 'Medium', 'High', 'Critical'];
         const current = priorityBtn.dataset.priority || '';
         const next = LEVELS[(LEVELS.indexOf(current) + 1) % LEVELS.length];
         const fieldKey = priorityBtn.dataset.fieldKey;
@@ -1074,7 +1093,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'context-menu-item';
-        btn.innerHTML = `<span>${item.icon || ''}</span><span>${item.label}</span>`;
+        btn.innerHTML = `<span>${item.icon || ''}</span>`
+          + `<span class="${item.labelClass || ''}">${item.label}</span>`;
         btn.addEventListener('click', async () => {
           closeContextMenu();
           await item.action();
@@ -1114,9 +1134,59 @@ async function initGenericEntityTab(typeSlug, typeName) {
       }
     }
 
+    // Which cell controls change value when clicked. Right-clicking one offers
+    // the whole set instead of making you click through it - reaching "Failed"
+    // from "Not Started" was four clicks and passed through three states that
+    // each got saved on the way.
+    const VALUE_CELL_ACTIONS = [
+      'cycle-status', 'cycle-priority', 'toggle-checkbox', 'set-choice',
+    ].map(a => `[data-action="${a}"]`).join(', ');
+
+    // Emoji cells are deliberately NOT in that list: right-clicking one does
+    // exactly what left-clicking does (cycle the set, or open the picker).
+    const EMOJI_CELL_ACTIONS = '[data-action="cycle-emoji"], [data-action="pick-emoji-cell"]';
+
+    function valueCellMenuItems(control) {
+      const fieldKey = control.dataset.fieldKey;
+      const entityId = Number(control.dataset.entityId);
+      const field = (typeSchema.fields || []).find(f => f.field_key === fieldKey);
+      const choices = GenericEntity.cellChoices(field);
+      if (!field || !entityId || !choices?.length) return [];
+
+      // What the cell holds now, read from whichever attribute it publishes.
+      const d = control.dataset;
+      // Each cell publishes its value under a different attribute: the checkbox
+      // as data-value '1'/'0', status as data-status, priority as data-priority,
+      // and a <select> only through its own .value.
+      const current = field.field_type === 'checkbox' ? d.value === '1'
+        : field.field_type === 'status' ? (d.status ?? '')
+        : field.field_type === 'priority' ? (d.priority ?? '')
+        : (d.value ?? control.value ?? '');
+
+      return choices.map(v => ({
+        icon: String(v) === String(current) ? '✓' : '\u00a0',
+        label: GenericEntity.choiceLabel(field, v),
+        // Statuses carry their state colour here too - a menu of them should
+        // read the same as the cell it was opened from.
+        labelClass: GenericEntity.choiceClass(field, v),
+        action: () => saveFieldFromCell(entityId, fieldKey, v === '' ? null : v,
+          `Could not change ${field.label}`),
+      }));
+    }
+
     listContainer.addEventListener('contextmenu', (e) => {
       const row = e.target.closest('.entity-row');
       e.preventDefault();
+
+      const emojiCell = e.target.closest(EMOJI_CELL_ACTIONS);
+      if (emojiCell) { emojiCell.click(); return; }
+
+      // A value cell answers for itself before the row's own menu is offered.
+      const valueCell = e.target.closest(VALUE_CELL_ACTIONS);
+      if (valueCell) {
+        const items = valueCellMenuItems(valueCell);
+        if (items.length) { openContextMenu(e.clientX, e.clientY, items); return; }
+      }
 
       if (!row) {
         // Empty space: create at the top level.

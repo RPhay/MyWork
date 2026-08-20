@@ -23,7 +23,7 @@ test('a template offers columns from the types dragged into it', async ({ page }
   await page.goto('/?tab=idea'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1800);
 
   const tpl  = (await api(page,'/api/entities/template',{method:'POST',body:JSON.stringify({title:'ZZZcol template'})})).body.data;
-  const idea = (await api(page,'/api/entities/idea',{method:'POST',body:JSON.stringify({title:'ZZZcol idea', fields:{status:'Raw'}})})).body.data;
+  const idea = (await api(page,'/api/entities/idea',{method:'POST',body:JSON.stringify({title:'ZZZcol idea', fields:{status:'Not Started'}})})).body.data;
   await api(page,`/api/entities/template/${tpl.id}/relationships`,{method:'POST',
     body:JSON.stringify({parentEntityId:tpl.id, childEntityId:idea.id, relationshipKind:'hierarchy'})});
   await page.evaluate((id)=>localStorage.setItem(`entity-expanded-${id}`,'true'), tpl.id);
