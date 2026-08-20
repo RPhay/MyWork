@@ -546,6 +546,49 @@ export async function revertSystemType(id) {
   return { ...result, revert: { restored, created, extra, capturedAt: typeDefaults.capturedAt } };
 }
 
+/**
+ * Restore every type that has a captured default.
+ *
+ * Runs per type and keeps going when one fails, rather than aborting the batch:
+ * a single bad type should not decide the fate of the other ten, and stopping
+ * halfway would leave the page in a state that is neither the old one nor the
+ * new one. Every outcome is reported.
+ *
+ * A live type with no snapshot is skipped and named - it was created after the
+ * last capture, so there is nothing to restore it to, and inventing something
+ * would be worse than doing nothing.
+ */
+export async function revertAllTypes() {
+  const types = await query(
+    'SELECT id, slug, label FROM entity_types WHERE deleted_at IS NULL ORDER BY order_index, id'
+  );
+
+  const reverted = [];
+  const skipped = [];
+  const failed = [];
+
+  for (const t of types) {
+    if (!TYPE_DEFAULTS[t.slug]) {
+      skipped.push({ slug: t.slug, label: t.label, reason: 'no captured defaults' });
+      continue;
+    }
+    try {
+      const r = await revertSystemType(t.id);
+      reverted.push({
+        slug: t.slug,
+        label: t.label,
+        restored: r.revert.restored.length,
+        created: r.revert.created.length,
+        extra: r.revert.extra,
+      });
+    } catch (error) {
+      failed.push({ slug: t.slug, label: t.label, error: error.message });
+    }
+  }
+
+  return { reverted, skipped, failed, capturedAt: typeDefaults.capturedAt };
+}
+
 // Rewrites order_index across types (0..n in the given order). This is the same
 // ordering the dashboard renders its tabs in, so dragging types in Settings and
 // the tab order on the main page are two views of one value.

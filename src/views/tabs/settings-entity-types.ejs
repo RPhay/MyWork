@@ -5,7 +5,13 @@
 <div style="display: flex; gap: 0; height: 78vh; position: relative;">
   <div class="split-pane-container" id="entityTypeSplitPane" style="flex: 1; display: flex; gap: 0; overflow: hidden;">
     <div class="split-pane-left" id="entityTypeListPane" style="padding: 20px; overflow-y: auto;">
-  <h2 class="mb-3">Entity Types</h2>
+  <div class="d-flex justify-content-between align-items-start mb-3">
+    <h2 class="mb-0">Entity Types</h2>
+    <button class="btn btn-outline-secondary btn-sm" id="revertAllTypesBtn"
+            title="Put every type's icon, labels and field settings back to the saved defaults. Records are not touched.">
+      <i class="bi bi-arrow-counterclockwise"></i> Restore all to defaults
+    </button>
+  </div>
   <p class="text-muted mb-4">Manage editable types and templates that organize your work. Drag to reorder tabs; use the switch to show or hide a type on the dashboard.</p>
 
   <!-- Editable Types Section -->

@@ -79,6 +79,22 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/entity-types/revert-all - restore every type that has defaults.
+// Declared BEFORE /:id/revert: Express matches in order, and "revert-all" would
+// otherwise be read as an :id and parse to NaN.
+router.post('/revert-all', async (req, res) => {
+  try {
+    const result = await entityTypeService.revertAllTypes();
+    const parts = [`Restored ${result.reverted.length} type${result.reverted.length === 1 ? '' : 's'}`];
+    if (result.skipped.length) parts.push(`skipped ${result.skipped.length} without defaults`);
+    if (result.failed.length) parts.push(`${result.failed.length} failed`);
+    res.json({ success: result.failed.length === 0, data: result, message: parts.join(', ') });
+  } catch (error) {
+    logger.error('Error reverting all entity types:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // POST /api/entity-types/:id/revert - restore a type to its captured defaults
 router.post('/:id/revert', async (req, res) => {
   try {

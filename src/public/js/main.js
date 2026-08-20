@@ -301,6 +301,16 @@ const app = {
     inputEl.placeholder = input?.placeholder || '';
     confirmBtn.textContent = options.confirmLabel || (input ? 'OK' : 'Confirm');
 
+    // A report has nothing to cancel, so it shows one button. Reset explicitly
+    // rather than only hiding: the element is reused across every dialog on the
+    // page, so a Cancel hidden once would stay hidden for the next confirm().
+    cancelBtn.classList.toggle('d-none', Boolean(options.hideCancel));
+    // Long reports need to stay readable - preserve newlines, and let a very
+    // long list scroll inside the dialog rather than running off it.
+    messageEl.style.whiteSpace = options.preserveWhitespace ? 'pre-wrap' : '';
+    messageEl.style.maxHeight = options.preserveWhitespace ? '50vh' : '';
+    messageEl.style.overflowY = options.preserveWhitespace ? 'auto' : '';
+
     const modal = new bootstrap.Modal(modalElement);
 
     return new Promise((resolve) => {
@@ -353,6 +363,15 @@ const app = {
   // Resolves true/false. Replaces window.confirm everywhere.
   confirm(message, title = 'Confirm Action') {
     return this._dialog({ title, message });
+  },
+
+  // A message with one button, for reporting what an action did. Keeps its
+  // newlines, unlike notify(), so it can carry a per-item list that would be
+  // unreadable in a toast.
+  alert(message, title = 'Done') {
+    return this._dialog({
+      title, message, hideCancel: true, preserveWhitespace: true, confirmLabel: 'OK',
+    });
   },
 
   // Resolves the entered string, or null if cancelled or left empty. Replaces
