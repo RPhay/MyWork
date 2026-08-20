@@ -9,6 +9,8 @@ import {
   rewriteNowForMssql,
   rewriteUpsertForMssql,
   toNamedParams,
+  qualifyTablesForMssql,
+  MSSQL_SCHEMA,
 } from "./mssqlTranslation.js";
 
 let pool;
@@ -75,6 +77,38 @@ function describeDbError(error) {
 // codebase - see connectionPool's test suite / the MSSQL smoke test for what
 // that covers.
 
+// The tables that actually exist in [MyWork], used to pin every reference to
+// that schema. Read from the server rather than hardcoded, so it cannot drift
+// from the real schema and cannot invent a name. Cleared whenever the pool is
+// reconfigured or closed, and refreshed after a schema build creates tables
+// that were not there when it was first read.
+let mssqlKnownTables = null;
+
+export function clearMssqlTableCache() {
+  mssqlKnownTables = null;
+}
+
+async function getMssqlKnownTables() {
+  if (mssqlKnownTables) return mssqlKnownTables;
+  try {
+    const p = await getPool();
+    const result = await p
+      .request()
+      .query(
+        `SELECT name FROM sys.tables WHERE SCHEMA_NAME(schema_id) = '${MSSQL_SCHEMA}'`,
+      );
+    mssqlKnownTables = new Set(
+      result.recordset.map((r) => String(r.name).toLowerCase()),
+    );
+  } catch (error) {
+    // Never let this break a query: an empty set simply qualifies nothing,
+    // which is the behaviour that existed before this cache.
+    logger.error("Could not read the MyWork table list:", error);
+    mssqlKnownTables = new Set();
+  }
+  return mssqlKnownTables;
+}
+
 async function executeMssql(sqlText, values) {
   let rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
   // Upsert before the rest: it rewrites the whole statement, so anything that
@@ -83,6 +117,13 @@ async function executeMssql(sqlText, values) {
   rewritten.sql = rewriteNowForMssql(rewritten.sql);
   rewritten.sql = rewriteJsonExtractForMssql(rewritten.sql);
   rewritten.sql = rewriteLimitForMssql(rewritten.sql);
+  // Last, so it sees the finished statement: the rewrites above can introduce
+  // table references of their own (the upsert becomes a MERGE naming its
+  // target), and those need pinning to [MyWork] just as much as the original.
+  rewritten.sql = qualifyTablesForMssql(
+    rewritten.sql,
+    await getMssqlKnownTables(),
+  );
   const { translatedSql, params } = toNamedParams(
     rewritten.sql,
     rewritten.values,
@@ -182,6 +223,7 @@ async function reconfigure(newConfig) {
       await pool.end();
     }
     pool = undefined;
+    clearMssqlTableCache();
   }
   currentConfig = { type: "mysql", ...newConfig };
   logger.info("Database connection pool reconfigured", {

@@ -5,6 +5,7 @@ import {
   rewriteNowForMssql,
   rewriteUpsertForMssql,
   toNamedParams,
+  qualifyTablesForMssql,
 } from '../../src/database/mssqlTranslation.js';
 
 /**
@@ -104,5 +105,50 @@ describe('the rewrites already in place', () => {
     const { translatedSql, params } = toNamedParams('SELECT * FROM t WHERE a = ? AND b = ?', [1, 'x']);
     expect(translatedSql).toBe('SELECT * FROM t WHERE a = @p0 AND b = @p1');
     expect(params).toEqual({ p0: 1, p1: 'x' });
+  });
+});
+
+describe('qualifyTablesForMssql', () => {
+  // Only names confirmed to exist in [MyWork] are ever rewritten. That is the
+  // safety property: an alias, a CTE or a column cannot be mistaken for a
+  // table, because none of them will be in this set.
+  const known = new Set(['contexts', 'entities', 'work_items', 'entity_field_values']);
+
+  it('qualifies a bare table in FROM', () => {
+    expect(qualifyTablesForMssql('SELECT * FROM contexts WHERE id = ?', known))
+      .toBe('SELECT * FROM [MyWork].[contexts] WHERE id = ?');
+  });
+
+  it('qualifies every table in a join, leaving aliases alone', () => {
+    expect(qualifyTablesForMssql(
+      'SELECT e.* FROM entities e JOIN work_items w ON w.id = e.legacy_work_item_id', known))
+      .toBe('SELECT e.* FROM [MyWork].[entities] e JOIN [MyWork].[work_items] w ON w.id = e.legacy_work_item_id');
+  });
+
+  it('qualifies INSERT INTO, UPDATE and DELETE FROM', () => {
+    expect(qualifyTablesForMssql('INSERT INTO contexts (name) VALUES (?)', known))
+      .toBe('INSERT INTO [MyWork].[contexts] (name) VALUES (?)');
+    expect(qualifyTablesForMssql('UPDATE contexts SET name = ?', known))
+      .toBe('UPDATE [MyWork].[contexts] SET name = ?');
+    expect(qualifyTablesForMssql('DELETE FROM entity_field_values WHERE entity_id = ?', known))
+      .toBe('DELETE FROM [MyWork].[entity_field_values] WHERE entity_id = ?');
+  });
+
+  it('leaves an already-qualified name unchanged', () => {
+    const sql = 'SELECT * FROM [MyWork].[contexts]';
+    expect(qualifyTablesForMssql(sql, known)).toBe(sql);
+  });
+
+  // The whole point: a table that is not ours must never be dragged into
+  // MyWork, and dbo objects must be left completely alone.
+  it('leaves unknown tables alone', () => {
+    const sql = 'SELECT * FROM some_other_table';
+    expect(qualifyTablesForMssql(sql, known)).toBe(sql);
+  });
+
+  it('rewrites nothing when the table list is empty or missing', () => {
+    const sql = 'SELECT * FROM contexts';
+    expect(qualifyTablesForMssql(sql, new Set())).toBe(sql);
+    expect(qualifyTablesForMssql(sql, null)).toBe(sql);
   });
 });

@@ -113,3 +113,46 @@ export function rewriteLimitForMssql(sqlText) {
     : `${body} ORDER BY (SELECT NULL)`;
   return `${ordered} OFFSET 0 ROWS FETCH NEXT ${match[1]} ROWS ONLY`;
 }
+
+// The schema every MyWork object lives in on SQL Server.
+export const MSSQL_SCHEMA = "MyWork";
+
+/**
+ * Pin table references to [MyWork].
+ *
+ * Services write unqualified SQL ("SELECT * FROM contexts"). On SQL Server an
+ * unqualified name resolves against the caller's DEFAULT_SCHEMA and THEN falls
+ * back to dbo - silently. So a table missing from [MyWork] for any reason is
+ * not an error, it is a read of a completely different table in dbo, and a
+ * write goes there too. That is how one database ended up with its rows split
+ * across both schemas: contexts existed in dbo, so every unqualified reference
+ * found it.
+ *
+ * Qualifying explicitly removes the fallback: [MyWork].[contexts] either exists
+ * or errors, and can never silently become dbo.contexts.
+ *
+ * `knownTables` is the set of table names actually present in [MyWork], read
+ * from the database rather than hardcoded. That is the safety property: this
+ * only ever rewrites a name it has confirmed exists there, so an alias, a CTE,
+ * a column or a table that genuinely is not ours is left untouched. An empty
+ * set rewrites nothing.
+ */
+export function qualifyTablesForMssql(sqlText, knownTables) {
+  if (!knownTables || knownTables.size === 0) return sqlText;
+
+  // The keywords a table name can follow. DELETE/UPDATE take a name directly;
+  // everything else arrives via FROM, JOIN or INTO.
+  const pattern = /\b(FROM|JOIN|INTO|UPDATE|TABLE)\s+(\[?)([A-Za-z_][A-Za-z0-9_]*)(\]?)/gi;
+
+  return sqlText.replace(pattern, (match, keyword, openBracket, name, closeBracket) => {
+    if (!knownTables.has(name.toLowerCase())) return match;
+
+    // Already qualified - "[MyWork].[x]" reaches here as the [MyWork] part, and
+    // its table name is not in the set, so it is skipped above. This guards the
+    // other direction: a name followed by a dot is a qualifier, not a table.
+    const after = sqlText.slice(sqlText.indexOf(match) + match.length);
+    if (after.startsWith(".")) return match;
+
+    return `${keyword} [${MSSQL_SCHEMA}].[${name}]`;
+  });
+}
