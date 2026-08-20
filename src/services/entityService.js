@@ -619,6 +619,17 @@ export async function cloneEntity(entityId, contextId = null) {
     }, contextId);
     idMap.set(originalId, copy.id);
 
+    // Every copy records what it was copied FROM, not just the root. The edge
+    // is what makes a row read as a copy rather than a reference, and marking
+    // only the root meant a deep copy arrived looking like one copy holding a
+    // pile of references - which says the opposite of what happened: those
+    // children are independent, and editing one changes nothing elsewhere.
+    // is_generated marks it as machine-made rather than a link someone drew.
+    await queryPool(
+      "INSERT IGNORE INTO entity_relationships (context_id, parent_entity_id, child_entity_id, relationship_kind, is_generated, order_index) VALUES (?, ?, ?, 'instantiated_from', 1, 0)",
+      [contextId, originalId, copy.id]
+    );
+
     for (const rel of (childrenOf.get(originalId) || [])) {
       const childCopyId = await copyOne(rel.child_entity_id);
       await queryPool(
@@ -629,13 +640,8 @@ export async function cloneEntity(entityId, contextId = null) {
     return copy.id;
   }
 
+  // copyOne records the edge for every node it makes, the root included.
   const rootCopyId = await copyOne(entityId);
-
-  // is_generated marks it as machine-made rather than a link the user drew.
-  await queryPool(
-    "INSERT IGNORE INTO entity_relationships (context_id, parent_entity_id, child_entity_id, relationship_kind, is_generated, order_index) VALUES (?, ?, ?, 'instantiated_from', 1, 0)",
-    [contextId, entityId, rootCopyId]
-  );
 
   return getEntityById(rootCopyId, contextId);
 }

@@ -1008,7 +1008,9 @@ const GenericEntity = (() => {
         <div class="entity-row-content">
           ${cells}
           <div class="entity-actions">
-            <button class="btn btn-sm btn-danger" data-action="delete" data-entity-id="${entity.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
+            ${origin === 'reference'
+              ? `<button class="btn btn-sm btn-danger" data-action="unlink" data-entity-id="${entity.id}" title="Remove it from here - the record itself is untouched" aria-label="Remove"><i class="bi bi-x-lg"></i></button>`
+              : `<button class="btn btn-sm btn-danger" data-action="delete" data-entity-id="${entity.id}" title="${origin === 'copy' ? 'Delete this copy and everything inside it' : 'Delete'}" aria-label="Delete"><i class="bi bi-trash"></i></button>`}
           </div>
         </div>
       </div>

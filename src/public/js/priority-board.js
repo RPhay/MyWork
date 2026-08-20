@@ -241,6 +241,8 @@ function initBoardListeners() {
   // board has to reflect it immediately - that is what makes these references
   // rather than copies.
   document.addEventListener('entity-saved', () => loadBoard());
+  // Cards are references, so a tree rearranged elsewhere is this board's news too.
+  document.addEventListener('entity-structure-changed', () => loadBoard());
 }
 
 function initPriorityBoard() {

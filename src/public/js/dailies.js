@@ -424,7 +424,7 @@ function renderWorkItemsList(items) {
     const isExpanded = expandedWorkItems.has(String(item.id));
     // Everything renderChildItem() will emit below - the associated records of
     // every type - is what "children" means for a work item.
-    const childCount = (item.priorities?.length || 0) + (item.goals?.length || 0) + (item.areas?.length || 0) + (item.todos?.length || 0) + (item.tasks?.length || 0) + (item.tickets?.length || 0) + (item.ideas?.length || 0) + (item.entities?.length || 0);
+    const childCount = item.entities?.length || 0;
     const hasChildren = childCount > 0;
 
     // Render work item row
@@ -439,7 +439,7 @@ function renderWorkItemsList(items) {
           <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || "")}</span>
           <span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>
           <span class="badge bg-${item.status === "Complete" ? "success" : item.status === "In Progress" ? "warning" : "secondary"} work-item-status-badge" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
-          <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${item.time_box_minutes ? item.time_box_minutes + "m" : "No time box"}</span>
+          <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${formatTimeBox(item.time_box_minutes)}</span>
           <span class="work-item-claude-toggle" data-action="toggle-claude" data-id="${item.id}" title="Toggle: worked with Claude" style="text-align: center; cursor: pointer; font-size: 18px;"><i class="bi bi-sun-fill" style="color: ${item.worked_with_claude ? "#FFA500" : "#ddd"}; opacity: ${item.worked_with_claude ? "1" : "0.5"};"></i></span>
           <span class="work-item-notes-cell" data-action="edit-notes" data-id="${item.id}" style="cursor: pointer; text-align: center;" title="${item.notes ? 'Has notes - double-click to edit' : 'No notes - double-click to add'}"><i class="bi bi-sticky-fill" style="color: ${item.notes ? '#ffd43b' : '#dee2e6'};"></i></span>
           <span class="work-item-actions">
@@ -454,45 +454,9 @@ function renderWorkItemsList(items) {
     // ".work-item.expanded > .work-item-children" in dailies.ejs applies.
     if (hasChildren) {
       let childrenHtml = '';
-      if (item.priorities?.length > 0) {
-        item.priorities.forEach((p) => {
-          childrenHtml += renderChildItem('priority', p.id, p.path || p.title, APP_ICONS.project, item.id, p.isCopy);
-        });
-      }
-      if (item.goals?.length > 0) {
-        item.goals.forEach((g) => {
-          childrenHtml += renderChildItem('goal', g.id, g.name, APP_ICONS.goal, item.id, g.isCopy);
-        });
-      }
-      if (item.areas?.length > 0) {
-        item.areas.forEach((a) => {
-          childrenHtml += renderChildItem('area', a.id, a.path || a.name, APP_ICONS.area, item.id, a.isCopy);
-        });
-      }
-      if (item.todos?.length > 0) {
-        item.todos.forEach((t) => {
-          childrenHtml += renderChildItem('todo', t.id, t.title, APP_ICONS.todo, item.id);
-        });
-      }
-      if (item.tasks?.length > 0) {
-        item.tasks.forEach((t) => {
-          childrenHtml += renderChildItem('task', t.id, t.title, APP_ICONS.task, item.id);
-        });
-      }
-      if (item.tickets?.length > 0) {
-        item.tickets.forEach((t) => {
-          childrenHtml += renderChildItem('ticket', t.id, t.title, APP_ICONS.ticket, item.id);
-        });
-      }
-      if (item.ideas?.length > 0) {
-        item.ideas.forEach((i) => {
-          childrenHtml += renderChildItem('idea', i.id, i.title, APP_ICONS.idea, item.id, i.isCopy);
-        });
-      }
-      // Everything else, whatever its type - including types created after this
-      // was written, which the seven lists above can never cover. Their own
-      // nesting comes with them: `depth` is how far inside the dropped row a
-      // node sits, so a Project arrives with its contents rather than alone.
+      // Every child, whatever its type - the one list, so a type invented later
+      // appears like any other. `depth` is how far inside the dropped row a node
+      // sits, so a Project arrives with its contents rather than alone.
       if (item.entities?.length > 0) {
         item.entities.forEach((c) => {
           childrenHtml += renderChildItem(
@@ -525,8 +489,8 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
     ? '<i class="bi bi-files text-muted child-origin" title="Copy - edits stay here and do not change the original"></i>'
     : '<i class="bi bi-link-45deg text-muted child-origin" title="Reference - edits change the original record"></i>';
   return `
-    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" style="margin-left: ${indent}px;" data-child-id="${id}" data-origin="${isCopy ? 'copy' : 'reference'}">
-      <div class="work-item-header" style="cursor: pointer;" title="Click to edit, right-click for menu">
+    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" data-depth="${extra.depth || 0}" style="margin-left: ${indent}px;" data-child-id="${id}" data-origin="${isCopy ? 'copy' : 'reference'}">
+      <div class="work-item-header" draggable="true" style="cursor: pointer;" title="Click to expand/collapse, double-click to edit; drag to reorder within its level">
         <span class="work-item-title-cell">
           ${emoji ? `<span class="child-type-icon">${app.escapeHtml(emoji)}</span>` : `<i class="bi ${iconClass} text-muted"></i>`}
           ${originBadge}
@@ -534,9 +498,13 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
         </span>
         <span style="flex: 1;"></span>
         <span class="work-item-actions">
-          <button class="btn btn-sm btn-link text-danger p-0" data-action="unlink" data-type="${type}" data-child-id="${id}" title="Remove" aria-label="Remove">
-            <i class="bi bi-x-lg"></i>
-          </button>
+          ${isCopy
+            ? `<button class="btn btn-sm btn-link text-danger p-0" data-action="delete-child" data-type="${type}" data-child-id="${id}" title="Delete this copy and everything inside it" aria-label="Delete">
+                 <i class="bi bi-trash"></i>
+               </button>`
+            : `<button class="btn btn-sm btn-link text-danger p-0" data-action="unlink" data-type="${type}" data-child-id="${id}" title="Remove it from this day - the record itself is untouched" aria-label="Remove">
+                 <i class="bi bi-x-lg"></i>
+               </button>`}
         </span>
       </div>
     </div>
@@ -1608,7 +1576,18 @@ async function cycleWorkItemStatus(workId, currentStatus) {
   }
 }
 
-const WORK_ITEM_TIME_BOX_CYCLE = [null, 15, 30, 45, 60];
+// The same ladder the Time Box field on every type offers: 15m, 30m, 45m, 1h,
+// 1.5h, 2h. Stored in MINUTES here, which is what work_items.time_box_minutes
+// has always held; null means none.
+// "1h" rather than "60m", matching the Time Box field's own wording.
+function formatTimeBox(minutes) {
+  if (!minutes) return 'No time box';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = minutes / 60;
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`;
+}
+
+const WORK_ITEM_TIME_BOX_CYCLE = [null, 15, 30, 45, 60, 90, 120];
 
 async function cycleWorkItemTimeBox(workId, currentMinutes) {
   const currentIndex = WORK_ITEM_TIME_BOX_CYCLE.indexOf(currentMinutes);
@@ -1751,10 +1730,10 @@ function toggleWorkItem(workItemEl) {
 }
 
 async function linkChild(workId, type, id) {
-  // Types with their own legacy junction keep using it; everything else - which
-  // includes every type the user creates - goes through the generic one. Before
-  // this, an unknown type simply returned and the drop did nothing at all.
-  const path = ASSOCIATION_PATHS[type] || `entities`;
+  // ONE path for every type. The seven per-type junctions could not hold a type
+  // invented later, and - the reason this matters here - they have no order
+  // column, so a day's children could never be reordered through them.
+  const path = 'entities';
 
   try {
     const response = await app.fetchRaw(`/api/work/${workId}/${path}/${id}`, {
@@ -1819,7 +1798,7 @@ async function createWorkItemFromChild(type, id, name, date, asCopy = false) {
 }
 
 async function unlinkChild(workId, type, id) {
-  const path = ASSOCIATION_PATHS[type] || `entities`;
+  const path = 'entities';
 
   try {
     const response = await app.fetchRaw(`/api/work/${workId}/${path}/${id}`, {
@@ -1897,18 +1876,37 @@ function initWorkItemsListEventListeners() {
 
   container.addEventListener("click", async (e) => {
     const actionBtn = e.target.closest(
-      '[data-action="delete"], [data-action="unlink"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"], [data-action="toggle-claude"]',
+      '[data-action="delete"], [data-action="unlink"], [data-action="delete-child"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"], [data-action="toggle-claude"]',
     );
     if (actionBtn) {
       if (actionBtn.dataset.action === "delete") {
         deleteWorkItem(actionBtn.dataset.id);
       } else if (actionBtn.dataset.action === "unlink") {
-        const workItemEl = actionBtn.closest("[data-work-id]");
+        // A REFERENCE: take it off the day and leave the record alone.
+        const row = actionBtn.closest(".child-item-row");
         unlinkChild(
-          workItemEl.dataset.workId,
+          row?.dataset.parentWorkId,
           actionBtn.dataset.type,
           actionBtn.dataset.childId,
         );
+      } else if (actionBtn.dataset.action === "delete-child") {
+        // A COPY: it exists only here, so removing it means deleting it - and a
+        // copy owns its children, which go with it. Deleting is soft, so it can
+        // be brought back from Recently Deleted.
+        const ok = await app.confirm({
+          title: 'Delete this copy',
+          message: 'Delete this copy and everything inside it? The original is not affected.',
+          confirmText: 'Delete',
+        });
+        if (!ok) return;
+        const slug = actionBtn.dataset.type;
+        const id = actionBtn.dataset.childId;
+        const res = await app.fetchRaw(`/api/entities/${slug}/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          app.notify('Could not delete that', 'danger');
+          return;
+        }
+        loadWorkItems();
       } else if (actionBtn.dataset.action === "cycle-status") {
         const header = actionBtn.closest(".work-item-header");
         cycleWorkItemStatus(actionBtn.dataset.id, header.dataset.status);
@@ -1974,6 +1972,12 @@ function initWorkItemsListEventListeners() {
       await deleteSelectedDailies();
     }
   });
+
+  // A day shows REFERENCES to records that live on other pages. Editing one
+  // there, or rearranging a tree it contains, has to show up here without a
+  // reload - that is what a reference means.
+  document.addEventListener('entity-saved', () => loadWorkItems());
+  document.addEventListener('entity-structure-changed', () => loadWorkItems());
 
   container.addEventListener("dblclick", (e) => {
     const notesCell = e.target.closest('[data-action="edit-notes"]');

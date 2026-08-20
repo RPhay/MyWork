@@ -108,6 +108,10 @@ async function attachAssociations(items) {
     ...goalRows.map(r => r.id),
     ...areaRows.map(r => r.id),
     ...ideaRows.map(r => r.id),
+    // The generic children too, at every depth. Leaving them out meant a
+    // subtree copied onto a day came back badged as references - the opposite
+    // of what had happened to it.
+    ...[...genericChildren.values()].flat().map(r => r.id),
   ];
   const copies = await entityService.findClonedEntityIds(associatedEntityIds).catch(() => new Set());
 

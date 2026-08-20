@@ -121,9 +121,20 @@ export async function getFocusItems(contextId = null) {
   return items.sort((a, b) => a.slot - b.slot);
 }
 
+// Types that are never "what I am working on". A template is a pattern you
+// stamp out rather than work you do: it accumulates no time, so pinning one to
+// a clock would be meaningless.
+const UNPINNABLE_TYPE_SLUGS = new Set(['template']);
+
 /** Pin a record. Pin as many as you like; slots are handed out in order. */
 export async function addFocus(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
+
+  const entity = await entityService.getEntityById(Number(entityId), contextId);
+  const ofType = entity && await entityTypeService.getEntityType(entity.entity_type_id);
+  if (ofType && UNPINNABLE_TYPE_SLUGS.has(ofType.slug)) {
+    throw new ValidationError(`${ofType.label_singular || ofType.label} cannot be put on the focus bar`);
+  }
 
   const current = await getFocusItems(contextId);
   if (current.some(i => String(i.id) === String(entityId))) return current;

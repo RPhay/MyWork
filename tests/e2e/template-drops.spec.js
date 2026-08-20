@@ -183,3 +183,40 @@ test('a new type keeps its tree inside a template', async ({ page }) => {
   expect(depths[1], 'the dropped row sits inside it').toBe(1);
   expect(depths[2], "and its own child comes with it").toBe(2);
 });
+
+// Copy means DEEP copy. Choosing "Copy" cloned the whole subtree already, but
+// only the root recorded what it came from - so the copy arrived looking like
+// one copy holding a pile of references, which says the opposite of what
+// happened: those children are independent too.
+test('choosing Copy marks the whole subtree as copies, not just the top', async ({ page }) => {
+  await page.goto('/?tab=priority', { waitUntil: 'networkidle' });
+
+  const parent = (await api(page, '/api/entities/priority', { method: 'POST', body: JSON.stringify({ title: 'ZZZ deep parent' }) })).data;
+  const child = (await api(page, '/api/entities/priority', { method: 'POST', body: JSON.stringify({ title: 'ZZZ deep child' }) })).data;
+  const grand = (await api(page, '/api/entities/priority', { method: 'POST', body: JSON.stringify({ title: 'ZZZ deep grandchild' }) })).data;
+  await nest(page, 'priority', parent.id, child.id);
+  await nest(page, 'priority', child.id, grand.id);
+  const tpl = (await api(page, '/api/entities/template', { method: 'POST', body: JSON.stringify({ title: 'ZZZ deep holder' }) })).data;
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1600);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(900);
+
+  const rowSel = `#templateEntityList .entity-row[data-entity-id="${tpl.id}"]`;
+  await expect(page.locator(rowSel)).toHaveCount(1);
+  await dropOn(page, rowSel, { type: 'priority', id: parent.id, name: 'ZZZ deep parent' });
+  await page.locator('#copyOrReferenceCopyBtn').click();     // COPY, not reference
+  await page.waitForTimeout(1800);
+
+  // Everything under the template that came from this drop must read as a copy.
+  const contents = (await api(page, '/api/entities/template/contents')).data || [];
+  const copied = contents.filter(c => String(c.title || '').startsWith('ZZZ deep')
+    && !String(c.title).includes('holder'));
+  const origins = copied.map(c => `${c.title}=${c.is_copy ? 'copy' : 'reference'}`);
+  console.log('origins ->', JSON.stringify(origins));
+
+  expect(copied.length, 'the whole subtree came across').toBeGreaterThanOrEqual(3);
+  const references = copied.filter(c => !c.is_copy).map(c => c.title);
+  expect(references, 'a deep copy has no references inside it').toEqual([]);
+});

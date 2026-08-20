@@ -89,3 +89,59 @@ test('unlinking removes it from the day but not from its own tab', async ({ page
   const still = (await api(page, '/api/entities/tests')).body.data.some(e => String(e.id) === String(row.id));
   expect(still, 'the record itself is untouched - it was a reference').toBe(true);
 });
+
+// Copy means DEEP copy here too: everything that came across is independent,
+// so nothing inside it may read as a reference to the original.
+test('a subtree copied onto a day is copies all the way down', async ({ page }) => {
+  await page.goto('/?tab=tests', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+
+  const parent = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dcopy parent' }) })).body.data;
+  const child = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dcopy child' }) })).body.data;
+  made.entities.push(parent.id, child.id);
+  await api(page, `/api/entities/tests/${child.id}/relationships`, {
+    method: 'POST',
+    body: JSON.stringify({ parentEntityId: parent.id, childEntityId: child.id, relationshipKind: 'hierarchy' }),
+  });
+
+  // Clone it, exactly as choosing "Copy" on a drop does, then put the clone on
+  // a day and read back what the day says about each row.
+  const clone = (await api(page, `/api/entities/tests/${parent.id}/clone`, { method: 'POST' })).body.data;
+  made.entities.push(clone.id);
+  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dcopy day', date: DAY }) })).body.data;
+  made.work.push(work.id);
+  await api(page, `/api/work/${work.id}/entities/${clone.id}`, { method: 'POST' });
+
+  const day = (await api(page, `/api/work/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
+  const rows = (day.entities || []);
+  const origins = rows.map(c => `${c.title}@${c.depth}=${c.isCopy ? 'copy' : 'reference'}`);
+  console.log('day rows ->', JSON.stringify(origins));
+  rows.forEach(r => made.entities.push(r.id));
+
+  expect(rows.length, 'the child came with it').toBeGreaterThanOrEqual(2);
+  expect(rows.filter(r => !r.isCopy).map(r => r.title),
+    'a deep copy has no references inside it').toEqual([]);
+});
+
+test('a subtree REFERENCED onto a day is references all the way down', async ({ page }) => {
+  await page.goto('/?tab=tests', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+
+  const parent = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dref parent' }) })).body.data;
+  const child = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dref child' }) })).body.data;
+  made.entities.push(parent.id, child.id);
+  await api(page, `/api/entities/tests/${child.id}/relationships`, {
+    method: 'POST',
+    body: JSON.stringify({ parentEntityId: parent.id, childEntityId: child.id, relationshipKind: 'hierarchy' }),
+  });
+
+  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dref day', date: DAY }) })).body.data;
+  made.work.push(work.id);
+  await api(page, `/api/work/${work.id}/entities/${parent.id}`, { method: 'POST' });
+
+  const day = (await api(page, `/api/work/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
+  const rows = (day.entities || []);
+  console.log('day rows ->', JSON.stringify(rows.map(c => `${c.title}@${c.depth}=${c.isCopy ? 'copy' : 'reference'}`)));
+  expect(rows.filter(r => r.isCopy).map(r => r.title),
+    'referencing copies nothing').toEqual([]);
+});

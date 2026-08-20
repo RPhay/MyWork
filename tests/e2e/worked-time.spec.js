@@ -19,10 +19,14 @@ async function api(page, url, opts = {}) {
 
 test.afterEach(async ({ page }) => { await purgeByTitlePrefix(page, TYPE, 'ZZZ'); });
 
-test('every type carries a Worked Time property', async ({ page }) => {
+test('every type carries a Worked Time property, except templates', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
   const types = (await api(page, '/api/entity-types')).data;
-  const missing = types.filter(t => !(t.fields || []).some(f => f.field_key === 'focus_seconds'));
+  // A template is a pattern you stamp out, not work you do - see the test at
+  // the bottom of this file.
+  const missing = types
+    .filter(t => t.slug !== 'template')
+    .filter(t => !(t.fields || []).some(f => f.field_key === 'focus_seconds'));
   console.log('types without Worked Time ->', missing.map(t => t.slug));
   expect(missing.map(t => t.slug)).toEqual([]);
 });
@@ -101,4 +105,41 @@ test('a folder shows Worked Time in its editor, and it can be corrected', async 
 
   const stored = (await api(page, `/api/entities/${TYPE}/${folder.id}`)).data?.fields?.focus_seconds;
   expect(Number(stored), '45m is 2700 seconds').toBe(2700);
+});
+
+// A template is a pattern you stamp out, not work you do: no Worked Time, and
+// it cannot go on the focus bar at all.
+test('templates have no Worked Time and cannot be pinned', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' });
+
+  const types = (await api(page, '/api/entity-types')).data;
+  const tpl = types.find(t => t.slug === 'template');
+  const hasWorked = (tpl.fields || []).some(f => f.field_key === 'focus_seconds');
+  expect(hasWorked, 'a template accumulates no time').toBe(false);
+
+  // Every other editable type still has it.
+  const missing = types
+    .filter(t => t.type_category === 'editable' && t.slug !== 'template')
+    .filter(t => !(t.fields || []).some(f => f.field_key === 'focus_seconds'))
+    .map(t => t.slug);
+  expect(missing, 'only templates are exempt').toEqual([]);
+
+  // And the server refuses to pin one, however it is asked.
+  const made = (await api(page, '/api/entities/template', { method: 'POST', body: JSON.stringify({ title: 'ZZZ unpinnable' }) })).data;
+  const res = await page.evaluate(async (id) => {
+    const r = await fetch('/api/focus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'CSRF-Token': window.APP_CONFIG?.csrfToken },
+      body: JSON.stringify({ entityId: id }),
+    });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  }, made.id);
+  console.log('pinning a template ->', res.status, res.body?.message);
+  expect(res.status, 'refused').toBeGreaterThanOrEqual(400);
+
+  await page.evaluate(async (id) => {
+    const csrf = window.APP_CONFIG?.csrfToken;
+    await fetch(`/api/entities/template/${id}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
+    await fetch(`/api/trash/${id}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
+  }, made.id);
 });

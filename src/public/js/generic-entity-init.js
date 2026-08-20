@@ -246,6 +246,15 @@ renderList();
       await refreshEntities();
     });
 
+    // Someone changed a tree elsewhere. Redraw if this page shows either end of
+    // it: the row may have moved into or out of something visible here.
+    document.addEventListener('entity-structure-changed', async (e) => {
+      const { childId, parentId } = e.detail || {};
+      const shows = (id) => id != null && entities.some(x => String(x.id) === String(id));
+      if (!shows(childId) && !shows(parentId)) return;
+      await refreshEntities();
+    });
+
     // Expand/collapse handlers
     document.getElementById(`expandAll${typeSlug}Btn`)?.addEventListener('click', () => {
       listContainer.querySelectorAll('.entity-node').forEach(n => {
@@ -581,6 +590,34 @@ renderList();
         } else {
           app.notify('Could not change status', 'danger');
         }
+        return;
+      }
+
+      // Remove: a REFERENCE is the original record shown here, so taking it off
+      // this page means cutting the edge that put it here, never deleting it.
+      // Deleting a row that is only referenced would destroy it on its own page
+      // as well, which is not what "remove it from this template" means.
+      const unlinkBtn = e.target.closest('[data-action="unlink"]');
+      if (unlinkBtn) {
+        const row = unlinkBtn.closest('.entity-row');
+        const childId = unlinkBtn.dataset.entityId;
+        const parentRow = row?.parentElement?.closest('.entity-node')?.querySelector('.entity-row');
+        const parentId = parentRow?.dataset.entityId;
+        if (!parentId) { app.notify('Could not tell what to remove it from', 'danger'); return; }
+
+        // The route is /:typeSlug/:id/relationships/:parentId/:childId - the
+        // :id segment is unused by the handler but part of the path.
+        const res = await app.fetchRaw(
+          `/api/entities/${typeSlug}/${parentId}/relationships/${parentId}/${childId}?kind=hierarchy`,
+          { method: 'DELETE' });
+        if (!res.ok) {
+          app.notify('Could not remove it', 'danger');
+          return;
+        }
+        await refreshEntities();
+        document.dispatchEvent(new CustomEvent('entity-structure-changed', {
+          detail: { typeSlug, parentId, childId },
+        }));
         return;
       }
 
@@ -1290,7 +1327,10 @@ renderList();
       // Folders can be pinned as well: "the thing I am working on" is often a
       // whole folder of work, and refusing it was a judgement about how someone
       // should work rather than a limit of the feature.
-      if (window.FocusBar) {
+      //
+      // Templates cannot: a template is a pattern you stamp out, not work you
+      // do. The server refuses it too - this only keeps the menu honest.
+      if (window.FocusBar && typeSlug !== 'template') {
         items.push({ separator: true });
         items.push({
           icon: '📌',
@@ -1721,6 +1761,12 @@ renderList();
           if (!reorderResponse.ok) throw new Error('Reorder failed');
         }
         await refreshEntities();
+        // A reference IS the record, so its position and its parentage are
+        // shared state. Anywhere else showing it - a template, a day, the
+        // board - has to hear about the move or it keeps drawing the old tree.
+        document.dispatchEvent(new CustomEvent('entity-structure-changed', {
+          detail: { typeSlug, childId: sourceId, parentId: targetId },
+        }));
       } catch (error) {
         console.error('Error moving entity:', error);
         app.notify(error.message || 'Error moving entity', 'danger');
