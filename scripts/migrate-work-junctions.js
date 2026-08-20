@@ -17,9 +17,13 @@
  * Safe to run on a database with nothing to do: it says so and exits 0.
  *
  * The migration itself lives in schemaMigrationService, not here, because
- * Settings -> Database Configuration -> Analyze & Migrate runs the same thing.
- * This script exists for the DROP, which that button deliberately will not do,
- * and for a database you would rather inspect from a terminal than a browser.
+ * Settings -> Database Configuration -> Analyze & Migrate runs the same thing,
+ * drop included. This script exists to SURVEY without acting - which the button
+ * cannot do, since it always acts - and for a database you would rather inspect
+ * from a terminal than a browser.
+ *
+ * Neither entry point will drop a table whose rows are not fully accounted for,
+ * and on SQL Server both are schema-qualified to [MyWork].
  */
 
 import { getCurrentConfig } from '../src/database/connectionPool.js';
@@ -69,8 +73,12 @@ async function main() {
   if (result.dropped.length > 0) {
     for (const t of result.dropped) console.log(`  dropped ${t}`);
     console.log('\nwork_source_associations deliberately left alone - a source is not an entity.');
+  } else if (result.retained.length > 0) {
+    console.log(`\nKept ${result.retained.join(', ')} - not every row was accounted for.`);
+  } else if (drop) {
+    console.log('\nNothing dropped.');
   } else {
-    console.log('\nTables left in place. Re-run with --drop once you are satisfied.');
+    console.log('\nTables left in place. Re-run with --drop to remove them.');
   }
 
   process.exit(0);

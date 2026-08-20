@@ -118,14 +118,24 @@ export async function analyzeAndMigrate() {
       report.actions.push('✓ No old entity data found (fresh database)');
     }
 
-    // Step 5b: Move any links still stranded in the retired work junctions.
+    // Step 5b: Move any links still stranded in the retired work junctions, and
+    // then remove the empty shells.
     //
     // This is the half of audit 07 that never ran: the reads moved to
     // work_entity_associations, the rows did not, so a database that predates
-    // that change holds links the app cannot see. Copy only - the tables are
-    // left in place, matching this button's promise that migration is
-    // non-destructive. Dropping them is scripts/migrate-work-junctions.js.
-    const junctions = await migrateRetiredWorkJunctions({ drop: false });
+    // that change holds links the app cannot see.
+    //
+    // The drop is deliberately narrow. It only ever touches the seven names in
+    // RETIRED_WORK_JUNCTIONS - never a list computed at runtime - and only a
+    // table whose every row has been copied across or shown to be dangling. On
+    // SQL Server the statement is schema-qualified to [MyWork], so it cannot
+    // reach objects belonging to anything else sharing that database.
+    //
+    // What it will NOT do is drop the legacy ENTITY tables. `tasks` still holds
+    // 124 rows that step 5 above reports as needing migration; removing it
+    // because it looks old would destroy them. Old and unused are different
+    // claims, and only the second one justifies a DROP.
+    const junctions = await migrateRetiredWorkJunctions({ drop: true });
     if (junctions.skipped) {
       report.warnings.push(`Skipped work junction migration: ${junctions.skipped}`);
     } else if (junctions.present.length === 0) {
@@ -143,11 +153,15 @@ export async function analyzeAndMigrate() {
           `${junctions.dangling} link(s) skipped - their entity or work item no longer exists.`
         );
       }
-      report.warnings.push(
-        'The retired junction tables were left in place. Run '
-        + '"node scripts/migrate-work-junctions.js --migrate --drop" to remove them '
-        + 'once you are satisfied the links are correct.'
-      );
+      if (junctions.dropped.length > 0) {
+        report.actions.push(`✓ Dropped ${junctions.dropped.length} retired table(s): ${junctions.dropped.join(', ')}`);
+      }
+      if (junctions.retained.length > 0) {
+        report.warnings.push(
+          `Kept ${junctions.retained.join(', ')} - not every row could be accounted for, `
+          + 'so they were not dropped. Re-run once the links above are resolved.'
+        );
+      }
     }
 
     // Step 6: Verify schema consistency
@@ -242,6 +256,23 @@ async function analyzeSchema() {
   return analysis;
 }
 
+/**
+ * Every MyWork object on SQL Server lives in a dedicated [MyWork] schema, NOT
+ * in dbo - mssqlSchema.js creates it and qualifies all 159 of its object names
+ * with it. Anything here that talks to MSSQL has to say so too.
+ *
+ * This was wrong in both directions and it made the whole migrator inert on
+ * SQL Server: tableExists looked in dbo, found none of the six generic tables,
+ * concluded they were missing, and called ensureGenericSchema - whose DDL is
+ * MySQL-only (AUTO_INCREMENT, ENUM), so the run then threw. Analyze & Migrate
+ * could not have worked on MSSQL.
+ *
+ * It is also the safety boundary the user asked for: a drop must never reach
+ * outside this schema, because that database may hold objects belonging to
+ * something else entirely.
+ */
+export const MSSQL_SCHEMA = 'MyWork';
+
 async function tableExists(tableName) {
   try {
     const dbType = getCurrentConfig().type;
@@ -250,7 +281,7 @@ async function tableExists(tableName) {
     if (dbType === 'mssql') {
       sql = `
         SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = ?
+        WHERE TABLE_SCHEMA = '${MSSQL_SCHEMA}' AND TABLE_NAME = ?
       `;
     } else {
       sql = `
@@ -279,10 +310,20 @@ async function tableExists(tableName) {
  * Returning null instead of 0 keeps "I could not count this" distinguishable
  * from "this is empty". Callers must not treat null as empty.
  */
+/**
+ * A table name, quoted AND schema-qualified for the engine in use.
+ *
+ * The qualification is not cosmetic. An unqualified [work_items] on SQL Server
+ * resolves through the caller's default schema - normally dbo - so it would
+ * miss every MyWork table, and a DROP built that way would either fail or,
+ * worse, hit a same-named table belonging to something else.
+ */
 export function quoteIdentifier(name) {
-  return getCurrentConfig().type === 'mssql'
-    ? `[${String(name).replace(/]/g, ']]')}]`
-    : `\`${String(name).replace(/`/g, '``')}\``;
+  const safe = String(name);
+  if (getCurrentConfig().type === 'mssql') {
+    return `[${MSSQL_SCHEMA}].[${safe.replace(/]/g, ']]')}]`;
+  }
+  return `\`${safe.replace(/`/g, '``')}\``;
 }
 
 async function countRows(tableName) {
@@ -348,7 +389,10 @@ export async function surveyRetiredWorkJunctions() {
 
 /** Copy the stranded links across. See the block comment above. */
 export async function migrateRetiredWorkJunctions({ drop = false } = {}) {
-  const result = { present: [], migrated: 0, alreadyPresent: 0, dangling: 0, dropped: [], skipped: null };
+  const result = { present: [], migrated: 0, alreadyPresent: 0, dangling: 0, dropped: [], retained: [], skipped: null };
+
+  // table -> every row in it is accounted for, so it is safe to remove
+  const droppable = new Map();
 
   // One survey feeding both, so what is reported and what is copied cannot
   // disagree about which tables are there.
@@ -360,13 +404,19 @@ export async function migrateRetiredWorkJunctions({ drop = false } = {}) {
   result.present = survey.present.map(({ table, rows }) => ({ table, rows }));
 
   for (const { table, column } of survey.present) {
+    // Accounted for PER TABLE, because that is what makes the drop safe: a
+    // table is only removed once every row in it has been either copied across
+    // or shown to point at something that no longer exists. A global tally
+    // cannot tell you that about any particular table.
+    let accounted = 0;
+
     const rows = await query(`SELECT work_item_id, ${column} AS entity_id FROM ${quoteIdentifier(table)}`);
     for (const r of rows) {
       // A link whose entity or work item is gone would fail the foreign key and
       // abort the run, and describes nothing worth keeping.
       const [e] = await query('SELECT id FROM entities WHERE id = ?', [r.entity_id]);
       const [w] = await query('SELECT id FROM work_items WHERE id = ?', [r.work_item_id]);
-      if (!e || !w) { result.dangling++; continue; }
+      if (!e || !w) { result.dangling++; accounted++; continue; }
 
       // Checked rather than relying on the insert to no-op, so `migrated`
       // counts rows actually written. Reporting "migrated 2" on a re-run that
@@ -376,18 +426,31 @@ export async function migrateRetiredWorkJunctions({ drop = false } = {}) {
         'SELECT work_item_id FROM work_entity_associations WHERE work_item_id = ? AND entity_id = ?',
         [r.work_item_id, r.entity_id]
       );
-      if (already) { result.alreadyPresent++; continue; }
+      if (already) { result.alreadyPresent++; accounted++; continue; }
 
       await query(
         'INSERT INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
         [r.work_item_id, r.entity_id]
       );
       result.migrated++;
+      accounted++;
     }
+
+    // Re-read rather than trusting the count taken before the copy: if anything
+    // wrote to this table while we worked, those rows were never considered and
+    // must not be dropped from under it.
+    const nowHolds = await countRows(table);
+    droppable.set(table, nowHolds !== null && accounted >= nowHolds);
   }
 
   if (drop) {
     for (const { table } of result.present) {
+      if (!droppable.get(table)) {
+        result.retained.push(table);
+        continue;
+      }
+      // quoteIdentifier schema-qualifies, so on SQL Server this is
+      // [MyWork].[table] and cannot reach another schema's objects.
       await query(`DROP TABLE ${quoteIdentifier(table)}`);
       result.dropped.push(table);
     }
