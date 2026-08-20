@@ -1,6 +1,8 @@
 import { query } from '../database/connectionPool.js';
 import { ValidationError, NotFoundError, ConflictError } from '../config/errors.js';
 import { SYSTEM_ENTITY_TYPES } from '../database/systemEntityTypes.js';
+// A captured snapshot of a working configuration - see revertSystemType.
+import typeDefaults from '../database/typeDefaults.json' with { type: 'json' };
 
 /**
  * Entity type service: CRUD for type definitions (home DB, global, structural).
@@ -427,37 +429,121 @@ export async function deleteEntityTypeRelationship(ruleId) {
   await query('DELETE FROM entity_type_relationships WHERE id = ?', [ruleId]);
 }
 
-// What "revert to defaults" restores. Derived from the shared definitions in
-// src/database/systemEntityTypes.js rather than restated, because a second copy
-// is how these values drifted apart in the first place.
-const SYSTEM_TYPE_DEFAULTS = Object.fromEntries(
-  SYSTEM_ENTITY_TYPES.map((t) => [
-    t.slug,
-    {
-      label: t.label,
-      label_singular: t.label_singular,
-      icon: t.icon,
-      supports_hierarchy: t.supports_hierarchy,
-      primary_date_field: t.primary_date_field,
-    },
-  ])
+/**
+ * What "Revert to defaults" restores.
+ *
+ * Read from src/database/typeDefaults.json - a snapshot of a real, working
+ * configuration, captured by scripts/capture-type-defaults.js - and NOT from
+ * the seed definitions in systemEntityTypes.js. The seed describes how to
+ * CREATE a type that does not exist; it had drifted from the configuration
+ * actually in use (different labels, `focus_seconds` typed differently), and it
+ * cannot describe a user-created type at all. Reverting to it would have
+ * quietly undone real settings and refused to help with half the types on the
+ * page.
+ *
+ * The snapshot is committed, so "defaults" mean the same thing on every
+ * machine. Re-capture it whenever the current configuration is the one worth
+ * keeping.
+ */
+const TYPE_DEFAULTS = Object.fromEntries(
+  (typeDefaults.types || []).map((t) => [t.slug, t])
 );
 
-// Revert a system type to its default settings
+export function getTypeDefaults(slug) {
+  return TYPE_DEFAULTS[slug] || null;
+}
+
+export function hasTypeDefaults(slug) {
+  return Boolean(TYPE_DEFAULTS[slug]);
+}
+
+/**
+ * Restore one type to its captured configuration.
+ *
+ * Fields are matched by field_key: a default field that is missing gets
+ * created, one that exists has its settings written back. Fields NOT in the
+ * defaults are reported but deliberately left alone - `entity_field_values`
+ * rows are keyed by field_key, so dropping a field silently orphans whatever
+ * every record stored in it. Losing data is not a thing a button labelled
+ * "revert settings" should do; the caller is told what is extra and can remove
+ * it deliberately.
+ *
+ * Works for any type with a snapshot, not just system ones - a type the user
+ * created is exactly as worth restoring.
+ */
 export async function revertSystemType(id) {
   const type = await getEntityType(id);
-  if (!type.is_system) throw new ValidationError('Can only revert system types');
 
-  const defaults = SYSTEM_TYPE_DEFAULTS[type.slug];
-  if (!defaults) throw new ValidationError(`No default settings found for type: ${type.slug}`);
+  const defaults = TYPE_DEFAULTS[type.slug];
+  if (!defaults) {
+    throw new ValidationError(
+      `No captured defaults for "${type.slug}". Run scripts/capture-type-defaults.js `
+      + 'on a machine where this type is configured the way you want it.'
+    );
+  }
 
-  const values = [defaults.label, defaults.label_singular, defaults.icon, defaults.supports_hierarchy ? 1 : 0, defaults.primary_date_field || null, id];
   await query(
-    'UPDATE entity_types SET label = ?, label_singular = ?, icon = ?, supports_hierarchy = ?, primary_date_field = ? WHERE id = ?',
-    values
+    `UPDATE entity_types
+        SET label = ?, label_singular = ?, icon = ?, supports_hierarchy = ?,
+            primary_date_field = ?, is_visible = ?, title_order = ?, supports_folders = ?
+      WHERE id = ?`,
+    [
+      defaults.label,
+      defaults.label_singular,
+      defaults.icon,
+      defaults.supports_hierarchy ? 1 : 0,
+      defaults.primary_date_field || null,
+      defaults.is_visible ? 1 : 0,
+      defaults.title_order ?? null,
+      defaults.supports_folders ? 1 : 0,
+      id,
+    ]
   );
 
-  return getEntityType(id);
+  const live = await query(
+    'SELECT * FROM entity_type_fields WHERE entity_type_id = ?', [id]
+  );
+  const liveByKey = new Map(live.map((f) => [f.field_key, f]));
+
+  const restored = [];
+  const created = [];
+
+  for (const f of defaults.fields || []) {
+    const options = f.field_options === null || f.field_options === undefined
+      ? null
+      : (typeof f.field_options === 'string' ? f.field_options : JSON.stringify(f.field_options));
+
+    if (liveByKey.has(f.field_key)) {
+      await query(
+        `UPDATE entity_type_fields
+            SET label = ?, field_type = ?, field_options = ?, required = ?,
+                display_order = ?, show_in_row = ?, is_completion_signal = ?,
+                rollup = ?, show_column_label = ?
+          WHERE entity_type_id = ? AND field_key = ?`,
+        [f.label, f.field_type, options, f.required ? 1 : 0, f.display_order ?? 0,
+         f.show_in_row ? 1 : 0, f.is_completion_signal ? 1 : 0, f.rollup ?? null,
+         f.show_column_label ? 1 : 0, id, f.field_key]
+      );
+      restored.push(f.field_key);
+    } else {
+      await query(
+        `INSERT INTO entity_type_fields
+           (entity_type_id, field_key, label, field_type, field_options, required,
+            display_order, show_in_row, is_completion_signal, rollup, show_column_label)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, f.field_key, f.label, f.field_type, options, f.required ? 1 : 0,
+         f.display_order ?? 0, f.show_in_row ? 1 : 0, f.is_completion_signal ? 1 : 0,
+         f.rollup ?? null, f.show_column_label ? 1 : 0]
+      );
+      created.push(f.field_key);
+    }
+  }
+
+  const defaultKeys = new Set((defaults.fields || []).map((f) => f.field_key));
+  const extra = live.filter((f) => !defaultKeys.has(f.field_key)).map((f) => f.field_key);
+
+  const result = await getEntityType(id);
+  return { ...result, revert: { restored, created, extra, capturedAt: typeDefaults.capturedAt } };
 }
 
 // Rewrites order_index across types (0..n in the given order). This is the same

@@ -79,11 +79,20 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST /api/entity-types/:id/revert - Revert a system type to defaults
+// POST /api/entity-types/:id/revert - restore a type to its captured defaults
 router.post('/:id/revert', async (req, res) => {
   try {
     const type = await entityTypeService.revertSystemType(parseInt(req.params.id));
-    res.json({ success: true, data: type, message: 'Type reverted to default settings' });
+    const { restored = [], created = [], extra = [] } = type.revert || {};
+
+    // Say what actually happened rather than "done". Restoring 9 fields and
+    // adding 2 is a different event from restoring 9 and finding 3 the defaults
+    // do not know about, and the second one needs the user's attention.
+    const parts = [`Restored ${restored.length} field${restored.length === 1 ? '' : 's'}`];
+    if (created.length) parts.push(`re-created ${created.length}`);
+    if (extra.length) parts.push(`left ${extra.length} not in defaults alone (${extra.join(', ')})`);
+
+    res.json({ success: true, data: type, message: parts.join(', ') });
   } catch (error) {
     logger.error('Error reverting entity type:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });

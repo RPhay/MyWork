@@ -101,6 +101,10 @@ function createTypeListItem(type, isReadonly) {
           <input class="form-check-input type-visible-toggle" type="checkbox" ${isVisible ? 'checked' : ''}>
           <label class="form-check-label small text-muted">${isVisible ? 'Enabled' : 'Disabled'}</label>
         </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary type-revert-btn me-2"
+                title="Put this type's icon, labels and field settings back to the saved defaults. Records are not touched, and fields the defaults do not know about are left alone.">
+          <i class="bi bi-arrow-counterclockwise"></i>
+        </button>
       ` : `
         <span class="text-muted" style="font-size: 0.9em;">Read-only</span>
       `}
@@ -129,8 +133,34 @@ function createTypeListItem(type, isReadonly) {
       }
     });
 
+    item.querySelector('.type-revert-btn')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+
+      // Says what it does AND what it does not, because "revert" is the kind of
+      // word people reasonably expect to destroy something.
+      const ok = await app.confirm(
+        'This puts the icon, labels and field settings back to the saved defaults. '
+        + 'Your records are not touched, and any field the defaults do not know '
+        + 'about is left exactly as it is.',
+        `Revert ${type.label} to defaults?`
+      );
+      if (!ok) return;
+
+      btn.disabled = true;
+      try {
+        const result = await app.fetch(`/api/entity-types/${type.id}/revert`, { method: 'POST' });
+        app.notify(result.message || `${type.label} reverted`, 'success');
+        await loadEntityTypesUI();
+      } catch (error) {
+        app.notify(error.message || 'Could not revert this type', 'danger');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     item.addEventListener('click', (e) => {
-      if (e.target.closest('.type-visible-toggle, .type-drag-handle')) return;
+      if (e.target.closest('.type-visible-toggle, .type-drag-handle, .type-revert-btn')) return;
       window.openEntityTypeEditor(type.id);
     });
   }
