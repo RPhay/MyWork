@@ -984,7 +984,7 @@ export async function createMssqlSchema(pool) {
   await createUpdatedAtTrigger(pool, "entity_types");
 
   // Backfill type_category column for existing records (MSSQL)
-  const typesCategoryExists = await columnExistsAsync(pool, "entity_types", "type_category");
+  const typesCategoryExists = await columnExists(pool, "entity_types", "type_category");
   if (!typesCategoryExists) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD type_category NVARCHAR(20) DEFAULT 'editable' CHECK (type_category IN ('editable','template','daily','external'))");
   }
@@ -999,18 +999,18 @@ export async function createMssqlSchema(pool) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD supports_folders BIT DEFAULT 1");
   }
 
-  const typesExternalSourceExists = await columnExistsAsync(pool, "entity_types", "external_source");
+  const typesExternalSourceExists = await columnExists(pool, "entity_types", "external_source");
   if (!typesExternalSourceExists) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD external_source NVARCHAR(100)");
   }
 
   // Where the Title column sits among the field columns - see mysqlSchema.js.
-  const typesTitleOrderExists = await columnExistsAsync(pool, "entity_types", "title_order");
+  const typesTitleOrderExists = await columnExists(pool, "entity_types", "title_order");
   if (!typesTitleOrderExists) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD title_order INT NOT NULL DEFAULT 0");
   }
 
-  const typesTemplateStructureExists = await columnExistsAsync(pool, "entity_types", "template_structure");
+  const typesTemplateStructureExists = await columnExists(pool, "entity_types", "template_structure");
   if (!typesTemplateStructureExists) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD template_structure NVARCHAR(MAX)");
   }
@@ -1086,13 +1086,13 @@ export async function createMssqlSchema(pool) {
   // Backfill the roll-up column for tables that predate it. Mirrors the same
   // block in mysqlSchema.js - createTableIfNotExists is a no-op once the table
   // exists, so the CREATE TABLE body above never reaches an existing install.
-  const fieldsRollupExists = await columnExistsAsync(pool, "entity_type_fields", "rollup");
+  const fieldsRollupExists = await columnExists(pool, "entity_type_fields", "rollup");
   if (!fieldsRollupExists) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_type_fields] ADD rollup NVARCHAR(20) NULL");
   }
 
   // Mirrors mysqlSchema.js - see the note there.
-  const fieldsShowLabelExists = await columnExistsAsync(pool, "entity_type_fields", "show_column_label");
+  const fieldsShowLabelExists = await columnExists(pool, "entity_type_fields", "show_column_label");
   if (!fieldsShowLabelExists) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_type_fields] ADD show_column_label BIT DEFAULT 1");
   }
