@@ -108,6 +108,33 @@ Never paste, print, or otherwise reproduce credential values (`.env.local` conte
 
 **Versioning**: `src/utils/version.js` derives a `[yyyy].[mm].[dd].[rev]` version string, persisted to `.version` (gitignored) and bumped via `updateVersion()`; `readVersion()` is what's passed into dashboard/settings views.
 
+## Rows, editors and the focus bar
+
+Behaviour that is easy to undo by accident, because each rule came from a
+specific failure:
+
+- **One click expands a row; two open the editor.** The editor used to be one
+  click away, so you could not look inside a folder without loading it.
+- **A folder's cells are ROLL-UPS of what is inside it**, at any depth, and
+  failed dominates. They are summaries, not controls: clicking one does nothing
+  to the editor. A folder shows Worked Time in its editor and nothing else it
+  does not own.
+- **Right-clicking a row selects it**; right-clicking a cell that cycles offers
+  every value instead, in the state's own colour - and with rows multi-selected,
+  sets it on all of them.
+- **Status is one vocabulary for every type**: Not Started / In Progress /
+  Complete / Failed / Ignored, coloured black / blue / green / red / grey in the
+  cell and the editor alike, from one set of CSS classes. The box round a status
+  is always black; in the editor it marks which one is current.
+- **Worked Time is on every type and cannot be removed.** It is the value the
+  focus clock accumulates AND a property you can correct by hand, stored in
+  seconds and typed as "1h 30m". The type editor locks it, along with the other
+  fields the engine writes.
+- **The focus bar lives in the navbar** and holds as many items as you pin.
+  Only the clock starts and stops the clock. Its redraws are suspended while a
+  chip is being dragged, or the timer's refresh deletes the element under the
+  cursor mid-gesture.
+
 ## Recurring Todos/Tasks
 
 Todos and tasks can have a recurring schedule that causes them to automatically appear as work items in the Dailies tab. When a recurring item is marked complete in Dailies, the next occurrence is automatically generated.

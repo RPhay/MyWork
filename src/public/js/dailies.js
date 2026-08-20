@@ -823,6 +823,95 @@ let workItemEditorRequestId = 0;
 // work item editor and the child item editor share one pane, so exactly one
 // row is selected across both lists. Called on open, on close, and after every
 // re-render (the list is rebuilt via innerHTML, which drops the class).
+// ===== Multi-select =====
+//
+// The same gestures as every typed page: plain click starts a selection of one,
+// cmd/ctrl toggles a row in or out, shift takes the run between. Dailies had
+// none of this - the only way to remove several items was one at a time.
+const dailiesSelected = new Set();
+let dailiesAnchor = null;
+
+// Long enough to catch a real double click, short enough that one still feels
+// immediate - the same value the typed pages use.
+const DAILIES_DOUBLE_CLICK_MS = 220;
+let dailiesClickTimer = null;
+
+// Only top-level work items take part. A child row is a reference to a record
+// that lives on another page; removing it means unlinking, which is a different
+// verb from deleting, and mixing the two in one selection would be a trap.
+function dailiesRowIds() {
+  return [...document.querySelectorAll('#workItemsList .work-item:not(.child-item-row)')]
+    .filter(el => el.offsetParent !== null)
+    .map(el => el.dataset.workId);
+}
+
+function paintDailiesSelection() {
+  document.querySelectorAll('#workItemsList .work-item:not(.child-item-row)').forEach(el => {
+    el.classList.toggle('multi-selected', dailiesSelected.has(el.dataset.workId));
+  });
+  const bar = document.getElementById('dailiesSelectionBar');
+  if (bar) {
+    bar.hidden = dailiesSelected.size < 2;
+    const count = document.getElementById('dailiesSelectionCount');
+    if (count) count.textContent = `${dailiesSelected.size} selected`;
+  }
+}
+
+function clearDailiesSelection() {
+  dailiesSelected.clear();
+  dailiesAnchor = null;
+  paintDailiesSelection();
+}
+
+// Returns true when the click was purely about selection and nothing else
+// should happen - the same contract the typed pages use.
+function handleDailiesSelectionClick(e, el) {
+  const id = el.dataset.workId;
+
+  if (e.shiftKey && dailiesAnchor) {
+    const ids = dailiesRowIds();
+    const from = ids.indexOf(dailiesAnchor);
+    const to = ids.indexOf(id);
+    if (from !== -1 && to !== -1) {
+      dailiesSelected.clear();
+      for (const rid of ids.slice(Math.min(from, to), Math.max(from, to) + 1)) dailiesSelected.add(rid);
+    }
+    paintDailiesSelection();
+    return true;
+  }
+
+  if (e.metaKey || e.ctrlKey) {
+    if (dailiesSelected.has(id)) dailiesSelected.delete(id);
+    else dailiesSelected.add(id);
+    dailiesAnchor = id;
+    paintDailiesSelection();
+    return true;
+  }
+
+  dailiesSelected.clear();
+  dailiesSelected.add(id);
+  dailiesAnchor = id;
+  paintDailiesSelection();
+  return false;
+}
+
+async function deleteSelectedDailies() {
+  const ids = [...dailiesSelected];
+  if (ids.length === 0) return;
+  const ok = await app.confirm({
+    title: 'Delete work items',
+    message: `Delete ${ids.length} work item${ids.length === 1 ? '' : 's'}? Anything referenced stays on its own page.`,
+    confirmText: 'Delete',
+  });
+  if (!ok) return;
+
+  for (const id of ids) {
+    await app.fetchRaw(`/api/work/${id}`, { method: 'DELETE' }).catch(() => {});
+  }
+  clearDailiesSelection();
+  loadWorkItems();
+}
+
 function syncDailiesRowSelection() {
   let row = null;
   if (currentEditingChild) {
@@ -1806,7 +1895,7 @@ function initWorkItemsListEventListeners() {
     },
   );
 
-  container.addEventListener("click", (e) => {
+  container.addEventListener("click", async (e) => {
     const actionBtn = e.target.closest(
       '[data-action="delete"], [data-action="unlink"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"], [data-action="toggle-claude"]',
     );
@@ -1836,6 +1925,15 @@ function initWorkItemsListEventListeners() {
       return;
     }
 
+    if (e.target.closest('[data-action="delete-selected-dailies"]')) {
+      await deleteSelectedDailies();
+      return;
+    }
+    if (e.target.closest('[data-action="clear-dailies-selection"]')) {
+      clearDailiesSelection();
+      return;
+    }
+
     const toggleIcon = e.target.closest('[data-action="toggle-expand"]');
     if (toggleIcon) {
       toggleWorkItem(toggleIcon.closest(".work-item"));
@@ -1848,16 +1946,32 @@ function initWorkItemsListEventListeners() {
     // Ignore clicks on elements with data-action (those are handled above)
     if (e.target.closest('[data-action]')) return;
 
-    // Click on item to open editor
     const workItemEl = header.closest(".work-item");
-    if (workItemEl.classList.contains("child-item-row")) {
-      // Child item - open its editor
-      const itemType = workItemEl.dataset.itemType;
-      const itemId = workItemEl.dataset.workId;
-      editChildItem(itemType, itemId);
-    } else {
-      // Work item - open work item editor
-      editWorkItem(workItemEl.dataset.workId);
+
+    // Same gestures as every typed page: ONE click opens and closes the row,
+    // TWO open the editor. A single click used to open the editor here, so
+    // there was no way to look inside an item without loading it - and it was
+    // inconsistent with the rest of the app.
+    //
+    // The expand is deferred so a double click does not toggle the row open and
+    // shut on its way to the editor.
+    if (!workItemEl.classList.contains("child-item-row")) {
+      if (handleDailiesSelectionClick(e, workItemEl)) return;   // modifier: selection only
+    }
+    clearTimeout(dailiesClickTimer);
+    dailiesClickTimer = setTimeout(() => {
+      if (workItemEl.dataset.hasChildren === "true") toggleWorkItem(workItemEl);
+    }, DAILIES_DOUBLE_CLICK_MS);
+  });
+
+  // Escape clears, Delete removes - the same keys as the typed pages.
+  document.addEventListener('keydown', async (e) => {
+    if (!dailiesSelected.size) return;
+    if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (e.key === 'Escape') { clearDailiesSelection(); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      await deleteSelectedDailies();
     }
   });
 
@@ -1870,7 +1984,14 @@ function initWorkItemsListEventListeners() {
     if (e.target.closest("[data-action]")) return;
     const header = e.target.closest(".work-item-header");
     if (!header) return;
-    editWorkItem(header.closest(".work-item").dataset.workId);
+    clearTimeout(dailiesClickTimer);          // cancel the pending expand
+
+    const workItemEl = header.closest(".work-item");
+    if (workItemEl.classList.contains("child-item-row")) {
+      editChildItem(workItemEl.dataset.itemType, workItemEl.dataset.workId);
+    } else {
+      editWorkItem(workItemEl.dataset.workId);
+    }
   });
 
   container.addEventListener("contextmenu", (e) => {

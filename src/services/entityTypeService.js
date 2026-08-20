@@ -86,6 +86,35 @@ async function ensureSelfNestingRule(typeId) {
   );
 }
 
+/**
+ * A template may contain any editable type. That rule is enumerated as a row
+ * per child type, which means it can only ever list the types that existed when
+ * it was written - so a type created afterwards could not be dropped into a
+ * template at all, silently, because the drop is gated on these rules.
+ *
+ * Adding the row when the type is created is what makes "any editable type"
+ * true rather than "the eight we happened to ship with".
+ */
+async function ensureContainerRules(typeId, typeCategory) {
+  if (typeCategory && typeCategory !== 'editable') return;
+
+  const containers = await query(
+    "SELECT id FROM entity_types WHERE slug = 'template' AND deleted_at IS NULL"
+  );
+  for (const container of containers) {
+    if (container.id === typeId) continue;
+    const existing = await query(
+      "SELECT id FROM entity_type_relationships WHERE parent_type_id = ? AND child_type_id = ? AND relationship_kind = 'hierarchy'",
+      [container.id, typeId]
+    );
+    if (existing.length > 0) continue;
+    await query(
+      "INSERT INTO entity_type_relationships (parent_type_id, child_type_id, relationship_kind) VALUES (?, ?, 'hierarchy')",
+      [container.id, typeId]
+    );
+  }
+}
+
 // Create a new entity type
 export async function createEntityType(data) {
   if (!data.slug) throw new ValidationError('slug is required');
@@ -127,6 +156,8 @@ export async function createEntityType(data) {
     }
 
     if (data.supports_hierarchy) await ensureSelfNestingRule(typeId);
+    // ...and it can be put inside a template, like every other editable type.
+    await ensureContainerRules(typeId, data.type_category);
 
     return getEntityType(typeId);
   } catch (error) {

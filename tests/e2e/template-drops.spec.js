@@ -49,6 +49,7 @@ async function dropOn(page, targetSelector, payload) {
 test.afterEach(async ({ page }) => {
   await purgeByTitlePrefix(page, 'template', 'ZZZ');
   await purgeByTitlePrefix(page, 'priority', 'ZZZ');
+  await purgeByTitlePrefix(page, 'tests', 'ZZZ');
 });
 
 test('a row dropped on the templates root is refused, not turned into a template', async ({ page }) => {
@@ -101,4 +102,84 @@ test('a row dropped into a template keeps its tree', async ({ page }) => {
 
   expect(underTemplate, 'the dropped row is inside the template').toBe(true);
   expect(underParent, "the dropped row's own children come with it").toBe(true);
+});
+
+// A template may contain any editable type. That rule is enumerated per child
+// type, so it could only ever list the types that existed when it was written -
+// a type created afterwards was refused, silently, because the drop is gated on
+// these rules. Creating a type now adds the row.
+test('a type created by the user can be put into a template', async ({ page }) => {
+  await page.goto('/?tab=tests', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1400);
+
+  const rules = (await api(page, '/api/entity-types')).data
+    .find(t => t.slug === 'template');
+  const allowed = (rules.relationships || [])
+    .filter(r => r.relationship_kind === 'hierarchy')
+    .map(r => r.child_type_id);
+  const testsType = (await api(page, '/api/entity-types')).data.find(t => t.slug === 'tests');
+  console.log('template accepts tests ->', allowed.includes(testsType.id));
+
+  // The real proof: drop one in and see the edge stored.
+  const row = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZ into template' }) })).data;
+  const tpl = (await api(page, '/api/entities/template', { method: 'POST', body: JSON.stringify({ title: 'ZZZ holder 2' }) })).data;
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(900);
+
+  const rowSel = `#templateEntityList .entity-row[data-entity-id="${tpl.id}"]`;
+  await expect(page.locator(rowSel)).toHaveCount(1);
+  await dropOn(page, rowSel, { type: 'tests', id: row.id, name: 'ZZZ into template' });
+  await page.locator('#copyOrReferenceRefBtn').click();
+  await page.waitForTimeout(1500);
+
+  const edges = (await api(page, '/api/entities/template/relationships')).data || [];
+  const inside = edges.some(e => String(e.parent_entity_id) === String(tpl.id)
+    && String(e.child_entity_id) === String(row.id));
+  expect(inside, 'a user-created type belongs in a template like any other').toBe(true);
+});
+
+// A row keeps its TREE when it lands in a template, whatever its type.
+//
+// Two things had to be true and only one was: the edges are fetched (they are),
+// and the template renders as a tree. `template.supports_hierarchy` was 0 in the
+// database while its own rules declared eight types as allowed children - so the
+// renderer took its FLAT branch and the client never fetched the edges at all.
+test('a new type keeps its tree inside a template', async ({ page }) => {
+  await page.goto('/?tab=tests', { waitUntil: 'networkidle' });
+  const parent = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZu parent' }) })).data;
+  const child = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZu child' }) })).data;
+  await api(page, `/api/entities/tests/${child.id}/relationships`, { method: 'POST',
+    body: JSON.stringify({ parentEntityId: parent.id, childEntityId: child.id, relationshipKind: 'hierarchy' }) });
+  const tpl = (await api(page, '/api/entities/template', { method: 'POST', body: JSON.stringify({ title: 'ZZZu holder' }) })).data;
+  await api(page, `/api/entities/template/${parent.id}/relationships`, { method: 'POST',
+    body: JSON.stringify({ parentEntityId: tpl.id, childEntityId: parent.id, relationshipKind: 'hierarchy' }) });
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1600);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(1400);
+  // Expand so nested rows are in view.
+  await page.locator('#expandAlltemplateBtn').click().catch(() => {});
+  await page.waitForTimeout(900);
+
+  const depths = await page.evaluate((ids) => ids.map(id => {
+    const row = document.querySelector(`#templateEntityList .entity-row[data-entity-id="${id}"]`);
+    return row ? Number(row.dataset.depth) : null;
+  }), [tpl.id, parent.id, child.id]);
+  console.log('depths [template, parent, child] ->', JSON.stringify(depths));
+
+  await page.evaluate(async (ids) => {
+    const csrf = window.APP_CONFIG?.csrfToken;
+    for (const [slug, id] of ids) {
+      await fetch(`/api/entities/${slug}/${id}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
+      await fetch(`/api/trash/${id}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
+    }
+  }, [['tests', child.id], ['tests', parent.id], ['template', tpl.id]]);
+
+  expect(depths[0], 'the template is a root').toBe(0);
+  expect(depths[1], 'the dropped row sits inside it').toBe(1);
+  expect(depths[2], "and its own child comes with it").toBe(2);
 });

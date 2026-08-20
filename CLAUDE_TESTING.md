@@ -158,6 +158,18 @@ be read. They are merged above.
   Two separate stash-and-compare attempts "attributed" it to unrelated edits
   before the race was spotted. If a result flips on run order, suspect the
   spec's timing before you suspect the diff.
+- **A row locator built from TEXT can match an ancestor.** A folder's
+  `.entity-row` contains its nested rows once something is inside it, so
+  `.entity-row` + `hasText` matches the outer folder as well as the row you
+  meant - and `.first()` picks the outer one. Address rows by
+  `[data-entity-id="..."]`. This single mistake was reported as a Goals
+  drag-and-drop regression for several sessions.
+- **A pointer drag cannot always reach its target.** On the widest types a row
+  is hundreds of pixels tall in a narrow pane, so the band being aimed for can
+  sit past the fold. Drive nesting with drag EVENTS; the drop handler receives
+  the same thing either way.
+- **`toHaveClass(/selected/)` also matches `multi-selected`.** Two different
+  states, one substring. Use `classList.contains('selected')`.
 - **A stale allow-list reports a working feature as broken.** `RENDERED_TYPES`
   in `entity-type-integrity.spec.js` omitted `priority`, which has had a
   renderer all along, so the spec claimed there wasn't one.
@@ -188,7 +200,7 @@ run; **est.** ones are derived from the specs' measured neighbours.
 | 2 | Smoke | `debug` + `ui-check` + `drag-protocol` | ~20s (est.) | "Did I break the page load?" CSP, console errors, tab structure, drag globals |
 | 3 | Targeted | The 1-3 specs covering the change | 5-30s | **The default while working.** `column-reorder-editor-sync` alone is 7s |
 | 4 | Editor / engine | `entity-editor-behaviour`, `entity-type-integrity`, `entity-field-types`, `column-reorder-editor-sync`, `row-icon-sizing` | ~1m (est.) | Editor, field types, row rendering, the generic engine |
-| 5 | Drag | `drag-protocol`, `real-drag-drop`, `template-drops`, `dailies-drop`, `priorities-rail` | **~1.2m** | Anything touching drag sources, drop targets or `dragDropUtils.js` |
+| 5 | Drag | `drag-protocol`, `real-drag-drop`, `template-drops`, `dailies-drop`, `dailies-any-type`, `priorities-rail` | **~1.2m** | Anything touching drag sources, drop targets or `dragDropUtils.js` |
 | 6 | Guard set | The 13 specs above + `npm run test:unit` | **6.2m** | Before a commit or push |
 | 7 | Guard + headed | Tier 6 + `editable-types --headed` | ~8m (est.) | Editable type pages or their engine — see "Editable types" |
 | 8 | Full suite | `npx playwright test` | **~12.3m** | Rarely. Mostly stale specs; the number needs a baseline to mean anything |

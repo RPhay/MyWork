@@ -77,8 +77,11 @@ class TabManager {
       // A full-width view owns the screen: no rails, no dividers, and the tab
       // content takes everything.
       const on = this.fullWidthTab ? [] : RAILS.filter(isOn);
-      // Both rails on means they are the two panes and the type stands down.
-      const showContent = on.length < 2;
+      // Two panes at most. The type pane shows when it has not been put away
+      // and a rail is not already using the second slot.
+      const showContent = this.fullWidthTab
+        ? true
+        : (this.contentVisible !== false && on.length < 2);
       const panes = showContent ? [...on, 'content'] : on;
 
       RAILS.forEach((slug) => {
@@ -115,11 +118,19 @@ class TabManager {
       return Number.isFinite(pct) ? pct : 50;
     };
 
+    // The stored width splits TWO panes. With only one on screen there is
+    // nothing to split, so it takes the lot - putting the type pane away used to
+    // leave the rail at half width with dead space beside it.
     const applyWidth = (pct) => {
-      const first = RAILS.filter(isOn)[0];
+      const on = RAILS.filter(isOn);
+      const first = on[0];
+      const alone = on.length === 1 && this.contentVisible === false;
       RAILS.forEach((slug) => {
         const el = document.getElementById(`rail-${slug}`);
-        if (el) el.style.flex = slug === first ? `0 0 ${pct}%` : '1 1 auto';
+        if (!el) return;
+        el.style.flex = slug === first
+          ? (alone ? '1 1 auto' : `0 0 ${pct}%`)
+          : '1 1 auto';
       });
     };
 
@@ -166,24 +177,57 @@ class TabManager {
       applyCal(open);
     });
 
-    // One rail at a time unless you ask for more. Opening a second used to
-    // leave both showing, so two rails plus the tab you were reading split the
-    // screen three ways by accident. Cmd/Ctrl (or Alt) held means "add this one
-    // as well" - the same modifier that adds to a selection everywhere else.
+    // What may share the screen, and how you ask for it:
+    //
+    //   any ONE rail + an editable type - select the rail, then click the type
+    //   Dailies + Templates             - cmd/alt + click
+    //   Dailies + Priorities            - cmd/alt + click
+    //
+    // Two rails only ever sit together WITH Dailies; Templates and Priorities
+    // never share the screen with each other.
+    // A plain click on any of the three deselects everything else.
+    const DAILIES = 'work_item';
+    const setRail = (slug, on) => localStorage.setItem(KEY(slug), String(on));
+
     document.querySelectorAll('button[data-rail-toggle]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const slug = btn.dataset.railToggle;
-        const adding = e.metaKey || e.ctrlKey || e.altKey;
-        const turningOn = !isOn(slug);
+        const pairing = e.metaKey || e.ctrlKey || e.altKey;
 
-        if (turningOn && !adding) {
-          // Close the others first, so this becomes the only one open.
-          document.querySelectorAll('button[data-rail-toggle]').forEach((other) => {
-            const otherSlug = other.dataset.railToggle;
-            if (otherSlug !== slug) localStorage.setItem(KEY(otherSlug), 'false');
-          });
+        // A full-width view (Reporting) stands the rails down while it is open.
+        // Asking for a rail is asking to leave it - without this the toggle was
+        // stored, apply() filtered every rail out because fullWidthTab was
+        // still set, and there was no way back to Dailies at all.
+        const leavingFullWidth = !!this.fullWidthTab;
+        if (leavingFullWidth) {
+          this.fullWidthTab = false;
+          this.contentVisible = false;
         }
-        localStorage.setItem(KEY(slug), String(turningOn));
+
+        // Coming out of a full-width view, the rail is stored as open but is not
+        // on screen - so treat the click as "show it", not as the toggle-off it
+        // would otherwise be. Without this, asking for Dailies from Reporting
+        // closed Dailies and showed the type pane instead.
+        if (isOn(slug) && !leavingFullWidth) {
+          setRail(slug, false);                       // clicking an open one closes it
+          if (!RAILS.some(isOn)) this.contentVisible = true;   // never leave a blank screen
+          apply();
+          return;
+        }
+
+        const others = RAILS.filter(s => s !== slug);
+        if (pairing && (slug === DAILIES || isOn(DAILIES))) {
+          // The only legal pair is with Dailies, so everything else stands down.
+          others.filter(s => s !== DAILIES).forEach(s => setRail(s, false));
+          if (slug !== DAILIES) setRail(DAILIES, true);
+          setRail(slug, true);
+          this.contentVisible = false;                // the two rails are the two panes
+        } else {
+          // Plain click: this is the only thing open.
+          others.forEach(s => setRail(s, false));
+          setRail(slug, true);
+          this.contentVisible = false;
+        }
         apply();
       });
     });
@@ -206,7 +250,8 @@ class TabManager {
   // current - it is only current when its content is actually showing.
   syncTabHighlight() {
     document.querySelectorAll('button[data-tab]').forEach((btn) => {
-      btn.classList.toggle('active', !this.contentHidden && btn.dataset.tab === this.currentTab);
+      btn.classList.toggle('active',
+        this.contentVisible !== false && !this.contentHidden && btn.dataset.tab === this.currentTab);
     });
   }
 
@@ -282,10 +327,22 @@ class TabManager {
       button.addEventListener('click', (e) => {
         e.preventDefault();
         const tab = button.dataset.tab;
-        // Both rails up means the type has nowhere to render. Asking for a type
-        // is a request to see it, so the right-hand rail (Templates) stands
-        // down and the type takes that slot.
-        if (this.contentHidden) this.closeRail?.('template');
+
+        // Clicking a type tab toggles that type on screen:
+        //   nothing showing, or a DIFFERENT type showing -> show this one
+        //   this one already showing                     -> put it away
+        //
+        // Every rail pairs with a type, so whichever is open stays put and the
+        // type takes the other slot.
+        const showingThis = this.contentVisible !== false && this.currentTab === tab;
+        if (showingThis) {
+          this.contentVisible = false;
+          this.applyRails?.();
+          this.syncTabHighlight();
+          return;
+        }
+
+        this.contentVisible = true;
         this.switchTab(tab);
       });
     });

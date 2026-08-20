@@ -15,6 +15,8 @@ const RENDERED_TYPES = [
   // from this list while being seeded 8 times, so the test reported it as
   // "not a known renderer" when the renderer was there all along.
   'priority',
+  // `duration` is Worked Time: seconds stored, "1h 30m" shown.
+  'duration',
   // `emoji` is a free pick; `emojis` cycles through a set declared on the field.
   'emoji', 'emojis',
 ];
@@ -65,4 +67,30 @@ test('every hierarchical type can actually nest under itself', async ({ page }) 
     // and the context menu's "New ... inside" would create orphans.
     expect(selfNest, `${t.slug} claims supports_hierarchy but has no ${t.slug}->${t.slug} hierarchy rule`).toBe(true);
   }
+});
+
+
+// A type that declares children must be able to HOLD them. Templates shipped
+// with eight allowed child types and `supports_hierarchy` false, and the
+// contradiction was invisible: the renderer silently took its flat branch, the
+// client never fetched the edges, and rows dropped into a template arrived with
+// their trees stripped off.
+test('a type that allows children supports hierarchy', async ({ page }) => {
+  await page.goto('/settings?tab=entity-types');
+  await page.waitForLoadState('networkidle');
+  const types = await page.evaluate(async () => (await (await fetch('/api/entity-types')).json()).data);
+  const byId = new Map(types.map(t => [t.id, t]));
+
+  const rels = await page.evaluate(async () => (await (await fetch('/api/entity-types/relationships')).json()).data)
+    .catch(() => null);
+
+  const broken = [];
+  for (const t of types) {
+    const kids = (t.relationships || rels || [])
+      .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id === t.id);
+    if (kids.length > 0 && !t.supports_hierarchy) {
+      broken.push(`${t.slug} allows ${kids.map(k => byId.get(k.child_type_id)?.slug || k.child_type_id).join(', ')} but does not support hierarchy`);
+    }
+  }
+  expect(broken, broken.join(' | ')).toEqual([]);
 });

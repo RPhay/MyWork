@@ -8,20 +8,19 @@ Last updated: 2026-08-19.
 
 ## Read this first if you are picking the work up
 
-Everything is committed and pushed to **`row-controls-and-priorities-rail`**
-(branched from `main`, not merged). `git pull` that branch and you have the lot.
+Everything is committed to **`main`**. Run the app with `npm run dev` ->
+http://localhost:3000, after copying `.env.example` to `.env.local`.
 
-The current work is **implementing a full code/product audit of MyWork**:
+The work is implementing a full code/product audit of MyWork:
 
 > **https://claude.ai/code/artifact/ba20de4f-f4e1-4f66-976f-aef567635e49**
 
-Fourteen numbered findings plus six feature suggestions, each measured against
-the running app rather than inferred. The user asked for **all of it** to be
-implemented. Section 6 below tracks exactly which are done and which are not —
-that is the to-do list; the artifact is the reasoning behind each item.
+Fourteen numbered findings plus six feature suggestions. Section 6 tracks which
+are done; the artifact is the reasoning behind each.
 
-**Run the app**: `npm run dev` → http://localhost:3000. Copy `.env.example` to
-`.env.local` first. **Verify a clean checkout** with the guard set in §4.
+**Testing rules live in `CLAUDE_TESTING.md`** - including the one that matters
+most here: e2e runs write to the user's REAL database, so they leave rows in the
+app the user is looking at. Clean up after every run.
 
 ---
 
@@ -40,8 +39,13 @@ be settled — these two statements cannot both hold:
 > "if a clone, any changes to that clone are automatically made to the original
 > including edits, reordering children, or deletions"
 
-One mode is independent, the other is linked, and "clone" is used for both.
-**Ask which word means which before writing any of it.**
+One mode is independent, the other is linked, and "clone" was used for both.
+**Still unanswered - ask before writing any of it.**
+
+Note the app already settled the vocabulary everywhere else: the dialog offers
+**Copy** (independent) or **Reference** (edits reach the original), and both
+Templates and the Priorities board use it that way. The likely reading is that
+"clone" meant Copy in one message and Reference in the other. Do not assume it.
 
 Once settled, the shape is:
 
@@ -80,24 +84,28 @@ To watch: `board_bay` / `board_order` are seeded onto every editable type via
 seeder; a type created before it and never re-seeded will not appear on the
 board until it does.
 
-## 3. Known regression: drag-to-nest fails on Goals while the rail is open
+## 3. The Goals drag-to-nest "regression" was the test - CLOSED
 
-`generic-entity-crud.spec.js` → "items nest into folders and folders nest into
-folders", Goals only, reproducible (not a flake).
+Two faults, both in `generic-entity-crud.spec.js`, neither in the app:
 
-What is established:
+- `page.locator('.entity-row', { hasText })` matched the ANCESTOR row. A
+  folder's `.entity-row` contains its nested rows once something is inside it,
+  so after the first nest `.first()` picked the outer folder and the second
+  drop was aimed at the wrong target.
+- On the widest types a row is **hundreds of pixels tall** in a narrow pane, so
+  a pointer drag could not reach the band it aimed for.
 
-- **Todos now fails it too** (measured 2026-08-19). The earlier "Goals only"
-  finding is out of date — do not start from it. Categories and Ideas still pass.
-- Goals has the most columns (8), so its rows wrap to **66px** against **49px**
-  elsewhere.
-- With the rail open the tab content is **609px**; closed it is 1256px.
-- The first nest (folder → folder) succeeds; the second (item → inner folder)
-  never writes its edge.
+Rows are addressed by id now and the nest is driven by drag events. All seven
+types pass. The drop handler was instrumented first, as this file asked: it
+returned `nest` every time.
 
-Not established: whether the drop lands in the wrong band, the target row moves
-after the first nest re-renders, or the inner folder is not where the test
-expects. **Instrument the drop handler before adjusting any geometry.**
+**What that turned up, and is still open:** those row heights are real. Goals
+renders `90px 4.39px 90px 88px 4.4px 120px 4.4px 4.4px 4.4px 78px` - several
+columns collapsed to about four pixels, their content wrapping into a 500px
+row. It follows from two rules that are individually right (never scroll
+horizontally, never truncate) meeting more columns than the width can hold.
+Needs a decision: drop columns when the pane is too narrow, or allow one of
+those rules to bend.
 
 ## 4. Test suite triage
 
@@ -131,7 +139,8 @@ the pattern.
 
 ## 5. Smaller open items
 
-- **`templates.js` (987 lines) and `templates.ejs` (293 lines) are dead code** —
+- ~~`templates.js` and `templates.ejs` are dead code~~ - both deleted.
+  Kept here only as the shape of the problem:
   found while doing #05, verified against the rendered page, not inferred:
   `templates.ejs` is included nowhere (`customTemplateMap` is now `{}` and the
   Templates rail renders `generic-entity-tab.ejs`), and it was the only thing
@@ -153,8 +162,10 @@ the pattern.
   or column chooser — they sit outside the generic engine. For the board this is
   deliberate: its cards are references to rows owned elsewhere, and it can only
   write placement and order.
-- **Empty tables** still in the schema: `priority_links`, `task_links`,
-  `ticket_links`, `to_do_links`, `context_tab_settings`.
+- ~~Empty tables in the schema~~ - the four per-type `*_links` tables and
+  `context_tab_settings` are gone from both schema files, the health check and
+  the database (backed up first; `ticket_links` held one row). So is
+  `priorities.is_weekly`.
 - **`openNewWorkForm`** in `dailies.js` is now unreferenced — the "+ Add" button
   it served was removed in favour of dragging work in from a typed page.
 
@@ -180,6 +191,8 @@ matches the artifact.
 | 11 | Nothing could be undone | `deleted_at` + `deleted_batch` soft delete, Recently Deleted panel, restore and purge |
 | 12 | Everything drag-only | Palette `Tab` actions call the same endpoints as the drop handlers |
 | 14 | Looked protected, had no auth | Documented in `CLAUDE.md` as an explicit assumption |
+| 07 | 25 of 42 tables empty | The four per-type `*_links` tables and `context_tab_settings` dropped from both schema files, the health check and the database - backed up first, since `ticket_links` was not actually empty |
+| 13 | No multi-select or bulk operations | Multi-select (click / cmd / shift) with a selection bar and bulk delete; a value menu opened inside a selection now sets that field on **every** selected row and says how many |
 | 05 | Drag handlers spread across 9 files; `dragDropUtils.js` held 2 | One protocol in `dragDropUtils.js` — `DRAG_EFFECT_ALLOWED` / `beginDrag` / `acceptDrop` / `showDropIndicator` / `clearDropIndicators`. **0 hand-written `effectAllowed` or `dropEffect` left** in live files; indicator clearing has one implementation. Guarded by `drag-protocol.spec.js` |
 
 Plus two features the user asked for directly, neither in the artifact:
@@ -191,10 +204,8 @@ drag-to-pin).
 
 | # | Finding | Note |
 |---|---|---|
-| 06 | Dailies outside the generic engine, 3,666 lines | Blocked on §1's naming contradiction |
-| 07 | 25 of 42 tables empty | Dual-schema deletion pass |
+| 06 | Dailies outside the generic engine, 3,666 lines | Blocked on §1's naming contradiction. **Half the reason for it is gone**: `work_entity_associations` lets a day hold a row of ANY type, with its tree, so the seven per-type junctions are no longer the only way in. The remaining work is collapsing `work_items` itself into `entities` |
 | 09 | 45 of 92 specs are debug-named | Keep / fix / delete triage |
-| 13 | No multi-select or bulk operations | Pairs with 11 |
 
 Features still open: saved views per type, scheduled status email
 (`buildEmailDraft` already composes it and deliberately never sends),

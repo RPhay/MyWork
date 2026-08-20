@@ -50,6 +50,15 @@
           <span title="Remove this item from the day">Actions</span>
         </div>
 
+        <%# Appears once two or more rows are selected, like the typed pages. %>
+        <div id="dailiesSelectionBar" class="entity-selection-bar" hidden>
+          <span id="dailiesSelectionCount">0 selected</span>
+          <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+            <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-selected-dailies">Delete</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="clear-dailies-selection">Clear</button>
+          </div>
+        </div>
+
         <div id="workItemsList">
           <p class="text-center text-muted">No work items</p>
         </div>
