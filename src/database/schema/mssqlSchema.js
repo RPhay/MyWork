@@ -253,32 +253,12 @@ export async function createMssqlSchema(pool) {
     "CREATE INDEX idx_priorities_order ON [MyWork].[priorities](order_index)",
   );
 
-  // Backfill for priorities created before these existed - see mysqlSchema.js
-  // Soft delete - see the matching block in mysqlSchema.js.
-  if (!(await columnExists(pool, "entities", "deleted_at"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[entities] ADD deleted_at DATETIME2 NULL
-    `);
-    await createIndexIfNotExists(
-      pool,
-      "idx_entities_deleted_at",
-      "entities",
-      "CREATE INDEX idx_entities_deleted_at ON [MyWork].[entities](deleted_at)",
-    );
-  }
-
-  // See the matching note in mysqlSchema.js for why the batch is an id.
-  if (!(await columnExists(pool, "entities", "deleted_batch"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[entities] ADD deleted_batch NVARCHAR(36) NULL
-    `);
-    await createIndexIfNotExists(
-      pool,
-      "idx_entities_deleted_batch",
-      "entities",
-      "CREATE INDEX idx_entities_deleted_batch ON [MyWork].[entities](deleted_batch)",
-    );
-  }
+  // The `entities` soft-delete backfill used to sit HERE, roughly 950 lines
+  // before [MyWork].[entities] is created, and it is what produced "Cannot find
+  // the object 'MyWork.entities' because it does not exist or you do not have
+  // permissions" on every attempt to build this schema from nothing. It has
+  // moved to directly after that CREATE TABLE; see the matching move in
+  // mysqlSchema.js, which had the identical fault.
 
   if (!(await columnExists(pool, "priorities", "status"))) {
     await pool.request().query(`
@@ -1227,6 +1207,34 @@ export async function createMssqlSchema(pool) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[entities] ADD is_folder BIT DEFAULT 0
     `);
+  }
+
+  // Soft delete - see the matching block in mysqlSchema.js. These must stay
+  // BELOW the CREATE TABLE above; they used to run near the top of this file,
+  // against a table that did not exist yet.
+  if (!(await columnExists(pool, "entities", "deleted_at"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[entities] ADD deleted_at DATETIME2 NULL
+    `);
+    await createIndexIfNotExists(
+      pool,
+      "idx_entities_deleted_at",
+      "entities",
+      "CREATE INDEX idx_entities_deleted_at ON [MyWork].[entities](deleted_at)",
+    );
+  }
+
+  // See the matching note in mysqlSchema.js for why the batch is an id.
+  if (!(await columnExists(pool, "entities", "deleted_batch"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[entities] ADD deleted_batch NVARCHAR(36) NULL
+    `);
+    await createIndexIfNotExists(
+      pool,
+      "idx_entities_deleted_batch",
+      "entities",
+      "CREATE INDEX idx_entities_deleted_batch ON [MyWork].[entities](deleted_batch)",
+    );
   }
 
   await createTableIfNotExists(

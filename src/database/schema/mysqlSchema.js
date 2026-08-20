@@ -158,29 +158,12 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Soft delete. Deleting a folder deliberately takes everything inside it, so
-  // there has to be a way back - see entityService.deleteEntity and the
-  // Recently Deleted view. Reads filter on deleted_at IS NULL.
-  if (!(await columnExists(connection, "entities", "deleted_at"))) {
-    await connection.query(
-      "ALTER TABLE entities ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL",
-    );
-    await connection.query(
-      "CREATE INDEX idx_entities_deleted_at ON entities(deleted_at)",
-    );
-  }
-
-  // Which delete a row went out with. NOT the timestamp: deleted_at is a
-  // DATETIME with one-second granularity, so two unrelated deletes in the same
-  // second grouped together and restoring one brought back the other.
-  if (!(await columnExists(connection, "entities", "deleted_batch"))) {
-    await connection.query(
-      "ALTER TABLE entities ADD COLUMN deleted_batch VARCHAR(36) NULL DEFAULT NULL",
-    );
-    await connection.query(
-      "CREATE INDEX idx_entities_deleted_batch ON entities(deleted_batch)",
-    );
-  }
+  // The `entities` soft-delete backfill used to sit HERE, roughly 950 lines
+  // before `entities` is created. It has moved to directly after that CREATE.
+  // On any database where the table did not already exist, the ALTER ran first
+  // and the whole schema build died - on MySQL with "Table 'entities' doesn't
+  // exist", on SQL Server with "Cannot find the object 'MyWork.entities'".
+  // A backfill can only ever run after the thing it backfills.
 
   // Backfill status for pre-existing priorities tables
   if (!(await columnExists(connection, "priorities", "status"))) {
@@ -1152,6 +1135,34 @@ export async function createMysqlSchema(connection) {
   if (!(await columnExists(connection, "entities", "is_folder"))) {
     await connection.query(
       "ALTER TABLE entities ADD COLUMN is_folder BOOLEAN DEFAULT FALSE",
+    );
+  }
+
+  // Soft delete. Deleting a folder deliberately takes everything inside it, so
+  // there has to be a way back - see entityService.deleteEntity and the
+  // Recently Deleted view. Reads filter on deleted_at IS NULL.
+  //
+  // These two blocks must stay BELOW the CREATE TABLE above. They used to sit
+  // near the top of this file and broke every build against a database without
+  // an `entities` table.
+  if (!(await columnExists(connection, "entities", "deleted_at"))) {
+    await connection.query(
+      "ALTER TABLE entities ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL",
+    );
+    await connection.query(
+      "CREATE INDEX idx_entities_deleted_at ON entities(deleted_at)",
+    );
+  }
+
+  // Which delete a row went out with. NOT the timestamp: deleted_at is a
+  // DATETIME with one-second granularity, so two unrelated deletes in the same
+  // second grouped together and restoring one brought back the other.
+  if (!(await columnExists(connection, "entities", "deleted_batch"))) {
+    await connection.query(
+      "ALTER TABLE entities ADD COLUMN deleted_batch VARCHAR(36) NULL DEFAULT NULL",
+    );
+    await connection.query(
+      "CREATE INDEX idx_entities_deleted_batch ON entities(deleted_batch)",
     );
   }
 
