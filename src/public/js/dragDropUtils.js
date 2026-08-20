@@ -433,6 +433,49 @@ function isEmailData(text) {
 // for. Deciding move-vs-copy is the TARGET's job - it is the one that knows
 // whether the drop reorders a row or references it somewhere else.
 
+// ===== Where a drop lands =====
+//
+// Finding 05 asks for the drop-zone calculation to live here with the rest of
+// the drag protocol, so a surface supplies a callback rather than its own copy
+// of the geometry. These were on `app` in main.js, beside unrelated helpers.
+//
+// Two shapes, because there are two kinds of list:
+//   - a FLAT list: above the midpoint is before, below is after
+//   - a TREE: the middle band means "inside", so a row can be nested by
+//     aiming at it rather than needing a separate gesture
+//
+// The tree bands are 25/50/25. A narrower nest band makes nesting fiddly; a
+// wider one makes reordering fiddly, and reordering is the commoner action.
+function dropZoneFlat(event, rowEl) {
+  const rect = rowEl.getBoundingClientRect();
+  return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+}
+
+function dropZoneTree(event, rowEl) {
+  const rect = rowEl.getBoundingClientRect();
+  const offset = (event.clientY - rect.top) / rect.height;
+  if (offset < 0.25) return 'before';
+  if (offset > 0.75) return 'after';
+  return 'nest';
+}
+
+// One entry point: `nesting` says which shape this list is, so callers hold a
+// flag rather than knowing the geometry.
+function dropZone(event, rowEl, { nesting = false } = {}) {
+  return nesting ? dropZoneTree(event, rowEl) : dropZoneFlat(event, rowEl);
+}
+
+// Paint the indicator that goes with a zone, so "work out where it lands" and
+// "show where it lands" cannot disagree - they were separate steps at every
+// call site, and a surface that updated one without the other showed a lie.
+function showDropZone(rowEl, zone, { nestClass = 'entity-drop-target-nest' } = {}) {
+  clearDropIndicators(rowEl);
+  rowEl.classList.remove(nestClass);
+  if (zone === 'nest') rowEl.classList.add(nestClass);
+  else showDropIndicator(rowEl, zone);
+  return zone;
+}
+
 const DRAG_EFFECT_ALLOWED = 'copyMove';
 
 // Call in dragstart. `data` is a plain object of dataTransfer entries.

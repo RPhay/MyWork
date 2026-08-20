@@ -194,7 +194,7 @@ function initBoardListeners() {
       clearDropTargets();
       const card = e.target.closest('.board-card');
       if (card) {
-        card.classList.add(app.getVerticalDropZone(e, card) === 'before'
+        card.classList.add(dropZone(e, card) === 'before'
           ? 'drop-indicator-before' : 'drop-indicator-after');
       } else {
         bay.classList.add('bay-drop-target');
@@ -217,7 +217,7 @@ function initBoardListeners() {
 
       const card = e.target.closest('.board-card');
       const targetId = card && card.dataset.entityId !== draggedId ? card.dataset.entityId : null;
-      const position = card ? app.getVerticalDropZone(e, card) : 'after';
+      const position = card ? dropZone(e, card) : 'after';
 
       placeAndOrder(draggedId, bay.dataset.status, targetId, position);
     });

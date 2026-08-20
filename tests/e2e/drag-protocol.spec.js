@@ -16,12 +16,18 @@ for (const [name, url] of [['dashboard', '/'], ['settings', '/settings']]) {
       beginDrag: typeof beginDrag,
       acceptDrop: typeof acceptDrop,
       clearDropIndicators: typeof clearDropIndicators,
+      // Finding 05: the drop-zone geometry belongs with the protocol, not
+      // copied into each surface.
+      dropZone: typeof dropZone,
+      showDropZone: typeof showDropZone,
     }));
     expect(resolved).toEqual({
       DRAG_EFFECT_ALLOWED: 'string',
       beginDrag: 'function',
       acceptDrop: 'function',
       clearDropIndicators: 'function',
+      dropZone: 'function',
+      showDropZone: 'function',
     });
 
     const real = errors.filter(e => !/favicon|net::ERR/i.test(e));

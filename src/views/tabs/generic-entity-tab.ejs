@@ -39,6 +39,12 @@
         <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-selected" title="Delete every selected row, and anything nested inside them">
           <i class="bi bi-trash"></i> Delete selected
         </button>
+        <%# Bulk MOVE. Setting a field across a selection is on the right-click
+            menu already; moving them is the one bulk action with nowhere else
+            to live, since a drag can only carry one row. %>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="move-selected" title="Move every selected row into a folder, or out to the top level">
+          <i class="bi bi-folder-symlink"></i> Move to…
+        </button>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="clear-selection" title="Deselect everything">Clear</button>
       </div>
 

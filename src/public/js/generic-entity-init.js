@@ -345,6 +345,77 @@ renderList();
     }
 
     // Deleting with a selection deletes the selection.
+    // Move every selected row somewhere else. A drag carries one row, so this is
+    // the only way to re-file a batch - and re-filing a quarter's work is
+    // exactly what a selection is for.
+    async function moveSelected() {
+      const ids = [...selectedIds];
+      if (ids.length === 0) return;
+
+      // Only folders can receive, plus the top level. A row cannot be moved
+      // into itself or into anything it contains, or the tree would detach.
+      const forbidden = new Set(ids.map(String));
+      for (const id of ids) {
+        for (const desc of descendantsOf(Number(id))) forbidden.add(String(desc));
+      }
+
+      const targets = entities
+        .filter(x => x.is_folder && !forbidden.has(String(x.id)))
+        .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+
+      const choice = await app.choose({
+        title: `Move ${ids.length} row${ids.length === 1 ? '' : 's'}`,
+        message: 'Where should they go?',
+        options: [
+          { value: '', label: 'Top level (out of any folder)' },
+          ...targets.map(t => ({ value: String(t.id), label: t.title })),
+        ],
+      });
+      if (choice === null || choice === undefined) return;
+
+      for (const id of ids) {
+        // Detach from wherever it is, then attach if a folder was chosen.
+        const parent = relationships.find(r => String(r.child_entity_id) === String(id));
+        if (parent) {
+          await app.fetchRaw(
+            `/api/entities/${typeSlug}/${parent.parent_entity_id}/relationships/${parent.parent_entity_id}/${id}?kind=hierarchy`,
+            { method: 'DELETE' }).catch(() => {});
+        }
+        if (choice) {
+          await app.fetchRaw(`/api/entities/${typeSlug}/${id}/relationships`, {
+            method: 'POST',
+            body: JSON.stringify({ parentEntityId: Number(choice), childEntityId: Number(id), relationshipKind: 'hierarchy' }),
+          }).catch(() => {});
+        }
+      }
+
+      clearSelection();
+      await refreshEntities();
+      document.dispatchEvent(new CustomEvent('entity-structure-changed', {
+        detail: { typeSlug, parentId: choice ? Number(choice) : null },
+      }));
+      app.notify(`Moved ${ids.length} row${ids.length === 1 ? '' : 's'}`, 'success');
+    }
+
+    // Everything below a row, so a move cannot put a row inside its own subtree.
+    function descendantsOf(rootId) {
+      const out = [];
+      let frontier = [rootId];
+      const seen = new Set([rootId]);
+      while (frontier.length) {
+        const next = [];
+        for (const rel of relationships) {
+          if (!frontier.includes(rel.parent_entity_id)) continue;
+          if (seen.has(rel.child_entity_id)) continue;
+          seen.add(rel.child_entity_id);
+          out.push(rel.child_entity_id);
+          next.push(rel.child_entity_id);
+        }
+        frontier = next;
+      }
+      return out;
+    }
+
     async function deleteSelected() {
       const ids = [...selectedIds];
       if (ids.length < 2) return false;
@@ -371,6 +442,7 @@ renderList();
 
     document.getElementById(`${typeSlug}SelectionBar`)?.addEventListener('click', async (e) => {
       if (e.target.closest('[data-action="delete-selected"]')) { await deleteSelected(); return; }
+      if (e.target.closest('[data-action="move-selected"]')) { await moveSelected(); return; }
       if (e.target.closest('[data-action="clear-selection"]')) clearSelection();
     });
 
@@ -1056,7 +1128,7 @@ renderList();
       e.preventDefault();
       editorPane.querySelectorAll('.drop-before, .drop-after')
         .forEach(el => el.classList.remove('drop-before', 'drop-after'));
-      wrap.classList.add(app.getVerticalDropZone(e, wrap) === 'before' ? 'drop-before' : 'drop-after');
+      wrap.classList.add(dropZone(e, wrap) === 'before' ? 'drop-before' : 'drop-after');
     });
 
     editorPane?.addEventListener('dragend', () => {
@@ -1096,7 +1168,7 @@ renderList();
       if (!target || target === draggedField) return;
       e.preventDefault();
 
-      const before = app.getVerticalDropZone(e, target) === 'before';
+      const before = dropZone(e, target) === 'before';
       // Moved in the DOM rather than by rebuilding the form: rebuilding would
       // discard whatever is being typed in the other fields.
       target.parentElement.insertBefore(draggedField, before ? target : target.nextSibling);
@@ -1543,8 +1615,10 @@ renderList();
     // Drop zone within a row: top/bottom band = reorder as a sibling
     // before/after that row; middle band (hierarchy types only) = nest as
     // its child. Mirrors the areas.js/priorities.js tree drag-drop pattern.
+    // The geometry lives in dragDropUtils.js with the rest of the drag protocol
+    // (finding 05); this only says which shape THIS list is.
     function dropZoneFor(e, row) {
-      return typeSchema.supports_hierarchy ? app.getTreeDropZone(e, row) : app.getVerticalDropZone(e, row);
+      return dropZone(e, row, { nesting: !!typeSchema.supports_hierarchy });
     }
 
     function clearDropIndicator(row) {

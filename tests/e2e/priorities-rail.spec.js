@@ -30,6 +30,14 @@ async function openBoardRail(page) {
     await page.locator('button[data-rail-toggle="priority-board"]').click();
     await page.waitForTimeout(900);
   }
+  // A plain click on a rail deselects everything else, so ask for the type back.
+  // Rail + a type is an allowed pair, and dragging FROM a list TO the board
+  // needs both on screen.
+  const typeTab = new URL(page.url()).searchParams.get('tab');
+  if (typeTab && await page.locator('#mainTabContent.rail-hidden').count()) {
+    await page.locator(`button[data-tab="${typeTab}"]`).click();
+    await page.waitForTimeout(900);
+  }
 }
 
 test('an idea dragged onto a bay lands as a reference, not a copy', async ({ page }) => {
@@ -48,7 +56,9 @@ test('an idea dragged onto a bay lands as a reference, not a copy', async ({ pag
   await page.waitForTimeout(1600);
   await openBoardRail(page);
 
-  const src = page.locator('#ideaEntityList .entity-row', { hasText: 'ZZZ board idea' }).first();
+  // By ID, not by text: a folder's .entity-row contains its nested rows, so a
+  // hasText locator can match an ancestor and drag the wrong thing.
+  const src = page.locator(`#ideaEntityList .entity-row[data-entity-id="${idea.id}"]`);
   const bay = page.locator('.priority-bay[data-status="In Progress"]');
   await bay.scrollIntoViewIfNeeded();
   await src.scrollIntoViewIfNeeded();
@@ -64,7 +74,10 @@ test('an idea dragged onto a bay lands as a reference, not a copy', async ({ pag
   // A reference, not a copy: exactly one record exists, and it is the original.
   const ideas = (await api(page, '/api/entities/idea')).body.data
     .filter(e => e.title === 'ZZZ board idea');
-  expect(ideas, 'dropping on the board must not clone the record').toHaveLength(1);
+  // Counted by ID, not by title: a run that died before its cleanup leaves a
+  // fixture with the same name behind, and this then reads it as a clone.
+  expect(ideas.filter(i => String(i.id) === String(idea.id)),
+    'dropping on the board must not clone the record').toHaveLength(1);
   expect(String(ideas[0].id)).toBe(String(idea.id));
 
   // The bay is board-local placement, NOT the record's status. This used to

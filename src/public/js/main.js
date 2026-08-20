@@ -224,6 +224,16 @@ const app = {
     });
   },
 
+  /**
+   * Pick one of a list. Same modal as confirm and prompt, so every dialog in
+   * the app dismisses the same way and none of them is a browser popup
+   * (UI_STANDARDS.md forbids those). Resolves to the chosen value, or null if
+   * the dialog was dismissed.
+   */
+  choose(options) {
+    return this._dialog({ ...options, confirmLabel: options.confirmLabel || 'Move' });
+  },
+
   // Confirm action with custom modal
   // Custom modal dialogs. UI_STANDARDS.md §5c forbids browser dialogs, but the
   // `#confirmModal` markup this used to depend on lived only in dashboard.ejs,
@@ -234,7 +244,7 @@ const app = {
   // The element ids are unchanged from the old markup (#confirmModal,
   // #confirmModalConfirm, ...) because they are what the e2e tests drive.
   _dialog(options) {
-    const { title, message, input } = options;
+    const { title, message, input, options: choices } = options;
 
     let modalElement = document.getElementById('confirmModal');
     if (!modalElement) {
@@ -252,6 +262,7 @@ const app = {
             <div class="modal-body">
               <p id="confirmModalMessage" class="mb-2"></p>
               <input type="text" class="form-control" id="confirmModalInput">
+              <select class="form-select d-none" id="confirmModalSelect"></select>
             </div>
             <div class="modal-footer border-top">
               <button type="button" class="btn btn-secondary" id="confirmModalCancel">Cancel</button>
@@ -265,6 +276,14 @@ const app = {
     const titleEl = modalElement.querySelector('#confirmModalTitle');
     const messageEl = modalElement.querySelector('#confirmModalMessage');
     const inputEl = modalElement.querySelector('#confirmModalInput');
+    // Older markup may predate the picker; build it rather than fail.
+    let selectEl = modalElement.querySelector('#confirmModalSelect');
+    if (!selectEl) {
+      selectEl = document.createElement('select');
+      selectEl.id = 'confirmModalSelect';
+      selectEl.className = 'form-select d-none';
+      inputEl.insertAdjacentElement('afterend', selectEl);
+    }
     const confirmBtn = modalElement.querySelector('#confirmModalConfirm');
     const cancelBtn = modalElement.querySelector('#confirmModalCancel');
 
@@ -272,6 +291,12 @@ const app = {
     messageEl.textContent = message;
     messageEl.classList.toggle('d-none', !message);
     inputEl.classList.toggle('d-none', !input);
+    selectEl.classList.toggle('d-none', !choices);
+    if (choices) {
+      selectEl.innerHTML = choices
+        .map(o => `<option value="${app.escapeHtml(String(o.value))}">${app.escapeHtml(String(o.label))}</option>`)
+        .join('');
+    }
     inputEl.value = input?.defaultValue || '';
     inputEl.placeholder = input?.placeholder || '';
     confirmBtn.textContent = options.confirmLabel || (input ? 'OK' : 'Confirm');
@@ -294,6 +319,12 @@ const app = {
       };
 
       const onConfirm = () => {
+        if (choices) {
+          const picked = selectEl.value;
+          modal.hide();
+          finish(picked);
+          return;
+        }
         const value = input ? inputEl.value.trim() : true;
         modal.hide();
         finish(input && !value ? null : value);
@@ -444,26 +475,15 @@ const app = {
     list.forEach((el) => el.classList.add('selected'));
   },
 
+  // Kept as delegates: the drop-zone geometry moved into dragDropUtils.js with
+  // the rest of the drag protocol (audit finding 05), and these two names are
+  // used by code outside this repo's own surfaces.
   getVerticalDropZone(event, rowEl) {
-    const rect = rowEl.getBoundingClientRect();
-    return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+    return dropZone(event, rowEl);
   },
 
-  // Same idea for a horizontal strip, used by column drag-reorder in the row
-  // headers: which side of the target cell the pointer is on.
-  getHorizontalDropZone(event, cellEl) {
-    const rect = cellEl.getBoundingClientRect();
-    return event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-  },
-
-  // For hierarchical (tree) drag-reorder lists: same idea, but the middle band
-  // of the row means "nest inside this row" rather than "insert before/after" it.
   getTreeDropZone(event, rowEl) {
-    const rect = rowEl.getBoundingClientRect();
-    const offset = (event.clientY - rect.top) / rect.height;
-    if (offset < 0.25) return 'before';
-    if (offset > 0.75) return 'after';
-    return 'nest';
+    return dropZone(event, rowEl, { nesting: true });
   },
 
   // Group a flat list of { id, parent_id } records by parent_id (null = top-level)

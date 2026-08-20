@@ -2058,7 +2058,7 @@ function initWorkItemsListEventListeners() {
     if (workItemEl && currentDragType === "work-item") {
       // Reordering: show which side of this row the dragged item will land
       // on, rather than just highlighting the row as if it were a merge target.
-      const zone = app.getVerticalDropZone(e, workItemEl);
+      const zone = dropZone(e, workItemEl);
       workItemEl.classList.remove(
         "drag-over",
         "drop-indicator-before",
@@ -2105,7 +2105,7 @@ function initWorkItemsListEventListeners() {
           ? workItemEl.dataset.workId
           : null;
       const position = workItemEl
-        ? app.getVerticalDropZone(e, workItemEl)
+        ? dropZone(e, workItemEl)
         : "after";
       if (workItemEl)
         workItemEl.classList.remove(
