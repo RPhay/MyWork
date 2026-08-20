@@ -54,6 +54,7 @@ test('Verify UI layout and folder buttons', async ({ page }) => {
   await expect(page.locator('#addPriorityFolderBtn')).toHaveCount(0);
 
   // Check right-aligned tabs exist
-  await expect(page.locator('#priority-board-tab')).toContainText('Priority Board');
+  // Renamed to Priorities on 2026-08-19.
+  await expect(page.locator('#priority-board-tab')).toContainText('Priorities');
   await expect(page.locator('#reporting-tab')).toContainText('Reporting');
 });
