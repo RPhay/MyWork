@@ -1,0 +1,58 @@
+{
+  "build": {
+    "beforeBuildCommand": "npm run build:vite",
+    "beforeDevCommand": "npm run dev:vite",
+    "devPath": "http://localhost:5173",
+    "frontendDist": "dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "MyWork Menu",
+        "width": 600,
+        "height": 80,
+        "x": 0,
+        "y": 30,
+        "minWidth": 300,
+        "minHeight": 60,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "transparent": true,
+        "skip_taskbar": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "window": {
+        "all": false,
+        "create": false,
+        "center": true,
+        "close": true,
+        "hide": true,
+        "show": true,
+        "maximize": false,
+        "minimize": false,
+        "unmaximize": false,
+        "unminimize": false,
+        "setAlwaysOnTop": true,
+        "setPosition": true,
+        "setSize": true,
+        "setTitle": false
+      },
+      "http": {
+        "all": false,
+        "scope": ["http://localhost:3000/api/*"]
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": ["dmg"],
+      "identifier": "com.mywork.menu"
+    }
+  }
+}
