@@ -81,15 +81,33 @@ expects. **Instrument the drop handler before adjusting any geometry.**
 
 ## 4. Test suite triage
 
-The wider suite is mostly stale specs asserting against deliberately removed UI
-— see `CLAUDE_TESTING.md` for the breakdown and which specs to trust.
+Full run on 2026-08-19: **188 failed / 213 passed** (401 tests, 21 minutes).
+The previous recorded full run was 162 failed / 192 passed of 354, so the suite
+grew by ~47 tests and failures rose by ~26. Most of the failing set is stale
+specs asserting against deliberately removed UI - see `CLAUDE_TESTING.md`.
 
-One failure mode was costing real time and is now fixed everywhere: a bare
-`.entity-row` selector matches rows in **hidden tab panes**, because
-`dashboard.ejs` renders every tab's content into the DOM upfront. In one
-measured case that was 342 rows in the DOM against 36 on screen, so
-`.first()` drove a row the user could not see. Every spec now scopes to
-`#tab-<slug> .entity-row:visible`. **Write new specs that way.**
+Two findings from triaging this run, both worth knowing before trusting a
+number from it:
+
+**The suite is not isolated, so a full-run failure is not evidence of a bug.**
+`playwright.config.js` sets `fullyParallel: true` with `workers: undefined`, so
+several workers run against the SAME database at once. Specs that count rows,
+or take "the first row", collide with rows another worker is creating and
+deleting. Measured: `generic-entity-crud.spec.js` passes **77/77 on its own**
+and failed **11 times** in the full run, unchanged in between. Always re-run a
+spec alone before believing a full-run failure. Fixing this properly means
+per-worker data isolation or `workers: 1`; the latter would make the run far
+slower and has not been done.
+
+**A bare `.entity-row` selector matches hidden tab panes.** `dashboard.ejs`
+renders every tab's rows into the DOM upfront, so an unscoped selector reached
+rows the user cannot see - 342 in the DOM against 36 on screen in one measured
+case - and `.first()` drove one of them. Every spec now scopes to
+`#tab-<slug> .entity-row:visible`. **Write new specs that way.** This produced
+two false failures in one session before it was understood.
+
+`editable-types-comprehensive.spec.js` fails 48/48 and does so identically at
+the commit before it was touched - it is stale, not newly broken.
 
 ## 5. Smaller open items
 
