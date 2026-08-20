@@ -286,12 +286,9 @@ async function createTodoFromCalendarEvent(event) {
   };
 
   try {
-    const response = await fetch('/api/to-dos', {
+    const response = await app.fetchRaw('/api/to-dos', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(data)
     });
 
@@ -323,12 +320,9 @@ async function createTodoFromEmail(email) {
   };
 
   try {
-    const response = await fetch('/api/to-dos', {
+    const response = await app.fetchRaw('/api/to-dos', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(data)
     });
 
@@ -353,12 +347,9 @@ async function createIdeaFromCalendarEvent(event) {
   };
 
   try {
-    const response = await fetch('/api/ideas', {
+    const response = await app.fetchRaw('/api/ideas', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(data)
     });
 
@@ -392,12 +383,9 @@ async function createTemplateFromEmail(email) {
   };
 
   try {
-    const response = await fetch('/api/work-item-templates', {
+    const response = await app.fetchRaw('/api/work-item-templates', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(data)
     });
 

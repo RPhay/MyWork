@@ -202,11 +202,26 @@ const response = await app.fetch(`/api/entities/${typeSlug}`, {
 if (response.success) { app.notify('Created', 'success'); }
 ```
 
-**Centralized via app.fetch()** (`src/public/js/main.js`):
-- Injects CSRF token header automatically
-- Parses JSON response
-- Throws on non-ok status
-- Calls `app.notify()` on error with `result.message`
+**Centralized via app.fetch()** (`src/public/js/main.js`). Three entry points,
+and no call site should write a CSRF header by hand — a forgotten one is not a
+visible error, the write just silently fails:
+
+- **`app.fetch(url, options)`** — injects the CSRF header, parses the body
+  *even on a 4xx* (the API answers failures with `{ success: false, message }`
+  and that message is the useful part), and throws an `Error` carrying
+  `.status` and `.body` with the **server's** message. It deliberately does
+  **not** show a toast: callers already do, and two notifications for one
+  failure is worse than none.
+- **`app.fetchData(url, options)`** — the same, unwrapped to `data`. What a
+  caller usually wants.
+- **`app.fetchRaw(url, options)`** — the raw `Response` with the header
+  attached, for call sites that need `.ok`, a blob, or a stream.
+
+This was aspirational for a long time: there were 173 raw `fetch(` calls and
+126 places writing the header by hand. 128 call sites are now migrated and the
+hand-rolled count is zero. `forms.js` also patches `window.fetch` globally as a
+safety net — that is belt-and-braces, not the mechanism, and it is action at a
+distance. Use these.
 
 **Generic entity routes** (`/api/entities/:typeSlug`) handle all types identically — no per-type endpoints. The `typeSlug` URL parameter routes to the right type service.
 

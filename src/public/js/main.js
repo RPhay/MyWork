@@ -107,40 +107,85 @@ const app = {
     }
   },
 
-  // Make API call with CSRF token
+  /**
+   * The only way this app should talk to its own API.
+   *
+   * There were 173 raw `fetch(` calls against one of these, with 126 places
+   * hand-writing the CSRF header - and a forgotten header is not a visible
+   * error, the write just silently fails. That is the worst way to fail.
+   *
+   * Returns the parsed envelope ({ success, data, message }). Throws on a
+   * failed request with the SERVER'S message attached, not "HTTP 400" - the
+   * previous version threw before reading the body, so every considered error
+   * message the API produced was discarded at the door. That is the other
+   * reason nobody adopted it.
+   *
+   * It deliberately does NOT show a toast: callers already do, and two
+   * notifications for one failure is worse than none.
+   */
   async fetch(url, options = {}) {
-    const csrfToken = window.APP_CONFIG?.csrfToken || document.querySelector('[name="_csrf"]')?.value;
+    const csrfToken = this.getCsrfToken();
 
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    const headers = { ...options.headers };
+    // FormData sets its own multipart boundary; forcing JSON breaks the upload.
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
 
-    if (csrfToken) {
-      headers['X-CSRF-Token'] = csrfToken;
+    // window.fetch, not app.fetchRaw: this IS the implementation.
+    const response = await window.fetch(url, { ...options, headers });
+
+    // Read the body first, whatever the status: the API answers a 4xx with
+    // { success: false, message } and that message is the useful part.
+    let body = null;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
     }
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return response.json();
-    } catch (error) {
-      console.error('API Error:', error);
-      this.notify(`Error: ${error.message}`, 'danger');
+    if (!response.ok || (body && body.success === false)) {
+      const error = new Error(body?.message || `Request failed (${response.status})`);
+      error.status = response.status;
+      error.body = body;
       throw error;
     }
+
+    return body;
   },
 
-  // Get CSRF token from page
+  /** app.fetch, unwrapped - what a caller almost always actually wants. */
+  async fetchData(url, options = {}) {
+    return (await this.fetch(url, options))?.data;
+  },
+
+  /**
+   * The raw Response, with the CSRF header attached.
+   *
+   * For call sites that need the Response itself - checking `.ok`, reading a
+   * blob, streaming a download. Prefer `app.fetch`; this exists so that no
+   * call site anywhere has a reason to write the header by hand, which is the
+   * thing that actually causes silent write failures.
+   */
+  fetchRaw(url, options = {}) {
+    const csrfToken = this.getCsrfToken();
+    const headers = { ...options.headers };
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+    // window.fetch, not app.fetchRaw: this IS the implementation.
+    return window.fetch(url, { ...options, headers });
+  },
+
+  // Every source the app has ever used for this. body.dataset is what the
+  // layouts actually set and what most call sites read; the other two predate
+  // it. Checking all three is why app.fetch can now replace them.
   getCsrfToken() {
-    return window.APP_CONFIG?.csrfToken || document.querySelector('[name="_csrf"]')?.value;
+    return document.body?.dataset?.csrfToken
+      || window.APP_CONFIG?.csrfToken
+      || document.querySelector('[name="_csrf"]')?.value;
   },
 
   // Copy or reference? Asked whenever a row is dropped somewhere that can hold
@@ -307,12 +352,9 @@ const app = {
   async cycleStatus(endpoint, currentStatus) {
     const idx = STATUS_CYCLE.indexOf(currentStatus);
     const nextStatus = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-    const response = await fetch(endpoint, {
+    const response = await app.fetchRaw(endpoint, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify({ status: nextStatus })
     });
     return response.json();
@@ -603,12 +645,9 @@ async function initContextSwitcher() {
         if (item.classList.contains('active')) return;
         try {
           const contextId = item.dataset.contextId;
-          const response = await fetch('/api/active-context', {
+          const response = await app.fetchRaw('/api/active-context', {
             method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-            },
+            
             body: JSON.stringify({ id: contextId })
           });
           const result = await response.json();
@@ -643,13 +682,8 @@ function showContextDatabaseConfigModal(contextId) {
   useSystemDbBtn.onclick = async () => {
     useSystemDbBtn.disabled = true;
     try {
-      const response = await fetch(`/api/contexts/${contextId}/use-system-database`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-        }
-      });
+      const response = await app.fetchRaw(`/api/contexts/${contextId}/use-system-database`, {
+        method: 'POST' });
       const result = await response.json();
       if (result.success) {
         app.notify('Context configured to use system database. Switching context...', 'success');

@@ -56,14 +56,10 @@ async function createWorkItemFromCalendarEvent(event, date) {
   console.log('[createWorkItemFromCalendarEvent] Sending to API:', { ...data, date });
 
   try {
-    const response = await fetch("/api/work", {
+    const response = await app.fetchRaw("/api/work", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ ...data, date }),
-    });
+      
+      body: JSON.stringify({ ...data, date }) });
 
     const result = await response.json();
     if (result.success) {
@@ -99,14 +95,10 @@ async function createWorkItemFromEmail(email, date) {
   };
 
   try {
-    const response = await fetch("/api/work", {
+    const response = await app.fetchRaw("/api/work", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ ...data, date }),
-    });
+      
+      body: JSON.stringify({ ...data, date }) });
 
     const result = await response.json();
     if (result.success) {
@@ -584,14 +576,10 @@ async function reorderWorkItemsOnDrop(draggedId, targetId, position) {
   if (!date) return;
 
   try {
-    const response = await fetch("/api/work/reorder", {
+    const response = await app.fetchRaw("/api/work/reorder", {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ date, orderedIds: ids }),
-    });
+      
+      body: JSON.stringify({ date, orderedIds: ids }) });
     const result = await response.json();
     if (result.success) {
       loadWorkItems();
@@ -732,12 +720,9 @@ async function addItemToDailies(itemType, itemId) {
       emoji: item.emoji || '📋'
     };
 
-    const response = await fetch('/api/work', {
+    const response = await app.fetchRaw('/api/work', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(data)
     });
 
@@ -792,14 +777,10 @@ async function saveWorkItem() {
     const url = workId ? `/api/work/${workId}` : "/api/work";
     const method = workId ? "PUT" : "POST";
 
-    const response = await fetch(url, {
+    const response = await app.fetchRaw(url, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify(data),
-    });
+      
+      body: JSON.stringify(data) });
 
     const result = await response.json();
     if (result.success) {
@@ -915,10 +896,8 @@ async function deleteWorkItem(workId) {
   if (!(await app.confirm("Delete this work item?"))) return;
 
   try {
-    const response = await fetch(`/api/work/${workId}`, {
-      method: "DELETE",
-      headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken },
-    });
+    const response = await app.fetchRaw(`/api/work/${workId}`, {
+      method: "DELETE" });
 
     const result = await response.json();
     if (result.success) {
@@ -977,14 +956,10 @@ async function performCalendarDropAction(action) {
       action === "copy"
         ? `/api/work/${workItemId}/clone`
         : `/api/work/${workItemId}/move`;
-    const response = await fetch(endpoint, {
+    const response = await app.fetchRaw(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ date }),
-    });
+      
+      body: JSON.stringify({ date }) });
 
     const result = await response.json();
     if (result.success) {
@@ -1040,14 +1015,10 @@ async function saveDayHighlightColor(target, color) {
         target === "text"
           ? `/api/day-highlights/${date}/text-color`
           : `/api/day-highlights/${date}/background`;
-      const response = await fetch(endpoint, {
+      const response = await app.fetchRaw(endpoint, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify({ color }),
-      });
+        
+        body: JSON.stringify({ color }) });
 
       const result = await response.json();
       if (!result.success) {
@@ -1077,10 +1048,8 @@ async function clearDayHighlight() {
 
   try {
     for (const date of dates) {
-      const response = await fetch(`/api/day-highlights/${date}`, {
-        method: "DELETE",
-        headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken },
-      });
+      const response = await app.fetchRaw(`/api/day-highlights/${date}`, {
+        method: "DELETE" });
 
       const result = await response.json();
       if (!result.success) {
@@ -1224,14 +1193,10 @@ async function selectEmoji(emoji) {
   if (!config) return;
 
   try {
-    const response = await fetch(config.endpoint(entityId), {
+    const response = await app.fetchRaw(config.endpoint(entityId), {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ emoji }),
-    });
+      
+      body: JSON.stringify({ emoji }) });
 
     const result = await response.json();
     if (result.success) {
@@ -1318,14 +1283,10 @@ async function saveWorkItemNotes() {
   const notes = document.getElementById("workNotesModalText").value;
 
   try {
-    const response = await fetch(`/api/work/${id}/notes`, {
+    const response = await app.fetchRaw(`/api/work/${id}/notes`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ notes }),
-    });
+      
+      body: JSON.stringify({ notes }) });
 
     const result = await response.json();
     if (result.success) {
@@ -1433,14 +1394,10 @@ function openMoveCloneModal(workItemId, mode) {
 }
 
 async function postWorkItemDateAction(workId, action, date) {
-  const response = await fetch(`/api/work/${workId}/${action}`, {
+  const response = await app.fetchRaw(`/api/work/${workId}/${action}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-    },
-    body: JSON.stringify({ date }),
-  });
+    
+    body: JSON.stringify({ date }) });
   return response.json();
 }
 
@@ -1506,14 +1463,10 @@ async function cycleWorkItemStatus(workId, currentStatus) {
   const nextStatus = STATUS_CYCLE[(currentIndex + 1) % STATUS_CYCLE.length];
 
   try {
-    const response = await fetch(`/api/work/${workId}/status`, {
+    const response = await app.fetchRaw(`/api/work/${workId}/status`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ status: nextStatus }),
-    });
+      
+      body: JSON.stringify({ status: nextStatus }) });
 
     if (response.status === 429) {
       app.notify(
@@ -1560,14 +1513,10 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
     ];
 
   try {
-    const response = await fetch(`/api/work/${workId}/timebox`, {
+    const response = await app.fetchRaw(`/api/work/${workId}/timebox`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ time_box_minutes: nextMinutes }),
-    });
+      
+      body: JSON.stringify({ time_box_minutes: nextMinutes }) });
 
     if (response.status === 429) {
       app.notify(
@@ -1609,14 +1558,10 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
 
 async function toggleWorkItemClaude(workId) {
   try {
-    const response = await fetch(`/api/work/${workId}/claude`, {
+    const response = await app.fetchRaw(`/api/work/${workId}/claude`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({}),
-    });
+      
+      body: JSON.stringify({}) });
 
     if (response.status === 429) {
       app.notify(
@@ -1705,10 +1650,8 @@ async function linkChild(workId, type, id) {
   if (!path) return;
 
   try {
-    const response = await fetch(`/api/work/${workId}/${path}/${id}`, {
-      method: "POST",
-      headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken },
-    });
+    const response = await app.fetchRaw(`/api/work/${workId}/${path}/${id}`, {
+      method: "POST" });
     const result = await response.json();
     if (result.success) {
       expandedWorkItems.add(String(workId));
@@ -1736,10 +1679,8 @@ const DROP_TYPE_SLUG = { todo: "to_do" };
 async function cloneForDrop(type, id) {
   const slug = DROP_TYPE_SLUG[type] || type;
   try {
-    const response = await fetch(`/api/entities/${slug}/${id}/clone`, {
-      method: "POST",
-      headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken },
-    });
+    const response = await app.fetchRaw(`/api/entities/${slug}/${id}/clone`, {
+      method: "POST" });
     const result = await response.json();
     if (!result.success) throw new Error(result.message);
     return result.data.id;
@@ -1751,14 +1692,10 @@ async function cloneForDrop(type, id) {
 
 async function createWorkItemFromChild(type, id, name, date, asCopy = false) {
   try {
-    const response = await fetch("/api/work", {
+    const response = await app.fetchRaw("/api/work", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ date, title: name }),
-    });
+      
+      body: JSON.stringify({ date, title: name }) });
 
     const result = await response.json();
     if (!result.success) {
@@ -1779,10 +1716,8 @@ async function unlinkChild(workId, type, id) {
   if (!path) return;
 
   try {
-    const response = await fetch(`/api/work/${workId}/${path}/${id}`, {
-      method: "DELETE",
-      headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken },
-    });
+    const response = await app.fetchRaw(`/api/work/${workId}/${path}/${id}`, {
+      method: "DELETE" });
     const result = await response.json();
     if (result.success) {
       loadWorkItems();
@@ -1800,16 +1735,12 @@ async function instantiateTemplateOnDate(templateId, date) {
     // Templates are entities now, so instantiation goes through the generic
     // endpoint. It creates the work item and gives it an independent COPY of
     // everything the template holds - a template is never a reference.
-    const response = await fetch(
+    const response = await app.fetchRaw(
       `/api/entities/template/${templateId}/instantiate`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify({ date }),
-      },
+        
+        body: JSON.stringify({ date }) },
     );
     const result = await response.json();
     if (result.success) {
@@ -1839,14 +1770,10 @@ function initWorkItemsListEventListeners() {
     async (newTitle, titleEl) => {
       const workId = titleEl.closest(".work-item").dataset.workId;
       try {
-        const response = await fetch(`/api/work/${workId}`, {
+        const response = await app.fetchRaw(`/api/work/${workId}`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-          },
-          body: JSON.stringify({ title: newTitle }),
-        });
+          
+          body: JSON.stringify({ title: newTitle }) });
         const result = await response.json();
         if (!result.success) {
           app.notify("Error: " + result.message, "danger");
@@ -2424,10 +2351,8 @@ async function showIdeaSelector(workItemId) {
 // Association functions
 async function associateProject(workItemId, projectId) {
   try {
-    const response = await fetch(`/api/work/${workItemId}/priorities/${projectId}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work/${workItemId}/priorities/${projectId}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       app.notify('Project associated!', 'success');
@@ -2443,10 +2368,8 @@ async function associateProject(workItemId, projectId) {
 
 async function associateArea(workItemId, areaId) {
   try {
-    const response = await fetch(`/api/work/${workItemId}/areas/${areaId}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work/${workItemId}/areas/${areaId}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       app.notify('Category associated!', 'success');
@@ -2462,10 +2385,8 @@ async function associateArea(workItemId, areaId) {
 
 async function associateGoal(workItemId, goalId) {
   try {
-    const response = await fetch(`/api/work/${workItemId}/goals/${goalId}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work/${workItemId}/goals/${goalId}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       app.notify('Goal associated!', 'success');
@@ -2481,10 +2402,8 @@ async function associateGoal(workItemId, goalId) {
 
 async function associateTemplate(workItemId, templateId) {
   try {
-    const response = await fetch(`/api/work/${workItemId}/templates/${templateId}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work/${workItemId}/templates/${templateId}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       app.notify('Template associated!', 'success');
@@ -2500,10 +2419,8 @@ async function associateTemplate(workItemId, templateId) {
 
 async function associateTodo(workItemId, todoId) {
   try {
-    const response = await fetch(`/api/work/${workItemId}/todos/${todoId}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work/${workItemId}/todos/${todoId}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       app.notify('Todo associated!', 'success');
@@ -2519,10 +2436,8 @@ async function associateTodo(workItemId, todoId) {
 
 async function associateTask(workItemId, taskId) {
   try {
-    const response = await fetch(`/api/work/${workItemId}/tasks/${taskId}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work/${workItemId}/tasks/${taskId}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       app.notify('Task associated!', 'success');
@@ -2538,10 +2453,8 @@ async function associateTask(workItemId, taskId) {
 
 async function associateTicket(workItemId, ticketId) {
   try {
-    const response = await fetch(`/api/work/${workItemId}/tickets/${ticketId}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work/${workItemId}/tickets/${ticketId}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       app.notify('Ticket associated!', 'success');
@@ -2557,10 +2470,8 @@ async function associateTicket(workItemId, ticketId) {
 
 async function associateIdea(workItemId, ideaId) {
   try {
-    const response = await fetch(`/api/work/${workItemId}/ideas/${ideaId}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work/${workItemId}/ideas/${ideaId}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       app.notify('Idea associated!', 'success');
@@ -2579,9 +2490,9 @@ async function createAndAssociateProject(workItemId) {
   const title = await app.prompt('Enter project name:', { title: 'New Project', placeholder: 'Project name' });
   if (!title) return;
   try {
-    const response = await fetch('/api/priorities', {
+    const response = await app.fetchRaw('/api/priorities', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      
       body: JSON.stringify({ title })
     });
     const result = await response.json();
@@ -2601,9 +2512,9 @@ async function createAndAssociateArea(workItemId) {
   const name = await app.prompt('Enter category name:', { title: 'New Category', placeholder: 'Category name' });
   if (!name) return;
   try {
-    const response = await fetch('/api/areas', {
+    const response = await app.fetchRaw('/api/areas', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      
       body: JSON.stringify({ name })
     });
     const result = await response.json();
@@ -2623,9 +2534,9 @@ async function createAndAssociateGoal(workItemId) {
   const name = await app.prompt('Enter goal name:', { title: 'New Goal', placeholder: 'Goal name' });
   if (!name) return;
   try {
-    const response = await fetch('/api/goals', {
+    const response = await app.fetchRaw('/api/goals', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      
       body: JSON.stringify({ name })
     });
     const result = await response.json();
@@ -2645,9 +2556,9 @@ async function createAndAssociateTodo(workItemId) {
   const title = await app.prompt('Enter todo title:', { title: 'New Todo', placeholder: 'Todo title' });
   if (!title) return;
   try {
-    const response = await fetch('/api/to-dos', {
+    const response = await app.fetchRaw('/api/to-dos', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      
       body: JSON.stringify({ title })
     });
     const result = await response.json();
@@ -2667,9 +2578,9 @@ async function createAndAssociateTask(workItemId) {
   const title = await app.prompt('Enter task title:', { title: 'New Task', placeholder: 'Task title' });
   if (!title) return;
   try {
-    const response = await fetch('/api/tasks', {
+    const response = await app.fetchRaw('/api/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      
       body: JSON.stringify({ title })
     });
     const result = await response.json();
@@ -2689,9 +2600,9 @@ async function createAndAssociateTicket(workItemId) {
   const title = await app.prompt('Enter ticket title:', { title: 'New Ticket', placeholder: 'Ticket title' });
   if (!title) return;
   try {
-    const response = await fetch('/api/tickets', {
+    const response = await app.fetchRaw('/api/tickets', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      
       body: JSON.stringify({ title })
     });
     const result = await response.json();
@@ -2711,9 +2622,9 @@ async function createAndAssociateIdea(workItemId) {
   const title = await app.prompt('Enter idea title:', { title: 'New Idea', placeholder: 'Idea title' });
   if (!title) return;
   try {
-    const response = await fetch('/api/ideas', {
+    const response = await app.fetchRaw('/api/ideas', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      
       body: JSON.stringify({ title })
     });
     const result = await response.json();
@@ -2811,10 +2722,8 @@ function deleteChildItem(itemType, itemId) {
   const endpoint = apiMap[itemType];
   if (!endpoint) return;
 
-  fetch(`/api/work/${parentWorkItemId}/${endpoint}/${itemId}`, {
-    method: 'DELETE',
-    headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-  })
+  app.fetchRaw(`/api/work/${parentWorkItemId}/${endpoint}/${itemId}`, {
+    method: 'DELETE' })
     .then(r => r.json())
     .then(result => {
       if (result.success) {
@@ -2875,9 +2784,9 @@ async function createAndAssociateTemplate(workItemId) {
   const title = await app.prompt('Enter template name:', { title: 'New Template', placeholder: 'Template name' });
   if (!title) return;
   try {
-    const response = await fetch('/api/work-item-templates', {
+    const response = await app.fetchRaw('/api/work-item-templates', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+      
       body: JSON.stringify({ title })
     });
     const result = await response.json();
@@ -3387,14 +3296,10 @@ async function importSelectedOutlookEmails() {
     };
 
     try {
-      const response = await fetch("/api/work-items", {
+      const response = await app.fetchRaw("/api/work-items", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify(workItem),
-      });
+        
+        body: JSON.stringify(workItem) });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     } catch (error) {
@@ -3533,12 +3438,9 @@ function initDailies() {
       }
 
       try {
-        const response = await fetch(`/api/work/${workId}`, {
+        const response = await app.fetchRaw(`/api/work/${workId}`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": window.APP_CONFIG?.csrfToken
-          },
+          
           body: JSON.stringify({
             title,
             description,
@@ -3621,12 +3523,9 @@ function initDailies() {
 
         console.log('[Save child item] Sending to', endpoint + '/' + id, 'payload:', payload);
 
-        const response = await fetch(`${endpoint}/${id}`, {
+        const response = await app.fetchRaw(`${endpoint}/${id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-          },
+          
           body: JSON.stringify(payload)
         });
 

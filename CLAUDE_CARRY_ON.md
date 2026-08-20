@@ -6,6 +6,23 @@ standards, or architecture — those belong in `CLAUDE.md`, `UI_STANDARDS.md`,
 
 Last updated: 2026-08-19.
 
+## Read this first if you are picking the work up
+
+Everything is committed and pushed to **`row-controls-and-priorities-rail`**
+(branched from `main`, not merged). `git pull` that branch and you have the lot.
+
+The current work is **implementing a full code/product audit of MyWork**:
+
+> **https://claude.ai/code/artifact/ba20de4f-f4e1-4f66-976f-aef567635e49**
+
+Fourteen numbered findings plus six feature suggestions, each measured against
+the running app rather than inferred. The user asked for **all of it** to be
+implemented. Section 6 below tracks exactly which are done and which are not —
+that is the to-do list; the artifact is the reasoning behind each item.
+
+**Run the app**: `npm run dev` → http://localhost:3000. Copy `.env.example` to
+`.env.local` first. **Verify a clean checkout** with the guard set in §4.
+
 ---
 
 ## 1. Dailies-as-a-type refactor — DESIGN NEEDED BEFORE CODE
@@ -81,33 +98,43 @@ expects. **Instrument the drop handler before adjusting any geometry.**
 
 ## 4. Test suite triage
 
-Full run on 2026-08-19: **188 failed / 213 passed** (401 tests, 21 minutes).
-The previous recorded full run was 162 failed / 192 passed of 354, so the suite
-grew by ~47 tests and failures rose by ~26. Most of the failing set is stale
-specs asserting against deliberately removed UI - see `CLAUDE_TESTING.md`.
+**The guard set — run this to check a clean checkout.** 104 e2e + 12 unit,
+all passing as of the last commit:
 
-Two findings from triaging this run, both worth knowing before trusting a
-number from it:
+```bash
+npm run test:unit          # 12 - the MSSQL translation layer
+npx playwright test \
+  tests/e2e/generic-entity-crud.spec.js \
+  tests/e2e/entity-editor-behaviour.spec.js \
+  tests/e2e/focus-bar.spec.js \
+  tests/e2e/search-palette.spec.js \
+  tests/e2e/recently-deleted.spec.js \
+  tests/e2e/priorities-rail.spec.js \
+  tests/e2e/row-icon-sizing.spec.js
+```
 
-**The suite is not isolated, so a full-run failure is not evidence of a bug.**
-`playwright.config.js` sets `fullyParallel: true` with `workers: undefined`, so
-several workers run against the SAME database at once. Specs that count rows,
-or take "the first row", collide with rows another worker is creating and
-deleting. Measured: `generic-entity-crud.spec.js` passes **77/77 on its own**
-and failed **11 times** in the full run, unchanged in between. Always re-run a
-spec alone before believing a full-run failure. Fixing this properly means
-per-worker data isolation or `workers: 1`; the latter would make the run far
-slower and has not been done.
+The wider suite was **188 failed / 213 passed of 401** at the last full run and
+is mostly stale specs asserting against deliberately removed UI. Do not read
+that number as 188 bugs — see `CLAUDE_TESTING.md`.
+
+**The suite is serial now, deliberately.** `playwright.config.js` sets
+`workers: 1` / `fullyParallel: false`, and the comment there carries the
+measurement that forced it: the same seven spec files gave **49 passed in
+parallel and 104 passed, zero failed, serially**, with no change to the app in
+between. Every worker shares one database, so parallel runs collide over each
+other's rows. The real fix is per-worker data isolation (a context per worker —
+contexts are already first-class here); until that exists, this stays 1.
 
 **A bare `.entity-row` selector matches hidden tab panes.** `dashboard.ejs`
-renders every tab's rows into the DOM upfront, so an unscoped selector reached
-rows the user cannot see - 342 in the DOM against 36 on screen in one measured
-case - and `.first()` drove one of them. Every spec now scopes to
-`#tab-<slug> .entity-row:visible`. **Write new specs that way.** This produced
-two false failures in one session before it was understood.
+renders every tab's rows into the DOM upfront — 342 in the DOM against 36 on
+screen in one measured case. Every spec now scopes to
+`#tab-<slug> .entity-row:visible`. **Write new specs that way.**
 
-`editable-types-comprehensive.spec.js` fails 48/48 and does so identically at
-the commit before it was touched - it is stale, not newly broken.
+**Specs must clean up after themselves in `beforeEach`, not just at the end.**
+A run that dies before its cleanup leaves rows behind, and the next run then
+fails for reasons that look like a broken feature — the focus bar's three-item
+cap made this vivid. `focus-bar.spec.js` and `recently-deleted.spec.js` show
+the pattern.
 
 ## 5. Smaller open items
 
@@ -125,7 +152,73 @@ the commit before it was touched - it is stale, not newly broken.
 - **`openNewWorkForm`** in `dailies.js` is now unreferenced — the "+ Add" button
   it served was removed in favour of dragging work in from a typed page.
 
-## 6. Decisions made — do not re-litigate
+
+## 6. The audit — what is done and what is left
+
+Source of truth for the reasoning:
+**https://claude.ai/code/artifact/ba20de4f-f4e1-4f66-976f-aef567635e49**
+
+The user's instruction was to implement every fix and feature in it. Numbering
+matches the artifact.
+
+### Done and pushed
+
+| # | Finding | What shipped |
+|---|---|---|
+| 01 | MSSQL could not save a field | `ON DUPLICATE KEY UPDATE` → `MERGE`, `LIMIT` → `OFFSET/FETCH`, in `mssqlTranslation.js`, with 12 unit tests |
+| 02 | `CLAUDE.md` described an architecture the code no longer had | Corrected, plus the rule that actually holds: MySQL-specific syntax needs a rewrite **and a test** |
+| 03 | Board/reports loaded the whole dataset | `entityService.getEntitiesByFieldKey` — one indexed lookup via `idx_field_key_text` |
+| 04 | 173 raw `fetch`, 126 hand-rolled CSRF headers | `app.fetch` / `fetchData` / `fetchRaw`; **128 call sites migrated, 126 → 0 hand-rolled headers** |
+| 08 | Suite unreadable | `workers: 1`; measurement recorded in the config |
+| 10 | No search | `/api/search` + ⌘K palette, searches titles and field values, says why a row matched |
+| 11 | Nothing could be undone | `deleted_at` + `deleted_batch` soft delete, Recently Deleted panel, restore and purge |
+| 12 | Everything drag-only | Palette `Tab` actions call the same endpoints as the drop handlers |
+| 14 | Looked protected, had no auth | Documented in `CLAUDE.md` as an explicit assumption |
+
+Plus two features the user asked for directly, neither in the artifact:
+**the priorities board as a rail** (any type, as references, board-local bays)
+and **the focus bar** (three pinned records, RAG dot, stop-the-clock timer,
+drag-to-pin).
+
+### Not started
+
+| # | Finding | Note |
+|---|---|---|
+| 05 | 48 drag handlers across 9 files; `dragDropUtils.js` holds 2 | This is where the `effectAllowed`/`dropEffect` bug hid for a session. **Next up.** |
+| 06 | Dailies outside the generic engine, 3,666 lines | Blocked on §1's naming contradiction |
+| 07 | 25 of 42 tables empty | Dual-schema deletion pass |
+| 09 | 45 of 92 specs are debug-named | Keep / fix / delete triage |
+| 13 | No multi-select or bulk operations | Pairs with 11 |
+
+Features still open: saved views per type, scheduled status email
+(`buildEmailDraft` already composes it and deliberately never sends),
+recurrence beyond Dailies, time tracking on the board.
+
+### Traps hit while doing the above — do not rediscover these
+
+- **`setEntityFieldValue` picks its storage column from the SHAPE of the value,
+  not the field's declared type.** An ISO timestamp was routed into
+  `value_date` and MySQL rejected it. The focus clock stores epoch
+  milliseconds. Any future string-shaped field will hit this.
+- **Engine-written fields render as editable controls unless excluded.**
+  `board_bay` / `board_order` appeared as a text box and a number box on every
+  record's editor, and six unrelated test records got placed on the board that
+  way. See `INTERNAL_FIELD_KEYS` in `genericEntity.js` — add to it, and to the
+  matching list in `searchService.js`, whenever the engine adds a field.
+- **Anything revealed mid-drag must not take part in document flow.** The focus
+  bar's landing strip pushed every row down 40px on `dragstart`, so drops
+  landed above their target — it broke reordering across the whole app.
+- **A soft delete must not destroy relationship edges.** The delete route
+  called `cascadeDeleteEntity` first, which removed them, so the soft delete
+  found no children to stamp and a restore had no tree to rebuild.
+- **`LIMIT ?` fails under mysql2's `execute()`** ("Incorrect arguments to
+  mysqld_stmt_execute"), same family as the `IN (?)` note in
+  `attachFieldValues`. Inline a bounded integer.
+- **A codemod that rewrites `fetch(` will rewrite the one inside `app.fetchRaw`
+  itself** and produce infinite recursion. Those two call sites in `main.js`
+  must call `window.fetch`.
+
+## 7. Decisions made — do not re-litigate
 
 - Dailies is a **rail**, not a page. Its tab button toggles it; the rail is
   resizable and its width persists across close/reopen and reload. The landing

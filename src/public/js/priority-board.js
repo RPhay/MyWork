@@ -62,11 +62,7 @@ function renderBoard() {
 
 async function loadBoard() {
   try {
-    const response = await fetch('/api/priority-board');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
-    if (!result.success) throw new Error(result.message || 'Unknown error');
-    boardItems = result.data || [];
+    boardItems = (await app.fetchData('/api/priority-board')) || [];
     renderBoard();
   } catch (error) {
     console.error('Error loading the priorities board:', error);
@@ -77,16 +73,10 @@ async function loadBoard() {
   }
 }
 
-async function post(url, method, body) {
-  const response = await fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const result = await response.json();
-  if (!result.success) throw new Error(result.message || `HTTP ${response.status}`);
-  return result.data;
-}
+const post = (url, method, body) => app.fetchData(url, {
+  method,
+  body: body === undefined ? undefined : JSON.stringify(body),
+});
 
 /**
  * Splice `movedId` into the board at `targetId`, then persist the whole board's

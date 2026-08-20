@@ -1504,12 +1504,9 @@ const GenericEntity = (() => {
         : `/api/entities/${slug}`;
       const method = currentEntityId ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await app.fetchRaw(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken || ''
-        },
+        
         body: JSON.stringify(data)
       });
 

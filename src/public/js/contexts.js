@@ -127,14 +127,10 @@ async function saveContext() {
   };
 
   try {
-    const response = await fetch("/api/contexts", {
+    const response = await app.fetchRaw("/api/contexts", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify(data),
-    });
+      
+      body: JSON.stringify(data) });
 
     const result = await response.json();
     if (result.success) {
@@ -161,10 +157,8 @@ async function deleteContext(contextId) {
     return;
 
   try {
-    const response = await fetch(`/api/contexts/${contextId}`, {
-      method: "DELETE",
-      headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken },
-    });
+    const response = await app.fetchRaw(`/api/contexts/${contextId}`, {
+      method: "DELETE" });
 
     const result = await response.json();
     if (result.success) {
@@ -209,14 +203,10 @@ async function saveFolder() {
   const method = id ? "PUT" : "POST";
 
   try {
-    const response = await fetch(url, {
+    const response = await app.fetchRaw(url, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ name }),
-    });
+      
+      body: JSON.stringify({ name }) });
     const result = await response.json();
     if (result.success) {
       bootstrap.Modal.getInstance(
@@ -241,10 +231,8 @@ async function deleteFolder(folderId) {
   )
     return;
   try {
-    const response = await fetch(`/api/context-folders/${folderId}`, {
-      method: "DELETE",
-      headers: { "X-CSRF-Token": window.APP_CONFIG?.csrfToken },
-    });
+    const response = await app.fetchRaw(`/api/context-folders/${folderId}`, {
+      method: "DELETE" });
     const result = await response.json();
     if (result.success) {
       expandedFolders.delete(String(folderId));
@@ -260,14 +248,10 @@ async function deleteFolder(folderId) {
 
 async function moveContextToFolder(contextId, folderId) {
   try {
-    const response = await fetch(`/api/contexts/${contextId}`, {
+    const response = await app.fetchRaw(`/api/contexts/${contextId}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ folder_id: folderId || null }),
-    });
+      
+      body: JSON.stringify({ folder_id: folderId || null }) });
     const result = await response.json();
     if (result.success) {
       if (folderId) expandedFolders.add(String(folderId));
@@ -309,14 +293,10 @@ async function selectIcon(icon) {
       : `/api/contexts/${entityId}`;
 
   try {
-    const response = await fetch(url, {
+    const response = await app.fetchRaw(url, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ icon }),
-    });
+      
+      body: JSON.stringify({ icon }) });
     const result = await response.json();
     if (result.success) {
       loadContexts();
@@ -365,14 +345,10 @@ async function reorderContextsOnDrop(draggedId, targetId) {
   ids.splice(toIndex, 0, String(draggedId));
 
   try {
-    const response = await fetch("/api/contexts/reorder", {
+    const response = await app.fetchRaw("/api/contexts/reorder", {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ orderedIds: ids }),
-    });
+      
+      body: JSON.stringify({ orderedIds: ids }) });
     const result = await response.json();
     if (result.success) {
       loadContexts();
@@ -436,14 +412,10 @@ function populateContextOwnerSelect(context) {
 
 async function saveContextOwner(contextId, userId) {
   try {
-    const response = await fetch(`/api/contexts/${contextId}`, {
+    const response = await app.fetchRaw(`/api/contexts/${contextId}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ user_id: userId || null }),
-    });
+      
+      body: JSON.stringify({ user_id: userId || null }) });
     const result = await response.json();
     if (!result.success) {
       app.notify("Error: " + result.message, "danger");
@@ -464,14 +436,10 @@ async function addNewContextOwner() {
   if (!name || !name.trim()) return;
 
   try {
-    const response = await fetch("/api/users", {
+    const response = await app.fetchRaw("/api/users", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ name: name.trim() }),
-    });
+      
+      body: JSON.stringify({ name: name.trim() }) });
     const result = await response.json();
     if (!result.success) {
       app.notify("Error: " + result.message, "danger");
@@ -546,14 +514,10 @@ function initSubTabs() {
 
 async function saveSubtabOrder(contextId, orderedKeys) {
   try {
-    await fetch(`/api/contexts/${contextId}`, {
+    await app.fetchRaw(`/api/contexts/${contextId}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-      body: JSON.stringify({ subtab_order: JSON.stringify(orderedKeys) }),
-    });
+      
+      body: JSON.stringify({ subtab_order: JSON.stringify(orderedKeys) }) });
   } catch (error) {
     console.error("Error saving sub-tab order:", error);
   }
@@ -715,16 +679,12 @@ async function saveContextDbConfig() {
   try {
     // First test the connection
     const testConfig = { ...config };
-    const testResponse = await fetch(
+    const testResponse = await app.fetchRaw(
       `/api/context-database-config/${selectedContextId}/test/${dbType}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify(testConfig),
-      },
+        
+        body: JSON.stringify(testConfig) },
     );
     const testResult = await testResponse.json();
     if (!testResult.success) {
@@ -749,16 +709,12 @@ async function saveContextDbConfig() {
 
       // Create the schema
       statusEl.innerHTML = '<span class="text-muted">Creating schema…</span>';
-      const createResponse = await fetch(
+      const createResponse = await app.fetchRaw(
         `/api/context-database-config/${selectedContextId}/create-schema/${dbType}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-          },
-          body: JSON.stringify(config),
-        },
+          
+          body: JSON.stringify(config) },
       );
       const createResult = await createResponse.json();
       if (!createResult.success) {
@@ -769,16 +725,12 @@ async function saveContextDbConfig() {
 
     // Schema is ready, now save the config
     statusEl.innerHTML = '<span class="text-muted">Saving…</span>';
-    const saveResponse = await fetch(
+    const saveResponse = await app.fetchRaw(
       `/api/context-database-config/${selectedContextId}`,
       {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify({ dbType, config }),
-      },
+        
+        body: JSON.stringify({ dbType, config }) },
     );
     const saveResult = await saveResponse.json();
     if (saveResult.success) {
@@ -802,12 +754,8 @@ async function removeContextDbConfig() {
   }
 
   try {
-    const response = await fetch(`/api/context-database-config/${selectedContextId}`, {
-      method: "DELETE",
-      headers: {
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-      },
-    });
+    const response = await app.fetchRaw(`/api/context-database-config/${selectedContextId}`, {
+      method: "DELETE" });
     const result = await response.json();
     if (result.success) {
       app.notify("Database connection removed", "success");
@@ -841,15 +789,10 @@ async function checkAndUpdateSchema() {
   resultsEl.classList.add("d-none");
 
   try {
-    const response = await fetch(
+    const response = await app.fetchRaw(
       `/api/contexts/${selectedContextId}/schema/update`,
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken
-        }
-      }
+        method: "POST" }
     );
 
     const result = await response.json();
@@ -924,12 +867,8 @@ async function backupContext() {
   statusEl.textContent = "Creating backup...";
 
   try {
-    const response = await fetch(`/api/contexts/${selectedContextId}/backup`, {
-      method: "POST",
-      headers: {
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken
-      }
-    });
+    const response = await app.fetchRaw(`/api/contexts/${selectedContextId}/backup`, {
+      method: "POST" });
 
     if (!response.ok) {
       const result = await response.json();
@@ -974,12 +913,8 @@ async function copySystemDatabaseSettings() {
   statusEl.innerHTML = '<span class="text-muted">Copying system database settings...</span>';
 
   try {
-    const response = await fetch(`/api/contexts/${selectedContextId}/use-system-database`, {
-      method: "POST",
-      headers: {
-        "X-CSRF-Token": window.APP_CONFIG?.csrfToken
-      }
-    });
+    const response = await app.fetchRaw(`/api/contexts/${selectedContextId}/use-system-database`, {
+      method: "POST" });
 
     const result = await response.json();
 
@@ -1130,14 +1065,10 @@ function initContextsEventListeners() {
   async function renameContext(newName, titleEl) {
     const contextId = titleEl.closest(".context-row").dataset.contextId;
     try {
-      const response = await fetch(`/api/contexts/${contextId}`, {
+      const response = await app.fetchRaw(`/api/contexts/${contextId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify({ name: newName }),
-      });
+        
+        body: JSON.stringify({ name: newName }) });
       const result = await response.json();
       if (!result.success) {
         app.notify("Error: " + result.message, "danger");

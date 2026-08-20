@@ -103,9 +103,9 @@ async function loginWithSSO(sourceId) {
       return;
     }
 
-    const response = await fetch(`/api/sources/${sourceId}/auth/sso/login`, {
+    const response = await app.fetchRaw(`/api/sources/${sourceId}/auth/sso/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      
       body: JSON.stringify({
         contextId,
         provider: 'entra-id'
@@ -185,9 +185,9 @@ async function saveCredentials(sourceId) {
       return;
     }
 
-    const response = await fetch(`/api/sources/${sourceId}/auth/credentials`, {
+    const response = await app.fetchRaw(`/api/sources/${sourceId}/auth/credentials`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      
       body: JSON.stringify({ username, password })
     });
 

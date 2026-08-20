@@ -135,12 +135,9 @@ async function saveTemplate() {
     const url = templateId ? `/api/work-item-templates/${templateId}` : '/api/work-item-templates';
     const method = templateId ? 'PUT' : 'POST';
 
-    const response = await fetch(url, {
+    const response = await app.fetchRaw(url, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(data)
     });
 
@@ -186,10 +183,8 @@ async function deleteTemplate(templateId) {
   if (!await app.confirm('Delete this template?')) return;
 
   try {
-    const response = await fetch(`/api/work-item-templates/${templateId}`, {
-      method: 'DELETE',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work-item-templates/${templateId}`, {
+      method: 'DELETE' });
 
     const result = await response.json();
     if (result.success) {
@@ -211,12 +206,9 @@ async function cycleTemplateStatus(templateId, currentStatus) {
   const nextStatus = TEMPLATE_STATUS_CYCLE[(currentIndex + 1) % TEMPLATE_STATUS_CYCLE.length];
 
   try {
-    const response = await fetch(`/api/work-item-templates/${templateId}/status`, {
+    const response = await app.fetchRaw(`/api/work-item-templates/${templateId}/status`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify({ status: nextStatus })
     });
     const result = await response.json();
@@ -238,12 +230,9 @@ async function cycleTemplateTimeBox(templateId, currentMinutes) {
   const nextMinutes = TIME_BOX_CYCLE[(currentIndex + 1) % TIME_BOX_CYCLE.length];
 
   try {
-    const response = await fetch(`/api/work-item-templates/${templateId}/timebox`, {
+    const response = await app.fetchRaw(`/api/work-item-templates/${templateId}/timebox`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify({ time_box_minutes: nextMinutes })
     });
     const result = await response.json();
@@ -274,10 +263,8 @@ async function linkTemplateChild(templateId, type, id) {
   if (!path) return;
 
   try {
-    const response = await fetch(`/api/work-item-templates/${templateId}/${path}/${id}`, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work-item-templates/${templateId}/${path}/${id}`, {
+      method: 'POST' });
     const result = await response.json();
     if (result.success) {
       expandedTemplates.add(String(templateId));
@@ -296,10 +283,8 @@ async function unlinkTemplateChild(templateId, type, id) {
   if (!path) return;
 
   try {
-    const response = await fetch(`/api/work-item-templates/${templateId}/${path}/${id}`, {
-      method: 'DELETE',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/work-item-templates/${templateId}/${path}/${id}`, {
+      method: 'DELETE' });
     const result = await response.json();
     if (result.success) {
       loadTemplates();
@@ -494,12 +479,9 @@ async function createTemplateFromCalendarEvent(event) {
   console.log('[Templates] Template data to send:', data);
 
   try {
-    const response = await fetch('/api/work-item-templates', {
+    const response = await app.fetchRaw('/api/work-item-templates', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(data)
     });
 
@@ -552,12 +534,9 @@ function initTemplatesEventListeners() {
   app.bindInlineRename(container, '.template-title', async (newTitle, titleEl) => {
     const templateId = titleEl.closest('.template-node').dataset.templateId;
     try {
-      const response = await fetch(`/api/work-item-templates/${templateId}`, {
+      const response = await app.fetchRaw(`/api/work-item-templates/${templateId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-        },
+        
         body: JSON.stringify({ title: newTitle })
       });
       const result = await response.json();
@@ -699,9 +678,9 @@ function initTemplatesEventListeners() {
     e.preventDefault();
 
     try {
-      const response = await fetch('/api/work-item-templates', {
+      const response = await app.fetchRaw('/api/work-item-templates', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.APP_CONFIG?.csrfToken },
+        
         body: JSON.stringify({ title: name || 'New template' })
       });
       const result = await response.json();
@@ -882,12 +861,9 @@ async function reorderTemplatesOnDrop(draggedId, targetId, position) {
   ids.splice(toIndex, 0, String(draggedId));
 
   try {
-    const response = await fetch('/api/work-item-templates/reorder', {
+    const response = await app.fetchRaw('/api/work-item-templates/reorder', {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify({ orderedIds: ids })
     });
     const result = await response.json();
@@ -962,12 +938,9 @@ function initTemplates() {
       }
 
       try {
-        const response = await fetch(`/api/work-item-templates/${templateId}`, {
+        const response = await app.fetchRaw(`/api/work-item-templates/${templateId}`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": window.APP_CONFIG?.csrfToken
-          },
+          
           body: JSON.stringify({
             title,
             description,

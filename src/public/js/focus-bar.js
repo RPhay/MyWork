@@ -39,19 +39,10 @@
     return (item.seconds - item.serverDrift) + Math.max(0, drift);
   }
 
-  async function call(path, options = {}) {
-    const response = await fetch(`/api/focus${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': document.body.dataset.csrfToken,
-        ...(options.headers || {}),
-      },
-    });
-    const result = await response.json();
-    if (!result.success) throw new Error(result.message || `HTTP ${response.status}`);
-    return result.data;
-  }
+  // app.fetch carries the CSRF header, reads the body even on a 4xx, and
+  // throws with the server's own message - so there is nothing left for a
+  // local wrapper to add.
+  const call = (path, options) => app.fetchData(`/api/focus${path}`, options);
 
   function setItems(data) {
     items = (data || []).map(i => ({

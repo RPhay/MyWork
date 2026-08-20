@@ -16,7 +16,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Add token to fetch requests header
+    // A global safety net, not the mechanism.
+    //
+    // window.fetch is patched so that ANY mutating request carries the CSRF
+    // token even if its caller forgot. That is deliberate belt-and-braces, but
+    // it is also action at a distance: a request works here and fails in a
+    // context where this file has not run, with no clue why.
+    //
+    // The mechanism is app.fetch / app.fetchRaw in main.js, which every call
+    // site now goes through. Reach for those; do not rely on this.
     const originalFetch = window.fetch;
     window.fetch = function(...args) {
       const options = args[1] || {};

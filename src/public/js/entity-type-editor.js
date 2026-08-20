@@ -648,12 +648,9 @@ async function saveEntityType() {
     const url = currentEditingType ? `/api/entity-types/${currentEditingType.id}` : '/api/entity-types';
     const method = currentEditingType ? 'PUT' : 'POST';
 
-    const response = await fetch(url, {
+    const response = await app.fetchRaw(url, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(typeData)
     });
 
@@ -679,12 +676,8 @@ async function deleteEntityType() {
   if (!(await app.confirm(`Delete entity type "${currentEditingType.label}"?`, 'Confirm Delete'))) return;
 
   try {
-    const response = await fetch(`/api/entity-types/${currentEditingType.id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      }
-    });
+    const response = await app.fetchRaw(`/api/entity-types/${currentEditingType.id}`, {
+      method: 'DELETE' });
 
     const result = await response.json();
     if (result.success) {

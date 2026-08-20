@@ -253,12 +253,9 @@ async function testAuth() {
   });
 
   try {
-    const response = await fetch(`/api/sources/test-auth`, {
+    const response = await app.fetchRaw(`/api/sources/test-auth`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify({
         type: sourceType,
         authMethod: authMethod,
@@ -316,12 +313,9 @@ async function saveAuth() {
   };
 
   try {
-    const response = await fetch('/api/sources', {
+    const response = await app.fetchRaw('/api/sources', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(data)
     });
 
@@ -364,12 +358,9 @@ async function updateSource() {
   const enabled = document.getElementById('editSourceEnabled').checked;
 
   try {
-    const response = await fetch(`/api/sources/${sourceId}`, {
+    const response = await app.fetchRaw(`/api/sources/${sourceId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify({ name, enabled })
     });
 
@@ -391,10 +382,8 @@ async function deleteSource(sourceId) {
   if (!await app.confirm('Delete this source?')) return;
 
   try {
-    const response = await fetch(`/api/sources/${sourceId}`, {
-      method: 'DELETE',
-      headers: { 'X-CSRF-Token': window.APP_CONFIG?.csrfToken }
-    });
+    const response = await app.fetchRaw(`/api/sources/${sourceId}`, {
+      method: 'DELETE' });
 
     const result = await response.json();
     if (result.success) {
@@ -411,12 +400,9 @@ async function deleteSource(sourceId) {
 
 async function toggleSource(sourceId, enabled) {
   try {
-    const response = await fetch(`/api/sources/${sourceId}`, {
+    const response = await app.fetchRaw(`/api/sources/${sourceId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify({ enabled })
     });
 

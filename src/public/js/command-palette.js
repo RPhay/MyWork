@@ -80,13 +80,10 @@
         label: 'Add to priorities',
         icon: '📋',
         run: async () => {
-          const response = await fetch('/api/priority-board/items', {
+          await app.fetch('/api/priority-board/items', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
             body: JSON.stringify({ entityId: result.id, bay: 'Not Started' }),
           });
-          const body = await response.json();
-          if (!body.success) throw new Error(body.message);
           app.notify('Added to priorities', 'success');
         },
       });
@@ -162,10 +159,9 @@
     debounce = setTimeout(async () => {
       lastQuery = term;
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(term)}`);
-        const body = await response.json();
+        const data = await app.fetchData(`/api/search?q=${encodeURIComponent(term)}`);
         if (lastQuery !== term || !overlay) return;
-        rows = (body.data || []).map(r => ({ kind: 'result', ...r }));
+        rows = (data || []).map(r => ({ kind: 'result', ...r }));
         active = 0;
         render(rows.length ? rows : [{ kind: 'hint', title: `Nothing matches “${term}”` }]);
       } catch (error) {

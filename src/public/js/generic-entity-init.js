@@ -63,9 +63,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // One schema, one fetch, one code path - for every type. Folders are rows
     // of this same type carrying is_folder = 1, so there is no second type to
     // look up and nothing here keys off which type slug it happens to be.
-    const typeResponse = await fetch(`/api/entity-types/${typeSlug}`, {
-      headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-    });
+    const typeResponse = await app.fetchRaw(`/api/entity-types/${typeSlug}`, {});
     if (!typeResponse.ok) throw new Error('Failed to fetch type schema');
     const typeData = await typeResponse.json();
     if (!typeData.success) throw new Error(typeData.message);
@@ -78,9 +76,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // rules, so a user who allows Projects inside Categories gets that too.
     let allowedChildSlugs = new Set();
     try {
-      const allTypesRes = await fetch('/api/entity-types', {
-        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-      });
+      const allTypesRes = await app.fetchRaw('/api/entity-types', {});
       const allTypes = (await allTypesRes.json()).data || [];
       const slugById = new Map(allTypes.map(t => [t.id, t.slug]));
       allowedChildSlugs = new Set(
@@ -111,9 +107,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       const endpoint = containsOtherTypes
         ? `/api/entities/${typeSlug}/contents`
         : `/api/entities/${typeSlug}`;
-      const response = await fetch(endpoint, {
-        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-      });
+      const response = await app.fetchRaw(endpoint, {});
       if (!response.ok) throw new Error('Failed to fetch entities');
       const data = await response.json();
       if (!data.success) throw new Error(data.message);
@@ -126,9 +120,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     const schemaByTypeId = new Map([[typeSchema.id, typeSchema]]);
     if (containsOtherTypes) {
       try {
-        const res = await fetch('/api/entity-types', {
-          headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-        });
+        const res = await app.fetchRaw('/api/entity-types', {});
         for (const t of ((await res.json()).data || [])) schemaByTypeId.set(t.id, t);
       } catch { /* fall back to the page's own schema */ }
     }
@@ -141,9 +133,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     let relationships = [];
     async function fetchRelationships() {
       if (!typeSchema.supports_hierarchy) return [];
-      const r = await fetch(`/api/entities/${typeSlug}/relationships?kind=hierarchy`, {
-        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-      });
+      const r = await app.fetchRaw(`/api/entities/${typeSlug}/relationships?kind=hierarchy`, {});
       const result = await r.json();
       return result.success ? result.data : [];
     }
@@ -323,10 +313,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (!ok) return true;
 
       for (const id of ids) {
-        const res = await fetch(`/api/entities/${typeSlug}/${id}`, {
-          method: 'DELETE',
-          headers: { 'X-CSRF-Token': document.body.dataset.csrfToken },
-        });
+        const res = await app.fetchRaw(`/api/entities/${typeSlug}/${id}`, {
+          method: 'DELETE' });
         if (!res.ok) {
           const reason = await res.json().catch(() => null);
           app.notify(`Could not delete them all: ${reason?.message || res.status}`, 'danger');
@@ -444,12 +432,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
         const set = field?.field_options?.values || [];
         if (!set.length) return;
         const next = set[(set.indexOf(cycleEmoji.dataset.value) + 1) % set.length];
-        const response = await fetch(`/api/entities/${typeSlug}/${cycleEmoji.dataset.entityId}`, {
+        const response = await app.fetchRaw(`/api/entities/${typeSlug}/${cycleEmoji.dataset.entityId}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': document.body.dataset.csrfToken
-          },
+          
           body: JSON.stringify({ fields: { [field.field_key]: next } })
         });
         if (response.ok) {
@@ -467,12 +452,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (emojiBtn) {
         const picked = await app.pickEmoji(emojiBtn);
         if (picked === null) return;
-        const response = await fetch(`/api/entities/${typeSlug}/${emojiBtn.dataset.entityId}`, {
+        const response = await app.fetchRaw(`/api/entities/${typeSlug}/${emojiBtn.dataset.entityId}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': document.body.dataset.csrfToken
-          },
+          
           body: JSON.stringify({ fields: { [emojiBtn.dataset.fieldKey]: picked || null } })
         });
         if (response.ok) {
@@ -519,9 +501,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
         const fieldKey = priorityBtn.dataset.fieldKey;
         const changedId = priorityBtn.dataset.entityId;
 
-        const response = await fetch(`/api/entities/${typeSlug}/${changedId}`, {
+        const response = await app.fetchRaw(`/api/entities/${typeSlug}/${changedId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
+          
           body: JSON.stringify({ fields: { [fieldKey]: next || null } })
         });
         if (response.ok) {
@@ -546,14 +528,11 @@ async function initGenericEntityTab(typeSlug, typeName) {
         const idx = values.indexOf(statusBtn.dataset.status);
         const next = values[(idx + 1) % values.length];
 
-        const response = await fetch(
+        const response = await app.fetchRaw(
           `/api/entities/${typeSlug}/${statusBtn.dataset.entityId}`,
           {
             method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': document.body.dataset.csrfToken
-            },
+            
             // Only this field is sent: updateEntity iterates the keys it is
             // given, so the entity's other field values are untouched.
             body: JSON.stringify({ fields: { [field.field_key]: next } })
@@ -590,10 +569,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
           'Confirm Delete'
         );
         if (confirmed) {
-          const response = await fetch(`/api/entities/${typeSlug}/${actionBtn.dataset.entityId}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-          });
+          const response = await app.fetchRaw(`/api/entities/${typeSlug}/${actionBtn.dataset.entityId}`, {
+            method: 'DELETE' });
           if (response.ok) {
             app.notify('Deleted', 'success');
             await refreshEntities();
@@ -623,12 +600,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // item's other values are untouched, and the editor is redirected only if
     // it is already open - a cell click never opens or closes it.
     async function saveFieldFromCell(entityId, fieldKey, value, failMessage) {
-      const response = await fetch(`/api/entities/${typeSlug}/${entityId}`, {
+      const response = await app.fetchRaw(`/api/entities/${typeSlug}/${entityId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': document.body.dataset.csrfToken
-        },
+        
         body: JSON.stringify({ fields: { [fieldKey]: value } })
       });
       if (!response.ok) {
@@ -737,23 +711,20 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (position === 'after') to += 1;
       cols.splice(to, 0, moved);
 
-      const csrf = document.body.dataset.csrfToken;
-      const headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf };
-
       // Hidden fields keep the display_order they already had; only the visible
       // columns are renumbered 0..n-1.
       for (const [i, c] of cols.entries()) {
         if (c.title) {
           if ((typeSchema.title_order || 0) === i) continue;
-          const res = await fetch(`/api/entity-types/${typeSchema.id}`, {
-            method: 'PUT', headers, body: JSON.stringify({ title_order: i })
+          const res = await app.fetchRaw(`/api/entity-types/${typeSchema.id}`, {
+            method: 'PUT', body: JSON.stringify({ title_order: i })
           });
           if (!res.ok) { app.notify('Could not reorder columns', 'danger'); return; }
           typeSchema.title_order = i;
         } else {
           if ((c.display_order || 0) === i) continue;
-          const res = await fetch(`/api/entity-types/fields/${c.id}`, {
-            method: 'PUT', headers, body: JSON.stringify({ display_order: i })
+          const res = await app.fetchRaw(`/api/entity-types/fields/${c.id}`, {
+            method: 'PUT', body: JSON.stringify({ display_order: i })
           });
           if (!res.ok) { app.notify('Could not reorder columns', 'danger'); return; }
           c.display_order = i;   // keep the in-memory schema in step
@@ -824,12 +795,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
     listContainer.addEventListener('change', async (e) => {
       const input = e.target.closest('.row-date-input');
       if (!input) return;
-      const response = await fetch(`/api/entities/${typeSlug}/${input.dataset.entityId}`, {
+      const response = await app.fetchRaw(`/api/entities/${typeSlug}/${input.dataset.entityId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': document.body.dataset.csrfToken
-        },
+        
         body: JSON.stringify({ fields: { [input.dataset.fieldKey]: input.value || null } })
       });
       if (response.ok) {
@@ -890,12 +858,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
       const field = (typeSchema.fields || []).find(f => String(f.id) === String(fieldId));
       if (!field) return;
 
-      const response = await fetch(`/api/entity-types/fields/${fieldId}`, {
+      const response = await app.fetchRaw(`/api/entity-types/fields/${fieldId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': document.body.dataset.csrfToken
-        },
+        
         body: JSON.stringify({ show_in_row: box.checked })
       });
 
@@ -933,11 +898,10 @@ async function initGenericEntityTab(typeSlug, typeName) {
     }
 
     async function putField(fieldId, body) {
-      const res = await fetch(`/api/entity-types/fields/${fieldId}`, {
+      const res = await app.fetchRaw(`/api/entity-types/fields/${fieldId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
-        body: JSON.stringify(body),
-      });
+        
+        body: JSON.stringify(body) });
       return res.ok;
     }
 
@@ -1098,10 +1062,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
         'Confirm Delete'
       );
       if (!confirmed) return;
-      const response = await fetch(`/api/entities/${typeSlug}/${entityId}`, {
-        method: 'DELETE',
-        headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-      });
+      const response = await app.fetchRaw(`/api/entities/${typeSlug}/${entityId}`, {
+        method: 'DELETE' });
       if (response.ok) {
         if (String(GenericEntity.getCurrentEntityId()) === String(entityId)) GenericEntity.close();
         app.notify('Deleted', 'success');
@@ -1261,12 +1223,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
         if (name === null) return;   // cancelled: add nothing
       }
 
-      const response = await fetch(`/api/entities/${typeSlug}/${row.dataset.entityId}`, {
+      const response = await app.fetchRaw(`/api/entities/${typeSlug}/${row.dataset.entityId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': document.body.dataset.csrfToken
-        },
+        
         // Only the links field is sent, so the item's other values are
         // untouched - updateEntity iterates the keys it is given.
         body: JSON.stringify({
@@ -1372,10 +1331,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
       try {
         let childId = droppedId;
         if (choice === 'copy') {
-          const cloned = await fetch(`/api/entities/${childSlug}/${droppedId}/clone`, {
-            method: 'POST',
-            headers: { 'X-CSRF-Token': csrf }
-          });
+          const cloned = await app.fetchRaw(`/api/entities/${childSlug}/${droppedId}/clone`, {
+            method: 'POST' });
           const cloneResult = await cloned.json();
           if (!cloneResult.success) throw new Error(cloneResult.message);
           childId = cloneResult.data.id;
@@ -1386,9 +1343,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
         // that idea, rather than doing nothing.
         let parentId = targetRow ? Number(targetRow.dataset.entityId) : null;
         if (!parentId) {
-          const created = await fetch(`/api/entities/${typeSlug}`, {
+          const created = await app.fetchRaw(`/api/entities/${typeSlug}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+            
             body: JSON.stringify({ title: childName || `New ${singular}` })
           });
           const result = await created.json();
@@ -1396,9 +1353,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
           parentId = result.data.id;
         }
 
-        const linked = await fetch(`/api/entities/${typeSlug}/${parentId}/relationships`, {
+        const linked = await app.fetchRaw(`/api/entities/${typeSlug}/${parentId}/relationships`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          
           body: JSON.stringify({ parentEntityId: parentId, childEntityId: childId, relationshipKind: 'hierarchy' })
         });
         if (!linked.ok) throw new Error((await linked.json().catch(() => ({}))).message || 'Could not add it');
@@ -1499,14 +1456,12 @@ async function initGenericEntityTab(typeSlug, typeName) {
         if (zone === 'nest') {
           const oldParentId = hierarchyParentOf(sourceId);
           if (oldParentId !== null && oldParentId !== targetId) {
-            await fetch(`/api/entities/${typeSlug}/${sourceId}/relationships/${oldParentId}/${sourceId}?kind=hierarchy`, {
-              method: 'DELETE',
-              headers: { 'X-CSRF-Token': csrfToken }
-            });
+            await app.fetchRaw(`/api/entities/${typeSlug}/${sourceId}/relationships/${oldParentId}/${sourceId}?kind=hierarchy`, {
+              method: 'DELETE' });
           }
-          const response = await fetch(`/api/entities/${typeSlug}/${sourceId}/relationships`, {
+          const response = await app.fetchRaw(`/api/entities/${typeSlug}/${sourceId}/relationships`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            
             body: JSON.stringify({ parentEntityId: targetId, childEntityId: sourceId, relationshipKind: 'hierarchy' })
           });
           if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'Move failed');
@@ -1519,15 +1474,13 @@ async function initGenericEntityTab(typeSlug, typeName) {
 
           if (oldParentId !== newParentId) {
             if (oldParentId !== null) {
-              await fetch(`/api/entities/${typeSlug}/${sourceId}/relationships/${oldParentId}/${sourceId}?kind=hierarchy`, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-Token': csrfToken }
-              });
+              await app.fetchRaw(`/api/entities/${typeSlug}/${sourceId}/relationships/${oldParentId}/${sourceId}?kind=hierarchy`, {
+                method: 'DELETE' });
             }
             if (newParentId !== null) {
-              const reparentResponse = await fetch(`/api/entities/${typeSlug}/${sourceId}/relationships`, {
+              const reparentResponse = await app.fetchRaw(`/api/entities/${typeSlug}/${sourceId}/relationships`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                
                 body: JSON.stringify({ parentEntityId: newParentId, childEntityId: sourceId, relationshipKind: 'hierarchy' })
               });
               if (!reparentResponse.ok) throw new Error('Move failed');
@@ -1541,9 +1494,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
             const targetIdx = siblingIds.indexOf(targetId);
             siblingIds.splice(zone === 'before' ? targetIdx : targetIdx + 1, 0, sourceId);
 
-            const reorderResponse = await fetch(`/api/entities/${typeSlug}/${newParentId}/relationships/reorder`, {
+            const reorderResponse = await app.fetchRaw(`/api/entities/${typeSlug}/${newParentId}/relationships/reorder`, {
               method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+              
               body: JSON.stringify({ orderedChildIds: siblingIds, kind: 'hierarchy' })
             });
             if (!reorderResponse.ok) throw new Error('Reorder failed');
@@ -1557,9 +1510,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
             const targetIdx = siblingIds.indexOf(targetId);
             siblingIds.splice(zone === 'before' ? targetIdx : targetIdx + 1, 0, sourceId);
 
-            const reorderResponse = await fetch(`/api/entities/${typeSlug}/reorder`, {
+            const reorderResponse = await app.fetchRaw(`/api/entities/${typeSlug}/reorder`, {
               method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+              
               body: JSON.stringify({ orderedIds: siblingIds })
             });
             if (!reorderResponse.ok) throw new Error('Reorder failed');
@@ -1573,9 +1526,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
           const targetIdx = siblingIds.indexOf(targetId);
           siblingIds.splice(zone === 'before' ? targetIdx : targetIdx + 1, 0, sourceId);
 
-          const reorderResponse = await fetch(`/api/entities/${typeSlug}/reorder`, {
+          const reorderResponse = await app.fetchRaw(`/api/entities/${typeSlug}/reorder`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            
             body: JSON.stringify({ orderedIds: siblingIds })
           });
           if (!reorderResponse.ok) throw new Error('Reorder failed');
@@ -1599,9 +1552,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
         // launched from; the nesting edge can only be written once the child
         // exists, so it happens here rather than at menu-click time.
         if (wasCreate && saved?.id && pendingParentId) {
-          const response = await fetch(`/api/entities/${typeSlug}/${saved.id}/relationships`, {
+          const response = await app.fetchRaw(`/api/entities/${typeSlug}/${saved.id}/relationships`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
+            
             body: JSON.stringify({ parentEntityId: pendingParentId, childEntityId: saved.id, relationshipKind: 'hierarchy' })
           });
           if (!response.ok) {

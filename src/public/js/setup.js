@@ -44,14 +44,10 @@ function showStep(step) {
 }
 
 async function postJson(url, body) {
-  const response = await fetch(url, {
+  const response = await app.fetchRaw(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-CSRF-Token": csrfToken,
-    },
-    body: JSON.stringify(body || {}),
-  });
+    
+    body: JSON.stringify(body || {}) });
   // If the server returned an HTML error page, surface the status rather than
   // a confusing JSON parse error.
   const text = await response.text();

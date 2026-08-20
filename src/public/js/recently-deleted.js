@@ -9,19 +9,7 @@
 (function () {
   let panel = null;
 
-  async function call(path, options = {}) {
-    const response = await fetch(`/api/trash${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': document.body.dataset.csrfToken,
-        ...(options.headers || {}),
-      },
-    });
-    const body = await response.json();
-    if (!body.success) throw new Error(body.message || `HTTP ${response.status}`);
-    return body.data;
-  }
+  const call = (path, options) => app.fetchData(`/api/trash${path}`, options);
 
   function when(stamp) {
     const seconds = Math.floor((Date.now() - new Date(stamp).getTime()) / 1000);

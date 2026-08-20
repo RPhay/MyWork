@@ -198,14 +198,10 @@ function showSystemDbEditForm(dbType, config) {
     };
 
     try {
-      const response = await fetch(`/api/system-database/test/${dbType}`, {
+      const response = await app.fetchRaw(`/api/system-database/test/${dbType}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify(formData),
-      });
+        
+        body: JSON.stringify(formData) });
       const result = await response.json();
 
       if (result.success) {
@@ -252,14 +248,10 @@ function showSystemDbEditForm(dbType, config) {
     };
 
     try {
-      const response = await fetch("/api/system-database", {
+      const response = await app.fetchRaw("/api/system-database", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": window.APP_CONFIG?.csrfToken,
-        },
-        body: JSON.stringify(formData),
-      });
+        
+        body: JSON.stringify(formData) });
       const result = await response.json();
 
       if (result.success) {
@@ -298,13 +290,8 @@ async function analyzeAndMigrate() {
   statusEl.innerHTML = '<div class="alert alert-info py-2 px-3"><i class="bi bi-hourglass-split"></i> Analyzing database and performing migrations...</div>';
 
   try {
-    const response = await fetch('/api/system-database/schema/analyze-and-migrate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken,
-      },
-    });
+    const response = await app.fetchRaw('/api/system-database/schema/analyze-and-migrate', {
+      method: 'POST' });
 
     const result = await response.json();
 

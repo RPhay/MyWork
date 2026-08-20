@@ -132,9 +132,7 @@ const CalendarView = (() => {
 
       try {
         // Fetch entities
-        const response = await fetch(`/api/entities/${typeSlug}`, {
-          headers: { 'X-CSRF-Token': document.body.dataset.csrfToken }
-        });
+        const response = await app.fetchRaw(`/api/entities/${typeSlug}`, {});
         const data = await response.json();
         if (data.success) {
           entities = data.data || [];

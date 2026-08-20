@@ -115,11 +115,10 @@ function createTypeListItem(type, isReadonly) {
       const label = e.target.parentElement.querySelector('.form-check-label');
       if (label) label.textContent = enabled ? 'Enabled' : 'Disabled';
       try {
-        const response = await fetch(`/api/entity-types/${type.id}`, {
+        const response = await app.fetchRaw(`/api/entity-types/${type.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
-          body: JSON.stringify({ is_visible: enabled }),
-        });
+          
+          body: JSON.stringify({ is_visible: enabled }) });
         const result = await response.json();
         if (!result.success) throw new Error(result.message);
         app.notify(`${type.label} ${enabled ? 'enabled' : 'disabled'}`, 'success');
@@ -173,11 +172,10 @@ function initTypeReordering(listEl) {
     const orderedIds = [...listEl.querySelectorAll('.type-list-item[draggable="true"]')]
       .map(el => Number(el.dataset.typeId));
     try {
-      const response = await fetch('/api/entity-types/reorder', {
+      const response = await app.fetchRaw('/api/entity-types/reorder', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.body.dataset.csrfToken },
-        body: JSON.stringify({ orderedIds }),
-      });
+        
+        body: JSON.stringify({ orderedIds }) });
       const result = await response.json();
       if (!result.success) throw new Error(result.message);
       app.notify('Tab order updated', 'success');

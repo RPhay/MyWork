@@ -45,12 +45,9 @@ async function importBackup() {
   showImportResult('Importing...', false);
 
   try {
-    const response = await fetch('/api/backup/import', {
+    const response = await app.fetchRaw('/api/backup/import', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': window.APP_CONFIG?.csrfToken
-      },
+      
       body: JSON.stringify(payload)
     });
     const result = await response.json();
