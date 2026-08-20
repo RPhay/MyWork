@@ -69,7 +69,10 @@ test('the column-toggle legend appears once and lines up with its switches', asy
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  await page.locator('#ideaEntityList .entity-row').first().locator('.entity-cell-title').click();
+  // Must be an ITEM: a folder gets a title-only editor with no fields, so there
+  // is no legend to align and this failed on a row that was never in scope.
+  await page.locator('#ideaEntityList .entity-row:not([data-is-folder="1"])')
+    .first().locator('.entity-cell-title').click();
   await expect(page.locator('.editor-field-legend')).toHaveCount(1);
   await expect(page.locator('.editor-field .editor-toggle-icon')).toHaveCount(0);
 

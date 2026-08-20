@@ -11,6 +11,10 @@ import { test, expect } from '@playwright/test';
 const RENDERED_TYPES = [
   'text', 'textarea', 'number', 'date', 'url', 'links',
   'select', 'radio', 'checkbox', 'status', 'recurrence',
+  // `priority` renders the priority meter (genericEntity.js). It was missing
+  // from this list while being seeded 8 times, so the test reported it as
+  // "not a known renderer" when the renderer was there all along.
+  'priority',
   // `emoji` is a free pick; `emojis` cycles through a set declared on the field.
   'emoji', 'emojis',
 ];
@@ -30,6 +34,16 @@ test('every field type in use is renderable, editable and valid', async ({ page 
     expect(RENDERED_TYPES, `field type "${fieldType}" is used by a type but is not a known renderer`).toContain(fieldType);
     expect(rendererJs, `genericEntity.js has no renderer for "${fieldType}"`).toMatch(new RegExp(`\\n\\s*${fieldType}:`));
     expect(editorJs, `the type editor has no <option> for "${fieldType}"`).toContain(`value="${fieldType}"`);
+  }
+
+  // The editor gutter names each property's type. A type missing from the label
+  // map falls back to its raw slug, so it renders as lowercase "priority" beside
+  // properly-named neighbours - which is exactly what happened.
+  const labelBlock = rendererJs.match(/FIELD_TYPE_LABELS\s*=\s*\{([\s\S]*?)\}/);
+  expect(labelBlock, 'FIELD_TYPE_LABELS not found in genericEntity.js').toBeTruthy();
+  for (const fieldType of inUse) {
+    expect(labelBlock[1], `no display label for field type "${fieldType}"`)
+      .toMatch(new RegExp(`\\b${fieldType}:`));
   }
 });
 

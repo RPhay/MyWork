@@ -402,10 +402,24 @@
 /* Each field in the editor carries a drag handle and a column toggle, so the
    same two values (display_order, show_in_row) can be set from here as well as
    from the header. */
+/* Each property is its own bounded row. Without the border the fields ran
+   together into one undifferentiated column of controls, and the drag handle
+   for one property looked like it belonged to the input above it.
+   Colours are rgba overlays rather than fixed values so this sits correctly on
+   whatever background the theme editor produces. */
 .editor-field {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.28);
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.05);
+}
+
+.editor-field:hover {
+  border-color: rgba(13, 110, 253, 0.45);
 }
 
 /* Aligned with the field's LABEL line, so each switch sits beside the name it
@@ -417,6 +431,31 @@
   height: 24px;
   margin-top: 2px;
   flex: none;
+}
+
+/* Only the field rows stack; the legend above them stays a single row. */
+.editor-field > .editor-field-gutter {
+  flex-direction: column;
+  align-items: flex-start;
+  height: auto;
+  gap: 3px;
+}
+
+.editor-field-gutter-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+}
+
+/* Sits under the toggles, reading as a caption for the property rather than
+   competing with its label. */
+.editor-field-type {
+  font-size: 0.68rem;
+  line-height: 1;
+  color: #6c757d;
+  white-space: nowrap;
+  padding-left: 3px;
 }
 
 .editor-field-gutter .form-switch {
@@ -665,6 +704,11 @@
 
 .editor-field-legend {
   margin-bottom: 2px;
+  /* The field rows gained a 1px border and 10px of horizontal padding when each
+     property became a delineated row; the legend has neither, so its icons sat
+     11px left of the switches they label. This puts its content edge back on
+     theirs. Keep the two in step if either box changes. */
+  padding-left: 11px;
 }
 
 /* The legend has to sit directly over the switches it labels, so it copies

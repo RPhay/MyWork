@@ -392,7 +392,7 @@ async function createTemplateFromEmail(email) {
     const result = await response.json();
     if (result.success) {
       app.notify(`Template created from email: ${email.subject}`, 'success');
-      if (typeof loadTemplates === 'function') loadTemplates();
+      window.GenericEntityTabs?.refresh('template');
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }

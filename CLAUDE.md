@@ -66,17 +66,13 @@ Consequences worth knowing before touching either file:
 
 ## Testing
 
-**All testing guidance lives in `CLAUDE_TESTING.md`** — commands, when to run
-what, the headed-mode requirement for editable type pages, how to read a run,
-and the rule that you must delete the rows your testing creates. Read it before
-running or writing tests; do not duplicate any of it back into this file.
+All testing guidance — the guard set, commands, the headed-mode requirement,
+how to read a run, and the rule that you delete the rows your testing creates —
+lives in `CLAUDE_TESTING.md` and is imported here. Do not restate any of it in
+this file: two copies is how the guard set came to be listed twice, in two
+places, with two different sets of specs.
 
-Two things from it that are easy to get wrong and expensive when you do:
-
-- **Clean up test data.** Any run that creates rows must delete them again. The
-  database is the user's real working data.
-- **Read both numbers.** The Playwright line reporter prints `N failed` *above*
-  `N passed`, so a truncated log makes a badly failing run look clean.
+@CLAUDE_TESTING.md
 
 ## There is no authentication
 

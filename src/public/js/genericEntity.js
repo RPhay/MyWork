@@ -1188,7 +1188,16 @@ const GenericEntity = (() => {
     // an unrelated record on the board, which is exactly what happened.
     const fields = entity.is_folder
       ? []
-      : (typeSchema.fields || []).filter(f => !INTERNAL_FIELD_KEYS.has(f.field_key));
+      // Sorted here rather than relying on the order the array arrived in. The
+      // API hands fields back ORDER BY display_order, so on a fresh load the
+      // unsorted array looked right - but reordering columns only rewrites each
+      // field's display_order VALUE, it does not re-sort this array. Without
+      // this the editor kept rendering the pre-drag order until a page reload,
+      // while the rows and the column chooser (both of which do sort) moved.
+      : (typeSchema.fields || [])
+          .filter(f => !INTERNAL_FIELD_KEYS.has(f.field_key))
+          .slice()
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     return `
       <form id="entity-editor-form" class="entity-editor-form" onsubmit="return false;">
         <div class="form-group">
@@ -1218,13 +1227,16 @@ const GenericEntity = (() => {
             <div class="editor-field" draggable="true"
                  data-field-id="${field.id}" data-field-key="${escapeAttr(field.field_key)}">
               <div class="editor-field-gutter">
-                <span class="editor-field-handle" title="Drag to reorder">⋮⋮</span>
-                <div class="form-check form-switch editor-field-toggle" title="Show this field as a column">
-                  <input type="checkbox" class="form-check-input editor-field-col" ${field.show_in_row ? 'checked' : ''}>
+                <div class="editor-field-gutter-controls">
+                  <span class="editor-field-handle" title="Drag to reorder">⋮⋮</span>
+                  <div class="form-check form-switch editor-field-toggle" title="Show this field as a column">
+                    <input type="checkbox" class="form-check-input editor-field-col" ${field.show_in_row ? 'checked' : ''}>
+                  </div>
+                  <div class="form-check form-switch editor-field-toggle" title="Show this column's name in the header">
+                    <input type="checkbox" class="form-check-input editor-field-label" ${field.show_column_label !== 0 && field.show_column_label !== false ? 'checked' : ''}>
+                  </div>
                 </div>
-                <div class="form-check form-switch editor-field-toggle" title="Show this column's name in the header">
-                  <input type="checkbox" class="form-check-input editor-field-label" ${field.show_column_label !== 0 && field.show_column_label !== false ? 'checked' : ''}>
-                </div>
+                <span class="editor-field-type" title="Field type">${escapeHtml(FIELD_TYPE_LABELS[field.field_type] || field.field_type)}</span>
               </div>
               <div class="editor-field-body">${renderer(field, value)}</div>
             </div>`;
@@ -1232,6 +1244,21 @@ const GenericEntity = (() => {
       </form>
     `;
   }
+
+  // The field-type names shown in the editor gutter. entity-type-editor.js has
+  // the long forms in its <select>, but that file only loads on Settings, and
+  // its wording is for PICKING a type rather than labelling one.
+  const FIELD_TYPE_LABELS = {
+    text: 'Text', textarea: 'Long text', number: 'Number', date: 'Date',
+    url: 'URL', links: 'Links', select: 'Dropdown', radio: 'Radio',
+    checkbox: 'Checkbox', status: 'Status', priority: 'Priority',
+    recurrence: 'Recurrence', emoji: 'Emoji', emojis: 'Emojis',
+  };
+  // Must cover every value of the entity_type_fields.field_type ENUM - a type
+  // missing here renders its raw slug in the editor gutter, which is how
+  // 'priority' (seeded 8 times, and absent from the Settings type picker)
+  // showed up as lowercase "priority" next to properly-named neighbours.
+  window.__FIELD_TYPE_LABELS = FIELD_TYPE_LABELS;
 
   // Field values go under `fields`, not alongside `title` - that's the shape
   // entityService.js#createEntity/updateEntity reads. They used to be returned

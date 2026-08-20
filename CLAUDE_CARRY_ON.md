@@ -99,20 +99,10 @@ expects. **Instrument the drop handler before adjusting any geometry.**
 
 ## 4. Test suite triage
 
-**The guard set — run this to check a clean checkout.** 104 e2e + 12 unit,
-all passing as of the last commit:
-
-```bash
-npm run test:unit          # 12 - the MSSQL translation layer
-npx playwright test \
-  tests/e2e/generic-entity-crud.spec.js \
-  tests/e2e/entity-editor-behaviour.spec.js \
-  tests/e2e/focus-bar.spec.js \
-  tests/e2e/search-palette.spec.js \
-  tests/e2e/recently-deleted.spec.js \
-  tests/e2e/priorities-rail.spec.js \
-  tests/e2e/row-icon-sizing.spec.js
-```
+**The guard set lives in `CLAUDE_TESTING.md`** — it is not repeated here. It
+used to be, which is how the project ended up with two different guard lists
+that overlapped on one spec. This file tracks what is in flight; the standing
+list of what to run is testing documentation.
 
 The wider suite was **188 failed / 213 passed of 401** at the last full run and
 is mostly stale specs asserting against deliberately removed UI. Do not read

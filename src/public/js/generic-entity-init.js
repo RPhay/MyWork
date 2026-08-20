@@ -196,6 +196,22 @@ async function initGenericEntityTab(typeSlug, typeName) {
       renderList();
     }
 
+    // Everything above is closure-scoped per tab, so code outside this file has
+    // no way to say "that type's rows changed, reload it". The bespoke tabs used
+    // to expose a global for that (loadTemplates, and friends); when those tabs
+    // became generic ones the globals went away and their callers were left
+    // behind `typeof` guards that could never be true again - silently doing
+    // nothing. This registry is the replacement, so such a call either works or
+    // fails loudly.
+    (window.GenericEntityTabs ||= {
+      refresh(slug) {
+        const fn = this._bySlug[slug];
+        if (fn) return fn();
+        console.warn(`GenericEntityTabs.refresh: no tab for "${slug}"`);
+      },
+      _bySlug: {},
+    })._bySlug[typeSlug] = refreshEntities;
+
     renderList();
 
     // Another view saved a record. Redraw if this page shows it - either it is
@@ -732,6 +748,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       }
 
       renderList();
+      applyFieldOrderToOpenEditor();   // the editor is a view of the same value
     });
 
     // Closing the editor throws away any unsaved preview that was mirrored
@@ -957,6 +974,30 @@ async function initGenericEntityTab(typeSlug, typeName) {
       editorPane.querySelectorAll('.drop-before, .drop-after')
         .forEach(el => el.classList.remove('drop-before', 'drop-after'));
     });
+
+    // Re-sorts an OPEN editor's fields to match display_order, by moving the
+    // existing nodes rather than rebuilding the form - a rebuild would throw
+    // away whatever is half-typed in the other fields, which is the same reason
+    // the editor's own drag moves nodes instead of re-rendering.
+    //
+    // Needed because dragging a COLUMN header writes display_order but leaves
+    // the editor's DOM as it was, so the two views disagreed until reopen.
+    function applyFieldOrderToOpenEditor() {
+      const pane = editorPane?.querySelector('.entity-editor-form');
+      if (!pane) return;
+      const nodes = [...pane.querySelectorAll('.editor-field')];
+      if (nodes.length < 2) return;
+      const orderOf = (el) => {
+        const f = (typeSchema.fields || [])
+          .find(x => String(x.id) === String(el.dataset.fieldId));
+        return f ? (f.display_order || 0) : 0;
+      };
+      const parent = nodes[0].parentElement;
+      nodes
+        .slice()
+        .sort((a, b) => orderOf(a) - orderOf(b))
+        .forEach(el => parent.appendChild(el));
+    }
 
     editorPane?.addEventListener('drop', async (e) => {
       if (!draggedField) return;

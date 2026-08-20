@@ -1134,9 +1134,7 @@ const EMOJI_ENTITY_CONFIG = {
   },
   template: {
     endpoint: (id) => `/api/work-item-templates/${id}/emoji`,
-    reload: () => {
-      if (typeof loadTemplates === "function") loadTemplates();
-    },
+    reload: () => window.GenericEntityTabs?.refresh("template"),
   },
 };
 

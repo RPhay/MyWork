@@ -355,9 +355,6 @@ class TabManager {
     // Projects) are absent on purpose: generic-entity-init.js owns their
     // fetching. Only the hand-written tabs need an entry.
     switch (tabName) {
-      case 'template':
-        if (typeof loadTemplates !== 'undefined') loadTemplates();
-        break;
       case 'priority-board':
         if (typeof loadBoard !== 'undefined') loadBoard();
         break;

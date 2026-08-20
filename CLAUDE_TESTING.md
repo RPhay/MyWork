@@ -87,6 +87,114 @@ types does not touch them — and clearing them needs its own pass.
 
 ---
 
+## The guard set
+
+**This is the list. Run it to check a clean checkout, and after any change you
+intend to commit.** It lives here and nowhere else — `CLAUDE.md` imports this
+file, and `CLAUDE_CARRY_ON.md` points at it rather than restating it.
+
+```bash
+npm run test:unit          # the MSSQL translation layer
+npx playwright test \
+  tests/e2e/generic-entity-crud.spec.js \
+  tests/e2e/entity-editor-behaviour.spec.js \
+  tests/e2e/entity-type-integrity.spec.js \
+  tests/e2e/entity-field-types.spec.js \
+  tests/e2e/focus-bar.spec.js \
+  tests/e2e/search-palette.spec.js \
+  tests/e2e/recently-deleted.spec.js \
+  tests/e2e/priorities-rail.spec.js \
+  tests/e2e/row-icon-sizing.spec.js \
+  tests/e2e/drag-protocol.spec.js \
+  tests/e2e/column-reorder-editor-sync.spec.js \
+  tests/e2e/debug.spec.js \
+  tests/e2e/ui-check.spec.js
+```
+
+Plus, **headed**, whenever an editable type page or its engine is touched — see
+the file list in "Editable types" below:
+
+```bash
+npx playwright test tests/e2e/editable-types.spec.js --headed
+```
+
+| Spec | Guards |
+|---|---|
+| `generic-entity-crud.spec.js` | All typed pages through the one code path |
+| `entity-editor-behaviour.spec.js` | Editor opens/stays open, save/revert enablement, legend aligns with its switches |
+| `entity-type-integrity.spec.js` | Every field type in use has a renderer, an editor option, a display label and an ENUM entry |
+| `entity-field-types.spec.js` | `url` / `links` / `status` / `recurrence` behaviour |
+| `focus-bar.spec.js` | Pinning, the three-item cap, the timer |
+| `search-palette.spec.js` | ⌘K search over titles and field values |
+| `recently-deleted.spec.js` | Soft delete, restore, purge |
+| `priorities-rail.spec.js` | Board membership, placement, ordering |
+| `row-icon-sizing.spec.js` | Row control sizing against the delete button reference |
+| `drag-protocol.spec.js` | `dragDropUtils.js`'s globals resolve on every page that drags |
+| `column-reorder-editor-sync.spec.js` | Column order and editor field order stay one value |
+| `debug.spec.js` | CSP and console errors |
+| `ui-check.spec.js` | Tab structure |
+| `editable-types.spec.js` | Per-type UI elements and folders (headed) |
+
+### Why this list is the list
+
+It was previously written down twice — once in this file as a table of "specs
+worth trusting", once in `CLAUDE_CARRY_ON.md` §4 as "the guard set" — and the
+two overlapped on exactly one spec. Neither was wrong so much as partial, and
+having two meant a change could be checked against whichever list happened to
+be read. They are merged above.
+
+### Traps this set has caught, in itself
+
+- **A spec that clicks `.entity-row` first gets a folder.** Folders have
+  title-only editors with no field rows, so anything asserting about fields,
+  legends or toggles fails on a row that was never in scope. Scope to
+  `.entity-row:not([data-is-folder="1"])`. This accounted for two long-standing
+  "failures" that were never app bugs.
+- **A spec that asserts before init has run measures nothing.** `ui-check`
+  required a "+ Folder" button on *every* type, but `generic-entity-init.js`
+  REMOVES it for flat types (`supports_hierarchy = 0`, e.g. Templates). So it
+  passed only when it beat init to the DOM and failed once the page was warm -
+  looking for all the world like whatever change happened to be in the tree.
+  Two separate stash-and-compare attempts "attributed" it to unrelated edits
+  before the race was spotted. If a result flips on run order, suspect the
+  spec's timing before you suspect the diff.
+- **A stale allow-list reports a working feature as broken.** `RENDERED_TYPES`
+  in `entity-type-integrity.spec.js` omitted `priority`, which has had a
+  renderer all along, so the spec claimed there wasn't one.
+
+---
+
+## Choosing what to run — ask first
+
+**Do not launch a comprehensive run unsolicited. Show this table, ask which
+tier, and wait for the answer.**
+
+**Tier 3 is the standing default** — run the specs covering the edit in hand
+without asking, and ask before anything broader. That is a decision, not a
+suggestion; do not quietly escalate to tier 6 because a change "feels big".
+
+Times are wall-clock on this machine. **Measured** ones were observed in a real
+run; **est.** ones are derived from the specs' measured neighbours.
+
+| # | Tier | What it runs | Time | Use it when |
+|---|---|---|---|---|
+| 0 | Static | `node --check` on changed JS, `npm run lint` | ~5s (est.) | After any JS edit. Catches syntax, nothing else |
+| 1 | Unit | `npm run test:unit` | **0.4s** | Touching `mssqlTranslation.js`. 12 tests |
+| 2 | Smoke | `debug` + `ui-check` + `drag-protocol` | ~20s (est.) | "Did I break the page load?" CSP, console errors, tab structure, drag globals |
+| 3 | Targeted | The 1-3 specs covering the change | 5-30s | **The default while working.** `column-reorder-editor-sync` alone is 7s |
+| 4 | Editor / engine | `entity-editor-behaviour`, `entity-type-integrity`, `entity-field-types`, `column-reorder-editor-sync`, `row-icon-sizing` | ~1m (est.) | Editor, field types, row rendering, the generic engine |
+| 5 | Drag | `drag-protocol`, `real-drag-drop`, `template-drops`, `dailies-drop`, `priorities-rail` | **~1.2m** | Anything touching drag sources, drop targets or `dragDropUtils.js` |
+| 6 | Guard set | The 13 specs above + `npm run test:unit` | **6.2m** | Before a commit or push |
+| 7 | Guard + headed | Tier 6 + `editable-types --headed` | ~8m (est.) | Editable type pages or their engine — see "Editable types" |
+| 8 | Full suite | `npx playwright test` | **~12.3m** | Rarely. Mostly stale specs; the number needs a baseline to mean anything |
+
+Tiers 4 and 5 overlap deliberately — a change to the generic engine is usually
+both.
+
+**Two runs must not overlap.** Every Playwright process shares the one database,
+which is why `workers: 1` exists; starting a second run beside one already in
+flight collides the same way parallel workers did.
+
 ## Browser testing after changes
 
 **Always test UI changes in a real browser before pushing.** Start the dev
@@ -174,16 +282,8 @@ and is the same class throughout.
 Genuine app-level errors left: **5 CSRF 403s** and **5 scattered
 `Cannot read properties of undefined` reads**.
 
-These specs pass and are the ones worth trusting as guards:
-
-| Spec | Guards |
-|---|---|
-| `generic-entity-crud.spec.js` | 77 tests, all 7 typed pages through one code path |
-| `editable-types.spec.js` | 19, headed; per-type UI elements and folders |
-| `entity-type-integrity.spec.js` | Field types have renderers/options/ENUM entries; hierarchy types have self-nesting rules |
-| `entity-field-types.spec.js` | `url` / `links` / `status` / `recurrence` field types |
-| `debug.spec.js` | CSP and console errors |
-| `ui-check.spec.js` | Tab structure, derived from the rendered tabs |
+The guard set above is the list to trust; everything else in the suite is
+triage.
 
 Deciding which of the stale specs to retire and which to rewrite is tracked as
 open work in `CLAUDE_CARRY_ON.md`.
