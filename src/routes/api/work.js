@@ -170,6 +170,18 @@ router.post('/:id/clone', async (req, res) => {
 // this and are kept until their callers move across; this one is what a new
 // type uses, since no route can be written in advance for a type that does not
 // exist yet.
+// PATCH /api/work/:id/entities/order - order of a work item's children.
+// Declared before /:id/entities/:entityId so "order" is not read as an id.
+router.patch('/:id/entities/order', async (req, res) => {
+  try {
+    const item = await workItemService.reorderEntityAssociations(req.params.id, req.body?.orderedIds || []);
+    res.json({ success: true, data: item });
+  } catch (error) {
+    logger.error('Error reordering work item children:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 router.post('/:id/entities/:entityId', async (req, res) => {
   try {
     const item = await workItemService.addEntityAssociation(req.params.id, req.params.entityId);

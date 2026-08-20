@@ -543,6 +543,35 @@ async function loadWorkItems() {
   }
 }
 
+// Order among one work item's children. Stored in work_entity_associations,
+// which is the only child link that HAS an order column - the eight per-type
+// junctions it replaced had none, which is why a day's children could not be
+// reordered at all before.
+async function reorderDayChildren(workItemId, draggedId, targetId, position) {
+  const rows = [...document.querySelectorAll(
+    `.child-item-row[data-parent-work-id="${workItemId}"]`)]
+    .map(el => el.dataset.childId);
+
+  const from = rows.indexOf(String(draggedId));
+  if (from === -1) return;
+  rows.splice(from, 1);
+  let to = rows.indexOf(String(targetId));
+  if (to === -1) return;
+  if (position === 'after') to += 1;
+  rows.splice(to, 0, String(draggedId));
+
+  try {
+    const res = await app.fetchRaw(`/api/work/${workItemId}/entities/order`, {
+      method: 'PATCH',
+      body: JSON.stringify({ orderedIds: rows }),
+    });
+    if (!res.ok) throw new Error('Reorder failed');
+    loadWorkItems();
+  } catch {
+    app.notify('Could not reorder those', 'danger');
+  }
+}
+
 async function reorderWorkItemsOnDrop(draggedId, targetId, position) {
   const ids = currentWorkItems.map((i) => String(i.id));
   const fromIndex = ids.indexOf(String(draggedId));
@@ -2022,9 +2051,23 @@ function initWorkItemsListEventListeners() {
     if (!header) return;
     const workItemEl = header.closest(".work-item");
     e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
-    e.dataTransfer.setData("type", "work-item");
-    e.dataTransfer.setData("id", workItemEl.dataset.workId);
-    currentDragType = "work-item";
+
+    // A CHILD row reorders among its own siblings and nowhere else. It carries
+    // its parent and its depth so the drop can refuse anything that would move
+    // it up to the root or push a root item down into a tree - the one rule
+    // asked for here, because those two moves mean different things (a child is
+    // a reference to a record that lives on another page).
+    if (workItemEl.classList.contains("child-item-row")) {
+      currentDragType = "work-item-child";
+      e.dataTransfer.setData("type", "work-item-child");
+      e.dataTransfer.setData("id", workItemEl.dataset.childId);
+      e.dataTransfer.setData("parent-work-id", workItemEl.dataset.parentWorkId || '');
+      e.dataTransfer.setData("depth", workItemEl.dataset.depth || '0');
+    } else {
+      currentDragType = "work-item";
+      e.dataTransfer.setData("type", "work-item");
+      e.dataTransfer.setData("id", workItemEl.dataset.workId);
+    }
     header.classList.add("dragging-item");
   });
 
@@ -2098,6 +2141,30 @@ function initWorkItemsListEventListeners() {
     const type = e.dataTransfer.getData("type");
     const id = e.dataTransfer.getData("id");
     const workItemEl = e.target.closest(".work-item");
+
+    // A child reorders among its OWN siblings. Dropped anywhere else - on a
+    // root item, or inside a different parent - it is refused rather than
+    // silently re-homed: moving a child out to the root and moving a root item
+    // down into a tree are the two things that must not happen here.
+    if (type === "work-item-child") {
+      const targetRow = e.target.closest(".child-item-row");
+      const parentWorkId = e.dataTransfer.getData("parent-work-id");
+      const depth = e.dataTransfer.getData("depth");
+      clearWorkItemDropIndicators(container);
+
+      if (!targetRow) {
+        app.notify('A row inside a day can only be reordered among its own level', 'info');
+        return;
+      }
+      if (targetRow.dataset.parentWorkId !== parentWorkId || targetRow.dataset.depth !== depth) {
+        app.notify('That would move it to a different level - reorder it where it is instead', 'info');
+        return;
+      }
+      if (targetRow.dataset.childId === id) return;
+
+      await reorderDayChildren(parentWorkId, id, targetRow.dataset.childId, dropZone(e, targetRow));
+      return;
+    }
 
     if (type === "work-item") {
       const targetId =

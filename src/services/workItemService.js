@@ -336,6 +336,22 @@ export async function addEntityAssociation(workItemId, entityId) {
   return getWorkItemById(workItemId);
 }
 
+/**
+ * Left-to-right, top-to-bottom order of one work item's children. Slots are
+ * renumbered from 0 in the order given, so the caller sends what it wants to
+ * see rather than computing indexes.
+ */
+export async function reorderEntityAssociations(workItemId, orderedIds) {
+  const ids = (orderedIds || []).map(Number).filter(Number.isFinite);
+  for (const [i, entityId] of ids.entries()) {
+    await db.query(
+      'UPDATE work_entity_associations SET order_index = ? WHERE work_item_id = ? AND entity_id = ?',
+      [i, workItemId, entityId]
+    );
+  }
+  return getWorkItemById(workItemId);
+}
+
 export async function removeEntityAssociation(workItemId, entityId) {
   await db.deleteRecord(
     'DELETE FROM work_entity_associations WHERE work_item_id = ? AND entity_id = ?',

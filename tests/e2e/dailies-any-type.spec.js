@@ -9,7 +9,9 @@ import { test, expect } from '@playwright/test';
  * nothing at all - silently, because the handler simply returned.
  */
 
-const DAY = '2026-08-19';
+// Today: the rail has no date input - it opens on today and reads that, so a
+// fixture on any other date is invisible to the UI half of these tests.
+const DAY = new Date().toISOString().slice(0, 10);
 
 async function api(page, url, opts = {}) {
   return page.evaluate(async ({ url, opts }) => {
@@ -144,4 +146,87 @@ test('a subtree REFERENCED onto a day is references all the way down', async ({ 
   console.log('day rows ->', JSON.stringify(rows.map(c => `${c.title}@${c.depth}=${c.isCopy ? 'copy' : 'reference'}`)));
   expect(rows.filter(r => r.isCopy).map(r => r.title),
     'referencing copies nothing').toEqual([]);
+});
+
+// A day's children can be reordered, but only among their OWN level: moving a
+// child out to the root, or a root item down into a tree, are different things
+// and neither is a reorder.
+test('a day\'s children reorder, and the order sticks', async ({ page }) => {
+  await page.goto('/?tab=tests', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+
+  const rows = [];
+  for (const t of ['ZZZ ord one', 'ZZZ ord two', 'ZZZ ord three']) {
+    rows.push((await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: t }) })).body.data);
+  }
+  made.entities.push(...rows.map(r => r.id));
+  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ ord day', date: DAY }) })).body.data;
+  made.work.push(work.id);
+  for (const r of rows) await api(page, `/api/work/${work.id}/entities/${r.id}`, { method: 'POST' });
+
+  const titles = async () => (await api(page, `/api/work/date/${DAY}`)).body.data
+    .find(i => String(i.id) === String(work.id)).entities.map(c => c.title);
+  expect(await titles()).toEqual(['ZZZ ord one', 'ZZZ ord two', 'ZZZ ord three']);
+
+  // Put the last one first.
+  const res = await api(page, `/api/work/${work.id}/entities/order`, {
+    method: 'PATCH',
+    body: JSON.stringify({ orderedIds: [rows[2].id, rows[0].id, rows[1].id] }),
+  });
+  expect(res.status, 'the order endpoint accepts it').toBe(200);
+
+  const after = await titles();
+  console.log('order after ->', JSON.stringify(after));
+  expect(after, 'the new order is what comes back').toEqual(['ZZZ ord three', 'ZZZ ord one', 'ZZZ ord two']);
+});
+
+test('a child dropped outside its own level is refused', async ({ page }) => {
+  await page.goto('/?tab=tests', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+
+  const parent = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZ lvl parent' }) })).body.data;
+  const child = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZ lvl child' }) })).body.data;
+  made.entities.push(parent.id, child.id);
+  await api(page, `/api/entities/tests/${child.id}/relationships`, {
+    method: 'POST',
+    body: JSON.stringify({ parentEntityId: parent.id, childEntityId: child.id, relationshipKind: 'hierarchy' }),
+  });
+  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ lvl day', date: DAY }) })).body.data;
+  made.work.push(work.id);
+  await api(page, `/api/work/${work.id}/entities/${parent.id}`, { method: 'POST' });
+
+  await page.goto('/?tab=tests', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  // Only if it is not already up: clicking an open rail CLOSES it, and Dailies
+  // opens by default.
+  if (!(await page.locator('#rail-work_item.active').count())) {
+    await page.locator('button[data-rail-toggle="work_item"]').click();
+  }
+  await page.waitForTimeout(1800);
+
+  // Children only render inside an EXPANDED work item, and one click expands.
+  await page.locator(`.work-item[data-work-id="${work.id}"] .work-item-header`).first().click();
+  await page.waitForTimeout(900);
+
+  const kid = page.locator(`.child-item-row[data-child-id="${child.id}"]`);
+  await expect(kid, 'the grandchild is on the day').toHaveCount(1);
+
+  // Drag the grandchild onto the ROOT work item - a level change, not a reorder.
+  await page.evaluate(({ childId, workId }) => {
+    const src = document.querySelector(`.child-item-row[data-child-id="${childId}"] .work-item-header`);
+    const dst = document.querySelector(`.work-item[data-work-id="${workId}"] .work-item-header`);
+    const dt = new DataTransfer();
+    const fire = (el, name) => el.dispatchEvent(new DragEvent(name, {
+      bubbles: true, cancelable: true, dataTransfer: dt,
+      clientX: el.getBoundingClientRect().left + 5,
+      clientY: el.getBoundingClientRect().top + 5 }));
+    fire(src, 'dragstart'); fire(dst, 'dragover'); fire(dst, 'drop'); fire(src, 'dragend');
+  }, { childId: child.id, workId: work.id });
+  await page.waitForTimeout(1200);
+
+  // Nothing changed: the record is still inside its parent, not on the day.
+  const day = (await api(page, `/api/work/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
+  const depths = (day.entities || []).map(c => `${c.title}@${c.depth}`);
+  console.log('after the refused drop ->', JSON.stringify(depths));
+  expect(depths, 'the tree is unchanged').toContain('ZZZ lvl child@1');
 });
