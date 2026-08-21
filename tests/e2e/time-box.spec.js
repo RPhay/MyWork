@@ -50,28 +50,24 @@ test('a Time Box can be set and comes back', async ({ page }) => {
   await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"] .entity-cell-title`).dblclick();
   await page.waitForTimeout(900);
 
-  // An icon that says what it is, and a value you cycle by clicking - not a
-  // dropdown. "None" is one of the values, so cycling can always get back to
-  // not boxing something.
-  const control = page.locator('#entity-editor-form [data-field-type="timebox"] .editor-cycle');
-  await expect(control, 'the editor offers the control').toHaveCount(1);
-  await expect(control.locator('.timebox-icon'), 'with an icon saying what it is').toHaveCount(1);
-  await expect(control.locator('.editor-cycle-label')).toHaveText('None');
+  // Every option at once with a box round the current one, like status. The
+  // ROW still cycles - there is no space there for seven choices - but the
+  // editor has the room, and cycling is a poor way to pick when you cannot see
+  // the choices without clicking through them.
+  const group = page.locator('#entity-editor-form [data-field-type="timebox"]');
+  await expect(group, 'the editor offers the control').toHaveCount(1);
 
-  const seen = [];
-  for (let i = 0; i < OPTIONS.length + 1; i += 1) {
-    seen.push((await control.locator('.editor-cycle-label').textContent()).trim());
-    await control.click();
-    await page.waitForTimeout(150);
-  }
-  console.log('cycled through ->', JSON.stringify(seen));
-  expect(seen, 'None first, then the six, and back round').toEqual(['None', ...OPTIONS]);
+  const offered = await group.locator('.option-choice').allTextContents();
+  console.log('offered ->', JSON.stringify(offered.map(t => t.trim())));
+  expect(offered.map(t => t.trim()), 'None first, then the six').toEqual(['None', ...OPTIONS]);
 
-  // Land on a real value and save it.
-  while ((await control.locator('.editor-cycle-label').textContent()).trim() !== '1.5h') {
-    await control.click();
-    await page.waitForTimeout(120);
-  }
+  // Nothing set yet, so None is the one marked.
+  await expect(group.locator('.option-choice.selected')).toHaveText('None');
+
+  await group.locator('.option-choice', { hasText: '1.5h' }).first().click();
+  await page.waitForTimeout(300);
+  await expect(group.locator('.option-choice.selected'), 'the mark moves').toHaveText('1.5h');
+
   await page.click(`#${TYPE}SaveBtn`);
   await page.waitForTimeout(1300);
 
