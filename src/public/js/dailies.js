@@ -402,6 +402,29 @@ function updateDailyTimeTotal() {
     : "";
 }
 
+// Moves the box to `value` in the picker that feeds the hidden input `id`.
+// Safe to call for any field: a plain input has no picker and nothing happens.
+function markStatusChoice(id, value) {
+  const picker = document.querySelector(`[data-status-picker="${id}"]`);
+  if (!picker) return;
+  picker.querySelectorAll(".option-choice").forEach((opt) => {
+    const on = String(opt.dataset.value) === String(value ?? "");
+    opt.classList.toggle("selected", on);
+    opt.setAttribute("aria-checked", String(on));
+  });
+}
+
+// Which role class a work item status carries. Mirrors statusRole() in
+// genericEntity.js - the STATE is the text colour and the black box says which
+// one is current, in the cell and the editor alike. Dailies used to fill a
+// Bootstrap badge instead (green/amber/grey), so the one page not on the
+// generic engine was also the one page whose status looked different.
+function statusRoleClass(status) {
+  if (status === "Complete") return "status-role-done";
+  if (status === "In Progress") return "status-role-active";
+  return "status-role-todo";
+}
+
 function renderWorkItemsList(items) {
   const container = document.getElementById("workItemsList");
   const isEmpty = !items || items.length === 0;
@@ -438,7 +461,7 @@ function renderWorkItemsList(items) {
           </span>
           <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || "")}</span>
           <span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>
-          <span class="badge bg-${item.status === "Complete" ? "success" : item.status === "In Progress" ? "warning" : "secondary"} work-item-status-badge" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
+          <span class="status-cell work-item-status-badge ${statusRoleClass(item.status)}" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
           <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${formatTimeBox(item.time_box_minutes)}</span>
           <span class="work-item-claude-toggle" data-action="toggle-claude" data-id="${item.id}" title="Toggle: worked with Claude" style="text-align: center; cursor: pointer; font-size: 18px;"><i class="bi bi-sun-fill" style="color: ${item.worked_with_claude ? "#FFA500" : "#ddd"}; opacity: ${item.worked_with_claude ? "1" : "0.5"};"></i></span>
           <span class="work-item-notes-cell" data-action="edit-notes" data-id="${item.id}" style="cursor: pointer; text-align: center;" title="${item.notes ? 'Has notes - double-click to edit' : 'No notes - double-click to add'}"><i class="bi bi-sticky-fill" style="color: ${item.notes ? '#ffd43b' : '#dee2e6'};"></i></span>
@@ -951,6 +974,9 @@ async function editWorkItem(workId) {
     const setFieldValue = (id, value) => {
       const el = document.getElementById(id);
       if (el) el.value = value;
+      // A status picker is a hidden input PLUS a row of buttons, so writing the
+      // value alone would leave the box sitting on whatever was chosen last.
+      markStatusChoice(id, value);
     };
 
     const setFieldText = (id, value) => {
@@ -1341,6 +1367,22 @@ function initEmojiPicker() {
   });
 
   document.addEventListener("click", (e) => {
+    // The editor's status picker. Writes the hidden input the form reads, then
+    // moves the box - a button click fires no change event, so the form's
+    // dirty-tracking has to be told explicitly or Save stays disabled.
+    const statusPick = e.target.closest('[data-action="pick-status"]');
+    if (statusPick) {
+      const picker = statusPick.closest("[data-status-picker]");
+      const inputId = picker?.dataset.statusPicker;
+      const input = inputId && document.getElementById(inputId);
+      if (input) {
+        input.value = statusPick.dataset.value || "";
+        markStatusChoice(inputId, input.value);
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      return;
+    }
+
     const fieldBtn = e.target.closest('[data-action="pick-emoji-field"]');
     if (fieldBtn) {
       const rect = fieldBtn.getBoundingClientRect();
@@ -1591,8 +1633,7 @@ async function cycleWorkItemStatus(workId, currentStatus) {
         if (statusBadge) {
           statusBadge.textContent = nextStatus;
           // Update badge color based on status
-          const bgClass = nextStatus === "Complete" ? "success" : nextStatus === "In Progress" ? "warning" : "secondary";
-          statusBadge.className = `badge bg-${bgClass} work-item-status-badge`;
+          statusBadge.className = `status-cell work-item-status-badge ${statusRoleClass(nextStatus)}`;
         }
       }
       loadCalendarDayTotals(calendarViewYear, calendarViewMonth);

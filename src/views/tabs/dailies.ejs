@@ -103,13 +103,23 @@
             </div>
 
             <div class="mb-3">
-              <label for="workItemEditorStatus" class="form-label">Status</label>
-              <select class="form-select" id="workItemEditorStatus" name="status">
-                <option value="">Not Started</option>
-                <option value="in_progress">In Progress</option>
-                <option value="blocked">Blocked</option>
-                <option value="completed">Completed</option>
-              </select>
+              <label class="form-label">Status</label>
+              <!-- Every value on screen with a box round the current one, the
+                   same control every typed page uses. It was a <select>, whose
+                   options were "", in_progress, blocked and completed - none of
+                   which are values this app stores. workItemService only accepts
+                   'Not Started', 'In Progress' and 'Complete', so picking
+                   anything but the first was rejected. The hidden input is what
+                   the form reads, so the ids the JS drives still resolve. -->
+              <div class="option-choice-row" role="radiogroup" aria-label="Status" data-status-picker="workItemEditorStatus">
+                <button type="button" class="option-choice status-option status-role-todo selected"
+                        data-action="pick-status" data-value="Not Started" role="radio" aria-checked="true">Not Started</button>
+                <button type="button" class="option-choice status-option status-role-active"
+                        data-action="pick-status" data-value="In Progress" role="radio" aria-checked="false">In Progress</button>
+                <button type="button" class="option-choice status-option status-role-done"
+                        data-action="pick-status" data-value="Complete" role="radio" aria-checked="false">Complete</button>
+              </div>
+              <input type="hidden" id="workItemEditorStatus" name="status" value="Not Started">
             </div>
 
             <div class="mb-3">
@@ -161,11 +171,17 @@
 
             <!-- For todos/tasks: status -->
             <div class="mb-3" id="childItemEditorStatusField" style="display: none;">
-              <label for="childItemEditorStatus" class="form-label">Status</label>
-              <select class="form-select" id="childItemEditorStatus" name="status">
-                <option value="incomplete">Incomplete</option>
-                <option value="complete">Complete</option>
-              </select>
+              <label class="form-label">Status</label>
+              <!-- Same control as above. These two values are the todo/task
+                   vocabulary, which is not the work item one - kept as they
+                   were, only the presentation changes. -->
+              <div class="option-choice-row" role="radiogroup" aria-label="Status" data-status-picker="childItemEditorStatus">
+                <button type="button" class="option-choice status-option status-role-todo selected"
+                        data-action="pick-status" data-value="incomplete" role="radio" aria-checked="true">Incomplete</button>
+                <button type="button" class="option-choice status-option status-role-done"
+                        data-action="pick-status" data-value="complete" role="radio" aria-checked="false">Complete</button>
+              </div>
+              <input type="hidden" id="childItemEditorStatus" name="status" value="incomplete">
             </div>
 
             <!-- For goals: year -->
