@@ -108,7 +108,17 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
   const indent = 30 + ((extra.depth || 0) * 18);
   // Copy vs reference is invisible otherwise, and the difference matters: edit
   // a reference and you edit the original record; edit a copy and you don't.
-  const originBadge = isCopy
+  //
+  // Only the ROOT of a dropped tree carries the badge. Whatever came down with
+  // it is the same kind by construction - a copy brings copies, a reference
+  // brings references - so repeating the icon on every descendant states one
+  // fact once per row instead of once per drop, and reads as though each level
+  // were an independent choice. `data-origin` stays on every row; it is the
+  // machine-readable copy, and this is the human-readable one.
+  const isRoot = (extra.depth || 0) === 0;
+  const originBadge = !isRoot
+    ? ''
+    : isCopy
     ? '<i class="bi bi-files text-muted child-origin" title="Copy - edits stay here and do not change the original"></i>'
     : '<i class="bi bi-link-45deg text-muted child-origin" title="Reference - edits change the original record"></i>';
   return `

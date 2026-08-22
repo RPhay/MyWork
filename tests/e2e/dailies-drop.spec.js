@@ -164,9 +164,14 @@ for (const mode of ['reference','copy']) {
     }
     console.log(mode, '->', JSON.stringify({linkedId: linked.id, srcId: parent.id, isCopy: linked.isCopy}));
 
-    // badge rendered
-    const badge = await page.locator(`.child-item-row[data-origin="${mode}"] .child-origin`).count();
-    expect(badge).toBeGreaterThan(0);
+    // Badge rendered - on the ROOT of the dropped tree, and ONLY there.
+    // Whatever came down with the drop is the same kind by construction, so a
+    // badge on every descendant states one fact once per row instead of once
+    // per drop, and reads as though each level were an independent choice.
+    const badge = await page.locator(`.child-item-row[data-origin="${mode}"][data-depth="0"] .child-origin`).count();
+    expect(badge, 'the root of the dropped tree carries the icon').toBeGreaterThan(0);
+    const nested = await page.locator(`.child-item-row[data-origin="${mode}"]:not([data-depth="0"]) .child-origin`).count();
+    expect(nested, 'nothing below the root repeats it').toBe(0);
 
     for (const w of items.filter(x=>(x.title||'').startsWith('ZZZcr'))) await api(page,`/api/work/${w.id}`,{method:'DELETE'});
     for (const a of areas.filter(x=>(x.title||'').startsWith('ZZZcr'))) await api(page,`/api/entities/area/${a.id}`,{method:'DELETE'});
