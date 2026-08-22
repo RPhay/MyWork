@@ -459,6 +459,20 @@ function dropZoneTree(event, rowEl) {
   return 'nest';
 }
 
+// A third shape: a HORIZONTAL strip, which is the column header row. Same
+// midpoint rule as dropZoneFlat, on the other axis.
+//
+// This one was left behind when the geometry moved here in finding 05: the
+// vertical and tree helpers became delegates on `app`, the horizontal one was
+// deleted outright, and generic-entity-init.js went on calling
+// app.getHorizontalDropZone in both its column dragover and drop handlers. That
+// threw TypeError on every column drag, so reordering columns did nothing at
+// all - silently, because a throw inside a listener does not surface.
+function dropZoneHorizontal(event, cellEl) {
+  const rect = cellEl.getBoundingClientRect();
+  return event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+}
+
 // One entry point: `nesting` says which shape this list is, so callers hold a
 // flag rather than knowing the geometry.
 function dropZone(event, rowEl, { nesting = false } = {}) {

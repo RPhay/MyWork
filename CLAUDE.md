@@ -33,13 +33,16 @@ npm run version:bump
 revision resets when the date rolls over, so several changes on one day give
 `.0`, `.1`, `.2`.
 
-**`.version` is tracked in git**, not ignored — this file claimed otherwise
-until 2026-08-21, and `.gitignore` has never contained an entry for it. That
-means every bump is a committed change, and because the two development
-machines are separate checkouts, they will both edit the same line and conflict
-on merge. Living with the conflicts and gitignoring the file are both defensible;
-what is not defensible is the documentation disagreeing with the repository,
-which is what sent someone looking for a `.gitignore` entry that was never there.
+**`.version` is tracked in git, deliberately.** This file claimed it was
+gitignored until 2026-08-21; `.gitignore` has never contained an entry for it,
+and the decision on that date was to keep it tracked so the committed version
+always names the code in that commit.
+
+The cost of that choice: every bump is a committed change, and the two
+development machines are separate checkouts, so both will edit the same line and
+**conflict on merge**. Resolve it by taking either side and re-running
+`npm run version:bump` — the value is derived, so no information is lost. Do not
+"fix" the conflicts by gitignoring the file; that has been decided against.
 
 Nothing calls `updateVersion()` automatically — it only happens if you run it.
 `.version` had sat at `2026.07.28.0` for three weeks because of that, so the

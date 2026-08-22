@@ -284,8 +284,9 @@
   data-csrf-token="<%= csrfToken %>"
   data-version="<%= version %>"
 >
-  <!-- Loaded first, before any tab partial's own trailing scripts (areas.js,
-       editors/*.js), since those call createChangeTracker() at module-load time. -->
+  <!-- Loaded first because dailies-child-editor.js calls createChangeTracker()
+       at module-load time, not inside a function. (This note used to name
+       areas.js and editors/*.js; both are gone.) -->
   <script src="/js/changeTracker.js"></script>
   <%- include('../components/dbHealthBanner.ejs') %>
   <%- include('../components/navbar.ejs') %>
@@ -543,7 +544,6 @@
   <script src="/js/dataSourceAuth.js"></script>
   <script src="/js/genericEntity.js"></script>
   <script src="/js/generic-entity-init.js"></script>
-  <script src="/js/calendarView.js"></script>
   <script src="/js/main.js"></script>
   <script src="/js/focus-bar.js"></script>
   <script src="/js/command-palette.js"></script>

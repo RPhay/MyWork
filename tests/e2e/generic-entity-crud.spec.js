@@ -146,10 +146,18 @@ for (const type of TYPES) {
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
 
-      // Click the TITLE, not the row centre. Control cells (status badge, date
-      // picker) deliberately do not open the editor, and the centre of a wide
-      // row can land on one.
-      await page.locator('.entity-row', { hasText: original.title }).locator('.entity-title').click();
+      // DOUBLE click, and on the TITLE.
+      //
+      // Two clicks open the editor; one only expands the row (generic-entity-init.js
+      // defers toggleExpanded by DOUBLE_CLICK_MS so the second click can cancel it).
+      // This spec single-clicked and asserted the editor was visible, which failed
+      // for all seven types - the rule is stated in CLAUDE.md under "Rows, editors
+      // and the focus bar" and the app has always been the correct side of it.
+      //
+      // The title rather than the row centre: control cells (status badge, date
+      // picker) deliberately do not open the editor, and the centre of a wide row
+      // can land on one.
+      await page.locator('.entity-row', { hasText: original.title }).locator('.entity-title').dblclick();
       await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
       const titleInput = page.locator('#entity-editor-form input[name="title"]');
@@ -263,10 +271,19 @@ for (const type of TYPES) {
         await page.click(`#add${type.slug}FolderBtn`);
         await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
-        // Title only - a folder holds no field values, so none of the type's
-        // own fields (status, notes, recurrence...) may be rendered.
+        // A folder shows its Worked Time and nothing else it does not own.
+        //
+        // This asserted toHaveCount(0) and failed for all seven types. The rule
+        // in CLAUDE.md is "A folder shows Worked Time in its editor and nothing
+        // else it does not own", and genericEntity.js#editableFields implements
+        // exactly that: for a folder it keeps fields of type 'duration' only.
+        // Every type seeds exactly one - focus_seconds / Worked Time - so the
+        // correct expectation is that one field, not none. Asserting the type
+        // as well means a future leak (the board_bay/board_order kind) still
+        // fails this test rather than slipping through a bare count.
         await expect(page.locator('#entity-editor-form input[name="title"]')).toBeVisible();
-        await expect(page.locator('#entity-editor-form [data-field-type]')).toHaveCount(0);
+        await expect(page.locator('#entity-editor-form [data-field-type]')).toHaveCount(1);
+        await expect(page.locator('#entity-editor-form [data-field-type]')).toHaveAttribute('data-field-type', 'duration');
 
         const titleInput = page.locator('#entity-editor-form input[name="title"]');
         await titleInput.fill(title);
@@ -424,7 +441,9 @@ for (const type of TYPES) {
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
 
-      await page.locator('.entity-row', { hasText: item.title }).locator('.entity-title').click();
+      // Double click - one click only expands. Same stale-single-click fault as
+      // 'edits an existing item' above; see the note there.
+      await page.locator('.entity-row', { hasText: item.title }).locator('.entity-title').dblclick();
       await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
       const notes = page.locator('#entity-editor-form [name="notes"]');

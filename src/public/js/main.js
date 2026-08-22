@@ -505,6 +505,13 @@ const app = {
     return dropZone(event, rowEl, { nesting: true });
   },
 
+  // Column headers are a horizontal strip. Restored 2026-08-21: this delegate
+  // was deleted in finding 05 while its two callers in generic-entity-init.js
+  // were left in place, so column reordering threw and did nothing.
+  getHorizontalDropZone(event, cellEl) {
+    return dropZoneHorizontal(event, cellEl);
+  },
+
   // Group a flat list of { id, parent_id } records by parent_id (null = top-level)
   groupByParent(records) {
     const byParent = new Map();
