@@ -403,6 +403,30 @@ function addFieldRow(field = null) {
     </div>
   `;
 
+  // A stored field_type with no <option> must still round-trip.
+  //
+  // saveEntityType reads .field-type.value, and a <select> whose value matches
+  // no option reports its FIRST option instead - 'text'. So opening a type in
+  // Settings and pressing Save silently rewrote any field whose type the editor
+  // could not render. That is how status and recurrence fields were destroyed
+  // once already; the option list has since drifted again (the DB ENUM allows
+  // 'recurrence', this <select> does not).
+  //
+  // Rather than chase the list, carry the unknown value: add an option for it so
+  // the select round-trips the stored type untouched. It is disabled so nobody
+  // can newly pick a type the editor has no UI for, but an existing field keeps
+  // what it has.
+  const typeSelect = fieldRow.querySelector('.field-type');
+  const storedType = field?.field_type;
+  if (storedType && !typeSelect.querySelector(`option[value="${storedType}"]`)) {
+    const opt = document.createElement('option');
+    opt.value = storedType;
+    opt.textContent = `${storedType} (not editable here)`;
+    opt.disabled = true;
+    opt.selected = true;
+    typeSelect.appendChild(opt);
+  }
+
   fieldsList.appendChild(fieldRow);
 
   const fieldTypeSelect = fieldRow.querySelector('.field-type');

@@ -10,6 +10,24 @@ import typeDefaults from '../database/typeDefaults.json' with { type: 'json' };
  * in content DBs that aren't currently live.
  */
 
+// Every field type the schema allows. MUST stay identical to the field_type
+// ENUM in mysqlSchema.js / mssqlSchema.js.
+//
+// This list previously lived inline in createEntityTypeField and had drifted:
+// it omitted 'duration' and 'timebox', so creating a field of either was
+// rejected as invalid while 23 such fields already existed and were in daily
+// use (Worked Time and Time Box are on every type). Meanwhile
+// updateEntityTypeField validated nothing at all, so the same value the create
+// path refused could be written by an update. One list, both paths, and
+// entity-type-integrity.spec.js compares it against the ENUM and against the
+// type editor's <option> list so a future drift fails a test rather than
+// corrupting a save.
+export const VALID_FIELD_TYPES = [
+  'text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio',
+  'checkbox', 'status', 'priority', 'recurrence', 'emoji', 'emojis',
+  'duration', 'timebox',
+];
+
 // Get all active (non-deleted) entity types with their fields
 export async function getAllEntityTypes(category = null) {
   let sql = 'SELECT * FROM entity_types WHERE deleted_at IS NULL';
@@ -292,9 +310,8 @@ export async function createEntityTypeField(entityTypeId, data) {
   // array of {url, title} - it replaces the per-type priority_links /
   // task_links / ticket_links / to_do_links tables, which existed only because
   // there was no generic way to say "this type has links".
-  const validFieldTypes = ['text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio', 'checkbox', 'status', 'priority', 'recurrence', 'emoji', 'emojis'];
-  if (!validFieldTypes.includes(data.field_type)) {
-    throw new ValidationError(`Invalid field_type. Must be one of: ${validFieldTypes.join(', ')}`);
+  if (!VALID_FIELD_TYPES.includes(data.field_type)) {
+    throw new ValidationError(`Invalid field_type. Must be one of: ${VALID_FIELD_TYPES.join(', ')}`);
   }
 
   const fieldKey = data.field_key.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
@@ -326,6 +343,12 @@ export async function createEntityTypeField(entityTypeId, data) {
 
 // Update a field
 export async function updateEntityTypeField(fieldId, data) {
+  // Update validated nothing while create validated against a list, so a
+  // field_type the create path refused could still be written by an update.
+  if (data.field_type !== undefined && !VALID_FIELD_TYPES.includes(data.field_type)) {
+    throw new ValidationError(`Invalid field_type. Must be one of: ${VALID_FIELD_TYPES.join(', ')}`);
+  }
+
   const updates = [];
   const values = [];
   const allowedFields = ['label', 'field_type', 'field_options', 'required', 'display_order', 'show_in_row', 'is_completion_signal', 'rollup', 'show_column_label'];

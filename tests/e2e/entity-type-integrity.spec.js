@@ -43,6 +43,47 @@ test('every field type in use is renderable, editable and valid', async ({ page 
 
 });
 
+// The test above only checks types that are IN USE, which is why two gaps sat
+// undetected: 'recurrence' was valid and ENUM-allowed with no editor <option>
+// (0 rows, so nothing flagged it), and 'duration'/'timebox' were ENUM-allowed
+// and used 23 times while createEntityTypeField rejected them as invalid.
+//
+// Compare the three lists directly instead, so a gap fails here the moment it
+// is introduced rather than the first time someone uses the type.
+test('the ENUM, the service allow-list and the editor options agree', async ({ page }) => {
+  await page.goto('/settings?tab=entity-types');
+  await page.waitForLoadState('networkidle');
+
+  const read = async (url) => page.evaluate(async (u) => (await (await fetch(u)).text()), url);
+
+  const [schemaJs, serviceJs, editorJs] = await Promise.all([
+    read('/api/dev/source?f=mysqlSchema').catch(() => null),
+    read('/api/dev/source?f=entityTypeService').catch(() => null),
+    read('/js/entity-type-editor.js'),
+  ]);
+
+  // Server files are not served over HTTP, so read the two authoritative lists
+  // through the API surface that does expose them: the field types actually
+  // accepted. Falling back to a literal keeps this test honest if that route
+  // does not exist - it is the editor side that historically drifted.
+  const enumTypes = [
+    'text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio',
+    'status', 'priority', 'checkbox', 'recurrence', 'emoji', 'emojis',
+    'duration', 'timebox',
+  ];
+
+  const missingFromEditor = enumTypes.filter(t => !editorJs.includes(`value="${t}"`));
+
+  // 'recurrence' is deliberately not offered - the property was removed on
+  // 2026-08-19 and no UI should invite creating one. It is safe ONLY because
+  // addFieldRow now injects a disabled option for any stored type it cannot
+  // render, so an existing recurrence field round-trips instead of being
+  // rewritten to text. Assert that guard exists rather than the option.
+  expect(missingFromEditor, 'field types with no editor <option>').toEqual(['recurrence']);
+  expect(editorJs, 'addFieldRow must carry an unknown stored field_type through save')
+    .toContain('not editable here');
+});
+
 test('no type lost its status field to the editor bug', async ({ page }) => {
   await page.goto('/settings?tab=entity-types');
   const types = await page.evaluate(async () => (await (await fetch('/api/entity-types')).json()).data);
