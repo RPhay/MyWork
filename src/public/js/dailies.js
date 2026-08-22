@@ -2,6 +2,8 @@ let calendarViewYear;
 let calendarViewMonth; // 0-indexed
 let expandedWorkItems = new Set();
 let currentWorkItems = [];
+// Records sitting on the day itself, with no work item wrapped round them.
+let currentDayRootEntities = [];
 let dailiesSplitPane; // Reference to the inner split pane for work items editor
 let currentWorkItemId = null;
 let workItemEditorHasChanges = false;
@@ -386,6 +388,66 @@ async function cloneForDrop(type, id) {
   }
 }
 
+// Put a record on the day itself, with no work item wrapped round it.
+async function putEntityOnDay(entityId, date) {
+  try {
+    const response = await app.fetchRaw(`/api/work/date/${date}/roots/${entityId}`, {
+      method: "POST" });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify("Error: " + result.message, "danger");
+      return;
+    }
+    loadWorkItems();
+  } catch (error) {
+    console.error("Error putting a record on the day:", error);
+    app.notify("Could not put that on the day", "danger");
+  }
+}
+
+// Take it off the day. The record itself is untouched.
+async function takeEntityOffDay(entityId) {
+  const date = document.getElementById("selectedDate")?.value;
+  if (!date) return;
+  try {
+    const response = await app.fetchRaw(`/api/work/date/${date}/roots/${entityId}`, {
+      method: "DELETE" });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify("Error: " + result.message, "danger");
+      return;
+    }
+    loadWorkItems();
+  } catch (error) {
+    console.error("Error taking a record off the day:", error);
+    app.notify("Could not take that off the day", "danger");
+  }
+}
+
+// A daily to group work under. Records no longer NEED one - they can sit on the
+// day - so this exists for when you want one, rather than being the only way in.
+async function addDaily() {
+  const date = document.getElementById("selectedDate")?.value
+    || new Date().toISOString().split("T")[0];
+  try {
+    const response = await app.fetchRaw("/api/work", {
+      method: "POST",
+      body: JSON.stringify({ date, title: "New daily" }) });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify("Error: " + result.message, "danger");
+      return;
+    }
+    await loadWorkItems();
+    // Straight into its editor, so it can be named without hunting for it -
+    // the same thing creating a row on a typed page does.
+    editWorkItem(result.data.id);
+  } catch (error) {
+    console.error("Error adding a daily:", error);
+    app.notify("Could not add a daily", "danger");
+  }
+}
+
 async function createWorkItemFromChild(type, id, name, date, asCopy = false) {
   try {
     const response = await app.fetchRaw("/api/work", {
@@ -459,10 +521,15 @@ function initDailiesEventListeners() {
   const calendarEl = document.getElementById("calendar");
   console.log("[Dailies] Calendar element found:", !!calendarEl);
 
-  // The + Add button is gone - work reaches a day by being dragged in from a
-  // typed page. The picker chain it fed (openNewWorkForm, openAddItemPicker,
-  // loadItemsForModal, loadItemsByType, addItemToDailies) was deleted with it,
-  // along with the #picker-pane handler - that element is in no view.
+  // "+ Add" and the picker chain it fed (openNewWorkForm, openAddItemPicker,
+  // loadItemsForModal, loadItemsByType, addItemToDailies) are gone for good,
+  // along with the #picker-pane handler - that element is in no view. "+ Daily"
+  // below is NOT that button coming back: it creates a daily to group work
+  // under, and nothing has to go through one any more.
+  const addDailyBtn = document.getElementById("addDailyBtn");
+  if (addDailyBtn) {
+    addDailyBtn.addEventListener("click", addDaily);
+  }
 
   const importOutlookEmailsBtn = document.getElementById("importOutlookEmailsBtn");
   if (importOutlookEmailsBtn) {

@@ -25,9 +25,13 @@ function statusRoleClass(status) {
   return "status-role-todo";
 }
 
-function renderWorkItemsList(items) {
+// `roots` are records put on the day with no work item wrapped round them.
+// They render with the same renderChildItem() a work item's contents use, so a
+// record looks the same wherever it sits - the only difference is what removing
+// it means, and that is in the control, not the row.
+function renderWorkItemsList(items, roots = []) {
   const container = document.getElementById("workItemsList");
-  const isEmpty = !items || items.length === 0;
+  const isEmpty = (!items || items.length === 0) && roots.length === 0;
 
   // Column headings label columns; with nothing on the day there are no columns
   // to label, so the header only appears once work has been dragged in.
@@ -37,11 +41,22 @@ function renderWorkItemsList(items) {
 
   if (isEmpty) {
     container.innerHTML =
-      '<p class="text-center text-muted">Nothing on this day yet - drag a type or a template in to get started.</p>';
+      '<p class="text-center text-muted">Nothing on this day yet - drag a type or a template in, or add a daily to group them.</p>';
     return;
   }
 
   let html = '';
+
+  // On the day itself, above the dailies. A record does not have to be inside
+  // one - a day is a place, not a container you must create first.
+  roots.forEach((r) => {
+    html += renderChildItem(
+      r.typeSlug, r.id, r.title, null, null, r.isCopy,
+      { emoji: r.icon, depth: r.depth, isFolder: r.isFolder, onDay: true }
+    );
+  });
+
+  items = items || [];
 
   items.forEach((item) => {
     const isExpanded = expandedWorkItems.has(String(item.id));
@@ -116,13 +131,16 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
   // were an independent choice. `data-origin` stays on every row; it is the
   // machine-readable copy, and this is the human-readable one.
   const isRoot = (extra.depth || 0) === 0;
+  // Sitting on the DAY rather than inside a work item. Only the top of such a
+  // tree is; everything nested below it belongs to that record, not the day.
+  const onDay = !!extra.onDay && isRoot;
   const originBadge = !isRoot
     ? ''
     : isCopy
     ? '<i class="bi bi-files text-muted child-origin" title="Copy - edits stay here and do not change the original"></i>'
     : '<i class="bi bi-link-45deg text-muted child-origin" title="Reference - edits change the original record"></i>';
   return `
-    <div class="work-item child-item-row" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" data-depth="${extra.depth || 0}" style="margin-left: ${indent}px;" data-child-id="${id}" data-origin="${isCopy ? 'copy' : 'reference'}">
+    <div class="work-item child-item-row${onDay ? ' day-root-row' : ''}" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" data-depth="${extra.depth || 0}" style="margin-left: ${indent}px;" data-child-id="${id}" data-origin="${isCopy ? 'copy' : 'reference'}"${onDay ? ' data-on-day="1"' : ''}>
       <div class="work-item-header" draggable="true" style="cursor: pointer;" title="Click to expand/collapse, double-click to edit; drag to reorder within its level">
         <span class="work-item-title-cell">
           ${emoji ? `<span class="child-type-icon">${app.escapeHtml(emoji)}</span>` : `<i class="bi ${iconClass} text-muted"></i>`}
@@ -131,7 +149,18 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
         </span>
         <span style="flex: 1;"></span>
         <span class="work-item-actions">
-          ${isCopy
+          ${onDay
+            // Taking it off the DAY, not out of a work item - a different
+            // endpoint, so a different action. A copy put straight on a day is
+            // still deleted rather than unlinked: nothing else points at it.
+            ? (isCopy
+              ? `<button class="btn btn-sm btn-link text-danger p-0" data-action="delete-child" data-type="${type}" data-child-id="${id}" title="Delete this copy and everything inside it" aria-label="Delete">
+                   <i class="bi bi-trash"></i>
+                 </button>`
+              : `<button class="btn btn-sm btn-link text-danger p-0" data-action="unroot" data-type="${type}" data-child-id="${id}" title="Take it off this day - the record itself is untouched" aria-label="Remove">
+                   <i class="bi bi-x-lg"></i>
+                 </button>`)
+            : isCopy
             ? `<button class="btn btn-sm btn-link text-danger p-0" data-action="delete-child" data-type="${type}" data-child-id="${id}" title="Delete this copy and everything inside it" aria-label="Delete">
                  <i class="bi bi-trash"></i>
                </button>`
@@ -157,13 +186,24 @@ async function loadWorkItems() {
   container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
 
   try {
-    const response = await fetch(`/api/work/date/${date}`);
+    // The day's work items and whatever sits on the day beside them. Both, or
+    // the list is drawn twice and flickers.
+    const [response, rootsResponse] = await Promise.all([
+      fetch(`/api/work/date/${date}`),
+      fetch(`/api/work/date/${date}/roots`),
+    ]);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
+    // A day with no root records is the common case and not a failure, so this
+    // never blocks the list from rendering.
+    const roots = rootsResponse.ok
+      ? ((await rootsResponse.json())?.data || [])
+      : [];
 
     if (result.success) {
       currentWorkItems = result.data;
-      renderWorkItemsList(result.data);
+      currentDayRootEntities = roots;
+      renderWorkItemsList(result.data, roots);
       updateDailyTimeTotal();
     } else {
       container.innerHTML =

@@ -35,8 +35,14 @@
       <div class="split-pane-left" id="dailiesCenterPane" style="overflow-y: auto; padding: 15px;">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h6>Work Items for <span id="selectedDateDisplay"></span> <span id="dailyTimeTotal" class="text-muted small fw-normal"></span></h6>
-          <%# The + Add button is gone: work is put on a day by dragging it in
-              from a typed page, not by creating a bare work item here. %>
+          <%# "+ Add" was removed once, because a bare work item was not worth
+              creating by hand when dragging a record in was the only way to
+              fill one. That reasoning no longer holds: a record dropped on a
+              day now sits ON the day, so a daily is something you create when
+              you WANT to group work under one - not the container everything
+              had to go through. %>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="addDailyBtn"
+                  title="Add a daily to group work under. Records can also sit on the day on their own.">+ Daily</button>
         </div>
 
         <div class="work-item-tree-header text-muted small fw-bold border-bottom pb-1 mb-2">

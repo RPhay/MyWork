@@ -45,14 +45,17 @@ test.describe('Dropping onto Dailies', () => {
     }
     for (const slug of TYPES.map(t => t.slug)) {
       const all = (await api(page, `/api/entities/${slug}`)).body?.data || [];
-      for (const e of all.filter(x => (x.title || '').startsWith('ZZZ drop'))) {
+      // 'ZZZ ', not 'ZZZ drop': the drag-payload case below creates
+      // 'ZZZ payload', which this filter missed, so it was left behind on every
+      // run of this file.
+      for (const e of all.filter(x => (x.title || '').startsWith('ZZZ '))) {
         await api(page, `/api/entities/${slug}/${e.id}`, { method: 'DELETE' });
       }
     }
   });
 
   for (const type of TYPES) {
-    test(`a ${type.slug} row dropped on an empty day becomes a work item holding it`, async ({ page }) => {
+    test(`a ${type.slug} row dropped on an empty day lands on the day`, async ({ page }) => {
       await page.goto(`/?tab=${type.slug}`);
       await page.waitForLoadState('networkidle');
       await page.waitForTimeout(1500);
@@ -80,10 +83,19 @@ test.describe('Dropping onto Dailies', () => {
       await page.locator('#copyOrReferenceRefBtn').click();
       await page.waitForTimeout(1400);
 
+      // On the DAY. These cases were written when a drop on empty space
+      // invented a work item named after the record; it no longer does, because
+      // a day is a place rather than a container that must exist first. What
+      // the case is really guarding is unchanged: every type's drag payload
+      // arrives intact and the record ends up on the day. Dropping onto a
+      // daily's ROW still puts it inside that daily - dailies-root.spec.js.
       const items = (await api(page, `/api/work/date/${today()}`)).body.data;
-      const made = items.find(w => w.title === `ZZZ drop ${type.slug}`);
-      expect(made, `dropping a ${type.slug} should create a work item`).toBeTruthy();
-      expect((made[type.key] || []).some(x => x.id === entity.id)).toBe(true);
+      expect(items.find(w => w.title === `ZZZ drop ${type.slug}`),
+        `dropping a ${type.slug} must not invent a work item`).toBeFalsy();
+
+      const roots = (await api(page, `/api/work/date/${today()}/roots`)).body.data;
+      expect(roots.some(r => r.id === entity.id && r.depth === 0),
+        `dropping a ${type.slug} should put it on the day`).toBe(true);
     });
   }
 
@@ -145,11 +157,18 @@ for (const mode of ['reference','copy']) {
     await page.locator(mode === 'copy' ? '#copyOrReferenceCopyBtn' : '#copyOrReferenceRefBtn').click();
     await page.waitForTimeout(1600);
 
+    // Dropped on empty space, so it lands ON THE DAY - no work item is invented
+    // to hold it. This used to assert the opposite: the drop created a work
+    // item named after the record, whether or not one was wanted. A day is a
+    // place, not a container that has to be created first. Dropping onto a
+    // daily's ROW still puts it inside that daily, which the tests above cover.
     const items = (await api(page,`/api/work/date/${today()}`)).body.data;
-    const wi = items.find(w => w.title === `ZZZcr ${mode} src`);
-    expect(wi, 'work item created').toBeTruthy();
-    const linked = (wi.areas || [])[0];
-    expect(linked, 'an area is linked').toBeTruthy();
+    expect(items.find(w => w.title === `ZZZcr ${mode} src`),
+      'no work item is invented for a record dropped on the day').toBeFalsy();
+
+    const roots = (await api(page,`/api/work/date/${today()}/roots`)).body.data;
+    const linked = roots.find(r => r.depth === 0 && r.title === `ZZZcr ${mode} src`);
+    expect(linked, 'the record is on the day').toBeTruthy();
 
     const areas = (await api(page,'/api/entities/area')).body.data;
     if (mode === 'reference') {
@@ -162,6 +181,9 @@ for (const mode of ['reference','copy']) {
       expect(areas.filter(a=>a.title===`ZZZcr ${mode} src`).length).toBe(2);   // original + copy
       expect(areas.filter(a=>a.title===`ZZZcr ${mode} kid`).length).toBe(2);   // child copied too
     }
+    // What came down with it is there too, one level in.
+    expect(roots.some(r => r.depth > 0 && r.title === `ZZZcr ${mode} kid`),
+      'the tree beneath it came along').toBe(true);
     console.log(mode, '->', JSON.stringify({linkedId: linked.id, srcId: parent.id, isCopy: linked.isCopy}));
 
     // Badge rendered - on the ROOT of the dropped tree, and ONLY there.

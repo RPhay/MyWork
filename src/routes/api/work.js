@@ -17,6 +17,45 @@ router.get('/date/:date', async (req, res) => {
   }
 });
 
+// The records sitting on a day with no work item wrapped round them. Separate
+// from /date/:date rather than folded into it: that route's shape is what the
+// dashboard, Reporting and the week view all read, and widening it would make
+// every one of them handle a row that has no work-item id.
+router.get('/date/:date/roots', async (req, res) => {
+  try {
+    const contextId = await activeContextService.getActiveContextId();
+    const roots = await workItemService.getDailyRootEntities(req.params.date, contextId);
+    res.json({ success: true, data: roots });
+  } catch (error) {
+    logger.error('Error fetching a day\'s root records:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/date/:date/roots/:entityId', async (req, res) => {
+  try {
+    const contextId = await activeContextService.getActiveContextId();
+    const result = await workItemService.addEntityToDate(
+      Number(req.params.entityId), req.params.date, contextId);
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Error putting a record on a day:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/date/:date/roots/:entityId', async (req, res) => {
+  try {
+    const contextId = await activeContextService.getActiveContextId();
+    const result = await workItemService.removeEntityFromDate(
+      Number(req.params.entityId), req.params.date, contextId);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Error taking a record off a day:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // Get work items by date range (for week view)
 router.get('/range', async (req, res) => {
   try {

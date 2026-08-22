@@ -70,6 +70,11 @@ const BRIDGE_JUNCTION_COLUMNS = [
   ['template_areas', 'area_id'],
   ['template_goals', 'goal_id'],
   ['work_entity_associations', 'entity_id'],
+  // A record put straight onto a day. MySQL cascades this one, but MSSQL
+  // declares it NO ACTION - entities is already the target of a cascading FK
+  // and a second would be "multiple cascade paths" - so on MSSQL the delete
+  // fails with the row still referenced unless it is cleared here first.
+  ['daily_entities', 'entity_id'],
 ];
 
 // Legacy bridge: areas, goals and ideas are entities now, but workItemService,

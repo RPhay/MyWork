@@ -1368,6 +1368,43 @@ export async function createMssqlSchema(pool) {
     "CREATE INDEX idx_wea_entity ON [MyWork].[work_entity_associations] (entity_id)",
   );
 
+  // A record put on a day WITHOUT a work item wrapped round it. See the same
+  // table in mysqlSchema.js for why it exists.
+  await createTableIfNotExists(
+    pool,
+    "daily_entities",
+    `
+    CREATE TABLE [MyWork].[daily_entities] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      context_id INT NOT NULL,
+      date DATE NOT NULL,
+      entity_id INT NOT NULL,
+      order_index INT DEFAULT 0,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      -- NO ACTION, not CASCADE, matching work_entity_associations above:
+      -- entities is already the target of a cascading FK, and a second one
+      -- gives SQL Server "may cause cycles or multiple cascade paths".
+      -- Behavioural difference from MySQL: deleting an entity does NOT remove
+      -- its rows here, so entityService.deleteEntity clears them itself - the
+      -- same way it already clears the other junctions.
+      CONSTRAINT fk_de_entity FOREIGN KEY (entity_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
+      CONSTRAINT unique_daily_entity UNIQUE (context_id, date, entity_id)
+    )
+  `,
+  );
+  await createIndexIfNotExists(
+    pool,
+    "idx_de_date",
+    "daily_entities",
+    "CREATE INDEX idx_de_date ON [MyWork].[daily_entities] (context_id, date)",
+  );
+  await createIndexIfNotExists(
+    pool,
+    "idx_de_entity",
+    "daily_entities",
+    "CREATE INDEX idx_de_entity ON [MyWork].[daily_entities] (entity_id)",
+  );
+
   for (const [table, legacyCol, legacyTable, entityCol] of bridgeJunctions) {
     await createTableIfNotExists(
       pool,

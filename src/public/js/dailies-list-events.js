@@ -34,11 +34,15 @@ function initWorkItemsListEventListeners() {
 
   container.addEventListener("click", async (e) => {
     const actionBtn = e.target.closest(
-      '[data-action="delete"], [data-action="unlink"], [data-action="delete-child"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"], [data-action="toggle-claude"]',
+      '[data-action="delete"], [data-action="unlink"], [data-action="unroot"], [data-action="delete-child"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"], [data-action="toggle-claude"]',
     );
     if (actionBtn) {
       if (actionBtn.dataset.action === "delete") {
         deleteWorkItem(actionBtn.dataset.id);
+      } else if (actionBtn.dataset.action === "unroot") {
+        // On the DAY rather than inside a work item, so it comes off the day.
+        // Same promise as unlink: the record itself is untouched.
+        await takeEntityOffDay(actionBtn.dataset.childId);
       } else if (actionBtn.dataset.action === "unlink") {
         // A REFERENCE: take it off the day and leave the record alone.
         const row = actionBtn.closest(".child-item-row");
@@ -344,7 +348,14 @@ function initWorkItemsListEventListeners() {
         const name = e.dataTransfer.getData("name");
         const choice = await app.askCopyOrReference(name);
         if (!choice) return;                       // cancelled
-        createWorkItemFromChild(type, id, name, date, choice === "copy");
+        // Onto the DAY, not into an invented work item. Dropping a record here
+        // used to create a work item named after it, whether or not one was
+        // wanted - a day is a place, not a container you have to create first.
+        // Drop onto a daily's row to put it inside that daily instead, and use
+        // "+ Daily" when you do want one to group things under.
+        const entityId = choice === "copy" ? await cloneForDrop(type, id) : id;
+        if (!entityId) return;
+        await putEntityOnDay(entityId, date);
       }
       return;
     }

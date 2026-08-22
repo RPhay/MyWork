@@ -3,6 +3,10 @@ import { NotFoundError, ValidationError } from '../config/errors.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
 import * as recurrenceService from './recurrenceService.js';
 import * as entityService from './entityService.js';
+// Called at three existing sites in this file and never imported, so any path
+// reaching them without a contextId threw ReferenceError rather than falling
+// back to the active context. entityService imports it the same way.
+import { getActiveContextId } from './activeContextService.js';
 
 // No time box is represented as NULL; anything else must be a positive whole number of minutes.
 export function normalizeTimeBox(value) {
@@ -388,8 +392,17 @@ export async function getEntityAssociations(workItemIds) {
     byWorkItem.get(row.work_item_id).push({ ...row, depth: 0 });
   }
 
-  // Then everything nested inside them, level by level.
-  for (const [workItemId, roots] of byWorkItem) {
+  return expandNested(byWorkItem);
+}
+
+// Everything nested inside a set of root entities, level by level, appended to
+// that root's own list carrying the depth it was found at.
+//
+// Shared by a day's WORK ITEMS and by the records put straight on the day, so
+// the two cannot come to disagree about what "and its contents" means - which
+// they would, being the same walk written twice.
+async function expandNested(byKey) {
+  for (const [key, roots] of byKey) {
     const seen = new Set(roots.map(r => r.id));
     let frontier = roots.map(r => r.id);
     let depth = 1;
@@ -413,7 +426,7 @@ export async function getEntityAssociations(workItemIds) {
       for (const kid of kids) {
         if (seen.has(kid.id)) continue;
         seen.add(kid.id);
-        byWorkItem.get(workItemId).push({ ...kid, depth });
+        byKey.get(key).push({ ...kid, depth });
         next.push(kid.id);
       }
       frontier = next;
@@ -421,7 +434,72 @@ export async function getEntityAssociations(workItemIds) {
     }
   }
 
-  return byWorkItem;
+  return byKey;
+}
+
+// The records put on a day WITHOUT a work item wrapped round them, each with
+// whatever is nested inside it - the same shape a work item's `entities` list
+// has, so the list renderer draws both the same way.
+export async function getDailyRootEntities(date, contextId) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const roots = await db.query(
+    `SELECT de.id AS daily_id, de.order_index, e.id, e.title, e.is_folder,
+            t.slug AS type_slug, t.label_singular, t.icon
+     FROM daily_entities de
+     JOIN entities e ON e.id = de.entity_id
+     JOIN entity_types t ON t.id = e.entity_type_id
+     WHERE de.date = ? AND de.context_id = ? AND e.deleted_at IS NULL
+     ORDER BY de.order_index, de.id`,
+    [date, contextId]
+  );
+  if (roots.length === 0) return [];
+
+  // One bucket, because these all share a parent: the day itself.
+  const byKey = new Map([['day', roots.map(r => ({ ...r, depth: 0 }))]]);
+  await expandNested(byKey);
+  const all = byKey.get('day');
+
+  const copies = await entityService
+    .findClonedEntityIds(all.map(r => r.id), contextId)
+    .catch(() => new Set());
+
+  return all.map(r => ({
+    id: r.id,
+    title: r.title,
+    typeSlug: r.type_slug,
+    typeLabel: r.label_singular,
+    icon: r.icon,
+    isFolder: !!r.is_folder,
+    depth: r.depth,
+    isCopy: copies.has(r.id),
+  }));
+}
+
+// Put a record straight onto a day. Idempotent: dropping the same record on the
+// same day twice leaves one row, it does not stack up.
+export async function addEntityToDate(entityId, date, contextId) {
+  if (!contextId) contextId = await getActiveContextId();
+  const max = await db.queryOne(
+    'SELECT MAX(order_index) as maxOrder FROM daily_entities WHERE date = ? AND context_id = ?',
+    [date, contextId]
+  );
+  await db.query(
+    'INSERT IGNORE INTO daily_entities (context_id, date, entity_id, order_index) VALUES (?, ?, ?, ?)',
+    [contextId, date, entityId, (max?.maxOrder ?? -1) + 1]
+  );
+  return { entityId, date };
+}
+
+// Take it off the day. The RECORD is untouched - this is the same promise the
+// unlink control on a day's child makes.
+export async function removeEntityFromDate(entityId, date, contextId) {
+  if (!contextId) contextId = await getActiveContextId();
+  await db.query(
+    'DELETE FROM daily_entities WHERE entity_id = ? AND date = ? AND context_id = ?',
+    [entityId, date, contextId]
+  );
+  return { entityId, date };
 }
 
 export async function addPriorityAssociation(workItemId, priorityId) {

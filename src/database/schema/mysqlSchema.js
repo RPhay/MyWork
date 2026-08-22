@@ -1261,6 +1261,32 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // A record put on a day WITHOUT a work item wrapped round it.
+  //
+  // work_entity_associations requires a work_item_id, so until this table
+  // existed nothing could sit on a date unless a work item was created to hold
+  // it - dragging an idea onto a day invented a work item named after the idea,
+  // whether or not that was wanted. This is the same relationship one level up:
+  // the day itself is the parent.
+  //
+  // No copy/reference column. Whether a row is a copy is already answered by
+  // entity_relationships' `instantiated_from` edge (findClonedEntityIds), and
+  // recording it twice is how the two answers come to disagree.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS daily_entities (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      context_id INT NOT NULL,
+      date DATE NOT NULL,
+      entity_id INT NOT NULL,
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_daily_entity (context_id, date, entity_id),
+      INDEX idx_de_date (context_id, date),
+      INDEX idx_de_entity (entity_id)
+    )
+  `);
+
   for (const [table, legacyCol, legacyTable, entityCol] of bridgeJunctions) {
     await connection.query(`
       CREATE TABLE IF NOT EXISTS ${table} (
