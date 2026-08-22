@@ -26,6 +26,11 @@ export const VALID_FIELD_TYPES = [
   'text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio',
   'checkbox', 'status', 'priority', 'recurrence', 'emoji', 'emojis',
   'duration', 'timebox',
+  // The three Dailies carries on every work item, made available to any type:
+  // your own notes, notes written by Claude, and whether Claude was involved at
+  // all. Kept as three distinct types rather than one - notes you wrote and
+  // notes Claude wrote must not overwrite each other.
+  'notes', 'claude_notes', 'worked_with_claude',
 ];
 
 // Get all active (non-deleted) entity types with their fields

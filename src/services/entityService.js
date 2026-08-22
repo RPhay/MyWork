@@ -417,7 +417,15 @@ async function setEntityFieldValue(entityId, fieldKey, value, contextId) {
     valueColumns.value_bool = value ? 1 : 0;
   } else if (typeof value === 'number') {
     valueColumns.value_number = value;
-  } else if (value instanceof Date || /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    // ANCHORED at both ends, and that matters. This used to be
+    // /^\d{4}-\d{2}-\d{2}/, which matches the START of a string - so any text
+    // merely BEGINNING with a date was routed into value_date and coerced by
+    // the column to the date alone. "2026-08-22 spoke to Ryan" stored as
+    // 2026-08-22 and the sentence was gone. Harmless while the only text
+    // fields were titles; notes are exactly the field people start with a date.
+    // Accepts a plain date or a full ISO timestamp, which is what a date field
+    // actually sends, and nothing else.
+  } else if (value instanceof Date || /^\d{4}-\d{2}-\d{2}(?:[T ][\d:.]+Z?)?$/.test(value)) {
     valueColumns.value_date = value;
   } else if (typeof value === 'object') {
     valueColumns.value_json = JSON.stringify(value);

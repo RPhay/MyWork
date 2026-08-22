@@ -358,6 +358,9 @@ function addFieldRow(field = null) {
           <option value="priority" ${field?.field_type === 'priority' ? 'selected' : ''}>Priority (Low to Critical)</option>
           <option value="emoji" ${field?.field_type === 'emoji' ? 'selected' : ''}>Emoji (free pick)</option>
           <option value="emojis" ${field?.field_type === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
+          <option value="notes" ${field?.field_type === 'notes' ? 'selected' : ''}>Notes (your own)</option>
+          <option value="claude_notes" ${field?.field_type === 'claude_notes' ? 'selected' : ''}>Claude Notes (written by Claude)</option>
+          <option value="worked_with_claude" ${field?.field_type === 'worked_with_claude' ? 'selected' : ''}>Worked with Claude (toggle)</option>
         </select>
       </div>
       <div class="col-auto field-emoji-col" style="display: ${['emoji', 'emojis'].includes(field?.field_type) ? 'block' : 'none'};">

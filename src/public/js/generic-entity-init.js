@@ -657,6 +657,32 @@ renderList();
         return;
       }
 
+      // The sun toggles in place, like the one in Dailies. Only this field is
+      // sent, so nothing else on the row is disturbed.
+      const claudeBtn = e.target.closest('[data-action="toggle-claude-field"]');
+      if (claudeBtn) {
+        const now = claudeBtn.dataset.value === '1';
+        await saveFieldFromCell(claudeBtn.dataset.entityId, claudeBtn.dataset.fieldKey,
+          !now, 'Could not change whether this was worked on with Claude');
+        return;
+      }
+
+      // Notes open a box to read and write them in. The glyph in the row says
+      // only WHETHER there are notes - a note can be a paragraph, and fifty
+      // rows of paragraphs is not a list any more.
+      const notesBtn = e.target.closest('[data-action="edit-notes-field"]');
+      if (notesBtn) {
+        const entity = entities.find(x => x.id == notesBtn.dataset.entityId);
+        openNotesEditor({
+          entityId: notesBtn.dataset.entityId,
+          fieldKey: notesBtn.dataset.fieldKey,
+          fieldType: notesBtn.dataset.fieldType,
+          // Field values hang off `fields`, not the entity itself.
+          current: entity?.fields?.[notesBtn.dataset.fieldKey] ?? '',
+        });
+        return;
+      }
+
       const priorityBtn = e.target.closest('[data-action="cycle-priority"]');
       if (priorityBtn) {
         // Shared with the right-click menu, so the two cannot disagree.
@@ -835,6 +861,63 @@ renderList();
       GenericEntity.syncEditorFromRow(entityId, fieldKey, value);
       showRowInOpenEditor(entityId);
       return true;
+    }
+
+    // A box to read and write one notes field in, opened from its row glyph.
+    //
+    // Built here rather than added to every typed tab's markup: the tabs all
+    // render from one generic template, so markup added for this would have to
+    // be added once and be correct for every type. One element, created on
+    // first use and reused after, is the same thing with nothing to keep in
+    // sync. Saves through saveFieldFromCell, so a note written here reaches the
+    // record by exactly the path every other cell control uses.
+    function openNotesEditor({ entityId, fieldKey, fieldType, current }) {
+      const mine = fieldType === 'notes';
+      let host = document.getElementById('entityNotesEditor');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'entityNotesEditor';
+        host.className = 'modal fade';
+        host.tabIndex = -1;
+        host.innerHTML = `
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header border-bottom">
+                <h6 class="modal-title mb-0" id="entityNotesEditorTitle"></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <textarea id="entityNotesEditorText" class="form-control" rows="10"></textarea>
+              </div>
+              <div class="modal-footer border-top">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="entityNotesEditorSave">Save</button>
+              </div>
+            </div>
+          </div>`;
+        document.body.appendChild(host);
+      }
+
+      host.querySelector('#entityNotesEditorTitle').textContent =
+        mine ? 'Notes' : 'Claude Notes';
+      const box = host.querySelector('#entityNotesEditorText');
+      box.value = current ?? '';
+      box.placeholder = mine ? 'Your own notes' : 'Notes written by Claude';
+
+      const modal = bootstrap.Modal.getOrCreateInstance(host);
+      const saveBtn = host.querySelector('#entityNotesEditorSave');
+      // Replaced rather than added to: the element is reused across every row
+      // and both fields, so a listener left behind would save the previous
+      // row's field as well as this one.
+      const fresh = saveBtn.cloneNode(true);
+      saveBtn.replaceWith(fresh);
+      fresh.addEventListener('click', async () => {
+        const text = box.value;
+        modal.hide();
+        await saveFieldFromCell(entityId, fieldKey, text === '' ? null : text,
+          mine ? 'Could not save the notes' : 'Could not save the Claude notes');
+      });
+      modal.show();
     }
 
     // Cell controls (status badge, date picker) never open or close the
@@ -1369,6 +1452,9 @@ renderList();
     // each got saved on the way.
     const VALUE_CELL_ACTIONS = [
       'cycle-status', 'cycle-priority', 'cycle-timebox-field', 'toggle-checkbox', 'set-choice',
+      // Two states is still a set. Notes are NOT here: they hold text, not one
+      // of a fixed list, so there is nothing for a menu to offer.
+      'toggle-claude-field',
     ].map(a => `[data-action="${a}"]`).join(', ');
 
     // Emoji cells are deliberately NOT in that list: right-clicking one does

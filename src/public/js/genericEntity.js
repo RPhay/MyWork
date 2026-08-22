@@ -237,6 +237,28 @@ const GenericEntity = (() => {
         <textarea name="${field.field_key}" class="form-control" data-field-type="recurrence" placeholder="JSON recurrence config">${value ? JSON.stringify(JSON.parse(value), null, 2) : ''}</textarea>
       </div>
     `,
+    // The three Dailies has always had on a work item. In the editor they are
+    // ordinary controls - a box to type in, a box to tick. What makes them the
+    // Dailies pattern is the ROW: a single glyph that lights up when there is
+    // something there, so a list of fifty rows says which ones carry notes
+    // without showing any of the text. See renderCellValue.
+    notes: (field, value = '') => `
+      <div class="form-group">
+        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="notes" placeholder="Your own notes">${value || ''}</textarea>
+      </div>
+    `,
+    // Separate from `notes` on purpose: two writers, two fields, so neither
+    // overwrites the other.
+    claude_notes: (field, value = '') => `
+      <div class="form-group">
+        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="claude_notes" placeholder="Notes written by Claude">${value || ''}</textarea>
+      </div>
+    `,
+    worked_with_claude: (field, value = false) => `
+      <div class="form-group">
+        <input type="checkbox" name="${field.field_key}" class="form-check-input" ${value ? 'checked' : ''} data-field-type="worked_with_claude">
+      </div>
+    `,
   };
 
   // A folder is not a separate entity type - it's a row of the page's own type
@@ -969,6 +991,48 @@ const GenericEntity = (() => {
         </select>`;
     }
 
+    // Notes in a row are a GLYPH, not the text. This is the Dailies pattern
+    // (work-item-notes-cell in dailies-items.js): a note can be a paragraph, and
+    // fifty rows each showing a paragraph is not a list any more. Lit means
+    // there is something there; click to read and write it.
+    //
+    // Not `derived`: a folder's cell is a roll-up of what is inside it, and
+    // "some row in here has notes" is not a fact worth a control. It shows the
+    // glyph muted and does nothing, like the other roll-ups.
+    if ((f.field_type === 'notes' || f.field_type === 'claude_notes') && !derived) {
+      const has = value !== null && value !== undefined && String(value).trim() !== '';
+      const mine = f.field_type === 'notes';
+      const glyph = mine ? 'bi-sticky-fill' : 'bi-chat-square-text-fill';
+      const lit = mine ? '#ffd43b' : '#FFA500';
+      const who = mine ? 'Your own notes' : 'Notes written by Claude';
+      return `<span class="row-field notes-cell" data-action="edit-notes-field"
+              data-entity-id="${entity.id}" data-field-key="${escapeAttr(f.field_key)}"
+              data-field-type="${f.field_type}" role="button" tabindex="0"
+              title="${escapeAttr(who)} - ${has ? 'click to read or edit' : 'click to add'}">
+          <i class="bi ${glyph}" style="color: ${has ? lit : '#dee2e6'};" aria-hidden="true"></i>
+        </span>`;
+    }
+    if (f.field_type === 'notes' || f.field_type === 'claude_notes') {
+      const has = value !== null && value !== undefined && String(value).trim() !== '';
+      return `<span class="row-field notes-cell"><i class="bi ${f.field_type === 'notes' ? 'bi-sticky-fill' : 'bi-chat-square-text-fill'}" style="color: ${has ? '#adb5bd' : '#dee2e6'};" aria-hidden="true"></i></span>`;
+    }
+
+    // Whether Claude was involved at all - the sun from Dailies, same glyph and
+    // same two colours, so it reads identically wherever it appears.
+    if (f.field_type === 'worked_with_claude' && !derived) {
+      const on = value === true || value === 1 || value === '1' || value === 'true';
+      return `<span class="row-field claude-cell" data-action="toggle-claude-field"
+              data-entity-id="${entity.id}" data-field-key="${escapeAttr(f.field_key)}"
+              data-value="${on ? '1' : '0'}" role="button" tabindex="0"
+              title="Worked on with Claude - click to change">
+          <i class="bi bi-sun-fill" style="color: ${on ? '#FFA500' : '#ddd'}; opacity: ${on ? '1' : '0.5'};" aria-hidden="true"></i>
+        </span>`;
+    }
+    if (f.field_type === 'worked_with_claude') {
+      const on = value === true || value === 1 || value === '1' || value === 'true';
+      return `<span class="row-field claude-cell"><i class="bi bi-sun-fill" style="color: ${on ? '#FFA500' : '#ddd'}; opacity: ${on ? '1' : '0.5'};" aria-hidden="true"></i></span>`;
+    }
+
     // A checkbox reads as a box, ticked or not, and toggles on click.
     if (f.field_type === 'timebox' && !derived) {
       const current = TIME_BOX_LEVELS.includes(value) ? value : '';
@@ -1339,6 +1403,9 @@ const GenericEntity = (() => {
       case 'timebox':  return TIME_BOX_LEVELS.slice();
       case 'emojis':   return field.field_options?.values || null;
       case 'checkbox': return [false, true];
+      // Two states, so right-clicking it offers both - and with rows
+      // multi-selected, sets it on all of them, like every other cycling cell.
+      case 'worked_with_claude': return [false, true];
       case 'select':
       case 'radio':    return field.field_options?.choices || null;
       default:         return null;
@@ -1356,6 +1423,7 @@ const GenericEntity = (() => {
   // How one of those values should read in a menu.
   function choiceLabel(field, value) {
     if (field.field_type === 'checkbox') return value ? 'Checked' : 'Unchecked';
+    if (field.field_type === 'worked_with_claude') return value ? 'Worked on with Claude' : 'Not worked on with Claude';
     if (field.field_type === 'priority') return (PRIORITY_STYLE[value] || PRIORITY_STYLE['']).label;
     if (field.field_type === 'timebox') return timeBoxLabel(value);
     return value === '' || value == null ? '(none)' : String(value);
