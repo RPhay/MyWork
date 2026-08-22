@@ -29,9 +29,17 @@ npm run version:bump
 ```
 
 `src/utils/version.js` derives `[yyyy].[mm].[dd].[rev]` and persists it to
-`.version` (gitignored); `readVersion()` is what the dashboard and Settings
-display. The revision resets when the date rolls over, so several changes on one
-day give `.0`, `.1`, `.2`.
+`.version`; `readVersion()` is what the dashboard and Settings display. The
+revision resets when the date rolls over, so several changes on one day give
+`.0`, `.1`, `.2`.
+
+**`.version` is tracked in git**, not ignored — this file claimed otherwise
+until 2026-08-21, and `.gitignore` has never contained an entry for it. That
+means every bump is a committed change, and because the two development
+machines are separate checkouts, they will both edit the same line and conflict
+on merge. Living with the conflicts and gitignoring the file are both defensible;
+what is not defensible is the documentation disagreeing with the repository,
+which is what sent someone looking for a `.gitignore` entry that was never there.
 
 Nothing calls `updateVersion()` automatically — it only happens if you run it.
 `.version` had sat at `2026.07.28.0` for three weeks because of that, so the
@@ -168,7 +176,7 @@ Never paste, print, or otherwise reproduce credential values (`.env.local` conte
 
 **Request pipeline** (`src/app.js`): helmet → morgan logging → body parsing → static → session → CSRF (`csurf`, session-based, gated by `CSRF_ENABLED`) → global rate limiter (skips `/health` and `/public`) → CSRF token exposed to views via `res.locals.csrfToken` → centralized error handler that renders `views/error.ejs`, special-casing `ValidationError`/`AppError`/CSRF failures.
 
-**Versioning**: `src/utils/version.js` derives a `[yyyy].[mm].[dd].[rev]` version string, persisted to `.version` (gitignored) and bumped via `updateVersion()`; `readVersion()` is what's passed into dashboard/settings views.
+**Versioning**: `src/utils/version.js` derives a `[yyyy].[mm].[dd].[rev]` version string, persisted to `.version` (tracked in git — see "Bump the version on every change") and bumped via `updateVersion()`; `readVersion()` is what's passed into dashboard/settings views.
 
 ## Rows, editors and the focus bar
 

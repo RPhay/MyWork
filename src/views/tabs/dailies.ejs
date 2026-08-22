@@ -321,6 +321,91 @@
     outline-offset: -2px;
     border-radius: 4px;
   }
+
+  /* Restored with the four menu/modal blocks below - see the note there. */
+  .context-menu-scope {
+    padding: 4px 10px 6px;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 4px;
+  }
+
+  .context-menu-has-submenu {
+    position: relative;
+  }
+
+  .context-submenu-caret {
+    margin-left: auto;
+  }
+
+  .context-submenu {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: -4px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    z-index: 1090;
+  }
+
+  .context-menu-has-submenu:hover .context-submenu {
+    display: block;
+  }
+
+  .highlight-color-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .highlight-color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .highlight-color-swatch:hover {
+    border-color: rgba(0, 0, 0, 0.4);
+    transform: scale(1.15);
+  }
+
+  .emoji-picker-tabs {
+    font-size: 0.75rem;
+    margin-bottom: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .emoji-picker-tabs .nav-link {
+    padding: 4px 6px;
+  }
+
+  .emoji-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 2px;
+    max-width: 260px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .emoji-picker-btn {
+    border: none;
+    background: none;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .emoji-picker-btn:hover {
+    background: #f1f3f5;
+  }
 </style>
 
 <!-- Work Item Context Menu -->
@@ -382,6 +467,125 @@
       <div class="modal-footer border-top">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary" id="saveWorkNotesBtn" title="Save these notes to the work item">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Restored 2026-08-21. These four blocks were dropped by 22f432a (the
+     drawer/split-pane refactor) while the JS that drives them stayed. Every
+     one has a live caller, and showEmojiPicker/showCalendarDropMenu do not
+     null-guard, so clicking an "Oh!" cell threw. -->
+
+
+<!-- Calendar Drop Menu (shown after dropping a work item onto a calendar day) -->
+<div id="calendarDropMenu" class="context-menu d-none">
+  <button type="button" class="context-menu-item" data-drop-action="move"><i class="bi bi-calendar-event"></i> Move Work Item to Date</button>
+  <button type="button" class="context-menu-item" data-drop-action="copy"><i class="bi bi-calendar-plus"></i> Copy Work Item to Date</button>
+</div>
+
+<!-- Calendar Day Context Menu (right-click a calendar cell) -->
+<%
+  const dayHighlightColors = [
+    { key: 'red', hex: '#ffadad', label: 'Red' },
+    { key: 'orange', hex: '#ffd6a5', label: 'Orange' },
+    { key: 'yellow', hex: '#fdffb6', label: 'Yellow' },
+    { key: 'green', hex: '#caffbf', label: 'Green' },
+    { key: 'blue', hex: '#9bf6ff', label: 'Blue' },
+    { key: 'indigo', hex: '#a0c4ff', label: 'Indigo' },
+    { key: 'purple', hex: '#bdb2ff', label: 'Purple' },
+    { key: 'pink', hex: '#ffc6ff', label: 'Pink' },
+  ];
+  const dayTextColors = [
+    { key: 'red', hex: '#e63946', label: 'Red' },
+    { key: 'orange', hex: '#ff8500', label: 'Orange' },
+    { key: 'yellow', hex: '#ffd60a', label: 'Yellow' },
+    { key: 'green', hex: '#06d6a0', label: 'Green' },
+    { key: 'blue', hex: '#118ab2', label: 'Blue' },
+    { key: 'indigo', hex: '#3a0ca3', label: 'Indigo' },
+    { key: 'purple', hex: '#9d4edd', label: 'Purple' },
+    { key: 'pink', hex: '#ff006e', label: 'Pink' },
+  ];
+%>
+<div id="calendarDayContextMenu" class="context-menu d-none">
+  <div id="calendarDayContextMenuScope" class="context-menu-scope text-muted small d-none"></div>
+  <div class="context-menu-item context-menu-has-submenu">
+    <i class="bi bi-palette"></i> Highlight Day
+    <i class="bi bi-chevron-right context-submenu-caret"></i>
+    <div class="context-submenu">
+      <div class="highlight-color-grid">
+        <% dayHighlightColors.forEach(c => { %>
+          <button type="button" class="highlight-color-swatch" data-target="background" data-color="<%= c.hex %>" style="background-color: <%= c.hex %>;" title="<%= c.label %>" aria-label="Highlight day <%= c.label %>"></button>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+  <div class="context-menu-item context-menu-has-submenu">
+    <i class="bi bi-fonts"></i> Text Color
+    <i class="bi bi-chevron-right context-submenu-caret"></i>
+    <div class="context-submenu">
+      <div class="highlight-color-grid">
+        <% dayTextColors.forEach(c => { %>
+          <button type="button" class="highlight-color-swatch" data-target="text" data-color="<%= c.hex %>" style="background-color: <%= c.hex %>;" title="<%= c.label %>" aria-label="Set text color <%= c.label %>"></button>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+  <button type="button" class="context-menu-item" data-menu-action="clear-day-highlight"><i class="bi bi-x-circle"></i> Clear Highlight</button>
+</div>
+
+<!-- Emoji Picker Popover (shown by clicking the "Oh!" cell on a work item) -->
+<%
+  const emojiCategories = [
+    { key: 'work', label: 'Work', icon: 'bi-briefcase', emojis: ['✅','🔥','⭐','🚀','⚠️','🐛','💡','📌','🎯','⏰','📞','✈️','🏠','💰','📊','🎉','👍','❌','❓','📝','🧠','🤝','🚧','🧪','📦','🔒','☕','🏆','🐢','⚡','🗒️','🖇️','📇','📚','📖','🗃️','🗄️','📮','🖋️','🖌️','📓','📔','📒','📕','📗','📘','📙','🔖','🏷️','💼','🗳️','🖨️','⌨️','🧮','🪪','📃','📜','🧾','🗞️','📰'] },
+    { key: 'smileys', label: 'Smileys', icon: 'bi-emoji-smile', emojis: ['😀','😃','😄','😁','😆','😅','😂','🙂','😊','😇','🙃','😉','😌','😍','🥰','😘','😋','😎','🤩','🥳','😴','🤔','😐','😑','🙄','😬','😢','😭','😡','🤯','😝','😛','🤪','🥱','😪','😵','🥴','🤢','🤮','🤧','😷','🤒','🤕','🥵','🥶','😨','😰','😱','🥺','😳','🤭','🤫','🤥','😤','👿','😈','🤠','🥸','🫠','🫡'] },
+    { key: 'nature', label: 'Nature', icon: 'bi-tree', emojis: ['☀️','🌤️','⛅','🌧️','⛈️','❄️','🌈','🌙','🌊','💧','🌱','🌳','🌴','🌵','🍀','🌸','🌻','🍁','🌍','🌎','🌛','🦋','🐝','⚡','🌞','🌚','🌠','🌦️','🌩️','🌪️','🌫️','🍃','🌿','🌾','🌷','🌹','🌺','🌼','🍂','🍄','🌰','🐞','🐦','🦅','🐟','🐬','🦉','🐿️'] },
+    { key: 'food', label: 'Food', icon: 'bi-cup-hot', emojis: ['☕','🍵','🍺','🍷','🥤','🍎','🍌','🍕','🍔','🍟','🌮','🌯','🍩','🍪','🍰','🎂','🍿','🥗','🍳','🍜','🍣','🍫','🍬','🍯','🍇','🍈','🍉','🍊','🍋','🍍','🥭','🍑','🍒','🍓','🥝','🍅','🥑','🥦','🥕','🌽','🥔','🍠','🥐','🥯','🍞','🧀','🥓','🍖'] },
+    { key: 'objects', label: 'Objects', icon: 'bi-tools', emojis: ['📅','📆','🗓️','📈','📉','📋','📎','✂️','🖊️','✏️','📐','📏','🔍','🔑','🔨','🛠️','⚙️','🔧','🧰','📁','📂','🗂️','📤','📥','💻','📱','🖥️','🔗','🖱️','💾','💿','📀','🎥','📷','📹','🎙️','🔌','🔋','💡','🕯️','🧯','🪛','🪜','🧲','🗜️','📡','🛰️','⏱️','⏲️','🧭','🔭','🔬','🪟','🚪','🪑','🗑️'] },
+    { key: 'people', label: 'People', icon: 'bi-people', emojis: ['👍','👎','👏','🙌','🤝','🙏','💪','✌️','🤞','🤟','👌','🤙','💯','👀','🎓','🤷','🙋','🤦','👊','✊','🤛','🤜','🖐️','✋','🖖','👋','🫱','🫲','🫳','🫴','👤','👥','🗣️','🧑','👨','👩'] },
+  ];
+%>
+<div id="emojiPickerPopover" class="context-menu d-none">
+  <ul class="nav nav-tabs nav-fill emoji-picker-tabs" id="emojiPickerTabs">
+    <% emojiCategories.forEach((cat, i) => { %>
+      <li class="nav-item">
+        <button class="nav-link px-1 <%= i === 0 ? 'active' : '' %>" data-emoji-tab="<%= cat.key %>" type="button" title="<%= cat.label %>">
+          <i class="bi <%= cat.icon %>"></i>
+        </button>
+      </li>
+    <% }) %>
+  </ul>
+  <% emojiCategories.forEach((cat, i) => { %>
+    <div class="emoji-picker-grid <%= i === 0 ? '' : 'd-none' %>" data-emoji-panel="<%= cat.key %>">
+      <% if (i === 0) { %>
+        <button type="button" class="emoji-picker-btn" data-emoji="" title="No emoji">
+          <i class="bi bi-slash-circle text-muted"></i>
+        </button>
+      <% } %>
+      <% cat.emojis.forEach(emoji => { %>
+        <button type="button" class="emoji-picker-btn" data-emoji="<%= emoji %>"><%= emoji %></button>
+      <% }) %>
+    </div>
+  <% }) %>
+</div>
+
+<!-- Move/Clone Work Item Modal -->
+<div class="modal fade" id="moveCloneModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="moveCloneModalTitle">Move Work Item</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="moveCloneWorkId">
+        <input type="hidden" id="moveCloneMode">
+        <p class="text-muted small mb-2" id="moveCloneHint">Select a date.</p>
+        <div id="moveCloneCalendar" style="font-size: 0.9rem;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmMoveCloneBtn">Move</button>
       </div>
     </div>
   </div>
