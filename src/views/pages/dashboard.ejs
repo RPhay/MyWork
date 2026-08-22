@@ -551,6 +551,19 @@
   <script src="/js/tabs.js"></script>
   <script src="/js/forms.js"></script>
   <script src="/js/save-shortcut.js"></script>
+  <!-- Dailies, split across files. dailies.js must stay LAST: it holds the
+       DOMContentLoaded bootstrap and calls into all the others. The only
+       load-order constraint among the rest is dailies-child-editor.js,
+       which calls createChangeTracker() at top level and so must follow
+       changeTracker.js (hoisted near the top of <body>). -->
+  <script src="/js/dailies-calendar.js"></script>
+  <script src="/js/dailies-items.js"></script>
+  <script src="/js/dailies-menus.js"></script>
+  <script src="/js/dailies-list-events.js"></script>
+  <script src="/js/dailies-associations.js"></script>
+  <script src="/js/dailies-child-editor.js"></script>
+  <script src="/js/dailies-emoji.js"></script>
+  <script src="/js/dailies-move-clone.js"></script>
   <script src="/js/dailies.js"></script>
 </body>
 </html>
