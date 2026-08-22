@@ -5,5 +5,32 @@
       "Bash(git push *)",
       "Bash(git add *)"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 20,
+            "async": true,
+            "command": "git -C /Users/aslynn/Code/MyWork status --porcelain src | grep -q . && npm --prefix /Users/aslynn/Code/MyWork run version:bump >/dev/null 2>&1 || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 15,
+            "statusMessage": "Checking syntax...",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.js) node --check \"$f\" || exit 2 ;; esac; }"
+          }
+        ]
+      }
+    ]
   }
 }
