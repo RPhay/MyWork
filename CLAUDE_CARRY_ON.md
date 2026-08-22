@@ -71,34 +71,74 @@ The agreed direction: **a daily is just a list of typed items associated with a
 calendar day**, each either *copied* or *referenced*, with `daily` becoming an
 uneditable type that handles it.
 
-Nothing has been built. Before it can be, one contradiction in the brief has to
-be settled — these two statements cannot both hold:
+### The contradiction is SETTLED (2026-08-21)
 
-> "a copy/clone can be edited or deleted without affecting the originals
-> (lives on its own outside the typed tab)"
-
-> "if a clone, any changes to that clone are automatically made to the original
-> including edits, reordering children, or deletions"
-
-One mode is independent, the other is linked, and "clone" was used for both.
-**Still unanswered - ask before writing any of it.**
-
-Note the app already settled the vocabulary everywhere else: the dialog offers
-**Copy** (independent) or **Reference** (edits reach the original), and both
-Templates and the Priorities board use it that way. The likely reading is that
-"clone" meant Copy in one message and Reference in the other. Do not assume it.
-
-Once settled, the shape is:
+"Clone" meant **Copy** in one message and **Reference** in the other. There are
+**two modes**, matching the vocabulary the rest of the app already uses — the
+drag dialog offers Copy or Reference, and Templates and the Priorities board
+both work that way. No new vocabulary is being invented.
 
 - Dragging a row from a typed page onto the Dailies rail asks: copy or reference?
 - Each daily row carries an icon showing which it is.
 - A **reference** passes edits, reordering and deletion through to the original.
 - A **copy** is independent of it.
-- `daily` becomes an uneditable entity type; the legacy `work_items` table and
-  its nine association tables collapse into `entities` + `entity_relationships`.
-  Same migration shape as Projects (Thread 1d), and the same trap: **grep for
-  every `JOIN work_items` before declaring it done** — a forgotten consumer
-  fails silently rather than erroring.
+
+**Still design-only. No code, no schema change, by decision on 2026-08-21.**
+
+### The migration is smaller than this file has been claiming
+
+"Its nine association tables" is out of date: finding 07 already dropped the
+eight per-type `work_*` junctions. What is actually left, with live row counts:
+
+| Table | Rows |
+|---|---|
+| `work_items` | 35 |
+| `work_entity_associations` | 2 |
+| `work_source_associations` | 0 |
+| `work_item_templates` | 1 |
+| `priorities` | 5 |
+
+So the collapse is `work_items` + **two** association tables, not nine.
+
+### Every consumer, swept 2026-08-21
+
+The trap this file names — "a forgotten consumer fails silently rather than
+erroring" — with the sweep already done. **Re-run it before starting; this list
+is a snapshot.**
+
+**Real code that reads or writes `work_items`:**
+
+| File | Refs | Note |
+|---|---|---|
+| `services/workItemService.js` | 16 | the main surface |
+| `services/recurrenceService.js` | 4 | still reads legacy `to_dos`/`tasks` too |
+| `services/workItemTemplateService.js` | 222, 226 | `MAX(order_index)` + INSERT when a template lands on a day |
+| `services/entityService.js` | 685 | **INSERTs into `work_items` directly** — the easiest one to miss, because it is the entity service |
+| `services/schemaMigrationService.js` | 57, 542 | table list + an id lookup |
+| `services/systemDatabaseService.js` | 33 | table list for the system-DB copy |
+
+**Comments only, not code** — do not "fix" these:
+`reportingService.js:8`, `portfolioReportService.js:11`, `dailies.js:190`,
+`routes/api/reporting.js:85`.
+
+**Schema:** `mysqlSchema.js` (27) and `mssqlSchema.js` (35). Both must change
+together — see the dual-schema rule in `CLAUDE.md`, and run the MSSQL build
+rather than reading it.
+
+**Historical one-off scripts** (`scripts/phase*.js`): leave alone, they describe
+migrations already performed.
+
+### Shape of the work, when it is authorised
+
+1. `daily` becomes an uneditable entity type.
+2. Each daily row becomes an `entity_relationships` edge from the day to the
+   item, carrying the mode (copy vs reference) — a copy additionally records
+   what it came from, per the "every copied node records its origin" fix.
+3. `work_items` rows migrate to `entities` of type `daily`.
+4. The six real consumers above move to the entity services.
+5. Only then drop `work_items` and the two junctions, in both schema files.
+
+Same migration shape as Projects (Thread 1d).
 
 ## 2. Priorities board — SHIPPED, one thing to watch
 
