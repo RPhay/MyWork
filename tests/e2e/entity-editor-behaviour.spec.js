@@ -47,17 +47,35 @@ test('save stays disabled across reopening different items', async ({ page }) =>
   // Every tab's rows are in the DOM at once (dashboard.ejs renders all panes
   // upfront), so an unscoped .entity-row can pick a row from a hidden tab.
   const rows = page.locator('#tab-priority .entity-row:visible');
+
+  // Pin the two rows by ENTITY ID before touching either.
+  //
+  // This used rows.first() then rows.nth(1), which passed alone and failed in a
+  // full guard run: other specs add and remove priority rows, so the list can
+  // re-render between the two clicks and nth(1) is not necessarily still the
+  // row it was when the positions were read. If it resolves to the row already
+  // open, the editor never switches and Save stays legitimately enabled - the
+  // test then reports an editor bug that is not there. Addressing rows by
+  // [data-entity-id] is the fix this repo already uses elsewhere for exactly
+  // this (see CLAUDE_TESTING.md, "A row locator built from TEXT can match an
+  // ancestor").
+  const ids = await rows.evaluateAll(els => els.map(e => e.dataset.entityId));
+  test.skip(ids.length < 2, 'needs at least two priority rows');
+  const [idA, idB] = ids;
+  const rowA = page.locator(`#tab-priority .entity-row[data-entity-id="${idA}"]`);
+  const rowB = page.locator(`#tab-priority .entity-row[data-entity-id="${idB}"]`);
+
   // The TITLE, not the row's centre. A folder's centre is a rolled-up value,
   // which deliberately swallows its click - a roll-up summarises what is inside
   // and is not a control, so clicking it must not move the editor.
-  await rows.first().locator('.entity-cell-title').dblclick();
+  await rowA.locator('.entity-cell-title').dblclick();
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
   // make a change -> enabled
   const ti = page.locator('#entity-editor-form input[name="title"]');
   await ti.fill('temporary edit'); await ti.dispatchEvent('input');
   await expect(page.locator('#prioritySaveBtn')).toBeEnabled();
   // open a different item without saving -> must be disabled again
-  await rows.nth(1).locator('.entity-cell-title').dblclick();
+  await rowB.locator('.entity-cell-title').dblclick();
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
 });
 
