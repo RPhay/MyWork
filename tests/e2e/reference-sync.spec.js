@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
+import { dblclick } from './dblclick.js';
 
 // A reference IS the record. Editing it anywhere edits it everywhere, and every
 // view showing it has to say so without a reload - including when the change is
@@ -44,7 +45,7 @@ test('renaming a record updates the template referencing it, live', async ({ pag
   await expect(inTemplate).toHaveText('ZZZ before rename');
 
   // Rename it on its OWN page - the template must follow without a reload.
-  await page.locator(`#testsEntityList .entity-row[data-entity-id="${row.id}"] .entity-cell-title`).dblclick();
+  await dblclick(page.locator(`#testsEntityList .entity-row[data-entity-id="${row.id}"] .entity-cell-title`));
   await page.waitForTimeout(800);
   const title = page.locator('#entity-editor-form input[name="title"]');
   await title.fill('ZZZ after rename');

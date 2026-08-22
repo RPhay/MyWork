@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
+import { dblclick } from './dblclick.js';
 
 const TYPE = 'to_do';
 
@@ -25,7 +26,11 @@ test('right-clicking a row makes it the selected row', async ({ page }) => {
   const rowA = page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${a.id}"]`);
   const rowB = page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${b.id}"]`);
 
-  await rowA.locator('.entity-cell-title').dblclick();          // select A the usual way
+  // Select A the usual way. The click is what applies selection - dblclick()
+  // is dispatched (see dblclick.js) and deliberately does not fire the clicks,
+  // so this test states the one it depends on instead of relying on it.
+  await rowA.locator('.entity-cell-title').click();
+  await dblclick(rowA.locator('.entity-cell-title'));
   await page.waitForTimeout(700);
   // classList.contains, not toHaveClass(/selected/): that regex also matches
   // `multi-selected`, which is a different signal entirely - one row can carry
@@ -85,7 +90,7 @@ test("clicking a folder's rolled-up status leaves the editor alone", async ({ pa
     'a rolled-up status is not a control - it must not open the editor').toBe(0);
 
   // Editor open on something else: clicking the roll-up must not switch it.
-  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${kid.id}"] .entity-cell-title`).dblclick();
+  await dblclick(page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${kid.id}"] .entity-cell-title`));
   await page.waitForTimeout(800);
   const before = await page.locator('#entity-editor-form input[name="title"]').inputValue();
   await cell.click();
@@ -122,7 +127,11 @@ test('one click expands a row, two open the editor', async ({ page }) => {
 
   // Two clicks: the editor, and the row is not left flapping.
   const beforeDouble = await node.evaluate(el => el.classList.contains('expanded'));
-  await title.dblclick();
+  // The click is what SCHEDULES the deferred expand; without it there is
+  // nothing for the double-click to cancel and the assertion below would pass
+  // vacuously. dblclick() is dispatched and fires no clicks of its own.
+  await title.click();
+  await dblclick(title);
   await page.waitForTimeout(900);
   await expect(page.locator('#entity-editor-form input[name="title"]')).toHaveValue('ZZZ click folder');
   expect(await node.evaluate(el => el.classList.contains('expanded')),

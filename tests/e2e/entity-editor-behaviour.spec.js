@@ -1,4 +1,12 @@
 import { test, expect } from '@playwright/test';
+
+import { dblclick } from './dblclick.js';
+
+// The TITLE cell, not the row's centre: a folder's centre is a rolled-up value,
+// which deliberately swallows the event, because a roll-up summarises what is
+// inside and is not a control. Why this dispatches rather than driving the
+// pointer is in dblclick.js.
+const openEditor = (row) => dblclick(row.locator('.entity-cell-title'));
 const OUT='/private/tmp/claude-501/-Users-aslynn-git-github-MyWork/825c4ea0-f3d3-4db7-9c88-97ad8e82c12e/scratchpad';
 
 for (const kind of ['item','folder']) {
@@ -48,34 +56,24 @@ test('save stays disabled across reopening different items', async ({ page }) =>
   // upfront), so an unscoped .entity-row can pick a row from a hidden tab.
   const rows = page.locator('#tab-priority .entity-row:visible');
 
-  // Pin the two rows by ENTITY ID before touching either.
-  //
-  // This used rows.first() then rows.nth(1), which passed alone and failed in a
-  // full guard run: other specs add and remove priority rows, so the list can
-  // re-render between the two clicks and nth(1) is not necessarily still the
-  // row it was when the positions were read. If it resolves to the row already
-  // open, the editor never switches and Save stays legitimately enabled - the
-  // test then reports an editor bug that is not there. Addressing rows by
-  // [data-entity-id] is the fix this repo already uses elsewhere for exactly
-  // this (see CLAUDE_TESTING.md, "A row locator built from TEXT can match an
-  // ancestor").
+  // Pin the two rows by ENTITY ID, not by position. A position is only
+  // meaningful for as long as the list does not re-render, and other specs add
+  // and remove priority rows (CLAUDE_TESTING.md, "A row locator built from TEXT
+  // can match an ancestor" - the same reasoning).
   const ids = await rows.evaluateAll(els => els.map(e => e.dataset.entityId));
   test.skip(ids.length < 2, 'needs at least two priority rows');
   const [idA, idB] = ids;
   const rowA = page.locator(`#tab-priority .entity-row[data-entity-id="${idA}"]`);
   const rowB = page.locator(`#tab-priority .entity-row[data-entity-id="${idB}"]`);
 
-  // The TITLE, not the row's centre. A folder's centre is a rolled-up value,
-  // which deliberately swallows its click - a roll-up summarises what is inside
-  // and is not a control, so clicking it must not move the editor.
-  await rowA.locator('.entity-cell-title').dblclick();
+  await openEditor(rowA);
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
   // make a change -> enabled
   const ti = page.locator('#entity-editor-form input[name="title"]');
   await ti.fill('temporary edit'); await ti.dispatchEvent('input');
   await expect(page.locator('#prioritySaveBtn')).toBeEnabled();
   // open a different item without saving -> must be disabled again
-  await rowB.locator('.entity-cell-title').dblclick();
+  await openEditor(rowB);
   await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
 });
 
@@ -91,8 +89,7 @@ test('each field shows its name once, in the gutter, with labelled toggles', asy
   await page.waitForTimeout(1500);
 
   // Must be an ITEM: a folder gets a title-only editor with no fields.
-  await page.locator('#ideaEntityList .entity-row:not([data-is-folder="1"])')
-    .first().locator('.entity-cell-title').dblclick();
+  await openEditor(page.locator('#ideaEntityList .entity-row:not([data-is-folder="1"])').first());
   await page.waitForTimeout(800);
 
   const fields = page.locator('#entity-editor-form .editor-field');

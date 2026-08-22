@@ -173,6 +173,19 @@ be read. They are merged above.
 - **A stale allow-list reports a working feature as broken.** `RENDERED_TYPES`
   in `entity-type-integrity.spec.js` omitted `priority`, which has had a
   renderer all along, so the spec claimed there wasn't one.
+- **`dblclick()` is not reliably a double-click.** It sends two clicks and
+  leaves it to the BROWSER to decide whether they were close enough together to
+  also be a `dblclick`. Under load - and a full guard run is exactly that - they
+  can fall outside that threshold, no `dblclick` event fires at all, and
+  whatever the app opens on `dblclick` never opens. The assertion after it then
+  reports an app bug that is not there. This produced a failure that went red
+  three runs in a row, green the next twenty-two, and could not be reproduced
+  afterwards. Splitting a `dblclick()` into two `click()` calls reproduces it on
+  demand. **Use `tests/e2e/dblclick.js`, which dispatches the event** - the same
+  reasoning as driving nesting with drag EVENTS, two traps above. It fires no
+  clicks of its own, so where a test depends on the click's side effects
+  (selection, or scheduling the deferred expand that the double-click cancels),
+  click first and say so.
 
 ---
 

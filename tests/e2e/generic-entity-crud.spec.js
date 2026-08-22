@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dblclick } from './dblclick.js';
 
 // Every entity type driven by the generic entity engine (generic-entity-init.js
 // + genericEntity.js). Parameterized so a fix/regression in the shared engine
@@ -157,7 +158,7 @@ for (const type of TYPES) {
       // The title rather than the row centre: control cells (status badge, date
       // picker) deliberately do not open the editor, and the centre of a wide row
       // can land on one.
-      await page.locator('.entity-row', { hasText: original.title }).locator('.entity-title').dblclick();
+      await dblclick(page.locator('.entity-row', { hasText: original.title }).locator('.entity-title'));
       await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
       const titleInput = page.locator('#entity-editor-form input[name="title"]');
@@ -443,7 +444,7 @@ for (const type of TYPES) {
 
       // Double click - one click only expands. Same stale-single-click fault as
       // 'edits an existing item' above; see the note there.
-      await page.locator('.entity-row', { hasText: item.title }).locator('.entity-title').dblclick();
+      await dblclick(page.locator('.entity-row', { hasText: item.title }).locator('.entity-title'));
       await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
       const notes = page.locator('#entity-editor-form [name="notes"]');

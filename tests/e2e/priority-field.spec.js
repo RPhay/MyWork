@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dblclick } from './dblclick.js';
 
 /**
  * Every editable type carries a priority field, defined once in
@@ -54,7 +55,7 @@ test('the editor cycles exactly like the cell does', async ({ page }) => {
   const idea = (await api(page,'/api/entities/idea',{method:'POST',body:JSON.stringify({title:'ZZZprio editor'})})).body.data;
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
 
-  await page.locator(`#ideaEntityList .entity-row[data-entity-id="${idea.id}"] .entity-cell-title`).dblclick();
+  await dblclick(page.locator(`#ideaEntityList .entity-row[data-entity-id="${idea.id}"] .entity-cell-title`));
   await page.waitForTimeout(800);
 
   // One control that cycles, the same as the cell - not a dropdown, not a row
@@ -90,7 +91,7 @@ test('status cycles in the editor too, not a dropdown', async ({ page }) => {
   const idea = (await api(page,'/api/entities/idea',{method:'POST',body:JSON.stringify({title:'ZZZprio status'})})).body.data;
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
 
-  await page.locator(`#ideaEntityList .entity-row[data-entity-id="${idea.id}"] .entity-cell-title`).dblclick();
+  await dblclick(page.locator(`#ideaEntityList .entity-row[data-entity-id="${idea.id}"] .entity-cell-title`));
   await page.waitForTimeout(800);
 
   expect(await page.locator('#entity-editor-form select[name="status"]').count(), 'no status dropdown').toBe(0);

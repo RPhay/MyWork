@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dblclick } from './dblclick.js';
 
 /**
  * What may share the screen, and how you ask for it:
@@ -206,7 +207,7 @@ test('double-clicking a type tab leaves it the only pane', async ({ page }) => {
   await page.waitForTimeout(600);
   expect(await shown(page), 'two rails to start').toEqual(['work_item', 'template']);
 
-  await page.locator('button[data-tab="idea"]').dblclick();
+  await dblclick(page.locator('button[data-tab="idea"]'));
   await page.waitForTimeout(900);
   expect(await shown(page), 'the type has the screen').toEqual(['TYPE']);
   await expect(page.locator('#tab-idea')).toHaveClass(/active/);

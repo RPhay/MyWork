@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
+import { dblclick } from './dblclick.js';
 
 // Every type can carry a Time Box - how long something is MEANT to take, as
 // against Worked Time, which is how long it has taken. One ladder everywhere:
@@ -47,7 +48,7 @@ test('a Time Box can be set and comes back', async ({ page }) => {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
 
-  await page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"] .entity-cell-title`).dblclick();
+  await dblclick(page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"] .entity-cell-title`));
   await page.waitForTimeout(900);
 
   // Every option at once with a box round the current one, like status. The

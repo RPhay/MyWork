@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dblclick } from './dblclick.js';
 
 /**
  * The focus bar: what is being worked on right now, pinned inside the navbar at
@@ -451,7 +452,7 @@ test('double-clicking a chip opens its record on its own page', async ({ page })
   await page.goto('/?tab=priority', { waitUntil: 'networkidle' });   // somewhere else entirely
   await page.waitForTimeout(1600);
 
-  await page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`).dblclick();
+  await dblclick(page.locator(`#focusBar .focus-chip[data-entity-id="${made[0].id}"]`));
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(2200);
 

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dblclick } from './dblclick.js';
 
 /**
  * A page that holds more than one type - today that means Templates.
@@ -71,7 +72,7 @@ test('editing a referenced idea updates it inside the template on screen', async
   await expect(page.locator('#templateEntityList .entity-row', {hasText:'ZZZmir before'})).toHaveCount(1);
 
   // Edit it on the Ideas page
-  await page.locator('#ideaEntityList .entity-row', {hasText:'ZZZmir before'}).first().locator('.entity-cell-title').dblclick();
+  await dblclick(page.locator('#ideaEntityList .entity-row', {hasText:'ZZZmir before'}).first().locator('.entity-cell-title'));
   await page.waitForTimeout(700);
   const title = page.locator('#entity-editor-form input[name="title"]');
   await title.fill('ZZZmir AFTER'); await title.dispatchEvent('input');

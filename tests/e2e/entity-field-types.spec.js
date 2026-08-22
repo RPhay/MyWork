@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dblclick } from './dblclick.js';
 
 /**
  * Field types are the generic engine's extension point: a type gains a
@@ -56,7 +57,7 @@ test('a type with a links field holds 0-n named links', async ({ page }) => {
   await expect(row2.locator('a.entity-row-link')).toHaveCount(2);
   // The row is a grid of columns now, so its centre can land in the gap
   // between cells - click the title cell, which is what opens the editor.
-  await row2.locator('.entity-cell-title').dblclick();
+  await dblclick(row2.locator('.entity-cell-title'));
   await expect(page.locator('.entity-link-row')).toHaveCount(2);
   expect(await page.locator('.entity-link-row').nth(1).locator('.entity-link-title').inputValue()).toBe('Repo');
 
