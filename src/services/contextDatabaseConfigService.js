@@ -369,6 +369,14 @@ export async function createDbSchema(contextId, type, data) {
         mssqlConnectOptions(data, password, data.database),
       );
       await createMssqlSchema(pool);
+      // This runs on its own throwaway pool, not the live one connectionPool.js
+      // queries through - so a table this call just added is invisible to
+      // qualifyTablesForMssql's cache until it's told. Reconfiguring the live
+      // pool already does this (connectionPool.js's reconfigure() clears it),
+      // but "Fix Schema" against an already-connected context skips that call
+      // entirely, and re-running Fix Schema to pick up new tables/columns on a
+      // live context is exactly when this cache is stale.
+      db.clearMssqlTableCache();
     } finally {
       if (pool) await pool.close();
     }

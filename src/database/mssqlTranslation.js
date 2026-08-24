@@ -1,5 +1,50 @@
 // Pure SQL-translation helpers shared by homePool.js and connectionPool.js.
 
+// The columns that actually enforce de-duplication for each table this
+// codebase sends INSERT IGNORE against - i.e. the UNIQUE KEY declared for
+// that table in mysqlSchema.js/mssqlSchema.js. MUST stay in sync with those
+// two files (see CLAUDE.md's "Database schema changes must cover every
+// supported database type" for why they're edited together - this map is a
+// third place that same key needs to be reflected). A table missing here
+// falls back to treating every inserted column as the key, which is only
+// correct when the statement inserts nothing but the key columns themselves.
+const INSERT_IGNORE_KEY_COLUMNS = {
+  entity_relationships: ["parent_entity_id", "child_entity_id", "relationship_kind"],
+  work_entity_associations: ["work_item_id", "entity_id"],
+  daily_entities: ["context_id", "date", "entity_id"],
+  priority_areas: ["priority_id", "area_id"],
+  priority_goals: ["priority_id", "goal_id"],
+  template_areas: ["template_id", "area_id"],
+  template_goals: ["template_id", "goal_id"],
+  template_priorities: ["template_id", "priority_id"],
+  years: ["year"],
+};
+
+// Splits a VALUES(...) body into its top-level tokens - '?' or a literal
+// (string/number/boolean) - without breaking on a comma inside a quoted
+// string. This codebase's INSERT IGNORE statements sometimes inline literals
+// alongside placeholders (e.g. a fixed relationship_kind), which a naive
+// split(',') or an all-placeholders assumption both get wrong.
+function splitValueTokens(valuesBody) {
+  const tokens = [];
+  let current = "";
+  let inString = false;
+  for (let i = 0; i < valuesBody.length; i += 1) {
+    const ch = valuesBody[i];
+    if (ch === "'") {
+      inString = !inString;
+      current += ch;
+    } else if (ch === "," && !inString) {
+      tokens.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim() !== "") tokens.push(current.trim());
+  return tokens;
+}
+
 export function rewriteInsertIgnoreForMssql(sqlText, values) {
   const match = sqlText.match(
     /^\s*INSERT IGNORE INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)\s*$/i,
@@ -8,14 +53,56 @@ export function rewriteInsertIgnoreForMssql(sqlText, values) {
 
   const table = match[1];
   const columns = match[2].split(",").map((c) => c.trim());
-  const placeholderCount = (match[3].match(/\?/g) || []).length;
-  if (columns.length !== placeholderCount || columns.length !== values.length) {
+  const valueTokens = splitValueTokens(match[3]);
+  if (columns.length !== valueTokens.length) {
     return { sql: sqlText, values };
   }
 
-  const whereClause = columns.map((c) => `${c} = ?`).join(" AND ");
-  const rewrittenSql = `IF NOT EXISTS (SELECT 1 FROM ${table} WHERE ${whereClause}) INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`;
-  return { sql: rewrittenSql, values: [...values, ...values] };
+  // Pair each column with its token, consuming one item off `values` for
+  // every '?' in source order (mirrors how the driver would have bound them).
+  let cursor = 0;
+  const bound = columns.map((name, idx) => {
+    const token = valueTokens[idx];
+    if (token === "?") {
+      const value = values[cursor];
+      cursor += 1;
+      return { name, isPlaceholder: true, value };
+    }
+    return { name, isPlaceholder: false, literal: token };
+  });
+  if (cursor !== values.length) return { sql: sqlText, values };
+
+  const declaredKey = INSERT_IGNORE_KEY_COLUMNS[table.toLowerCase()];
+  const keyColumns =
+    declaredKey && declaredKey.every((c) => columns.includes(c))
+      ? declaredKey
+      : columns;
+
+  const whereValues = [];
+  const whereClause = keyColumns
+    .map((c) => {
+      const col = bound.find((b) => b.name === c);
+      if (col.isPlaceholder) {
+        whereValues.push(col.value);
+        return `${c} = ?`;
+      }
+      return `${c} = ${col.literal}`;
+    })
+    .join(" AND ");
+
+  const insertValues = [];
+  const insertValueSql = bound
+    .map((col) => {
+      if (col.isPlaceholder) {
+        insertValues.push(col.value);
+        return "?";
+      }
+      return col.literal;
+    })
+    .join(", ");
+
+  const rewrittenSql = `IF NOT EXISTS (SELECT 1 FROM ${table} WHERE ${whereClause}) INSERT INTO ${table} (${columns.join(", ")}) VALUES (${insertValueSql})`;
+  return { sql: rewrittenSql, values: [...whereValues, ...insertValues] };
 }
 
 // The rest of the app writes MySQL's NOW() for current-timestamp columns;

@@ -91,6 +91,38 @@ describe('the rewrites already in place', () => {
     expect(values).toEqual([1, 2, 1, 2]);
   });
 
+  it('dedupes on the real UNIQUE KEY, not every inserted column', () => {
+    // work_entity_associations' key is (work_item_id, entity_id) - order_index
+    // is payload, not identity. Checking it too means a re-drag that only
+    // changes order_index looks like "no existing row" and the INSERT that
+    // follows then hits the real UNIQUE KEY and throws, instead of no-oping.
+    const { sql, values } = rewriteInsertIgnoreForMssql(
+      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
+      [1, 2, 5],
+    );
+    expect(sql).toBe(
+      'IF NOT EXISTS (SELECT 1 FROM work_entity_associations WHERE work_item_id = ? AND entity_id = ?) ' +
+        'INSERT INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
+    );
+    expect(values).toEqual([1, 2, 1, 2, 5]);
+  });
+
+  it('handles a VALUES list that mixes placeholders with inline literals', () => {
+    // entityService.js's clone flow writes relationship_kind, is_generated and
+    // order_index as literals rather than placeholders. The old placeholder
+    // count check (3 '?' vs 6 columns) bailed out entirely here, leaving a
+    // MySQL-only INSERT IGNORE sent verbatim to MSSQL - guaranteed syntax error.
+    const { sql, values } = rewriteInsertIgnoreForMssql(
+      "INSERT IGNORE INTO entity_relationships (context_id, parent_entity_id, child_entity_id, relationship_kind, is_generated, order_index) VALUES (?, ?, ?, 'instantiated_from', 1, 0)",
+      [10, 20, 30],
+    );
+    expect(sql).toBe(
+      'IF NOT EXISTS (SELECT 1 FROM entity_relationships WHERE parent_entity_id = ? AND child_entity_id = ? AND relationship_kind = \'instantiated_from\') ' +
+        "INSERT INTO entity_relationships (context_id, parent_entity_id, child_entity_id, relationship_kind, is_generated, order_index) VALUES (?, ?, ?, 'instantiated_from', 1, 0)",
+    );
+    expect(values).toEqual([20, 30, 10, 20, 30]);
+  });
+
   it('swaps NOW() for the T-SQL equivalent', () => {
     expect(rewriteNowForMssql('UPDATE t SET updated_at = NOW()'))
       .toBe('UPDATE t SET updated_at = SYSUTCDATETIME()');
