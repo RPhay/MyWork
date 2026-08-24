@@ -2,17 +2,22 @@ import { test, expect } from '@playwright/test';
 import { dblclick } from './dblclick.js';
 
 /**
- * What may share the screen, and how you ask for it:
+ * What may share the screen, and how you ask for it.
  *
- *   Dailies   + an editable type - select the rail, then click the type
- *   Templates + an editable type - the same; Templates pairs like Dailies
- *   Dailies + Templates          - cmd/alt + click
- *   Dailies + Priorities         - cmd/alt + click
+ * Four panes exist - three rails (Dailies, Templates, Priorities) and the type
+ * pane, holding whichever type tab is current. TWO show at a time, and every
+ * pair is legal EXCEPT Templates + Priorities.
  *
- * Every rail pairs with a type. Two rails only sit together WITH Dailies. A
- * plain click on any of the three deselects everything else. Clicking a type tab shows that type,
- * or puts it away if it was already the one showing - and the rail then fills
- * the width.
+ * One plain click on any tab decides the layout, by one rule:
+ *
+ *   not showing            -> it joins what is on screen if the two may share,
+ *                             otherwise it takes the screen alone
+ *   showing beside another -> it takes the screen alone
+ *   showing on its own     -> nothing; a blank screen is not a state
+ *
+ * So a pair collapses to either half by clicking that half, and clicking the
+ * other tab brings the pair back - toggling with no modifier key anywhere.
+ * Clicking a type tab OTHER than the one showing is a switch, not a toggle.
  */
 
 const RAILS = ['work_item', 'template', 'priority-board'];
@@ -31,113 +36,145 @@ async function shown(page) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
-  await page.evaluate((slugs) => slugs.forEach(s => localStorage.setItem(`rail:${s}`, 'false')), RAILS);
+  await page.evaluate((slugs) => {
+    slugs.forEach(s => localStorage.setItem(`rail:${s}`, 'false'));
+    localStorage.setItem('typePaneVisible', 'true');
+    localStorage.removeItem('paneRecency');
+  }, RAILS);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
 });
 
-test('a plain click on a rail deselects everything else', async ({ page }) => {
+test('clicking a second tab shows both, and clicking either one collapses to it', async ({ page }) => {
+  // The type has the screen to itself to start with.
+  expect(await shown(page), 'the type alone').toEqual(['TYPE']);
+
+  // Another allowed tab joins it rather than replacing it.
   await page.locator('button[data-rail-toggle="work_item"]').click();
-  await page.waitForTimeout(500);
-  expect(await shown(page), 'Dailies alone').toEqual(['work_item']);
+  await page.waitForTimeout(600);
+  expect(await shown(page), 'Dailies joins the type').toEqual(['work_item', 'TYPE']);
 
-  await page.locator('button[data-rail-toggle="template"]').click();
-  await page.waitForTimeout(500);
-  expect(await shown(page), 'Templates replaces it').toEqual(['template']);
-
-  await page.locator('button[data-rail-toggle="priority-board"]').click();
-  await page.waitForTimeout(500);
-  expect(await shown(page), 'Priorities replaces that').toEqual(['priority-board']);
-});
-
-test('Dailies pairs with a type by simply clicking the type', async ({ page }) => {
+  // Clicking either of the two showing collapses to that one...
   await page.locator('button[data-rail-toggle="work_item"]').click();
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(600);
+  expect(await shown(page), 'Dailies takes the screen').toEqual(['work_item']);
 
+  // ...and clicking the other brings the pair back.
   await page.locator('button[data-tab="idea"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page), 'no modifier needed for Dailies + a type').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'the type comes back beside it').toEqual(['work_item', 'TYPE']);
+
+  // ...and the type collapses the same way, so the toggling keeps going.
+  await page.locator('button[data-tab="idea"]').click();
+  await page.waitForTimeout(700);
+  expect(await shown(page), 'the type takes the screen').toEqual(['TYPE']);
 });
 
-test('Templates and Priorities pair with Dailies only, and only with cmd/alt', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="work_item"]').click();
-  await page.waitForTimeout(500);
+test('clicking the only pane showing does nothing - the screen is never blank', async ({ page }) => {
+  expect(await shown(page)).toEqual(['TYPE']);
+  await page.locator('button[data-tab="idea"]').click();
+  await page.waitForTimeout(700);
+  expect(await shown(page), 'the lone type pane stays').toEqual(['TYPE']);
 
-  await page.locator('button[data-rail-toggle="template"]').click({ modifiers: ['Meta'] });
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(600);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(600);
+  expect(await shown(page), 'Templates alone').toEqual(['template']);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(600);
+  expect(await shown(page), 'and it stays').toEqual(['template']);
+});
+
+test('two rails pair with a plain click - no modifier', async ({ page }) => {
+  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.waitForTimeout(600);
+  await page.locator('button[data-rail-toggle="work_item"]').click();  // Dailies alone
+  await page.waitForTimeout(600);
+  expect(await shown(page)).toEqual(['work_item']);
+
+  await page.locator('button[data-rail-toggle="template"]').click();
   await page.waitForTimeout(600);
   expect(await shown(page), 'Dailies + Templates').toEqual(['work_item', 'template']);
 
-  // Priorities may not join them - it takes the slot beside Dailies.
-  await page.locator('button[data-rail-toggle="priority-board"]').click({ modifiers: ['Meta'] });
-  await page.waitForTimeout(600);
+  // Priorities may not join Templates, so it takes the slot beside Dailies -
+  // the older of the two on screen is the one that steps out.
+  await page.locator('button[data-rail-toggle="priority-board"]').click();
+  await page.waitForTimeout(700);
   expect(await shown(page), 'Priorities replaces Templates beside Dailies')
     .toEqual(['work_item', 'priority-board']);
 });
 
-test('a type tab toggles: shows, swaps, and puts away', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="work_item"]').click();
-  await page.waitForTimeout(500);
+test('Templates and Priorities never share the screen', async ({ page }) => {
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(600);
+  await page.locator('button[data-rail-toggle="template"]').click();   // Templates alone
+  await page.waitForTimeout(600);
+  expect(await shown(page)).toEqual(['template']);
 
-  await page.locator('button[data-tab="idea"]').click();
+  await page.locator('button[data-rail-toggle="priority-board"]').click();
+  await page.waitForTimeout(700);
+  expect(await shown(page), 'Priorities replaces it rather than joining it')
+    .toEqual(['priority-board']);
+});
+
+test('every rail pairs with a type', async ({ page }) => {
+  for (const rail of RAILS) {
+    await page.evaluate((slugs) => {
+      slugs.forEach(s => localStorage.setItem(`rail:${s}`, 'false'));
+      localStorage.setItem('typePaneVisible', 'true');
+    }, RAILS);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1200);
+
+    await page.locator(`button[data-rail-toggle="${rail}"]`).click();
+    await page.waitForTimeout(700);
+    expect(await shown(page), `${rail} beside the type`).toEqual([rail, 'TYPE']);
+  }
+});
+
+test('switching to a DIFFERENT type keeps the rail beside it', async ({ page }) => {
+  await page.locator('button[data-rail-toggle="work_item"]').click();
   await page.waitForTimeout(700);
   expect(await shown(page)).toEqual(['work_item', 'TYPE']);
 
-  // A DIFFERENT type: still showing, now that one.
   await page.locator('button[data-tab="goal"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page), 'swapping types keeps the type pane').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'a switch is not a toggle').toEqual(['work_item', 'TYPE']);
   await expect(page.locator('#tab-goal')).toHaveClass(/active/);
 
-  // The SAME type again: put away, leaving Dailies.
+  // The SAME type again: now it collapses to the type alone.
   await page.locator('button[data-tab="goal"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page), 'clicking the type you are on puts it away').toEqual(['work_item']);
+  expect(await shown(page), 'clicking the type you are on gives it the screen').toEqual(['TYPE']);
 });
 
-test('Templates pairs with a type, the same way Dailies does', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="template"]').click();
-  await page.waitForTimeout(500);
-  expect(await shown(page)).toEqual(['template']);
+test('a type put away comes back when its tab is clicked', async ({ page }) => {
+  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.waitForTimeout(600);
+  await page.locator('button[data-rail-toggle="work_item"]').click();   // Dailies alone
+  await page.waitForTimeout(600);
+  expect(await shown(page)).toEqual(['work_item']);
 
-  await page.locator('button[data-tab="idea"]').click();
-  await page.waitForTimeout(700);
-  expect(await shown(page), 'Templates stays, the type joins it').toEqual(['template', 'TYPE']);
-
-  // ...and the type still toggles away, leaving Templates full width.
-  await page.locator('button[data-tab="idea"]').click();
-  await page.waitForTimeout(700);
-  expect(await shown(page)).toEqual(['template']);
+  await page.locator('button[data-tab="goal"]').click();
+  await page.waitForTimeout(800);
+  expect(await shown(page), 'a different type joins the rail').toEqual(['work_item', 'TYPE']);
+  await expect(page.locator('#tab-goal')).toHaveClass(/active/);
 });
 
-test('Priorities pairs with a type too', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="priority-board"]').click();
-  await page.waitForTimeout(500);
-  expect(await shown(page)).toEqual(['priority-board']);
-
-  await page.locator('button[data-tab="idea"]').click();
-  await page.waitForTimeout(700);
-  expect(await shown(page), 'the board stays, the type joins it').toEqual(['priority-board', 'TYPE']);
-
-  await page.locator('button[data-tab="idea"]').click();
-  await page.waitForTimeout(700);
-  expect(await shown(page), 'and the type toggles away again').toEqual(['priority-board']);
-});
-
-// Putting the type pane away leaves one pane, and one pane has nothing to split
-// the width with - it should fill the space rather than sit at half width with
-// dead space beside it.
+// One pane has nothing to split the width with - it should fill the space
+// rather than sit at half width with dead space beside it.
 test('a lone rail fills the width once the type pane is put away', async ({ page }) => {
   await page.locator('button[data-rail-toggle="work_item"]').click();
-  await page.waitForTimeout(500);
-  await page.locator('button[data-tab="idea"]').click();
   await page.waitForTimeout(700);
+  expect(await shown(page)).toEqual(['work_item', 'TYPE']);
 
   const shellWidth = await page.locator('#appShell').evaluate(el => el.getBoundingClientRect().width);
   const paired = await page.locator('#rail-work_item').evaluate(el => el.getBoundingClientRect().width);
   expect(paired, 'sharing with the type pane, it takes about half').toBeLessThan(shellWidth * 0.8);
 
-  // Put the type away - the rail should now take (nearly) everything.
-  await page.locator('button[data-tab="idea"]').click();
+  // Collapse to the rail - it should now take (nearly) everything.
+  await page.locator('button[data-rail-toggle="work_item"]').click();
   await page.waitForTimeout(700);
   const alone = await page.locator('#rail-work_item').evaluate(el => el.getBoundingClientRect().width);
   console.log(`rail width: paired=${Math.round(paired)} alone=${Math.round(alone)} shell=${Math.round(shellWidth)}`);
@@ -149,7 +186,9 @@ test('a lone rail fills the width once the type pane is put away', async ({ page
 // apply() filtered every rail out, so there was no way back.
 test('a rail can be reached again after opening Reporting', async ({ page }) => {
   await page.locator('button[data-rail-toggle="work_item"]').click();
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(600);
+  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.waitForTimeout(600);
   expect(await shown(page)).toEqual(['work_item']);
 
   await page.locator('button[data-tab="reporting"]').click();
@@ -168,13 +207,9 @@ test('a rail can be reached again after opening Reporting', async ({ page }) => 
   expect(await shown(page), 'Priorities too').toEqual(['priority-board']);
 });
 
-// Which panes you have open is a choice, and a refresh should not undo it. The
-// rail toggles were stored; whether the type pane was showing was not, so a
-// pane deliberately put away came back on reload.
+// Which panes you have open is a choice, and a refresh should not undo it.
 test('pane choices survive a hard refresh', async ({ page }) => {
   await page.locator('button[data-rail-toggle="work_item"]').click();
-  await page.waitForTimeout(500);
-  await page.locator('button[data-tab="idea"]').click();
   await page.waitForTimeout(700);
   expect(await shown(page)).toEqual(['work_item', 'TYPE']);
 
@@ -182,8 +217,8 @@ test('pane choices survive a hard refresh', async ({ page }) => {
   await page.waitForTimeout(1500);
   expect(await shown(page), 'rail + type comes back').toEqual(['work_item', 'TYPE']);
 
-  // Put the type away, refresh again: it must STAY away.
-  await page.locator('button[data-tab="idea"]').click();
+  // Collapse to the rail, refresh again: the type must STAY away.
+  await page.locator('button[data-rail-toggle="work_item"]').click();
   await page.waitForTimeout(700);
   expect(await shown(page)).toEqual(['work_item']);
 
@@ -192,19 +227,21 @@ test('pane choices survive a hard refresh', async ({ page }) => {
   expect(await shown(page), 'a pane put away stays away').toEqual(['work_item']);
 
   // Two rails survive too.
-  await page.locator('button[data-rail-toggle="template"]').click({ modifiers: ['Meta'] });
-  await page.waitForTimeout(600);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(700);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
   expect(await shown(page), 'a pair of rails comes back').toEqual(['work_item', 'template']);
 });
 
-// Two clicks on a type tab means "just this" - every rail stands down.
+// Two clicks on a type tab still means "just this" - every rail stands down.
 test('double-clicking a type tab leaves it the only pane', async ({ page }) => {
   await page.locator('button[data-rail-toggle="work_item"]').click();
-  await page.waitForTimeout(500);
-  await page.locator('button[data-rail-toggle="template"]').click({ modifiers: ['Meta'] });
   await page.waitForTimeout(600);
+  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.waitForTimeout(600);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(700);
   expect(await shown(page), 'two rails to start').toEqual(['work_item', 'template']);
 
   await dblclick(page.locator('button[data-tab="idea"]'));

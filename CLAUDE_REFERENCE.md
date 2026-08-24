@@ -152,6 +152,36 @@ Consequences worth knowing before touching either file:
 - Rail width, rail open/closed and calendar open/closed are per-browser view
   state in `localStorage`.
 
+**Which panes share the screen, and the one click rule.** Four panes exist -
+three rails (Dailies, Templates, Priorities) and the type pane, holding
+whichever type tab is current. TWO show at a time, in the fixed left-to-right
+order `Dailies | Templates | Priorities | type`. Every pair is legal EXCEPT
+Templates + Priorities. `showPane()` in `tabs.js` is the single place that
+decides, from one rule applied to whichever tab was clicked:
+
+| The clicked tab is | What happens |
+|---|---|
+| not showing | it joins what is on screen, if the two may share; otherwise it takes the screen alone |
+| showing beside another pane | it takes the screen alone |
+| showing on its own | nothing - a blank screen is not a state worth having |
+
+So a pair collapses to either half by clicking that half, and clicking the
+other tab brings the pair back. There is no modifier key: cmd/alt-click used to
+be how you paired two rails, and pairing is now what a plain click does.
+
+Two riders on the rule, each of which was a bug before it was written down:
+
+- **Clicking a type tab OTHER than the one showing is a switch, not a toggle.**
+  The pane stays where it is and changes which type it holds, so moving between
+  types never closes the rail beside it.
+- **A full-width view (Reporting) shares with nothing**, so its tab bypasses the
+  rule entirely. "Already showing" for it means the full-width view is actually
+  up - not merely that its slug is still `currentTab`, which it is after you
+  leave it by asking for a rail.
+
+When an incoming pane could join either of the two on screen, `paneRecency` in
+`localStorage` decides: the one asked for less recently steps out.
+
 ## Rows, editors and the focus bar
 
 From `CLAUDE.md`. Read before touching row rendering, the entity editor, or

@@ -319,8 +319,8 @@
         // Render fixed-position tabs (Dailies only)
         // Rail types are shown beside whichever tab is open rather than as a
         // page of their own: Dailies (the day's work) and Templates (the
-        // presets you drag from). Only one rail is ever open, so opening one
-        // closes the other - see setupRails() in tabs.js.
+        // presets you drag from). Two panes show at a time and every pair is
+        // legal except Templates + Priorities - see setupRails() in tabs.js.
         const RAIL_SLUGS = ['work_item', 'template'];
         // Left-to-right order of the rail toggles in the tab bar. Priority
         // Board sits between Dailies and Templates. It is named here rather
@@ -395,14 +395,18 @@
          tab content itself. Dailies is no longer one of the tab panes - its
          button in the bar toggles this rail. -->
     <div class="app-shell" id="appShell">
-      <%# Two panes are shown at a time, drawn from three participants in this
-          fixed left-to-right order: Dailies, Templates, the current type tab.
-          Whichever two are on take the left and right slots -
-            Dailies + type      -> Dailies  | type
-            Templates + type    -> Templates| type
-            Dailies + Templates -> Dailies  | Templates   (the type is hidden)
-          Both rails are always rendered so each initialises on page load;
-          setupRails() in tabs.js decides what is shown. %>
+      <%# Two panes are shown at a time, drawn from four participants in this
+          fixed left-to-right order: Dailies, Templates, Priorities, the current
+          type tab. Whichever two are on take the left and right slots -
+            Dailies + type          -> Dailies   | type
+            Templates + type        -> Templates | type
+            Dailies + Templates     -> Dailies   | Templates   (the type is hidden)
+            Dailies + Priorities    -> Dailies   | Priorities  (the type is hidden)
+          Every pair is legal except Templates + Priorities. One click on a tab
+          adds it beside what is showing; one click on a tab already showing
+          beside another gives it the screen alone. Both rails are always
+          rendered so each initialises on page load; setupRails() in tabs.js
+          decides what is shown. %>
       <aside class="app-rail" id="rail-work_item" data-rail="work_item">
         <%- include('../tabs/dailies.ejs') %>
       </aside>

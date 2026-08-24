@@ -43,29 +43,51 @@ class TabManager {
     this.init();
   }
 
-  // Rails: Dailies and Templates are panes that sit beside the current type
-  // tab rather than being pages of their own. Two panes show at a time, drawn
-  // from three participants in a fixed left-to-right order - Dailies,
-  // Templates, the type tab:
+  // Rails and the type pane: what may share the screen, and how you ask.
   //
-  //   Dailies + type      -> Dailies   | type
-  //   Templates + type    -> Templates | type
-  //   Dailies + Templates -> Dailies   | Templates   (the type is hidden)
+  // Four panes exist - three rails (Dailies, Templates, Priorities) and the
+  // type pane, which holds whichever type tab is current. TWO show at a time,
+  // in a fixed left-to-right order:
   //
-  // So each rail toggles independently; turning both on is what hides the type
-  // content, and the left slot goes to whichever rail comes first in that
-  // order. Both rails are always in the DOM, so each initialises on page load.
+  //   Dailies | Templates | Priorities | type
+  //
+  // Every pair is legal EXCEPT Templates + Priorities, which never sit
+  // together. One plain click on any tab in the bar - rail or type - decides
+  // the layout, by one rule:
+  //
+  //   not showing            -> it joins what is on screen, if the two may
+  //                             share; otherwise it takes the screen alone
+  //   showing beside another -> it takes the screen alone
+  //   showing on its own     -> nothing happens; a blank screen is not a
+  //                             state worth having
+  //
+  // So with two panes up, clicking either one collapses to that one, and
+  // clicking the other tab brings the pair back: you toggle between the pair
+  // and each half by clicking tabs, with no modifier key anywhere. (Clicking a
+  // type tab OTHER than the current one is a switch, not a toggle - the pane
+  // stays where it is and changes what it holds.)
+  //
+  // Both rails are always in the DOM, so each initialises on page load.
   setupRails() {
-    // Three things can sit beside what you are working on. Only two panes show
-    // at once, drawn from these plus the current tab, in this left-to-right
-    // order.
     const RAILS = ['work_item', 'template', 'priority-board'];
+    // The type pane is a participant like the rails, so the rule above can be
+    // written once for all four rather than twice with two sets of edge cases.
+    const CONTENT = 'content';
     const KEY = (slug) => `rail:${slug}`;
     const WIDTH_KEY = 'appRailWidth';
     // Whether the type pane is showing. Stored beside the rail toggles, because
     // it is the same kind of choice - which panes you want - and losing it on a
     // refresh put a pane back that had deliberately been put away.
     const CONTENT_KEY = 'typePaneVisible';
+    // Which pane was asked for most recently. It settles the one question the
+    // rule above leaves open: when an incoming pane could join either of two
+    // already on screen, the older one is the one that steps out.
+    const MRU_KEY = 'paneRecency';
+
+    // The only pair that may not share the screen.
+    const NEVER_TOGETHER = [['template', 'priority-board']];
+    const canPair = (a, b) =>
+      a !== b && !NEVER_TOGETHER.some((pair) => pair.includes(a) && pair.includes(b));
 
     const isOn = (slug) => localStorage.getItem(KEY(slug)) === 'true';
     // Dailies starts on, matching how the rail behaved when it was the only
@@ -83,16 +105,35 @@ class TabManager {
       this.contentVisible = localStorage.getItem(CONTENT_KEY) !== 'false';
     }
 
-    const apply = () => {
-      // A full-width view owns the screen: no rails, no dividers, and the tab
-      // content takes everything.
+    let mru = (() => {
+      try {
+        const stored = JSON.parse(localStorage.getItem(MRU_KEY));
+        return Array.isArray(stored) ? stored.filter((p) => [...RAILS, CONTENT].includes(p)) : [];
+      } catch { return []; }
+    })();
+    const touch = (pane) => {
+      mru = [pane, ...mru.filter((p) => p !== pane)];
+      try { localStorage.setItem(MRU_KEY, JSON.stringify(mru)); } catch { /* storage off */ }
+    };
+    const rank = (pane) => (mru.indexOf(pane) === -1 ? Number.MAX_SAFE_INTEGER : mru.indexOf(pane));
+    const byRecency = (panes) => [...panes].sort((a, b) => rank(a) - rank(b));
+
+    // What is ACTUALLY on screen, left to right. Every decision below is made
+    // against this rather than against the stored flags, which can disagree
+    // with it - a rail is stored as open while a full-width view is up, and
+    // apply() clamps to two panes whatever the flags say.
+    const visiblePanes = () => {
       const on = this.fullWidthTab ? [] : RAILS.filter(isOn);
-      // Two panes at most. The type pane shows when it has not been put away
-      // and a rail is not already using the second slot.
       const showContent = this.fullWidthTab
         ? true
         : (this.contentVisible !== false && on.length < 2);
-      const panes = showContent ? [...on, 'content'] : on;
+      return showContent ? [...on, CONTENT] : on;
+    };
+
+    const apply = () => {
+      const panes = visiblePanes();
+      const on = panes.filter((p) => p !== CONTENT);
+      const showContent = panes.includes(CONTENT);
 
       RAILS.forEach((slug) => {
         document.getElementById(`rail-${slug}`)?.classList.toggle('active', on.includes(slug));
@@ -132,9 +173,9 @@ class TabManager {
     // nothing to split, so it takes the lot - putting the type pane away used to
     // leave the rail at half width with dead space beside it.
     const applyWidth = (pct) => {
-      const on = RAILS.filter(isOn);
-      const first = on[0];
-      const alone = on.length === 1 && this.contentVisible === false;
+      const panes = visiblePanes();
+      const first = panes[0];
+      const alone = panes.length === 1;
       RAILS.forEach((slug) => {
         const el = document.getElementById(`rail-${slug}`);
         if (!el) return;
@@ -187,16 +228,6 @@ class TabManager {
       applyCal(open);
     });
 
-    // What may share the screen, and how you ask for it:
-    //
-    //   any ONE rail + an editable type - select the rail, then click the type
-    //   Dailies + Templates             - cmd/alt + click
-    //   Dailies + Priorities            - cmd/alt + click
-    //
-    // Two rails only ever sit together WITH Dailies; Templates and Priorities
-    // never share the screen with each other.
-    // A plain click on any of the three deselects everything else.
-    const DAILIES = 'work_item';
     const setRail = (slug, on) => localStorage.setItem(KEY(slug), String(on));
     // One place that writes it, so no path can change it without storing it.
     const setContentVisible = (on) => {
@@ -205,47 +236,43 @@ class TabManager {
     };
     this.setContentVisible = setContentVisible;
 
+    // Put exactly these panes on screen and nothing else.
+    const setPanes = (panes) => {
+      RAILS.forEach((slug) => setRail(slug, panes.includes(slug)));
+      setContentVisible(panes.includes(CONTENT));
+    };
+    this.setPanes = setPanes;
+
+    // The one rule, applied to whichever tab was clicked - see the comment
+    // above setupRails().
+    const showPane = (target) => {
+      const before = visiblePanes();
+
+      if (this.fullWidthTab) {
+        // A full-width view (Reporting) shares with nothing, so asking for any
+        // other pane is asking to leave it. Its own tab has nowhere to go.
+        if (target === CONTENT) return;
+        this.fullWidthTab = false;
+        document.body.classList.remove('fullwidth-tab');
+        setPanes([target]);
+      } else if (before.includes(target)) {
+        if (before.length < 2) return;              // already the only pane
+        setPanes([target]);                          // half of a pair takes the screen
+      } else {
+        // The pane it can share with, preferring the one asked for most
+        // recently; if neither will have it, it takes the screen alone.
+        const partner = byRecency(before).find((p) => canPair(p, target));
+        setPanes(partner ? [target, partner] : [target]);
+      }
+      touch(target);
+      apply();
+    };
+    this.showPane = showPane;
+    this.paneShowing = (pane) => visiblePanes().includes(pane);
+    this.touchPane = touch;
+
     document.querySelectorAll('button[data-rail-toggle]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        const slug = btn.dataset.railToggle;
-        const pairing = e.metaKey || e.ctrlKey || e.altKey;
-
-        // A full-width view (Reporting) stands the rails down while it is open.
-        // Asking for a rail is asking to leave it - without this the toggle was
-        // stored, apply() filtered every rail out because fullWidthTab was
-        // still set, and there was no way back to Dailies at all.
-        const leavingFullWidth = !!this.fullWidthTab;
-        if (leavingFullWidth) {
-          this.fullWidthTab = false;
-          setContentVisible(false);
-        }
-
-        // Coming out of a full-width view, the rail is stored as open but is not
-        // on screen - so treat the click as "show it", not as the toggle-off it
-        // would otherwise be. Without this, asking for Dailies from Reporting
-        // closed Dailies and showed the type pane instead.
-        if (isOn(slug) && !leavingFullWidth) {
-          setRail(slug, false);                       // clicking an open one closes it
-          if (!RAILS.some(isOn)) setContentVisible(true);   // never leave a blank screen
-          apply();
-          return;
-        }
-
-        const others = RAILS.filter(s => s !== slug);
-        if (pairing && (slug === DAILIES || isOn(DAILIES))) {
-          // The only legal pair is with Dailies, so everything else stands down.
-          others.filter(s => s !== DAILIES).forEach(s => setRail(s, false));
-          if (slug !== DAILIES) setRail(DAILIES, true);
-          setRail(slug, true);
-          setContentVisible(false);                   // the two rails are the two panes
-        } else {
-          // Plain click: this is the only thing open.
-          others.forEach(s => setRail(s, false));
-          setRail(slug, true);
-          setContentVisible(false);
-        }
-        apply();
-      });
+      btn.addEventListener('click', () => showPane(btn.dataset.railToggle));
     });
 
     // showTab re-runs this when moving between a full-width view and a normal
@@ -254,7 +281,8 @@ class TabManager {
 
     this.closeRail = (slug) => {
       if (!isOn(slug)) return;
-      localStorage.setItem(KEY(slug), 'false');
+      setRail(slug, false);
+      if (!visiblePanes().length) setContentVisible(true);   // never a blank screen
       apply();
     };
 
@@ -380,10 +408,9 @@ class TabManager {
     // Right-clicking a tab should not also leave it half-selected, so each
     // action says explicitly what it does to the screen.
     const showOnly = (fn) => () => {
-      document.querySelectorAll('button[data-rail-toggle]')
-        .forEach((rail) => this.closeRail?.(rail.dataset.railToggle));
-      this.setContentVisible?.(true);
       this.fullWidthTab = false;
+      this.setPanes?.(['content']);
+      this.touchPane?.('content');
       fn();
       this.applyRails?.();
     };
@@ -452,20 +479,20 @@ class TabManager {
         const slug = btn.dataset.railToggle;
         const label = tabLabel(btn);
         const items = [
-          { icon: '🔲', label: 'Show only this', action: showOnly(() => {
-            localStorage.setItem(`rail:${slug}`, 'true');
-            this.setContentVisible?.(false);
-          }) },
+          { icon: '🔲', label: 'Show only this', action: () => {
+            this.fullWidthTab = false;
+            this.setPanes?.([slug]);
+            this.touchPane?.(slug);
+            this.applyRails?.();
+          } },
         ];
 
         // Dailies is the one rail the others may sit beside.
         if (slug !== 'work_item') {
           items.push({ icon: '📅', label: `Show beside Dailies`, action: () => {
-            document.querySelectorAll('button[data-rail-toggle]').forEach((r) => {
-              const s = r.dataset.railToggle;
-              localStorage.setItem(`rail:${s}`, String(s === slug || s === 'work_item'));
-            });
-            this.setContentVisible?.(false);
+            this.fullWidthTab = false;
+            this.setPanes?.([slug, 'work_item']);
+            this.touchPane?.(slug);
             this.applyRails?.();
           } });
         }
@@ -488,10 +515,9 @@ class TabManager {
       // open, which is the common case.
       button.addEventListener('dblclick', (e) => {
         e.preventDefault();
-        document.querySelectorAll('button[data-rail-toggle]')
-          .forEach((rail) => this.closeRail?.(rail.dataset.railToggle));
-        this.setContentVisible?.(true);
         this.fullWidthTab = false;
+        this.setPanes?.(['content']);
+        this.touchPane?.('content');
         this.switchTab(button.dataset.tab);
         this.applyRails?.();
       });
@@ -500,22 +526,36 @@ class TabManager {
         e.preventDefault();
         const tab = button.dataset.tab;
 
-        // Clicking a type tab toggles that type on screen:
-        //   nothing showing, or a DIFFERENT type showing -> show this one
-        //   this one already showing                     -> put it away
-        //
-        // Every rail pairs with a type, so whichever is open stays put and the
-        // type takes the other slot.
-        const showingThis = this.contentVisible !== false && this.currentTab === tab;
-        if (showingThis) {
-          this.setContentVisible ? this.setContentVisible(false) : (this.contentVisible = false);
-          this.applyRails?.();
-          this.syncTabHighlight();
+        // A full-width view (Reporting) shares with nothing, so it never goes
+        // through the pairing rule - it simply takes the screen. Its tab is
+        // still the current tab after you leave it by asking for a rail, so
+        // "already showing" has to mean the full-width view is actually up,
+        // not just that its name is in currentTab; without that, clicking
+        // Reporting a second time paired it with a rail at half width.
+        if (button.dataset.fullwidth === 'true') {
+          if (this.fullWidthTab) return;
+          this.switchTab(tab);            // showTab() stands the rails down
           return;
         }
 
-        this.setContentVisible ? this.setContentVisible(true) : (this.contentVisible = true);
-        this.switchTab(tab);
+        // A type tab is the type pane's tab, so it follows the same one rule as
+        // the rails (see setupRails) - with one exception: clicking a type
+        // OTHER than the one showing is a switch, not a toggle. The pane stays
+        // exactly where it is and changes which type it holds, so switching
+        // types never closes the rail beside it.
+        if (tab !== this.currentTab) {
+          this.switchTab(tab);            // showTab() re-applies the panes
+          if (this.paneShowing?.('content')) {
+            this.touchPane?.('content');  // asked for, so it wins the next tie
+          } else {
+            this.showPane?.('content');   // it was put away - bring it back
+          }
+          return;
+        }
+
+        // The type already showing: beside a rail it takes the screen, on its
+        // own it stays as it is.
+        this.showPane?.('content');
       });
     });
   }
