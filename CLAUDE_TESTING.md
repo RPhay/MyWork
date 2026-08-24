@@ -22,15 +22,10 @@ npx playwright test tests/e2e/editable-types.spec.js --headed
 
 ## Clean up your test data
 
-**Any run that creates rows must delete them again before you finish.** This is
-not optional tidiness — the database is the user's real working data, and test
-rows are indistinguishable from real ones once they are sitting in a tab.
-
-At the time of writing this rule, accumulated test rows had reached **229**
-across Projects, Categories, Goals, Todos, Tasks, Tickets and Ideas — 83
-`Test Project for Context Menu`, 125 `Test Idea for Context Menu`, and assorted
-`New Area Test` / `New Goal Test` / `Test Folder <timestamp>` rows, built up over
-many sessions because each one left its rows behind.
+**Any run that creates rows must delete them again before you finish.** Not
+optional tidiness — the database is the user's real working data, and test
+rows are indistinguishable from real ones once sitting in a tab. (Written after
+rows accumulated into the hundreds — history: `CLAUDE_TESTING_REFERENCE.md`.)
 
 Rules:
 
@@ -45,53 +40,16 @@ Rules:
    `entity_field_values` and `entity_relationships` rows to
    `data/entity-backup-<timestamp>.json` first (`data/` is gitignored).
 
-These already clean up after themselves — running them leaves zero rows behind,
-verified: `generic-entity-crud.spec.js`, `editable-types.spec.js`,
-`entity-field-types.spec.js`, `entity-type-integrity.spec.js`, `debug.spec.js`.
-
-### The known leaks, by name
-
-- **`tests/e2e/setup-test-data.js`** is the main one. Its `setupTestData()`
-  creates `Test Project for Context Menu` and `Test Idea for Context Menu` (plus
-  goals, areas, todos, tasks, tickets) on **every call**, exports no teardown,
-  and is imported by six specs: `context-menu-comprehensive`,
-  `test-add-operations`, `verify-associations`, `debug-goal`,
-  `debug-association-data`, `debug-failing-associations`. It accounted for 208
-  of the 229 rows purged on 2026-08-18. **Fix: return the created ids and export
-  a `teardownTestData()`, then call it from `afterAll` in all six specs.**
-- **`test-create-item.spec.js`** creates `New Area Test` / `New Goal Test` and
-  never removes them.
-- **`folder-creation.spec.js`** and **`editable-types-comprehensive.spec.js`**
-  create `Test Folder <timestamp>` rows.
-
-None of those has an `afterEach` or `afterAll`.
-
-### How to delete
-
-Deleting an entity takes **two** steps, in this order — the same order
-`DELETE /api/entities/:typeSlug/:id` uses:
-
-```js
-await entityRelationshipService.cascadeDeleteEntity(id, contextId); // edges first
-await entityService.deleteEntity(id, contextId);                     // then the row
-```
-
-Calling `deleteEntity` alone fails for any nested row with
-`ER_ROW_IS_REFERENCED_2`, because `entity_relationships` declares its foreign
-keys `ON DELETE NO ACTION`. `deleteEntity` clears the legacy↔entity bridge
-junctions but not the relationship edges.
-
-Note that Dailies work items and Templates live in **legacy tables**
-(`work_items`, `work_item_templates`), not in `entities`, so clearing the entity
-types does not touch them — and clearing them needs its own pass.
+Specs already verified clean, the specs known to leak, and the two-step
+delete order needed to clean up by hand: `CLAUDE_TESTING_REFERENCE.md`.
 
 ---
 
 ## The guard set
 
 **This is the list. Run it to check a clean checkout, and after any change you
-intend to commit.** It lives here and nowhere else — `CLAUDE.md` imports this
-file, and `CLAUDE_CARRY_ON.md` points at it rather than restating it.
+intend to commit.** Lives here and nowhere else — `CLAUDE.md` imports this
+file, `CLAUDE_CARRY_ON.md` points at it rather than restating it.
 
 ```bash
 npm run test:unit          # the MSSQL translation layer
@@ -111,12 +69,8 @@ npx playwright test \
   tests/e2e/ui-check.spec.js
 ```
 
-Plus, **headed**, whenever an editable type page or its engine is touched — see
-the file list in "Editable types" below:
-
-```bash
-npx playwright test tests/e2e/editable-types.spec.js --headed
-```
+Plus, **headed**, whenever an editable type page or its engine is touched —
+see "Editable types" below for the command and file list.
 
 | Spec | Guards |
 |---|---|
@@ -135,57 +89,8 @@ npx playwright test tests/e2e/editable-types.spec.js --headed
 | `ui-check.spec.js` | Tab structure |
 | `editable-types.spec.js` | Per-type UI elements and folders (headed) |
 
-### Why this list is the list
-
-It was previously written down twice — once in this file as a table of "specs
-worth trusting", once in `CLAUDE_CARRY_ON.md` §4 as "the guard set" — and the
-two overlapped on exactly one spec. Neither was wrong so much as partial, and
-having two meant a change could be checked against whichever list happened to
-be read. They are merged above.
-
-### Traps this set has caught, in itself
-
-- **A spec that clicks `.entity-row` first gets a folder.** Folders have
-  title-only editors with no field rows, so anything asserting about fields,
-  legends or toggles fails on a row that was never in scope. Scope to
-  `.entity-row:not([data-is-folder="1"])`. This accounted for two long-standing
-  "failures" that were never app bugs.
-- **A spec that asserts before init has run measures nothing.** `ui-check`
-  required a "+ Folder" button on *every* type, but `generic-entity-init.js`
-  REMOVES it for flat types (`supports_hierarchy = 0`, e.g. Templates). So it
-  passed only when it beat init to the DOM and failed once the page was warm -
-  looking for all the world like whatever change happened to be in the tree.
-  Two separate stash-and-compare attempts "attributed" it to unrelated edits
-  before the race was spotted. If a result flips on run order, suspect the
-  spec's timing before you suspect the diff.
-- **A row locator built from TEXT can match an ancestor.** A folder's
-  `.entity-row` contains its nested rows once something is inside it, so
-  `.entity-row` + `hasText` matches the outer folder as well as the row you
-  meant - and `.first()` picks the outer one. Address rows by
-  `[data-entity-id="..."]`. This single mistake was reported as a Goals
-  drag-and-drop regression for several sessions.
-- **A pointer drag cannot always reach its target.** On the widest types a row
-  is hundreds of pixels tall in a narrow pane, so the band being aimed for can
-  sit past the fold. Drive nesting with drag EVENTS; the drop handler receives
-  the same thing either way.
-- **`toHaveClass(/selected/)` also matches `multi-selected`.** Two different
-  states, one substring. Use `classList.contains('selected')`.
-- **A stale allow-list reports a working feature as broken.** `RENDERED_TYPES`
-  in `entity-type-integrity.spec.js` omitted `priority`, which has had a
-  renderer all along, so the spec claimed there wasn't one.
-- **`dblclick()` is not reliably a double-click.** It sends two clicks and
-  leaves it to the BROWSER to decide whether they were close enough together to
-  also be a `dblclick`. Under load - and a full guard run is exactly that - they
-  can fall outside that threshold, no `dblclick` event fires at all, and
-  whatever the app opens on `dblclick` never opens. The assertion after it then
-  reports an app bug that is not there. This produced a failure that went red
-  three runs in a row, green the next twenty-two, and could not be reproduced
-  afterwards. Splitting a `dblclick()` into two `click()` calls reproduces it on
-  demand. **Use `tests/e2e/dblclick.js`, which dispatches the event** - the same
-  reasoning as driving nesting with drag EVENTS, two traps above. It fires no
-  clicks of its own, so where a test depends on the click's side effects
-  (selection, or scheduling the deferred expand that the double-click cancels),
-  click first and say so.
+Why it's a merged list, and the traps it's caught in itself (read before
+writing a new spec, or when a result looks surprising): `CLAUDE_TESTING_REFERENCE.md`.
 
 ---
 
@@ -199,12 +104,11 @@ Two rules, covering different runs:
 2. **Always ask before a BROAD run** — anything above the specs covering the
    change in hand. Show this table, name the tier, and wait for an answer.
 
-Breadth is what costs the user: a broad run spends 6-12 minutes of session
-time, and every e2e run writes to the user's REAL database, so it is never a
-read-only diagnostic.
+Breadth is what costs the user: a broad run spends 6-12 minutes, and every e2e
+run writes to the user's REAL database — never a read-only diagnostic.
 
-Times are wall-clock on this machine. **Measured** ones were observed in a real
-run; **est.** ones are derived from the specs' measured neighbours.
+Times are wall-clock on this machine. **Measured** = observed in a real run;
+**est.** = derived from measured neighbours.
 
 | # | Tier | What it runs | Time | Use it when |
 |---|---|---|---|---|
@@ -218,30 +122,17 @@ run; **est.** ones are derived from the specs' measured neighbours.
 | 7 | Guard + headed | Tier 6 + `editable-types --headed` | ~8m (est.) | Editable type pages or their engine — see "Editable types" |
 | 8 | Full suite | `npx playwright test` | **~12.3m** | Rarely. Mostly stale specs; the number needs a baseline to mean anything |
 
-Tiers 4 and 5 overlap deliberately — a change to the generic engine is usually
-both.
+Tiers 4 and 5 deliberately overlap — a generic-engine change is usually both.
 
-**Two runs must not overlap.** Every Playwright process shares the one database,
-which is why `workers: 1` exists; starting a second run beside one already in
-flight collides the same way parallel workers did.
+**Two runs must not overlap.** Every Playwright process shares the one
+database (`workers: 1` exists for this reason); a second run beside one
+already in flight collides the way parallel workers did.
 
 ## Browser testing after changes
 
-**Always test UI changes in a real browser before pushing.** Start the dev
-server (`npm run dev`) and verify the feature works end to end. Type checking
-and tests verify code correctness, not feature correctness.
-
-After any significant change (new features, bug fixes, security updates), also
-run Playwright to check for browser errors:
-
-```bash
-npx playwright test tests/e2e/debug.spec.js  # Quick check for CSP and JS errors
-npx playwright test                          # Full suite (slower but catches more)
-```
-
-Fix any console errors (CSP violations, unhandled exceptions, etc.) before
-committing. CSP violations in particular indicate security policy conflicts that
-need resolution.
+Test UI changes in a real browser before reporting done (already a standing
+rule outside this repo). The project-specific command and what to fix on
+failure: `CLAUDE_TESTING_REFERENCE.md`.
 
 ---
 
@@ -254,66 +145,32 @@ need resolution.
 npx playwright test tests/e2e/editable-types.spec.js --headed
 ```
 
-They verify: UI elements present (add button, folder button, expand/collapse);
-expand/collapse tree navigation; folder creation; and tab layout centring.
+What it verifies, and the full file list that triggers it:
+`CLAUDE_TESTING_REFERENCE.md`.
 
 **Do not commit changes to editable type templates or code without running
-these headed.** They catch duplicate IDs, missing event handlers and broken form
-rendering that static analysis misses.
-
-Files that require this testing when touched:
-
-- `src/views/tabs/generic-entity-tab.ejs` — generic template for all editable types
-- `src/public/js/genericEntity.js` — generic renderer and editor
-- `src/public/js/generic-entity-init.js` — per-tab wiring
-- `src/services/entityService.js` — entity CRUD
-- `src/database/systemEntityTypes.js` — the canonical type definitions
-- `tests/e2e/editable-types.spec.js` — the tests themselves
+these headed.**
 
 ---
 
 ## Reading a run
 
 **Read both numbers before calling a run green.** The line reporter prints
-`N failed` *above* `N passed`, so a tailed or truncated log shows only the pass
-count and a badly failing run looks clean. Check the failure count explicitly.
+`N failed` *above* `N passed`, so a truncated log shows only the pass count
+and a badly failing run looks clean.
 
-**A suite-wide pass/fail count means nothing without a baseline.** Large parts
-of the suite assert against UI that was deliberately removed, so a high failure
-count is expected and is *not* evidence that your change broke something. To
-attribute a failure: stash the change, re-run the same spec, compare. That
-comparison — not the raw number — tells you whether it is yours.
+**A suite-wide pass/fail count means nothing without a baseline** — large
+parts of the suite assert against UI that was deliberately removed, so a high
+failure count is expected. To attribute a failure: stash the change, re-run
+the same spec, compare — the comparison tells you whether it's yours, the raw
+count doesn't.
 
-**Heavy runs trip the rate limiter**, which surfaces confusingly as
-`window.APP_CONFIG` being undefined: a rate-limited page load never returns real
-HTML, so every test fails on missing config rather than on anything real.
-`RATE_LIMIT_ENABLED` is `false` in `.env.local` for this reason. If it needs to
-go back on locally, raise `RATE_LIMIT_MAX_REQUESTS` rather than flipping the flag.
+Heavy runs can trip the rate limiter in a way that looks like an unrelated
+config error: `CLAUDE_TESTING_REFERENCE.md`.
 
 ---
 
 ## Current state of the suite
 
-As of 2026-08-18: **162 failed / 192 passed / 2 did not run** (356 results,
-~12 min).
-
-The failures are overwhelmingly **stale specs asserting against UI that was
-deliberately deleted**, not app bugs:
-
-| Stale locator | Failures | Why it no longer exists |
-|---|---|---|
-| `#addAreaBtn`, `#addGoalBtn`, `#addTaskBtn`, `#addTicketBtn`, `#addIdeaBtn` | 35 | Capitalized ids the generic template has never generated |
-| `[data-tab="todos"]` / `[data-tab="todo"]` | 24 | The tab is `to_do`; the bespoke tab was deleted |
-| `.draggable-modal` | 19 | The type editor is a split-pane now |
-
-`editable-types-comprehensive.spec.js` alone accounts for 48 — about a third —
-and is the same class throughout.
-
-Genuine app-level errors left: **5 CSRF 403s** and **5 scattered
-`Cannot read properties of undefined` reads**.
-
-The guard set above is the list to trust; everything else in the suite is
-triage.
-
-Deciding which of the stale specs to retire and which to rewrite is tracked as
-open work in `CLAUDE_CARRY_ON.md`.
+The guard set above is the list to trust; everything else is triage against a
+large stale baseline. Snapshot: `CLAUDE_TESTING_REFERENCE.md`.
