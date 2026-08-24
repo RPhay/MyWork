@@ -163,11 +163,15 @@ decides, from one rule applied to whichever tab was clicked:
 |---|---|
 | not showing | it joins what is on screen, if the two may share; otherwise it takes the screen alone |
 | showing beside another pane | it takes the screen alone |
-| showing on its own | nothing - a blank screen is not a state worth having |
+| showing on its own | the pane that stepped aside comes back |
 
-So a pair collapses to either half by clicking that half, and clicking the
-other tab brings the pair back. There is no modifier key: cmd/alt-click used to
-be how you paired two rails, and pairing is now what a plain click does.
+The last two rows make ONE tab a toggle between a pair and that pane on its
+own - `Dailies -> Dailies | Categories -> Categories -> Dailies | Categories`
+by clicking Categories each time - while clicking the OTHER tab of a pair
+collapses to that half instead. Either tab of a pair is a way in and out of it,
+no click leaves a blank screen, and there is no modifier key: cmd/alt-click
+used to be how you paired two rails, and pairing is now what a plain click
+does.
 
 Two riders on the rule, each of which was a bug before it was written down:
 
@@ -179,8 +183,13 @@ Two riders on the rule, each of which was a bug before it was written down:
   up - not merely that its slug is still `currentTab`, which it is after you
   leave it by asking for a rail.
 
-When an incoming pane could join either of the two on screen, `paneRecency` in
-`localStorage` decides: the one asked for less recently steps out.
+`paneRecency` in `localStorage` is what makes both halves of that work: when an
+incoming pane could join either of the two on screen, the one asked for less
+recently steps out; and when a lone pane is clicked, the most recent pane that
+is NOT showing (and may share with it) is the one that comes back - after a
+collapse, exactly the half that just left. `showPane()` touches the clicked
+pane AFTER choosing, and never touches the partner, which is what keeps the
+alternation stable instead of drifting after a few clicks.
 
 ## Rows, editors and the focus bar
 

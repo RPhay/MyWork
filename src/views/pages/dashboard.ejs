@@ -403,10 +403,11 @@
             Dailies + Templates     -> Dailies   | Templates   (the type is hidden)
             Dailies + Priorities    -> Dailies   | Priorities  (the type is hidden)
           Every pair is legal except Templates + Priorities. One click on a tab
-          adds it beside what is showing; one click on a tab already showing
-          beside another gives it the screen alone. Both rails are always
-          rendered so each initialises on page load; setupRails() in tabs.js
-          decides what is shown. %>
+          adds it beside what is showing; clicking a tab already showing beside
+          another gives it the screen alone; clicking a tab showing ALONE brings
+          its companion back - so one tab toggles a pair on and off. Both rails
+          are always rendered so each initialises on page load; setupRails() in
+          tabs.js decides what is shown. %>
       <aside class="app-rail" id="rail-work_item" data-rail="work_item">
         <%- include('../tabs/dailies.ejs') %>
       </aside>

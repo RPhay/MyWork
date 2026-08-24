@@ -58,14 +58,17 @@ class TabManager {
   //   not showing            -> it joins what is on screen, if the two may
   //                             share; otherwise it takes the screen alone
   //   showing beside another -> it takes the screen alone
-  //   showing on its own     -> nothing happens; a blank screen is not a
-  //                             state worth having
+  //   showing on its own     -> the pane that stepped aside comes back
   //
-  // So with two panes up, clicking either one collapses to that one, and
-  // clicking the other tab brings the pair back: you toggle between the pair
-  // and each half by clicking tabs, with no modifier key anywhere. (Clicking a
-  // type tab OTHER than the current one is a switch, not a toggle - the pane
-  // stays where it is and changes what it holds.)
+  // The last two make ONE tab a toggle between the pair and that pane alone:
+  //   Dailies alone -> click Categories -> Dailies | Categories
+  //                 -> click Categories -> Categories
+  //                 -> click Categories -> Dailies | Categories ...
+  // and clicking the OTHER tab of a pair collapses to that half instead, so
+  // either tab of a pair is a way in and out of it. No modifier key anywhere,
+  // and no click leaves a blank screen. (Clicking a type tab OTHER than the
+  // current one is a switch, not a toggle - the pane stays where it is and
+  // changes what it holds.)
   //
   // Both rails are always in the DOM, so each initialises on page load.
   setupRails() {
@@ -255,15 +258,34 @@ class TabManager {
         this.fullWidthTab = false;
         document.body.classList.remove('fullwidth-tab');
         setPanes([target]);
+      } else if (before.includes(target) && before.length > 1) {
+        // Half of a pair takes the screen. The half that steps aside is
+        // recorded as the freshest pane NOT showing, which is what the branch
+        // below then brings back - without this it was only remembered if it
+        // had been clicked at some point, so collapsing onto a rail beside a
+        // type pane you had never clicked brought Dailies back instead of it.
+        const stepped = before.find((p) => p !== target);
+        setPanes([target]);
+        if (stepped) touch(stepped);
       } else if (before.includes(target)) {
-        if (before.length < 2) return;              // already the only pane
-        setPanes([target]);                          // half of a pair takes the screen
+        // Already the only pane on screen: the click asks for the pane that
+        // stepped aside to come back. That is the most recently asked-for pane
+        // that is NOT showing and that this one may share with - which, after a
+        // collapse, is exactly the half that just left.
+        const partner = byRecency([...RAILS, CONTENT].filter((p) => p !== target))
+          .find((p) => canPair(p, target));
+        if (!partner) return;                        // nothing may join it
+        setPanes([target, partner]);
       } else {
-        // The pane it can share with, preferring the one asked for most
+        // Not showing: it joins what IS, preferring the pane asked for most
         // recently; if neither will have it, it takes the screen alone.
         const partner = byRecency(before).find((p) => canPair(p, target));
         setPanes(partner ? [target, partner] : [target]);
       }
+      // Deliberately AFTER the choice above, and never applied to the partner:
+      // the target sitting at the head of the recency list with the partner
+      // just behind it is what makes one tab alternate between the pair and
+      // itself alone, indefinitely.
       touch(target);
       apply();
     };
