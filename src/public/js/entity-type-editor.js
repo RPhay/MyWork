@@ -326,9 +326,13 @@ function addFieldRow(field = null) {
   // one stops working in a way that shows up nowhere until the feature is
   // used. They are editable - rename Worked Time if you like - but not
   // removable.
+  // Draws the padlock. ENFORCEMENT is server-side, in entityTypeService's
+  // ENGINE_OWNED_FIELD_KEYS - this list alone left the lock decorative, since
+  // the save path deletes any field the payload merely omits. Keep the two in
+  // step; `focus_monitor` was missing here while the focus bar wrote it.
   const LOCKED_FIELD_KEYS = new Set([
     'focus_seconds', 'focus_slot', 'focus_started_at', 'focus_color',
-    'board_bay', 'board_order',
+    'focus_monitor', 'board_bay', 'board_order',
   ]);
   const isLocked = LOCKED_FIELD_KEYS.has(field?.field_key);
 

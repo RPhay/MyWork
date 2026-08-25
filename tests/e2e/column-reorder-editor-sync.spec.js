@@ -91,7 +91,27 @@ test('dragging a column header reorders the open editor immediately', async ({ p
     'reopened editor should still match').toEqual(editorCols);
 });
 
-// The rows this creates are the user's real data if left behind.
+// Captured before any drag, and put back afterwards. This spec REORDERS the
+// type's columns, which is schema state, not row state - deleting the ZZZ rows
+// left it behind, so every run permanently moved the user's columns. It went
+// unnoticed until a capture-type-defaults.js snapshot picked up the order a
+// test had dragged and nearly shipped it as the committed defaults.
+let originalOrder = null;
+
+test.beforeEach(async ({ page }) => {
+  if (originalOrder) return;                     // capture once, before run one
+  await page.goto(`/?tab=${TYPE}`);
+  await page.waitForLoadState('networkidle');
+  originalOrder = await page.evaluate(async (type) => {
+    const res = await fetch('/api/entity-types');
+    const body = await res.json();
+    const t = (body.data || []).find(x => x.slug === type);
+    return (t?.fields || []).map(f => ({ id: f.id, display_order: f.display_order }));
+  }, TYPE);
+});
+
+// The rows this creates are the user's real data if left behind - and so is the
+// column order it drags.
 test.afterEach(async ({ page }) => {
   await page.evaluate(async () => {
     const csrf = window.APP_CONFIG?.csrfToken;
@@ -103,4 +123,16 @@ test.afterEach(async ({ page }) => {
       });
     }
   });
+
+  if (!originalOrder) return;
+  await page.evaluate(async (fields) => {
+    const csrf = window.APP_CONFIG?.csrfToken;
+    for (const f of fields) {
+      await fetch(`/api/entity-types/fields/${f.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+        body: JSON.stringify({ display_order: f.display_order }),
+      });
+    }
+  }, originalOrder);
 });

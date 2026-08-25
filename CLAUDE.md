@@ -140,9 +140,27 @@ every type**; **Worked Time is on every type and cannot be removed**. Full
 list before touching row rendering, the editor, or the focus bar:
 `CLAUDE_REFERENCE.md`.
 
-## Recurring Todos/Tasks
+## Recurrence was withdrawn — do not rebuild it from these docs
 
-Todos and tasks can have a recurring schedule that causes them to automatically appear as work items in the Dailies tab; completing one in Dailies generates the next occurrence. Mechanism, JSON schema, `POST` example: `CLAUDE_REFERENCE.md`.
+Todos and tasks once had a recurring schedule that made them appear as work
+items in Dailies. **It was withdrawn on 2026-08-19 at the user's instruction**,
+and the removal was finished on 2026-08-25: `recurrenceService.js` is deleted,
+along with its call sites in `dailyService`, `toDoService` and `entityService`,
+the `recurring_from_todo_id` / `recurring_from_task_id` fields on `daily`, and
+the two `to_do -> daily` / `task -> daily` relationship rules.
+
+It is written down because the half-removed state was actively misleading. For
+seven days the engine was still wired into `dailyService.js` and ran on every
+date you opened, querying `to_dos` (0 rows) and `tasks` (a frozen legacy copy)
+and finding nothing — while this file still described recurrence as a feature.
+Anyone reading the docs would have concluded it was broken and "fixed" it.
+
+If recurrence is ever wanted again it is a NEW design against `entities`, not a
+restoration: the `recurrence` field definitions were deleted from Todos and
+Tasks, and the audit's suggestion to extend recurrence was explicitly not
+followed. The schema files keep `'recurrence'` in the `field_type` and
+`relationship_kind` ENUMs — a permitted value nothing uses — because removing
+an ENUM member across both dialects costs more than it saves.
 
 **Bug fixes:**
 - Fixed `getAllToDos()` query: removed `OR context_id IS NULL` to prevent todos from appearing in wrong contexts after deletion

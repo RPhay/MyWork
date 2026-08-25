@@ -1,7 +1,6 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
-import * as recurrenceService from './recurrenceService.js';
 import * as entityService from './entityService.js';
 import * as entityTypeService from './entityTypeService.js';
 // Called at three existing sites in this file and never imported, so any path
@@ -21,7 +20,7 @@ export function normalizeTimeBox(value) {
 
 // A day (a "work item") is an `entities` row of type work_item as of Phase 10
 // (scripts/phase10-migrate-work-items.js) - date/description/notes/emoji/
-// status/time_box_minutes/start_time/worked_with_claude/recurring_from_*
+// status/time_box_minutes/start_time/worked_with_claude
 // live in entity_field_values, not as columns on a work_items row. Every
 // function below still takes and returns the exact flat shape it always has,
 // so routes/api/dailies.js and every dailies-*.js file need no changes at all.
@@ -49,8 +48,6 @@ function toLegacyShape(entity, fields) {
     worked_with_claude: !!fields.worked_with_claude,
     start_time: fields.start_time ?? null,
     context_id: entity.context_id,
-    recurring_from_todo_id: fields.recurring_from_todo_id ?? null,
-    recurring_from_task_id: fields.recurring_from_task_id ?? null,
     created_at: entity.created_at,
     updated_at: entity.updated_at,
   };
@@ -170,7 +167,6 @@ async function attachAssociations(items) {
 
 export async function getWorkItemsByDate(date, contextId) {
   // Generate any recurring items due on this date
-  await recurrenceService.generateWorkItemsForDate(date, contextId);
 
   const items = await getWorkItemEntitiesByDate(date, contextId);
   return attachAssociations(items);
@@ -314,14 +310,7 @@ export async function updateWorkItemStatus(id, status) {
     throw new ValidationError('Invalid status value');
   }
 
-  const workItem = await getWorkItemById(id);
-
   await entityService.updateEntity(id, { fields: { status } });
-
-  // If marking a recurring item as complete, generate the next occurrence
-  if (status === 'Complete' && (workItem.recurring_from_todo_id || workItem.recurring_from_task_id)) {
-    await recurrenceService.generateNextRecurrenceForCompletedItem(workItem);
-  }
 
   return getWorkItemById(id);
 }

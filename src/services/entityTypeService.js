@@ -267,14 +267,43 @@ export async function updateEntityType(id, data) {
     }
 
     for (const field of existing) {
-      if (!keptKeys.has(field.field_key)) {
-        await query('DELETE FROM entity_type_fields WHERE id = ?', [field.id]);
-      }
+      if (keptKeys.has(field.field_key)) continue;
+
+      // Never on absence alone - see ENGINE_OWNED_FIELD_KEYS above.
+      if (ENGINE_OWNED_FIELD_KEYS.has(field.field_key)) continue;
+
+      // The values go with the definition. entity_field_values is keyed by
+      // field_key as a STRING with no foreign key, so nothing cascades: the
+      // rows used to survive their own field and sit invisible in the table,
+      // then silently reappear if a field of that name was ever recreated.
+      await query(
+        `DELETE v FROM entity_field_values v
+           JOIN entities e ON e.id = v.entity_id
+          WHERE e.entity_type_id = ? AND v.field_key = ?`,
+        [id, field.field_key]
+      );
+      await query('DELETE FROM entity_type_fields WHERE id = ?', [field.id]);
     }
   }
 
   return getEntityType(id);
 }
+
+/**
+ * Fields the ENGINE owns. The type editor draws a padlock on these and calls
+ * them "kept by the app", but that list lived only in the browser, so the
+ * padlock was decoration: this function infers deletion from ABSENCE, and any
+ * caller that omitted a field - a stale tab, a direct API call, a form that
+ * could not render it - permanently deleted it. Losing `focus_seconds` takes
+ * Worked Time off the type, which CLAUDE.md says every type must have.
+ *
+ * Kept in step with FOCUS_FIELDS in focusService.js and LOCKED_FIELD_KEYS in
+ * entity-type-editor.js. This copy is the one that is enforced.
+ */
+export const ENGINE_OWNED_FIELD_KEYS = new Set([
+  'focus_seconds', 'focus_slot', 'focus_started_at', 'focus_color',
+  'focus_monitor', 'board_bay', 'board_order',
+]);
 
 // Soft-delete an entity type
 export async function softDeleteEntityType(id) {

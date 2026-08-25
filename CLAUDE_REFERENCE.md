@@ -232,53 +232,10 @@ the focus bar — each rule below came from a specific regression.
   1 — so the coercion tests `Number.isFinite` instead, and null/undefined/''
   are what count as unset.
 
-## Recurring Todos/Tasks: mechanism, JSON schema, API example
+## Recurrence: removed, not documented here any more
 
-From `CLAUDE.md`. Read when implementing or debugging recurrence.
-
-Todos and tasks can have a recurring schedule that causes them to automatically appear as work items in the Dailies tab. When a recurring item is marked complete in Dailies, the next occurrence is automatically generated.
-
-**How it works:**
-- Store recurrence pattern as JSON in `to_dos.recurrence` or `tasks.recurrence` columns
-- When fetching work items for a date, `recurrenceService.generateWorkItemsForDate()` checks all recurring todos/tasks and creates work items for those due on that date
-- When a work item linked to a recurring source is marked "Complete", `generateNextRecurrenceForCompletedItem()` creates the next occurrence
-- Work items track their source via `recurring_from_todo_id` or `recurring_from_task_id`
-
-**Recurrence JSON format:**
-```javascript
-{
-  enabled: true,
-  type: "daily" | "weekly" | "monthly" | "interval",
-  startDate: "2026-08-11",           // Optional, default today
-  endDate: "2026-12-31",              // Optional, no end if omitted
-  maxOccurrences: 10,                 // Optional, no limit if omitted
-  
-  // For weekly:
-  daysOfWeek: [0, 2, 4],              // 0=Sunday, 6=Saturday
-  
-  // For monthly:
-  dateOfMonth: 15,                    // Specific date (1-31)
-  // OR
-  weekday: 3,                         // 0=Sunday
-  weekOfMonth: 2,                     // 1=first, 2=second, etc
-  // OR
-  lastDay: true,                      // Last day of month
-  
-  // For interval:
-  intervalDays: 3                     // Repeat every N days
-}
-```
-
-**API**: POST/PUT to `/api/to-dos` and `/api/tasks` with `recurrence` field:
-```javascript
-POST /api/to-dos
-{
-  "title": "Daily standup",
-  "recurrence": {
-    "enabled": true,
-    "type": "weekly",
-    "daysOfWeek": [1, 2, 3, 4, 5],  // Mon-Fri
-    "startDate": "2026-08-11"
-  }
-}
-```
+This section used to carry the mechanism, the JSON schema and a `POST` example.
+Recurrence was withdrawn on 2026-08-19 and fully removed on 2026-08-25 - see
+"Recurrence was withdrawn" in `CLAUDE.md`. The detail is deliberately NOT kept
+here: a working spec for a feature that no longer exists is what let the
+half-removed engine survive seven days of reading these files.

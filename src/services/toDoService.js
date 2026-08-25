@@ -1,6 +1,5 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
-import * as recurrenceService from './recurrenceService.js';
 
 const VALID_TODO_STATUSES = ['incomplete', 'complete', 'failed', 'skipped'];
 
@@ -56,10 +55,6 @@ export async function createToDo(data, contextId) {
 
   if (!title) {
     throw new ValidationError('To do title is required');
-  }
-
-  if (recurrence) {
-    recurrenceService.validateRecurrence(recurrence);
   }
 
   const toDoId = await db.insert(
@@ -181,9 +176,6 @@ export async function updateToDo(id, data) {
   }
 
   if (data.recurrence !== undefined) {
-    if (data.recurrence) {
-      recurrenceService.validateRecurrence(data.recurrence);
-    }
     setClauses.push('recurrence = ?');
     values.push(data.recurrence ? JSON.stringify(data.recurrence) : null);
   }

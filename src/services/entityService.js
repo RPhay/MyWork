@@ -4,7 +4,6 @@ import { getActiveContextId } from './activeContextService.js';
 import { ValidationError, NotFoundError } from '../config/errors.js';
 import * as entityTypeService from './entityTypeService.js';
 import * as entityRelationshipService from './entityRelationshipService.js';
-import { getNextOccurrenceDate, generateWorkItemsForDate } from './recurrenceService.js';
 
 /**
  * Generic entity CRUD service (content DB, per-context).
@@ -297,7 +296,11 @@ export async function createEntity(entityTypeSlug, data, contextId = null) {
 export async function updateEntity(entityId, data, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
-  const entity = await getEntityById(entityId, contextId);
+  // Existence guard, not a value: getEntityById throws NotFoundError, which is
+  // what stops an update to a deleted or foreign-context row from silently
+  // no-oping. It used to be read by the recurrence hook below it; that hook is
+  // gone, the guard is not.
+  await getEntityById(entityId, contextId);
 
   const updates = [];
   const values = [];
@@ -339,84 +342,7 @@ export async function updateEntity(entityId, data, contextId = null) {
 
   const updatedEntity = await getEntityById(entityId, contextId);
 
-  // Check for completion signal and trigger recurrence generation
-  try {
-    const typeSchema = await entityTypeService.getEntityTypeWithSchema(entity.entity_type_id);
-    const completionSignalField = typeSchema.fields?.find(f => f.is_completion_signal);
-
-    if (completionSignalField && data.fields?.[completionSignalField.field_key]) {
-      const newValue = data.fields[completionSignalField.field_key];
-      const doneValues = completionSignalField.field_options?.doneValues || [];
-
-      // If status transitioned to a done value, trigger recurrence
-      if (doneValues.includes(newValue)) {
-        await triggerRecurrenceForCompletedEntity(updatedEntity, contextId);
-      }
-    }
-  } catch (error) {
-    // Log error but don't fail the update
-    console.warn('Error checking recurrence for entity:', error.message);
-  }
-
   return updatedEntity;
-}
-
-// Generate next recurrence when an entity is completed
-async function triggerRecurrenceForCompletedEntity(entity, contextId) {
-  try {
-    // Find any recurrence relationship pointing to this entity
-    const relationships = await queryPool(
-      'SELECT * FROM entity_relationships WHERE child_entity_id = ? AND relationship_kind = ? AND context_id = ?',
-      [entity.id, 'recurrence', contextId]
-    );
-
-    if (relationships.length === 0) return;
-
-    for (const rel of relationships) {
-      const sourceEntity = await getEntityById(rel.parent_entity_id, contextId);
-      const typeSchema = await entityTypeService.getEntityTypeWithSchema(sourceEntity.entity_type_id);
-      const recurrenceField = typeSchema.fields?.find(f => f.field_type === 'recurrence');
-
-      if (recurrenceField && sourceEntity.fields?.[recurrenceField.field_key]) {
-        const recurrence = sourceEntity.fields[recurrenceField.field_key];
-        if (!recurrence || !recurrence.enabled) return;
-
-        // Calculate next occurrence date
-        const today = entity.fields?.date ? new Date(entity.fields.date) : new Date();
-        const nextDate = getNextOccurrenceDate(recurrence, today);
-
-        if (nextDate) {
-          // For work items, use generateWorkItemsForDate to maintain compatibility
-          if (typeSchema.slug === 'daily') {
-            // generateWorkItemsForDate will create work items for this date from recurring todos/tasks
-            await generateWorkItemsForDate(nextDate, contextId);
-          } else {
-            // For other entity types, create a new entity directly
-            const fieldsCopy = { ...sourceEntity.fields };
-            if (typeSchema.primary_date_field) {
-              fieldsCopy[typeSchema.primary_date_field] = nextDate;
-            }
-
-            const nextEntity = await createEntity(typeSchema.slug, {
-              title: sourceEntity.title,
-              fields: fieldsCopy
-            }, contextId);
-
-            // Link new entity to recurrence source with generated flag
-            await entityRelationshipService.addRelationship(
-              rel.parent_entity_id,
-              nextEntity.id,
-              'recurrence',
-              contextId,
-              true // isGenerated = true
-            );
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('Error generating next recurrence:', error.message);
-  }
 }
 
 // Set a single field value

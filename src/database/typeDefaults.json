@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-25T21:25:03.623Z",
+  "capturedAt": "2026-08-25T23:35:24.622Z",
   "types": [
     {
       "slug": "daily",
@@ -207,8 +207,8 @@
           "show_column_label": 1
         },
         {
-          "field_key": "recurring_from_todo_id",
-          "label": "Recurring from to-do",
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
           "field_type": "number",
           "field_options": null,
           "required": 0,
@@ -219,9 +219,9 @@
           "show_column_label": 1
         },
         {
-          "field_key": "recurring_from_task_id",
-          "label": "Recurring from task",
-          "field_type": "number",
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
           "field_options": null,
           "required": 0,
           "display_order": 16,
@@ -266,12 +266,12 @@
       "supports_folders": 1,
       "fields": [
         {
-          "field_key": "links",
-          "label": "Links",
-          "field_type": "links",
+          "field_key": "priority",
+          "label": "Priority",
+          "field_type": "priority",
           "field_options": null,
           "required": 0,
-          "display_order": 1,
+          "display_order": 0,
           "show_in_row": 1,
           "is_completion_signal": 0,
           "rollup": null,
@@ -290,18 +290,6 @@
           "show_column_label": 1
         },
         {
-          "field_key": "priority",
-          "label": "Priority",
-          "field_type": "priority",
-          "field_options": null,
-          "required": 0,
-          "display_order": 2,
-          "show_in_row": 1,
-          "is_completion_signal": 0,
-          "rollup": null,
-          "show_column_label": 1
-        },
-        {
           "field_key": "board_order",
           "label": "Priorities board position",
           "field_type": "number",
@@ -309,27 +297,6 @@
           "required": 0,
           "display_order": 2,
           "show_in_row": 0,
-          "is_completion_signal": 0,
-          "rollup": null,
-          "show_column_label": 1
-        },
-        {
-          "field_key": "status",
-          "label": "Status",
-          "field_type": "status",
-          "field_options": {
-            "values": [
-              "Not Started",
-              "In Progress",
-              "Complete"
-            ],
-            "doneValues": [
-              "Complete"
-            ]
-          },
-          "required": 0,
-          "display_order": 3,
-          "show_in_row": 1,
           "is_completion_signal": 0,
           "rollup": null,
           "show_column_label": 1
@@ -383,12 +350,69 @@
           "show_column_label": 1
         },
         {
+          "field_key": "status",
+          "label": "Status",
+          "field_type": "status",
+          "field_options": {
+            "values": [
+              "Not Started",
+              "In Progress",
+              "Complete"
+            ],
+            "doneValues": [
+              "Complete"
+            ]
+          },
+          "required": 0,
+          "display_order": 7,
+          "show_in_row": 1,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "links",
+          "label": "Links",
+          "field_type": "links",
+          "field_options": null,
+          "required": 0,
+          "display_order": 8,
+          "show_in_row": 1,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
           "field_key": "notes",
           "label": "Notes",
           "field_type": "textarea",
           "field_options": null,
           "required": 0,
           "display_order": 9,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
+          "field_type": "number",
+          "field_options": null,
+          "required": 0,
+          "display_order": 10,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
+          "field_options": null,
+          "required": 0,
+          "display_order": 11,
           "show_in_row": 0,
           "is_completion_signal": 0,
           "rollup": null,
@@ -515,6 +539,30 @@
           "field_options": null,
           "required": 0,
           "display_order": 8,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
+          "field_type": "number",
+          "field_options": null,
+          "required": 0,
+          "display_order": 9,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
+          "field_options": null,
+          "required": 0,
+          "display_order": 10,
           "show_in_row": 0,
           "is_completion_signal": 0,
           "rollup": null,
@@ -714,6 +762,30 @@
           "is_completion_signal": 0,
           "rollup": null,
           "show_column_label": 1
+        },
+        {
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
+          "field_type": "number",
+          "field_options": null,
+          "required": 0,
+          "display_order": 14,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
+          "field_options": null,
+          "required": 0,
+          "display_order": 15,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
         }
       ]
     },
@@ -873,6 +945,30 @@
           "is_completion_signal": 0,
           "rollup": null,
           "show_column_label": 1
+        },
+        {
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
+          "field_type": "number",
+          "field_options": null,
+          "required": 0,
+          "display_order": 11,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
+          "field_options": null,
+          "required": 0,
+          "display_order": 12,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
         }
       ]
     },
@@ -1004,6 +1100,30 @@
           "field_options": null,
           "required": 0,
           "display_order": 8,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
+          "field_type": "number",
+          "field_options": null,
+          "required": 0,
+          "display_order": 9,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
+          "field_options": null,
+          "required": 0,
+          "display_order": 10,
           "show_in_row": 0,
           "is_completion_signal": 0,
           "rollup": null,
@@ -1155,6 +1275,30 @@
           "is_completion_signal": 0,
           "rollup": null,
           "show_column_label": 1
+        },
+        {
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
+          "field_type": "number",
+          "field_options": null,
+          "required": 0,
+          "display_order": 10,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
+          "field_options": null,
+          "required": 0,
+          "display_order": 11,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
         }
       ]
     },
@@ -1290,6 +1434,30 @@
           "is_completion_signal": 0,
           "rollup": null,
           "show_column_label": 1
+        },
+        {
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
+          "field_type": "number",
+          "field_options": null,
+          "required": 0,
+          "display_order": 9,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
+          "field_options": null,
+          "required": 0,
+          "display_order": 10,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
         }
       ]
     },
@@ -1388,6 +1556,30 @@
           "field_options": null,
           "required": 0,
           "display_order": 6,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_monitor",
+          "label": "Focus bar monitor",
+          "field_type": "number",
+          "field_options": null,
+          "required": 0,
+          "display_order": 7,
+          "show_in_row": 0,
+          "is_completion_signal": 0,
+          "rollup": null,
+          "show_column_label": 1
+        },
+        {
+          "field_key": "focus_color",
+          "label": "Focus chip colour",
+          "field_type": "text",
+          "field_options": null,
+          "required": 0,
+          "display_order": 8,
           "show_in_row": 0,
           "is_completion_signal": 0,
           "rollup": null,

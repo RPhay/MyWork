@@ -963,16 +963,30 @@ export async function createMysqlSchema(connection) {
         [typeId, field.field_key]
       );
       if (existing.length === 0) {
+        // A NEW field goes on the END, not at its index in this array.
+        //
+        // Using the array index put it on top of whatever field already held
+        // that number, which is half of how `priority` came to hold
+        // display_order 1,1,2,2,3,3. Ordering is `display_order, id`, so once
+        // values tie the id decides and the field order is arbitrary.
+        const [[{ nextOrder }]] = await connection.query(
+          'SELECT COALESCE(MAX(display_order), -1) + 1 AS nextOrder FROM entity_type_fields WHERE entity_type_id = ?',
+          [typeId]
+        );
         await connection.query(
           'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal, rollup) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [typeId, field.field_key, field.label, field.field_type, field.field_options ? JSON.stringify(field.field_options) : null, field.required ? 1 : 0, i, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0, field.rollup || null]
+          [typeId, field.field_key, field.label, field.field_type, field.field_options ? JSON.stringify(field.field_options) : null, field.required ? 1 : 0, nextOrder, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0, field.rollup || null]
         );
       } else {
-        // Reconcile only what the type editor does NOT expose: display_order
-        // and is_completion_signal. A field added to a type later gets the
-        // index it has here while fields already in the table keep the indexes
-        // they were seeded with, so the two collide and the editor renders them
-        // in an arbitrary order.
+        // Reconcile ONLY `is_completion_signal`, which the type editor does not
+        // expose.
+        //
+        // `display_order` used to be reconciled here too, and that was a bug:
+        // it is as user-editable as the fields listed below - dragging a column
+        // header writes it, and CLAUDE_REFERENCE.md names it as one value
+        // edited from two places. Overwriting it meant every "Fix Schema" threw
+        // away the column order the user had arranged, resetting it to the
+        // order this array happens to be in.
         //
         // `show_in_row` is deliberately NOT reconciled: it is which columns the
         // page shows, and it is now editable both in this editor and via the
@@ -982,8 +996,8 @@ export async function createMysqlSchema(connection) {
         // `label`, `field_type` and `field_options` are likewise editable and
         // must not be overwritten.
         await connection.query(
-          'UPDATE entity_type_fields SET display_order = ?, is_completion_signal = ? WHERE id = ?',
-          [i, field.is_completion_signal ? 1 : 0, existing[0].id]
+          'UPDATE entity_type_fields SET is_completion_signal = ? WHERE id = ?',
+          [field.is_completion_signal ? 1 : 0, existing[0].id]
         );
       }
     }
@@ -1026,6 +1040,23 @@ export async function createMysqlSchema(connection) {
     await connection.query(
       `DELETE FROM entity_type_fields
         WHERE field_type = 'recurrence'
+          AND NOT EXISTS (
+            SELECT 1 FROM (SELECT DISTINCT field_key FROM entity_field_values) v
+             WHERE v.field_key = entity_type_fields.field_key
+          )`
+    );
+
+    // The other half of the same withdrawal. `recurring_from_todo_id` and
+    // `recurring_from_task_id` were how a generated daily pointed back at the
+    // to-do or task that produced it. The engine that wrote them was deleted on
+    // 2026-08-25, so they are now two number fields nothing can ever fill.
+    //
+    // Guarded on having no stored values for exactly the same reason as the
+    // block above: this may only remove an EMPTY definition. If anything ever
+    // put data here, it stops firing rather than deleting it.
+    await connection.query(
+      `DELETE FROM entity_type_fields
+        WHERE field_key IN ('recurring_from_todo_id', 'recurring_from_task_id')
           AND NOT EXISTS (
             SELECT 1 FROM (SELECT DISTINCT field_key FROM entity_field_values) v
              WHERE v.field_key = entity_type_fields.field_key
@@ -1181,6 +1212,58 @@ export async function createMysqlSchema(connection) {
       INDEX idx_kind (relationship_kind)
     )
   `);
+
+  // Repair duplicate `display_order` values.
+  //
+  // Dragging a column header used to renumber only the VISIBLE columns 0..n-1
+  // and leave hidden fields on the numbers they already had, so the two sets
+  // collided - `priority` was found holding 1,1,2,2,3,3. Field order is
+  // `ORDER BY display_order, id`, so a tie hands the decision to the id, and
+  // the editor's field order then drifts on its own. It also made
+  // capture-type-defaults.js non-deterministic.
+  //
+  // The write path is fixed (generic-entity-init.js renumbers every field
+  // now), but installs that already drifted need repairing, so this runs on
+  // every schema update. Written as a JS loop rather than one UPDATE with
+  // ROW_NUMBER(): that needs MySQL 8 / MariaDB 10.2, and this file still
+  // targets older MariaDB elsewhere for the same reason it uses CHANGE COLUMN.
+  const [typeRows] = await connection.query(
+    'SELECT id FROM entity_types WHERE deleted_at IS NULL'
+  );
+  for (const type of typeRows) {
+    const [fieldRows] = await connection.query(
+      'SELECT id, display_order FROM entity_type_fields WHERE entity_type_id = ? ORDER BY display_order, id',
+      [type.id]
+    );
+    const unique = new Set(fieldRows.map((f) => f.display_order)).size;
+    if (unique === fieldRows.length) continue;      // already dense enough
+    for (const [index, field] of fieldRows.entries()) {
+      if (field.display_order === index) continue;
+      await connection.query(
+        'UPDATE entity_type_fields SET display_order = ? WHERE id = ?',
+        [index, field.id]
+      );
+    }
+  }
+
+  // The nesting RULES that said a to-do or task may recur into a daily.
+  // Recurrence was withdrawn on 2026-08-19 and the engine deleted on
+  // 2026-08-25; these two rows are all that was left of it.
+  //
+  // Placed HERE, and not beside the recurrence field cleanup a few hundred
+  // lines up, because both tables it names are created BELOW that point. That
+  // ordering has already broken a fresh build twice in this file - once for
+  // `entities`, once for `entity_field_values`. Guarded on no relationship of
+  // that kind existing, so it can only remove a rule nothing is using.
+  await connection.query(
+    `DELETE FROM entity_type_relationships
+      WHERE relationship_kind = 'recurrence'
+        AND NOT EXISTS (
+          SELECT 1 FROM (
+            SELECT DISTINCT relationship_kind FROM entity_relationships
+          ) r WHERE r.relationship_kind = 'recurrence'
+        )`
+  );
 
   // ===== Legacy <-> entity association bridge =====
   //

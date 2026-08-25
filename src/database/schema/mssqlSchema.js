@@ -1072,6 +1072,16 @@ export async function createMssqlSchema(pool) {
         .query('SELECT id FROM [MyWork].[entity_type_fields] WHERE entity_type_id = @typeId AND field_key = @fieldKey');
 
       if (checkResult.recordset.length === 0) {
+        // A NEW field goes on the END, not at its index in this array - the
+        // twin of the same change in mysqlSchema.js. Using the array index put
+        // it on top of whatever already held that number, producing duplicate
+        // display_order values and, with them, an arbitrary field order.
+        const nextOrder = (
+          await pool.request().input('typeId', typeId).query(
+            `SELECT COALESCE(MAX(display_order), -1) + 1 AS nextOrder
+               FROM [MyWork].[entity_type_fields] WHERE entity_type_id = @typeId`
+          )
+        ).recordset[0].nextOrder;
         await pool.request()
           .input('typeId', typeId)
           .input('fieldKey', field.field_key)
@@ -1079,21 +1089,22 @@ export async function createMssqlSchema(pool) {
           .input('fieldType', field.field_type)
           .input('fieldOptions', field.field_options ? JSON.stringify(field.field_options) : null)
           .input('required', field.required ? 1 : 0)
-          .input('displayOrder', i)
+          .input('displayOrder', nextOrder)
           .input('showInRow', field.show_in_row ? 1 : 0)
           .input('isCompletionSignal', field.is_completion_signal ? 1 : 0)
           .input('rollup', field.rollup ?? null)
           .query(`INSERT INTO [MyWork].[entity_type_fields] (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal, rollup)
                   VALUES (@typeId, @fieldKey, @label, @fieldType, @fieldOptions, @required, @displayOrder, @showInRow, @isCompletionSignal, @rollup)`);
       } else {
-        // Reconcile only what the type editor does not expose - see the same
-        // block in mysqlSchema.js. show_in_row is excluded on purpose: it is
-        // user-editable now, so overwriting it would reset chosen columns.
+        // Reconcile ONLY is_completion_signal - see the same block in
+        // mysqlSchema.js. display_order was reconciled here too and that was a
+        // bug: it is user-editable (dragging a column header writes it), so
+        // overwriting it threw away the user's column order on every schema
+        // run. show_in_row is excluded for the same reason.
         await pool.request()
-          .input('displayOrder', i)
           .input('isCompletionSignal', field.is_completion_signal ? 1 : 0)
           .input('id', checkResult.recordset[0].id)
-          .query('UPDATE [MyWork].[entity_type_fields] SET display_order = @displayOrder, is_completion_signal = @isCompletionSignal WHERE id = @id');
+          .query('UPDATE [MyWork].[entity_type_fields] SET is_completion_signal = @isCompletionSignal WHERE id = @id');
       }
     }
   }
@@ -1117,6 +1128,22 @@ export async function createMssqlSchema(pool) {
     await pool.request().query(
       `DELETE FROM [MyWork].[entity_type_fields]
         WHERE field_type = 'recurrence'
+          AND NOT EXISTS (
+            SELECT 1 FROM [MyWork].[entity_field_values] v
+             WHERE v.field_key = [entity_type_fields].field_key
+          )`,
+    );
+
+    // The other half of the same withdrawal - the twin of the block in
+    // mysqlSchema.js. `recurring_from_todo_id` / `recurring_from_task_id` were
+    // how a generated daily pointed back at the to-do or task that produced it.
+    // The engine that wrote them was deleted on 2026-08-25.
+    //
+    // Guarded on having no stored values, so this may only remove an EMPTY
+    // definition.
+    await pool.request().query(
+      `DELETE FROM [MyWork].[entity_type_fields]
+        WHERE field_key IN ('recurring_from_todo_id', 'recurring_from_task_id')
           AND NOT EXISTS (
             SELECT 1 FROM [MyWork].[entity_field_values] v
              WHERE v.field_key = [entity_type_fields].field_key
@@ -1330,6 +1357,65 @@ export async function createMssqlSchema(pool) {
     )
   `,
   );
+
+  // Repair duplicate `display_order` values - the twin of the block at the
+  // same position in mysqlSchema.js. See there for why they arise and why this
+  // is a JS loop rather than one UPDATE with ROW_NUMBER().
+  if (
+    (await tableExists(pool, "entity_types")) &&
+    (await tableExists(pool, "entity_type_fields"))
+  ) {
+    const typeRows = (
+      await pool.request().query(
+        'SELECT id FROM [MyWork].[entity_types] WHERE deleted_at IS NULL'
+      )
+    ).recordset;
+    for (const type of typeRows) {
+      const fieldRows = (
+        await pool
+          .request()
+          .input("typeId", type.id)
+          .query(
+            `SELECT id, display_order FROM [MyWork].[entity_type_fields]
+              WHERE entity_type_id = @typeId ORDER BY display_order, id`
+          )
+      ).recordset;
+      const unique = new Set(fieldRows.map((f) => f.display_order)).size;
+      if (unique === fieldRows.length) continue;
+      for (const [index, field] of fieldRows.entries()) {
+        if (field.display_order === index) continue;
+        await pool
+          .request()
+          .input("order", index)
+          .input("id", field.id)
+          .query(
+            'UPDATE [MyWork].[entity_type_fields] SET display_order = @order WHERE id = @id'
+          );
+      }
+    }
+  }
+
+  // The nesting RULES that said a to-do or task may recur into a daily - the
+  // twin of the block at the same position in mysqlSchema.js.
+  //
+  // Placed HERE, not beside the field cleanup above, because both tables it
+  // names are created BELOW that point. T-SQL resolves names for the whole
+  // batch at compile time, so an early reference fails even when the branch
+  // holding it never runs - which is exactly how this file broke a fresh build
+  // before. Guarded on no relationship of that kind existing.
+  if (
+    (await tableExists(pool, "entity_type_relationships")) &&
+    (await tableExists(pool, "entity_relationships"))
+  ) {
+    await pool.request().query(
+      `DELETE FROM [MyWork].[entity_type_relationships]
+        WHERE relationship_kind = 'recurrence'
+          AND NOT EXISTS (
+            SELECT 1 FROM [MyWork].[entity_relationships] r
+             WHERE r.relationship_kind = 'recurrence'
+          )`,
+    );
+  }
 
   // ===== Legacy <-> entity association bridge =====
   //

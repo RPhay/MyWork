@@ -1035,24 +1035,44 @@ renderList();
       if (position === 'after') to += 1;
       cols.splice(to, 0, moved);
 
-      // Hidden fields keep the display_order they already had; only the visible
-      // columns are renumbered 0..n-1.
-      for (const [i, c] of cols.entries()) {
-        if (c.title) {
-          if ((typeSchema.title_order || 0) === i) continue;
-          const res = await app.fetchRaw(`/api/entity-types/${typeSchema.id}`, {
-            method: 'PUT', body: JSON.stringify({ title_order: i })
-          });
-          if (!res.ok) { app.notify('Could not reorder columns', 'danger'); return; }
-          typeSchema.title_order = i;
-        } else {
-          if ((c.display_order || 0) === i) continue;
-          const res = await app.fetchRaw(`/api/entity-types/fields/${c.id}`, {
-            method: 'PUT', body: JSON.stringify({ display_order: i })
-          });
-          if (!res.ok) { app.notify('Could not reorder columns', 'danger'); return; }
-          c.display_order = i;   // keep the in-memory schema in step
-        }
+      // Title is a pseudo-column: its place among the columns is `title_order`,
+      // not a field's display_order, so it is written separately.
+      const titleIndex = cols.findIndex(c => c.title);
+      if (titleIndex !== -1 && (typeSchema.title_order || 0) !== titleIndex) {
+        const res = await app.fetchRaw(`/api/entity-types/${typeSchema.id}`, {
+          method: 'PUT', body: JSON.stringify({ title_order: titleIndex })
+        });
+        if (!res.ok) { app.notify('Could not reorder columns', 'danger'); return; }
+        typeSchema.title_order = titleIndex;
+      }
+
+      // Renumber EVERY field, not only the visible ones.
+      //
+      // Hidden fields used to keep whatever display_order they already had
+      // while the visible columns were renumbered 0..n-1, so the two sets
+      // collided: `priority` ended up holding 1,1,2,2,3,3. Ordering is
+      // `ORDER BY display_order, id`, so once values tie the id decides, and
+      // the editor's field order became arbitrary - drifting again every time
+      // a drag rewrote part of the sequence. It also made
+      // scripts/capture-type-defaults.js non-deterministic, which is how a
+      // test's column order nearly shipped as the committed defaults.
+      //
+      // Visible columns take their new order first, then the hidden fields
+      // follow in the order they already had. Every value stays unique.
+      const visible = cols.filter(c => !c.title);
+      const hidden = (typeSchema.fields || [])
+        .filter(f => !visible.some(v => v.id === f.id))
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0) || a.id - b.id);
+
+      for (const [i, c] of [...visible, ...hidden].entries()) {
+        if ((c.display_order || 0) === i) continue;
+        const res = await app.fetchRaw(`/api/entity-types/fields/${c.id}`, {
+          method: 'PUT', body: JSON.stringify({ display_order: i })
+        });
+        if (!res.ok) { app.notify('Could not reorder columns', 'danger'); return; }
+        c.display_order = i;   // keep the in-memory schema in step
+        const inSchema = (typeSchema.fields || []).find(f => f.id === c.id);
+        if (inSchema) inSchema.display_order = i;
       }
 
       renderList();
