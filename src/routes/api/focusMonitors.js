@@ -28,7 +28,9 @@ router.put('/', async (req, res) => {
     const next = focusMonitorsService.sanitizeSettings({ ...prev, ...(req.body || {}) });
 
     let reassignedCount = 0;
-    if (next.count < prev.count) {
+    // `next.count > 0` because reassigning to zero monitors is meaningless -
+    // see reassignOverflow, which keeps the pins untouched in that case.
+    if (next.count < prev.count && next.count > 0) {
       const contextId = await activeContextService.getActiveContextId();
       reassignedCount = await focusService.reassignOverflow(next.count, contextId);
     }
@@ -38,14 +40,17 @@ router.put('/', async (req, res) => {
   })());
 });
 
-// POST /api/focus-monitors/add - one more monitor, up to the cap of 6.
+// POST /api/focus-monitors/add - one more monitor, up to MAX_MONITORS.
 // Declared before /:position/remove is unambiguous either way since the
 // literal "add" never matches a numeric :position segment, but kept here to
 // read top-to-bottom with the routes it pairs with in the context menu.
 router.post('/add', async (req, res) => {
   send(res, (async () => {
     const prev = await focusMonitorsService.getMonitorSettings();
-    if (prev.count >= 6) throw new ValidationError('Already at the maximum of 6 monitors');
+    const { MAX_MONITORS } = focusMonitorsService;
+    if (prev.count >= MAX_MONITORS) {
+      throw new ValidationError(`Already at the maximum of ${MAX_MONITORS} monitors`);
+    }
     return focusMonitorsService.setMonitorSettings({ count: prev.count + 1 });
   })());
 });
@@ -56,7 +61,7 @@ router.post('/add', async (req, res) => {
 router.post('/:position/remove', async (req, res) => {
   send(res, (async () => {
     const prev = await focusMonitorsService.getMonitorSettings();
-    if (prev.count <= 1) throw new ValidationError('At least one monitor is required');
+    if (prev.count < 1) throw new ValidationError('There are no monitors to remove');
 
     const position = Number(req.params.position);
     if (!(position >= 1 && position <= prev.count)) throw new ValidationError('No such monitor');

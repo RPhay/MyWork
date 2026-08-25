@@ -49,8 +49,8 @@ function selectMoveCloneDate(dateStr) {
   renderMoveCloneCalendar();
 }
 
-function openMoveCloneModal(workItemId, mode) {
-  document.getElementById("moveCloneWorkId").value = workItemId;
+function openMoveCloneModal(dailyId, mode) {
+  document.getElementById("moveCloneWorkId").value = dailyId;
   document.getElementById("moveCloneMode").value = mode;
   document.getElementById("moveCloneModalTitle").textContent =
     mode === "clone" ? "Clone Daily To" : "Move Daily To";
@@ -78,8 +78,8 @@ function openMoveCloneModal(workItemId, mode) {
   modal.show();
 }
 
-async function postWorkItemDateAction(workId, action, date) {
-  const response = await app.fetchRaw(`/api/work/${workId}/${action}`, {
+async function postWorkItemDateAction(dailyId, action, date) {
+  const response = await app.fetchRaw(`/api/dailies/${dailyId}/${action}`, {
     method: "POST",
     
     body: JSON.stringify({ date }) });
@@ -87,7 +87,7 @@ async function postWorkItemDateAction(workId, action, date) {
 }
 
 async function confirmMoveClone() {
-  const workId = document.getElementById("moveCloneWorkId").value;
+  const dailyId = document.getElementById("moveCloneWorkId").value;
   const mode = document.getElementById("moveCloneMode").value;
 
   if (mode === "clone") {
@@ -99,7 +99,7 @@ async function confirmMoveClone() {
 
     try {
       for (const date of dates) {
-        const result = await postWorkItemDateAction(workId, "clone", date);
+        const result = await postWorkItemDateAction(dailyId, "clone", date);
         if (!result.success) {
           app.notify("Error: " + result.message, "danger");
           return;
@@ -127,7 +127,7 @@ async function confirmMoveClone() {
   }
 
   try {
-    const result = await postWorkItemDateAction(workId, "move", date);
+    const result = await postWorkItemDateAction(dailyId, "move", date);
     if (result.success) {
       app.notify("Work item moved!", "success");
       bootstrap.Modal.getInstance(

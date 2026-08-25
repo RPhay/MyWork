@@ -39,9 +39,9 @@ test.describe('Dropping onto Dailies', () => {
 
   test.afterEach(async ({ page }) => {
     await page.goto('/');
-    const { body } = await api(page, `/api/work/date/${today()}`);
+    const { body } = await api(page, `/api/dailies/date/${today()}`);
     for (const w of (body?.data || []).filter(x => (x.title || '').startsWith('ZZZ drop'))) {
-      await api(page, `/api/work/${w.id}`, { method: 'DELETE' });
+      await api(page, `/api/dailies/${w.id}`, { method: 'DELETE' });
     }
     for (const slug of TYPES.map(t => t.slug)) {
       const all = (await api(page, `/api/entities/${slug}`)).body?.data || [];
@@ -89,11 +89,11 @@ test.describe('Dropping onto Dailies', () => {
       // the case is really guarding is unchanged: every type's drag payload
       // arrives intact and the record ends up on the day. Dropping onto a
       // daily's ROW still puts it inside that daily - dailies-root.spec.js.
-      const items = (await api(page, `/api/work/date/${today()}`)).body.data;
+      const items = (await api(page, `/api/dailies/date/${today()}`)).body.data;
       expect(items.find(w => w.title === `ZZZ drop ${type.slug}`),
         `dropping a ${type.slug} must not invent a work item`).toBeFalsy();
 
-      const roots = (await api(page, `/api/work/date/${today()}/roots`)).body.data;
+      const roots = (await api(page, `/api/dailies/date/${today()}/roots`)).body.data;
       expect(roots.some(r => r.id === entity.id && r.depth === 0),
         `dropping a ${type.slug} should put it on the day`).toBe(true);
     });
@@ -162,11 +162,11 @@ for (const mode of ['reference','copy']) {
     // item named after the record, whether or not one was wanted. A day is a
     // place, not a container that has to be created first. Dropping onto a
     // daily's ROW still puts it inside that daily, which the tests above cover.
-    const items = (await api(page,`/api/work/date/${today()}`)).body.data;
+    const items = (await api(page,`/api/dailies/date/${today()}`)).body.data;
     expect(items.find(w => w.title === `ZZZcr ${mode} src`),
       'no work item is invented for a record dropped on the day').toBeFalsy();
 
-    const roots = (await api(page,`/api/work/date/${today()}/roots`)).body.data;
+    const roots = (await api(page,`/api/dailies/date/${today()}/roots`)).body.data;
     const linked = roots.find(r => r.depth === 0 && r.title === `ZZZcr ${mode} src`);
     expect(linked, 'the record is on the day').toBeTruthy();
 
@@ -195,7 +195,7 @@ for (const mode of ['reference','copy']) {
     const nested = await page.locator(`.child-item-row[data-origin="${mode}"]:not([data-depth="0"]) .child-origin`).count();
     expect(nested, 'nothing below the root repeats it').toBe(0);
 
-    for (const w of items.filter(x=>(x.title||'').startsWith('ZZZcr'))) await api(page,`/api/work/${w.id}`,{method:'DELETE'});
+    for (const w of items.filter(x=>(x.title||'').startsWith('ZZZcr'))) await api(page,`/api/dailies/${w.id}`,{method:'DELETE'});
     for (const a of areas.filter(x=>(x.title||'').startsWith('ZZZcr'))) await api(page,`/api/entities/area/${a.id}`,{method:'DELETE'});
   });
 }

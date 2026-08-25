@@ -28,7 +28,7 @@ test('the analyze-and-migrate path produces a schema the app can use', async ({ 
   expect(check.hasIsVisible).toBe(true);
 
   // And the app still works end to end.
-  for (const p of ['/api/priorities','/api/entities/area','/api/work/date/'+new Date().toISOString().slice(0,10)]) {
+  for (const p of ['/api/priorities','/api/entities/area','/api/dailies/date/'+new Date().toISOString().slice(0,10)]) {
     const s = await page.evaluate(async (p) => (await fetch(p)).status, p);
     expect(s, p).toBe(200);
   }

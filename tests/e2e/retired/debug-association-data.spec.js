@@ -19,11 +19,11 @@ test('Debug: Check API response after todo association', async ({ page }) => {
 
   // Create a work item
   const workItem = await createTestWorkItem(page, 'Debug Association');
-  const workItemId = workItem.id;
-  console.log('Created work item:', workItemId);
+  const dailyId = workItem.id;
+  console.log('Created work item:', dailyId);
 
   // Associate the todo
-  const assocResp = await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, {
+  const assocResp = await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, {
     headers
   });
   const assocData = await assocResp.json();
@@ -39,7 +39,7 @@ test('Debug: Check API response after todo association', async ({ page }) => {
   }
 
   // Now fetch the work item directly
-  const getResp = await page.request.get(`/api/work/${workItemId}`);
+  const getResp = await page.request.get(`/api/dailies/${dailyId}`);
   const getData = await getResp.json();
   console.log('Fetched work item todos:', getData.data.todos);
   console.log('Fetched work item todos count:', getData.data.todos?.length || 0);

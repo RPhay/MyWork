@@ -27,15 +27,15 @@ test('Type-specific editor shows correct fields', async ({ page }) => {
   const priorityId = (await priorityResp.json()).data.id;
 
   // Create work item and associate
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'Fresh Test Item', date: '2026-08-14' },
     headers
   });
-  const workItemId = (await workResp.json()).data.id;
+  const dailyId = (await workResp.json()).data.id;
 
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
-  await page.request.post(`/api/work/${workItemId}/tasks/${taskId}`, { headers });
-  await page.request.post(`/api/work/${workItemId}/priorities/${priorityId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/tasks/${taskId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/priorities/${priorityId}`, { headers });
 
   // Reload and expand
   await page.reload();

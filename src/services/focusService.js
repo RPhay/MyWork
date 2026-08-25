@@ -210,7 +210,13 @@ export async function moveFocus(entityId, monitor, contextId = null) {
  */
 export async function reassignOverflow(newCount, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
-  const limit = Math.max(1, Number(newCount) || 1);
+  const raw = Number(newCount);
+  const limit = Number.isFinite(raw) ? Math.max(0, Math.trunc(raw)) : 1;
+  // Going to ZERO monitors is not overflow - there is nowhere to move anything
+  // TO. The pins are kept exactly as they are and simply stop being drawn, so
+  // turning monitors back on restores the bar as it was rather than having
+  // silently collapsed everything onto monitor 1 on the way past.
+  if (limit === 0) return 0;
   const current = await getFocusItems(contextId);
   const overflow = current
     .filter(i => i.monitor > limit)

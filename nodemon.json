@@ -1,3 +1,4 @@
 {
+  "watch": ["server.js", "src"],
   "ignore": ["data/*", "logs/*", ".version"]
 }

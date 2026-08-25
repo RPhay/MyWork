@@ -196,10 +196,6 @@ export async function createMssqlSchema(pool) {
   // (slug `category`, formerly `area`), which lives in entities like every
   // other editable type. Nothing read it.
 
-  // areas table removed in Phase 2 (areas migrated to generic entities)
-
-  // Backfill statements for areas removed in Phase 2 (areas migrated to generic entities)
-
   await createTableIfNotExists(
     pool,
     "years",
@@ -283,7 +279,7 @@ export async function createMssqlSchema(pool) {
 
   // work_source_associations: created further down, alongside
   // work_entity_associations - see the matching note in mysqlSchema.js. Its
-  // work_item_id column now points at `entities`, which does not exist yet
+  // daily_id column now points at `entities`, which does not exist yet
   // at this point in the file.
 
 
@@ -524,8 +520,7 @@ export async function createMssqlSchema(pool) {
   // The work_items -> to_dos/tasks recurrence FKs went with the table.
 
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
-  // distinct from the "areas" table, which backs the unrelated Categories tab)
-  // Note: This must be created BEFORE tickets since tickets references contexts
+  // not to be confused with Categories, which are entities of type `category`)
   await createTableIfNotExists(
     pool,
     "contexts",
@@ -753,8 +748,6 @@ export async function createMssqlSchema(pool) {
   // "work_items" and "tickets" were here until they were retired - see
   // RETIRED_TABLES. Leaving a dropped table in this list makes the ALTER below
   // throw on every schema run.
-  // Note: "areas", "goals", "idea_folders", "ideas" were migrated to generic entities
-  // in Phases 1-3 and no longer exist as separate tables
   for (const table of contextTables) {
     if (!(await columnExists(pool, table, "context_id"))) {
       await pool
@@ -771,10 +764,9 @@ export async function createMssqlSchema(pool) {
     }
   }
 
-  // These three used to be uniquely constrained globally (e.g. only one area
-  // ever named "Meetings" in the whole app); widened to per-context now that
+  // Priorities used to be uniquely constrained globally (only one project ever
+  // named "Meetings" in the whole app); widened to per-context now that
   // context_id exists, so the same name can exist in different contexts.
-  // Note: areas and goals were migrated to generic entities and no longer have these tables
   await createIndexIfNotExists(
     pool,
     "unique_context_title",
@@ -782,22 +774,15 @@ export async function createMssqlSchema(pool) {
     "CREATE UNIQUE INDEX unique_context_title ON [MyWork].[priorities](context_id, title)",
   );
 
-  // Hierarchical associations for cross-entity relationships - see mysqlSchema.js,
-  // which uses ON DELETE SET NULL for all six columns below. to_dos<->tickets and
-  // areas<->to_dos are each mutual pairs (both tables reference each other), and
-  // SQL Server rejects a cascading action - CASCADE or SET NULL alike - that forms
-  // a cycle ("may cause cycles or multiple cascade paths"), the same restriction
-  // already hit by the self-referencing parent_id columns above. So the four
-  // columns forming those two mutual pairs use NO ACTION instead; the app must
-  // clear the paired column itself before a delete that would otherwise leave a
-  // dangling reference. The other two columns (goals.ticket_id, tickets.category_id)
-  // aren't part of a cycle and keep MySQL's SET NULL behavior.
+  // The cross-entity FK columns this section used to add are all gone with the
+  // tables they joined (areas, goals, tickets). Cross-entity relationships live
+  // in entity_relationships now, which has no cycle problem because both sides
+  // point at the same table. The cycle rule itself still applies to the
+  // self-referencing parent_id columns above - see the note there.
 
   // The to_dos <-> tickets cross-links went with the `tickets` table. Both sides
   // were FKs into a table nothing read; cross-entity relationships live in
   // entity_relationships now.
-
-  // Note: goals and areas tables were migrated to generic entities and no longer exist
 
   // Create quotes table (person + quote attribution for any object type)
   await createTableIfNotExists(
@@ -1121,6 +1106,24 @@ export async function createMssqlSchema(pool) {
         AND field_type = 'number' AND label = 'Focus time (seconds)'`,
   );
 
+  // Remove the orphaned `recurrence` field definitions - the twin of the block
+  // in mysqlSchema.js. Guarded on having no stored values, so it can only ever
+  // remove an EMPTY definition.
+  // Guarded because [MyWork].[entity_field_values] is created later in this file
+  // - see the matching note in mysqlSchema.js. T-SQL resolves names for the
+  // whole batch at compile time, so the reference must be kept out of the
+  // statement entirely, not merely out of the branch that runs.
+  if (await tableExists(pool, "entity_field_values")) {
+    await pool.request().query(
+      `DELETE FROM [MyWork].[entity_type_fields]
+        WHERE field_type = 'recurrence'
+          AND NOT EXISTS (
+            SELECT 1 FROM [MyWork].[entity_field_values] v
+             WHERE v.field_key = [entity_type_fields].field_key
+          )`,
+    );
+  }
+
   await createTableIfNotExists(
     pool,
     "entity_type_relationships",
@@ -1206,7 +1209,7 @@ export async function createMssqlSchema(pool) {
       -- ... The duplicate key value is (<NULL>)". The filtered unique index
       -- below restores MySQL's meaning: unique among rows that HAVE a value,
       -- unlimited NULLs.
-      legacy_work_item_id INT,
+      legacy_daily_id INT,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       FOREIGN KEY (context_id) REFERENCES [MyWork].[contexts](id) ON DELETE CASCADE
@@ -1226,21 +1229,28 @@ export async function createMssqlSchema(pool) {
         JOIN sys.columns col
           ON col.object_id = ic.object_id AND col.column_id = ic.column_id
        WHERE kc.parent_object_id = OBJECT_ID('[MyWork].[entities]')
-         AND kc.type = 'UQ' AND col.name = 'legacy_work_item_id'
+         AND kc.type = 'UQ' AND col.name IN ('legacy_daily_id', 'legacy_work_item_id')
     );
     IF @c IS NOT NULL
       EXEC('ALTER TABLE [MyWork].[entities] DROP CONSTRAINT [' + @c + ']');
   `);
-  await pool.request().query(`
-    IF NOT EXISTS (
-      SELECT 1 FROM sys.indexes
-       WHERE name = 'uq_entities_legacy_work_item_id'
-         AND object_id = OBJECT_ID('[MyWork].[entities]')
-    )
-      CREATE UNIQUE INDEX uq_entities_legacy_work_item_id
-        ON [MyWork].[entities] (legacy_work_item_id)
-        WHERE legacy_work_item_id IS NOT NULL;
-  `);
+  // Only once the column has its NEW name. On an install that predates the
+  // rename it is still `legacy_work_item_id` at this point - renameLegacyColumns
+  // runs at the end of this file - and naming `legacy_daily_id` here failed the
+  // whole build with "Invalid column name". That install gets its index from
+  // renameLegacyColumns instead, which recreates it straight after renaming.
+  if (await columnExists(pool, "entities", "legacy_daily_id")) {
+    await pool.request().query(`
+      IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes
+         WHERE name = 'uq_entities_legacy_daily_id'
+           AND object_id = OBJECT_ID('[MyWork].[entities]')
+      )
+        CREATE UNIQUE INDEX uq_entities_legacy_daily_id
+          ON [MyWork].[entities] (legacy_daily_id)
+          WHERE legacy_daily_id IS NOT NULL;
+    `);
+  }
 
   // Backfill for entities tables created before is_folder existed - see mysqlSchema.js
   if (!(await columnExists(pool, "entities", "is_folder"))) {
@@ -1324,8 +1334,8 @@ export async function createMssqlSchema(pool) {
   // ===== Legacy <-> entity association bridge =====
   //
   // Mirrors the block of the same name in mysqlSchema.js - see there for the
-  // full rationale. Short version: areas, goals, ideas and (as of Phase 10)
-  // work items are entities, but priorities and templates are still legacy
+  // full rationale. Short version: categories, goals, ideas and (as of Phase
+  // 10) dailies are entities, but priorities and templates are still legacy
   // tables, so their edges cannot live in entity_relationships (whose FKs are
   // entities on both sides). These junctions bridge the two id spaces and are
   // retired once priorities itself becomes entities.
@@ -1333,11 +1343,11 @@ export async function createMssqlSchema(pool) {
   // BEHAVIORAL DIFFERENCE FROM MYSQL: MySQL cascades the delete on both FKs.
   // Here the entity side is ON DELETE NO ACTION, because both columns of
   // work_entity_associations/work_source_associations point at `entities` now
-  // (a "day" is itself a work_item entity), and `entities` already cascades
+  // (a "day" is itself a `daily` entity), and `entities` already cascades
   // from `contexts`, so a second cascading FK into it gives SQL Server "may
   // cause cycles or multiple cascade paths" (the same restriction that forces
-  // NO ACTION on the parent_id self-references and the to_dos/tickets/areas
-  // cross-references elsewhere in this file). Deleting an entity therefore
+  // NO ACTION on the parent_id self-references elsewhere in this file).
+  // Deleting an entity therefore
   // does NOT clean these rows up automatically on MSSQL -
   // entityService.js#purgeEntity removes them explicitly (BRIDGE_JUNCTION_COLUMNS),
   // which is what makes the two engines behave the same from the app's point
@@ -1356,7 +1366,7 @@ export async function createMssqlSchema(pool) {
   ];
 
   // ONE junction for every type, including types invented after this was
-  // written - see the note in mysqlSchema.js. work_item_id points at
+  // written - see the note in mysqlSchema.js. daily_id points at
   // `entities`, not the legacy `work_items` table - see the note above this
   // block. Both FKs are NO ACTION for the reason given above; the service
   // tolerates rows surviving an entity delete by joining through entities and
@@ -1367,12 +1377,12 @@ export async function createMssqlSchema(pool) {
     `
     CREATE TABLE [MyWork].[work_entity_associations] (
       id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
+      daily_id INT NOT NULL,
       entity_id INT NOT NULL,
       order_index INT DEFAULT 0,
-      CONSTRAINT fk_wea_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
+      CONSTRAINT fk_wea_work_item FOREIGN KEY (daily_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
       CONSTRAINT fk_wea_entity FOREIGN KEY (entity_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
-      CONSTRAINT unique_work_entity UNIQUE (work_item_id, entity_id)
+      CONSTRAINT unique_work_entity UNIQUE (daily_id, entity_id)
     )
   `,
   );
@@ -1384,7 +1394,7 @@ export async function createMssqlSchema(pool) {
   );
 
   // A source is not an entity, so this one stays a plain junction rather than
-  // joining the bridge above - but work_item_id is the same entities-pointing,
+  // joining the bridge above - but daily_id is the same entities-pointing,
   // NO-ACTION column as work_entity_associations above, for the same reason.
   await createTableIfNotExists(
     pool,
@@ -1392,11 +1402,11 @@ export async function createMssqlSchema(pool) {
     `
     CREATE TABLE [MyWork].[work_source_associations] (
       id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
+      daily_id INT NOT NULL,
       source_id INT NOT NULL,
-      CONSTRAINT fk_wsa_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
+      CONSTRAINT fk_wsa_work_item FOREIGN KEY (daily_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
       CONSTRAINT fk_wsa_source FOREIGN KEY (source_id) REFERENCES [MyWork].[sources](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_source UNIQUE (work_item_id, source_id)
+      CONSTRAINT unique_work_source UNIQUE (daily_id, source_id)
     )
   `,
   );
@@ -1460,7 +1470,75 @@ export async function createMssqlSchema(pool) {
       `CREATE INDEX idx_${table}_entity ON [MyWork].[${table}] (${entityCol})`,
     );
   }
+  await renameLegacyColumns(pool);
   await dropRetiredTables(pool);
+}
+
+// The twin of the block in mysqlSchema.js - a `work_item` is a `daily` now.
+// SQL Server renames a column through sp_rename, not ALTER TABLE, and takes the
+// object as 'schema.table.column'. sp_rename keeps indexes and foreign keys
+// pointing at the renamed column, so no constraint work is needed around it.
+const LEGACY_COLUMN_RENAMES = [
+  ["work_entity_associations", "work_item_id", "daily_id"],
+  ["work_source_associations", "work_item_id", "daily_id"],
+  ["entities", "legacy_work_item_id", "legacy_daily_id"],
+];
+
+async function renameLegacyColumns(pool) {
+  for (const [table, from, to] of LEGACY_COLUMN_RENAMES) {
+    // Guarded on both sides, so the rename runs once and a re-run is a no-op.
+    if (!(await columnExists(pool, table, from))) continue;
+    if (await columnExists(pool, table, to)) continue;
+
+    // sp_rename REFUSES to rename a column an index depends on, with
+    // "The index '<name>' is dependent on column '<col>'" (error 5074) - the
+    // filtered unique index on entities.legacy_work_item_id is exactly such a
+    // dependency, so on any existing SQL Server install this rename failed
+    // outright until the index was dropped first. Primary keys and unique
+    // CONSTRAINTS are left alone: those are not indexes you can simply drop,
+    // and none of the columns renamed here carry one.
+    const deps = await pool.request()
+      .input("t", table)
+      .input("c", from)
+      .query(`
+        SELECT DISTINCT i.name AS name
+          FROM sys.indexes i
+          JOIN sys.index_columns ic
+            ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+          JOIN sys.columns col
+            ON col.object_id = ic.object_id AND col.column_id = ic.column_id
+         WHERE i.object_id = OBJECT_ID('[MyWork].[' + @t + ']')
+           AND col.name = @c
+           AND i.name IS NOT NULL
+           AND i.is_primary_key = 0
+           AND i.is_unique_constraint = 0
+      `);
+    for (const { name } of deps.recordset) {
+      await pool.request().query(`DROP INDEX [${name}] ON [MyWork].[${table}]`);
+    }
+
+    await pool.request()
+      .input("obj", `MyWork.${table}.${from}`)
+      .input("to", to)
+      .query("EXEC sp_rename @objname = @obj, @newname = @to, @objtype = 'COLUMN'");
+  }
+
+  // Put back the filtered unique index the rename above had to drop. It cannot
+  // wait for the next schema run: without it two entities could take the same
+  // legacy id in the meantime. See the note on the column itself for why the
+  // index is filtered rather than a plain UNIQUE.
+  if (await columnExists(pool, "entities", "legacy_daily_id")) {
+    await pool.request().query(`
+      IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes
+         WHERE name = 'uq_entities_legacy_daily_id'
+           AND object_id = OBJECT_ID('[MyWork].[entities]')
+      )
+        CREATE UNIQUE INDEX uq_entities_legacy_daily_id
+          ON [MyWork].[entities] (legacy_daily_id)
+          WHERE legacy_daily_id IS NOT NULL;
+    `);
+  }
 }
 
 // The twin of RETIRED_TABLES in mysqlSchema.js - read the note there for what
@@ -1469,8 +1547,32 @@ export async function createMssqlSchema(pool) {
 // database is cleaned by the same "Fix Schema" that builds a new one.
 const RETIRED_TABLES = ["work_items", "tickets", "categories"];
 
+// See the matching note in mysqlSchema.js. This matters MORE on SQL Server:
+// phase10-migrate-work-items.js is MySQL-only, so an MSSQL install has to have
+// its dailies moved across by hand, and until that happens `work_items` is the
+// only place they exist.
+async function workItemsSafeToDrop(pool) {
+  const rows = (await pool.request()
+    .query('SELECT COUNT(*) AS n FROM [MyWork].[work_items]')).recordset[0].n;
+  if (rows === 0) return true;
+  const migrated = (await pool.request()
+    .query('SELECT COUNT(*) AS n FROM [MyWork].[entities] WHERE legacy_daily_id IS NOT NULL'))
+    .recordset[0].n;
+  return migrated >= rows;
+}
+
 async function dropRetiredTables(pool) {
   for (const table of RETIRED_TABLES) {
+    if (table === "work_items") {
+      if (!(await tableExists(pool, "work_items"))) continue;
+      if (!(await workItemsSafeToDrop(pool))) {
+        console.warn(
+          '[schema] work_items still holds rows with no matching entity - NOT dropping it. '
+          + 'Migrate those dailies into `entities` first.',
+        );
+        continue;
+      }
+    }
     // SQL Server refuses to drop a table while a foreign key still references
     // it, and unlike MySQL it names every constraint, so drop those first.
     const fks = await pool.request().input("table", table).query(`

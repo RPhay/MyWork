@@ -4,7 +4,7 @@ What is in flight and what is planned next. **Not** a place for specification,
 standards, or architecture — those belong in `CLAUDE.md`, `UI_STANDARDS.md`,
 `CLAUDE_TESTING.md`, and code comments next to the thing they describe.
 
-Last updated: 2026-08-19.
+Last updated: 2026-08-25.
 
 ## Read this first if you are picking the work up
 
@@ -18,20 +18,21 @@ is looking at. Sweep after every run.
 ### Where the work stands
 
 The audit (§6) is **12 of 14 findings closed** and **5 of 6 features built**.
-What is left is two decisions, three pieces of open work, and two risks.
+Both decisions that used to block work are settled; what is left is two pieces
+of open work and two risks.
 
-### Two decisions that block work - ASK, do not guess
+### Both blocking decisions are now settled (2026-08-25)
 
-1. **Dailies-as-a-type (finding 06).** Still blocked on the naming
-   contradiction in §1. The ground has shifted, though:
-   `work_entity_associations` now lets a day hold a row of ANY type WITH its
-   tree, so the original reason for the migration is half gone. What remains is
-   collapsing `work_items` itself into `entities`.
-2. **Recurrence.** The audit suggests extending recurrence beyond Dailies. The
-   user instructed on 2026-08-19 to REMOVE the recurrence property entirely,
-   "we will figure out a better way to implement that later". Those conflict.
-   The instruction was followed; the suggestion was not. Do not reverse the
-   user on the strength of the artifact.
+1. **Dailies-as-a-type (finding 06) - DONE.** Dailies is an editable type like
+   any other. `scripts/phase10-migrate-work-items.js` moved the rows into
+   `entities`, the slug was renamed `work_item` -> `daily`, and the legacy
+   `work_items` table has been DROPPED. §1 below is kept only as the record of
+   how it was planned; do not work from it as a to-do list.
+2. **Recurrence - REMOVED, as instructed.** The user's 2026-08-19 instruction
+   stands: the property is gone, and the two orphaned `recurrence` field
+   definitions left on Todos and Tasks were deleted on 2026-08-25 (they held
+   zero values). The audit's suggestion to EXTEND recurrence was not followed
+   and should not be revived from the artifact alone.
 
 ### Open, not blocked
 
@@ -45,12 +46,29 @@ What is left is two decisions, three pieces of open work, and two risks.
 - **A clean full-suite run is still owed.** The last one is void - files were
   being edited throughout it, so early and late specs tested different code.
   Worth running now: 18 noise specs are retired and the number would mean
-  something.
-- **`work_items` and `priorities` are the last legacy tables**, with four
-  bridge junctions (`priority_areas`, `priority_goals`, `template_areas`,
-  `template_goals`) that go when they become entities.
+  something. (The GUARD SET is clean as of 2026-08-25 - 152 passed, 0 failed -
+  so this is about the stale remainder, not about the guard.) The reason runs
+  kept coming out void is now fixed at the source: `nodemon.json` pins `watch`
+  to `["server.js", "src"]`, so editing `tests/` no longer restarts the server
+  under a run. Editing `src/` still does. Do not.
+- **`priorities` is now the LAST legacy table**, with its bridge junctions
+  (`priority_areas`, `priority_goals`, `template_areas`, `template_goals`) and
+  `work_item_templates`, which all go when it becomes entities. `work_items`,
+  `tickets` and `categories` were dropped on 2026-08-25 - see `RETIRED_TABLES`
+  in both schema files.
+- **Naming: a slug is the SINGULAR of the label.** `work_item` -> `daily`,
+  `area` -> `category`, and the routes/services followed (`/api/dailies`,
+  `/api/categories`, `/api/daily-templates`, `dailyService.js`). The column
+  renames followed too (2026-08-25): `work_item_id` -> `daily_id` in both
+  junctions, and `legacy_work_item_id` -> `legacy_daily_id` on `entities`,
+  verified on BOTH engines through a fresh build -> revert -> re-run cycle.
+  `INSERT_IGNORE_KEY_COLUMNS` in `mssqlTranslation.js` is a THIRD place that
+  key is written down and had to move with them. Still carrying old names:
+  `priority_areas`, `template_areas`, `work_item_templates` - they disappear
+  when `priorities` becomes an entity type, so renaming them now would be work
+  done twice.
 
-### Two risks worth carrying forward
+### Risks worth carrying forward
 
 - **The type editor has corrupted data twice.** It rebuilt `field_options`
   from its visible inputs and destroyed the status roles (`doneValues` became
@@ -63,9 +81,28 @@ What is left is two decisions, three pieces of open work, and two risks.
   appear and vanish in the app while a run is in progress, and a run that dies
   before its teardown leaves residue. Sweep after every run; the helper is
   `tests/e2e/helpers/cleanup.js`, and the API delete is a SOFT delete, so real
-  cleanup is two calls.
+  cleanup is two calls. The real baseline is **340 entities** - anything above
+  that after a sweep is residue.
+- **SSO login cannot work, by design of the `users` table.** See "The SSO code
+  is scaffolding, and does not run" in `CLAUDE.md`. The config and identity
+  halves were repaired on 2026-08-25; `findOrCreateSsoUser` was deliberately
+  left failing because fixing it means deciding what a user IS here. Do not
+  "fix" it without that decision.
+- **The type editor save path is still unaudited** (below), and
+  `typeDefaults.json` is what "Revert to defaults" restores. It was re-captured
+  on 2026-08-25 after sitting five days stale, which is what produced the
+  "left alone because the defaults do not list them" error on MSSQL for
+  `worked_with_claude`, `recurring_from_todo_id` and `recurring_from_task_id`.
+  **Re-capture it whenever type configuration changes**, and sweep test rows
+  FIRST so a snapshot never carries `ZZZ` data.
 
-## 1. Dailies-as-a-type refactor — DESIGN NEEDED BEFORE CODE
+## 1. Dailies-as-a-type refactor — DONE (2026-08-25), kept as the record
+
+**This section is history, not a to-do list.** It shipped: the rows moved into
+`entities` as type `daily`, the slug and label were renamed, and `work_items`
+was dropped. What follows is the plan as it was written, left in place because
+the counts and the file-by-file survey are still the best account of what the
+migration actually had to touch.
 
 The agreed direction: **a daily is just a list of typed items associated with a
 calendar day**, each either *copied* or *referenced*, with `daily` becoming an

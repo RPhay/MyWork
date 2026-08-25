@@ -485,7 +485,7 @@ function addFieldRow(field = null) {
   });
 
   // Clicking an emoji in the list removes it from the set.
-  emojiList.addEventListener('click', (ev) => {
+  emojiList.addEventListener('click', () => {
     if (fieldTypeSelect.value !== 'emojis') return;
     const chars = Array.from(emojiValues.value);
     if (!chars.length) return;

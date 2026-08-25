@@ -24,7 +24,7 @@ export function normalizeTimeBox(value) {
 // status/time_box_minutes/start_time/worked_with_claude/recurring_from_*
 // live in entity_field_values, not as columns on a work_items row. Every
 // function below still takes and returns the exact flat shape it always has,
-// so routes/api/work.js and every dailies-*.js file need no changes at all.
+// so routes/api/dailies.js and every dailies-*.js file need no changes at all.
 
 let workItemTypeIdCache = null;
 async function getWorkItemTypeId() {
@@ -106,13 +106,13 @@ async function attachAssociations(items) {
   if (items.length === 0) return items;
 
   const ids = items.map(i => i.id);
-  const placeholders = ids.map(() => '?').join(',');
 
   // The seven per-type junctions are gone: every link a day holds lives in
   // work_entity_associations now, so these lists are DERIVED from that one
   // place rather than read from seven tables that no longer receive writes.
-  // The shape is unchanged, because Reporting reads `priorities` and `areas`.
-  const [allPriorities, allAreas] = await Promise.all([
+  // The shape is otherwise unchanged; the Categories list is `categories` now,
+  // renamed from `areas` along with the type's slug.
+  const [allPriorities, allCategories] = await Promise.all([
     // Projects and Areas are entities, and their hierarchy lives in
     // entity_relationships rather than a parent_id column - the lookup reshapes
     // it so buildPathMap below still works unchanged.
@@ -125,7 +125,7 @@ async function attachAssociations(items) {
   const genericChildren = await getEntityAssociations(ids);
 
   const priorityPaths = buildPathMap(allPriorities, 'title');
-  const areaPaths = buildPathMap(allAreas);
+  const categoryPaths = buildPathMap(allCategories);
 
   // Which associated records are copies rather than references. A copy was
   // cloned from something (an instantiated_from edge); a reference points at
@@ -146,8 +146,8 @@ async function attachAssociations(items) {
       .map(r => ({ id: r.id, title: r.title, path: priorityPaths.get(r.id) || r.title, isCopy: copies.has(r.id) })),
     goals: ofType(item, 'goal')
       .map(r => ({ id: r.id, name: r.title, isCopy: copies.has(r.id) })),
-    areas: ofType(item, 'category')
-      .map(r => ({ id: r.id, name: r.title, path: areaPaths.get(r.id) || r.title, isCopy: copies.has(r.id) })),
+    categories: ofType(item, 'category')
+      .map(r => ({ id: r.id, name: r.title, path: categoryPaths.get(r.id) || r.title, isCopy: copies.has(r.id) })),
     templates: ofType(item, 'template').map(r => ({ id: r.id, title: r.title })),
     todos: ofType(item, 'to_do').map(r => ({ id: r.id, title: r.title })),
     tasks: ofType(item, 'task').map(r => ({ id: r.id, title: r.title })),
@@ -220,26 +220,26 @@ export async function createWorkItem(data, contextId) {
       start_time: start_time || null,
     },
   }, contextId);
-  const workItemId = created.id;
+  const dailyId = created.id;
 
   // Goals and projects passed at creation are just children, like anything
   // else on a day - one junction, so a caller can pass any type's ids.
   for (const entityId of [...(goal_ids || []), ...(priority_ids || [])]) {
     await db.query(
-      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
-      [workItemId, entityId]
+      'INSERT IGNORE INTO work_entity_associations (daily_id, entity_id) VALUES (?, ?)',
+      [dailyId, entityId]
     );
   }
 
   // Add source association
   if (source_id) {
     await db.insert(
-      'INSERT INTO work_source_associations (work_item_id, source_id) VALUES (?, ?)',
-      [workItemId, source_id]
+      'INSERT INTO work_source_associations (daily_id, source_id) VALUES (?, ?)',
+      [dailyId, source_id]
     );
   }
 
-  return getWorkItemById(workItemId);
+  return getWorkItemById(dailyId);
 }
 
 export async function updateWorkItem(id, data) {
@@ -270,22 +270,22 @@ export async function updateWorkItem(id, data) {
       `DELETE wea FROM work_entity_associations wea
        JOIN entities e ON e.id = wea.entity_id
        JOIN entity_types t ON t.id = e.entity_type_id
-       WHERE wea.work_item_id = ? AND t.slug = ?`,
+       WHERE wea.daily_id = ? AND t.slug = ?`,
       [id, slug]
     );
     for (const entityId of ids) {
       await db.query(
-        'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
+        'INSERT IGNORE INTO work_entity_associations (daily_id, entity_id) VALUES (?, ?)',
         [id, entityId]
       );
     }
   }
 
   if (source_id !== undefined) {
-    await db.query('DELETE FROM work_source_associations WHERE work_item_id = ?', [id]);
+    await db.query('DELETE FROM work_source_associations WHERE daily_id = ?', [id]);
     if (source_id) {
       await db.insert(
-        'INSERT INTO work_source_associations (work_item_id, source_id) VALUES (?, ?)',
+        'INSERT INTO work_source_associations (daily_id, source_id) VALUES (?, ?)',
         [id, source_id]
       );
     }
@@ -388,12 +388,12 @@ export async function cloneWorkItem(id, date) {
   // types that did not exist when this was written. Eight loops over eight
   // tables could only ever copy the eight it knew about.
   const children = await db.query(
-    'SELECT entity_id, order_index FROM work_entity_associations WHERE work_item_id = ? ORDER BY order_index, id',
+    'SELECT entity_id, order_index FROM work_entity_associations WHERE daily_id = ? ORDER BY order_index, id',
     [id]
   );
   for (const c of children) {
     await db.query(
-      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
+      'INSERT IGNORE INTO work_entity_associations (daily_id, entity_id, order_index) VALUES (?, ?, ?)',
       [created.id, c.entity_id, c.order_index ?? 0]
     );
   }
@@ -411,12 +411,12 @@ export async function cloneWorkItem(id, date) {
  *
  * INSERT IGNORE is rewritten for MSSQL in mssqlTranslation.js.
  */
-export async function addEntityAssociation(workItemId, entityId) {
+export async function addEntityAssociation(dailyId, entityId) {
   await db.query(
-    'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
-    [workItemId, entityId]
+    'INSERT IGNORE INTO work_entity_associations (daily_id, entity_id) VALUES (?, ?)',
+    [dailyId, entityId]
   );
-  return getWorkItemById(workItemId);
+  return getWorkItemById(dailyId);
 }
 
 /**
@@ -424,21 +424,21 @@ export async function addEntityAssociation(workItemId, entityId) {
  * renumbered from 0 in the order given, so the caller sends what it wants to
  * see rather than computing indexes.
  */
-export async function reorderEntityAssociations(workItemId, orderedIds) {
+export async function reorderEntityAssociations(dailyId, orderedIds) {
   const ids = (orderedIds || []).map(Number).filter(Number.isFinite);
   for (const [i, entityId] of ids.entries()) {
     await db.query(
-      'UPDATE work_entity_associations SET order_index = ? WHERE work_item_id = ? AND entity_id = ?',
-      [i, workItemId, entityId]
+      'UPDATE work_entity_associations SET order_index = ? WHERE daily_id = ? AND entity_id = ?',
+      [i, dailyId, entityId]
     );
   }
-  return getWorkItemById(workItemId);
+  return getWorkItemById(dailyId);
 }
 
-export async function removeEntityAssociation(workItemId, entityId) {
+export async function removeEntityAssociation(dailyId, entityId) {
   await db.deleteRecord(
-    'DELETE FROM work_entity_associations WHERE work_item_id = ? AND entity_id = ?',
-    [workItemId, entityId]
+    'DELETE FROM work_entity_associations WHERE daily_id = ? AND entity_id = ?',
+    [dailyId, entityId]
   );
 }
 
@@ -450,25 +450,25 @@ export async function removeEntityAssociation(workItemId, entityId) {
  * arrive stripped of everything inside it. The walk stops at rows already seen,
  * so a cycle cannot spin.
  */
-export async function getEntityAssociations(workItemIds) {
-  if (workItemIds.length === 0) return new Map();
-  const placeholders = workItemIds.map(() => '?').join(',');
+export async function getEntityAssociations(dailyIds) {
+  if (dailyIds.length === 0) return new Map();
+  const placeholders = dailyIds.map(() => '?').join(',');
 
   const direct = await db.query(
-    `SELECT wea.work_item_id, e.id, e.title, e.is_folder, t.slug AS type_slug,
+    `SELECT wea.daily_id, e.id, e.title, e.is_folder, t.slug AS type_slug,
             t.label_singular, t.icon
      FROM work_entity_associations wea
      JOIN entities e ON e.id = wea.entity_id
      JOIN entity_types t ON t.id = e.entity_type_id
-     WHERE wea.work_item_id IN (${placeholders}) AND e.deleted_at IS NULL
+     WHERE wea.daily_id IN (${placeholders}) AND e.deleted_at IS NULL
      ORDER BY wea.order_index, wea.id`,
-    workItemIds
+    dailyIds
   );
 
   const byWorkItem = new Map();
   for (const row of direct) {
-    if (!byWorkItem.has(row.work_item_id)) byWorkItem.set(row.work_item_id, []);
-    byWorkItem.get(row.work_item_id).push({ ...row, depth: 0 });
+    if (!byWorkItem.has(row.daily_id)) byWorkItem.set(row.daily_id, []);
+    byWorkItem.get(row.daily_id).push({ ...row, depth: 0 });
   }
 
   return expandNested(byWorkItem);
@@ -581,66 +581,66 @@ export async function removeEntityFromDate(entityId, date, contextId) {
   return { entityId, date };
 }
 
-export async function addPriorityAssociation(workItemId, priorityId) {
-  return addEntityAssociation(workItemId, priorityId);
+export async function addPriorityAssociation(dailyId, priorityId) {
+  return addEntityAssociation(dailyId, priorityId);
 }
 
-export async function removePriorityAssociation(workItemId, priorityId) {
-  return removeEntityAssociation(workItemId, priorityId);
+export async function removePriorityAssociation(dailyId, priorityId) {
+  return removeEntityAssociation(dailyId, priorityId);
 }
 
-export async function addGoalAssociation(workItemId, goalId) {
-  return addEntityAssociation(workItemId, goalId);
+export async function addGoalAssociation(dailyId, goalId) {
+  return addEntityAssociation(dailyId, goalId);
 }
 
-export async function removeGoalAssociation(workItemId, goalId) {
-  return removeEntityAssociation(workItemId, goalId);
+export async function removeGoalAssociation(dailyId, goalId) {
+  return removeEntityAssociation(dailyId, goalId);
 }
 
-export async function addAreaAssociation(workItemId, areaId) {
-  return addEntityAssociation(workItemId, areaId);
+export async function addCategoryAssociation(dailyId, categoryId) {
+  return addEntityAssociation(dailyId, categoryId);
 }
 
-export async function removeAreaAssociation(workItemId, areaId) {
-  return removeEntityAssociation(workItemId, areaId);
+export async function removeCategoryAssociation(dailyId, categoryId) {
+  return removeEntityAssociation(dailyId, categoryId);
 }
 
-export async function addTemplateAssociation(workItemId, templateId) {
-  return addEntityAssociation(workItemId, templateId);
+export async function addTemplateAssociation(dailyId, templateId) {
+  return addEntityAssociation(dailyId, templateId);
 }
 
-export async function removeTemplateAssociation(workItemId, templateId) {
-  return removeEntityAssociation(workItemId, templateId);
+export async function removeTemplateAssociation(dailyId, templateId) {
+  return removeEntityAssociation(dailyId, templateId);
 }
 
-export async function addTodoAssociation(workItemId, todoId) {
-  return addEntityAssociation(workItemId, todoId);
+export async function addTodoAssociation(dailyId, todoId) {
+  return addEntityAssociation(dailyId, todoId);
 }
 
-export async function removeTodoAssociation(workItemId, todoId) {
-  return removeEntityAssociation(workItemId, todoId);
+export async function removeTodoAssociation(dailyId, todoId) {
+  return removeEntityAssociation(dailyId, todoId);
 }
 
-export async function addTaskAssociation(workItemId, taskId) {
-  return addEntityAssociation(workItemId, taskId);
+export async function addTaskAssociation(dailyId, taskId) {
+  return addEntityAssociation(dailyId, taskId);
 }
 
-export async function removeTaskAssociation(workItemId, taskId) {
-  return removeEntityAssociation(workItemId, taskId);
+export async function removeTaskAssociation(dailyId, taskId) {
+  return removeEntityAssociation(dailyId, taskId);
 }
 
-export async function addTicketAssociation(workItemId, ticketId) {
-  return addEntityAssociation(workItemId, ticketId);
+export async function addTicketAssociation(dailyId, ticketId) {
+  return addEntityAssociation(dailyId, ticketId);
 }
 
-export async function removeTicketAssociation(workItemId, ticketId) {
-  return removeEntityAssociation(workItemId, ticketId);
+export async function removeTicketAssociation(dailyId, ticketId) {
+  return removeEntityAssociation(dailyId, ticketId);
 }
 
-export async function addIdeaAssociation(workItemId, ideaId) {
-  return addEntityAssociation(workItemId, ideaId);
+export async function addIdeaAssociation(dailyId, ideaId) {
+  return addEntityAssociation(dailyId, ideaId);
 }
 
-export async function removeIdeaAssociation(workItemId, ideaId) {
-  return removeEntityAssociation(workItemId, ideaId);
+export async function removeIdeaAssociation(dailyId, ideaId) {
+  return removeEntityAssociation(dailyId, ideaId);
 }

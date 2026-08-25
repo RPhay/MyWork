@@ -8,7 +8,7 @@ const router = express.Router();
 // tickets are generic entities now (their tab has been for a while, and their
 // rows moved across with phase6-7-migrate-todos-tasks-tickets.js). This router
 // stays because Dailies' associate panel and a few helpers still call it; it is
-// a thin shim over entityService, exactly like routes/api/areas.js.
+// a thin shim over entityService, exactly like routes/api/categories.js.
 
 router.get('/', async (req, res) => {
   try {

@@ -69,12 +69,12 @@ test.describe('Work item associations', () => {
     const range = `startDate=2026-01-01&endDate=${today}`;
 
     for (const path of [
-      `/api/work/date/${today}`,
+      `/api/dailies/date/${today}`,
       '/api/priorities',
       `/api/reporting/summary?${range}`,
       `/api/reporting/todos-ideas?${range}`,
       `/api/reporting/by-category?${range}`,
-      '/api/work-item-templates',
+      '/api/daily-templates',
     ]) {
       const { status, body } = await api(page, path);
       expect(status, `${path} should not error`).toBe(200);
@@ -96,17 +96,17 @@ test.describe('Work item associations', () => {
         body: JSON.stringify({ title: `${PREFIX} ${slug}` }),
       })).body.data;
 
-      const workItem = (await api(page, '/api/work', {
+      const workItem = (await api(page, '/api/dailies', {
         method: 'POST',
         body: JSON.stringify({ title: `${PREFIX} work item`, date: today }),
       })).body.data;
 
-      const added = await api(page, `/api/work/${workItem.id}/${label}/${entity.id}`, { method: 'POST' });
+      const added = await api(page, `/api/dailies/${workItem.id}/${label}/${entity.id}`, { method: 'POST' });
       expect(added.status, `associating a ${slug} should succeed`).toBeLessThan(300);
 
       // Re-fetch: the association must come back attached to the work item,
       // under the property name the Dailies renderer reads.
-      const { body } = await api(page, `/api/work/date/${today}`);
+      const { body } = await api(page, `/api/dailies/date/${today}`);
       const reloaded = body.data.find((w) => w.id === workItem.id);
       expect(reloaded[key]).toContainEqual(
         expect.objectContaining({ id: entity.id, [labelField]: `${PREFIX} ${slug}` })
@@ -116,11 +116,11 @@ test.describe('Work item associations', () => {
       // junction row - MSSQL declares that FK NO ACTION, so entityService
       // cleans it explicitly.
       await api(page, `/api/entities/${slug}/${entity.id}`, { method: 'DELETE' });
-      const after = await api(page, `/api/work/date/${today}`);
+      const after = await api(page, `/api/dailies/date/${today}`);
       const afterItem = after.body.data.find((w) => w.id === workItem.id);
       expect(afterItem[key].some((x) => x.id === entity.id)).toBe(false);
 
-      await api(page, `/api/work/${workItem.id}`, { method: 'DELETE' });
+      await api(page, `/api/dailies/${workItem.id}`, { method: 'DELETE' });
     });
   }
 });

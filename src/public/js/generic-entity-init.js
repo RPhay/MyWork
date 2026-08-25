@@ -177,6 +177,10 @@ async function initGenericEntityTab(typeSlug, typeName) {
       return { ...typeSchema, fields: [...byKey.values()] };
     }
 
+    // Set by the selection code below, which needs to repaint after every
+    // render. No-op until then, so render order does not matter.
+    let afterRender = () => {};
+
     // Render tree or list from the current `entities`/`relationships` arrays
     function renderList() {
       if (typeSchema.supports_hierarchy) {
@@ -184,6 +188,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       } else {
         listContainer.innerHTML = GenericEntity.renderFlatList(entities, typeSchema);
       }
+      afterRender();
     }
 
     // Re-fetch and re-render in place after a create/edit/delete/move, instead
@@ -306,11 +311,10 @@ renderList();
     }
 
     // Re-applied after every render, since renderList() rebuilds the rows.
-    const originalRenderList = renderList;
-    renderList = function () {
-      originalRenderList();
-      paintSelection();
-    };
+    // Registered as a hook rather than by reassigning renderList itself: that
+    // is a function DECLARATION, so overwriting it worked only by grace of
+    // sloppy mode and left two live bindings for one name.
+    afterRender = paintSelection;
 
     function handleSelectionClick(e, row) {
       const id = row.dataset.entityId;
@@ -1783,7 +1787,8 @@ renderList();
 
     // Drop zone within a row: top/bottom band = reorder as a sibling
     // before/after that row; middle band (hierarchy types only) = nest as
-    // its child. Mirrors the areas.js/priorities.js tree drag-drop pattern.
+    // its child - the tree drag-drop pattern the per-type pages used before
+    // they were replaced by this engine.
     // The geometry lives in dragDropUtils.js with the rest of the drag protocol
     // (finding 05); this only says which shape THIS list is.
     function dropZoneFor(e, row) {
@@ -1813,7 +1818,6 @@ renderList();
       const choice = await app.askCopyOrReference(childName);
       if (!choice) return;
 
-      const csrf = document.body.dataset.csrfToken;
       try {
         let childId = droppedId;
         if (choice === 'copy') {
@@ -1925,7 +1929,6 @@ renderList();
       if (targetId === sourceId) return;
 
       const zone = dropZoneFor(e, targetRow);
-      const csrfToken = document.body.dataset.csrfToken;
 
       // Hierarchy parent is only meaningful for hierarchy-supporting types;
       // it lives in entity_relationships, not on the entity itself.

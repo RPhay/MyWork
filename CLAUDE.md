@@ -14,7 +14,7 @@ This existence check and read are pre-authorized: perform them at session start 
 npm run dev              # Start dev server with hot reload (nodemon), http://localhost:3000
 npm start                # Start production server
 npm run db:init          # Create the MySQL database and tables (scripts/initDatabase.js)
-npm run lint              # ESLint over src (no .eslintrc is checked in)
+npm run lint              # ESLint over src; clean tree = zero findings
 npm run format            # Prettier --write src
 ```
 
@@ -55,7 +55,7 @@ setup: `CLAUDE_REFERENCE.md`.
 ## The shell: Dailies is a rail, not a page
 
 `dashboard.ejs` renders Dailies once, as a resizable rail down the left of
-whichever tab is showing, not as a tab pane. **There is no `#tab-work_item`,
+whichever tab is showing, not as a tab pane. **There is no `#tab-daily`,
 and Dailies cannot be the landing tab.** Full consequences before touching
 `dashboard.ejs` or `tabs.js`: `CLAUDE_REFERENCE.md`.
 
@@ -81,13 +81,38 @@ bug to be fixed in place. It is written down here so that **putting this on a
 network is recognised as a change that needs an auth layer first**, rather than
 as a deployment detail.
 
+### The SSO code is scaffolding, and does not run
+
+There IS an Entra ID / SSO subsystem — `routes/api/sso.js`,
+`routes/api/contextSso.js`, `services/contextSsoService.js`,
+`services/ssoUserService.js`, `auth/entraId.js` — and the routes are registered,
+which makes it look like the paragraph above is out of date. It is not.
+
+`ssoUserService.findOrCreateSsoUser()` reads and writes `users.username` and
+`users.email`. **This project's `users` table is `(id, name, created_at)`** — see
+`mysqlSchema.js`. Every one of those statements fails on an unknown column, so
+signing in cannot work and never has. Deliberately left failing rather than
+patched into something that half-works: giving SSO a real user record means
+deciding what a user IS here, which is the same decision this section defers.
+
+What WAS fixed (2026-08-25) is the storage side, which is independent of that:
+`contextSsoService.js` called `connectionPool.query(...)` — an identifier it
+never imported — so every read/save/disable of an SSO *config* threw
+`ReferenceError`. Those now use the repo's `queryOne`/`update` helpers and work.
+The per-identity functions in `ssoUserService.js` (everything except
+`findOrCreateSsoUser`) touch only `sso_identities`, which does exist, and were
+destructuring `[rows]` mysql2-style when this repo's `query()` returns rows
+directly; they are correct now too.
+
+So: config storage works, identity mapping works, **login does not**.
+
 ## Credentials
 
 Never paste, print, or otherwise reproduce credential values (`.env.local` contents, `DB_PASSWORD`, API keys, tokens, connection strings, etc.) in conversation or command output. They stay local to the machine/file only, 100% of the time. When verifying or testing credentials, check presence/validity without echoing the value — e.g., attempt the actual connection and report success/failure by exit code, or mask the value if a file's structure needs to be shown.
 
 ## Architecture
 
-**Layering**: `routes/api/*.js` → `services/*.js` → `database/connectionPool.js`. Routes only parse the request, call a service function, and shape the JSON response (`{ success, data|message }`); all query logic and validation lives in services. Services throw `ValidationError` / `NotFoundError` / etc. from `src/config/errors.js`, which routes catch and map to `error.statusCode`. Follow this pattern (see `src/routes/api/work.js` + `src/services/workItemService.js`) when adding endpoints rather than querying the DB from a route.
+**Layering**: `routes/api/*.js` → `services/*.js` → `database/connectionPool.js`. Routes only parse the request, call a service function, and shape the JSON response (`{ success, data|message }`); all query logic and validation lives in services. Services throw `ValidationError` / `NotFoundError` / etc. from `src/config/errors.js`, which routes catch and map to `error.statusCode`. Follow this pattern (see `src/routes/api/dailies.js` + `src/services/dailyService.js`) when adding endpoints rather than querying the DB from a route.
 
 **Two separate notions of "database"**: `connectionPool.js` runs MSSQL live,
 not just via schema creation; Settings → Database Configuration only swaps the
@@ -95,10 +120,11 @@ live pool for MySQL/MariaDB. Full detail: `CLAUDE_REFERENCE.md`.
 
 **The constraint that matters day to day:** every service writes MySQL-flavoured SQL, and anything MSSQL cannot parse is translated in `src/database/mssqlTranslation.js` — nowhere else. That file is a few dozen lines standing between the whole app and a second dialect, so **any MySQL-specific syntax you add to a service must have a rewrite there and a unit test in `tests/unit/mssqlTranslation.test.js`.** Currently covered: `INSERT IGNORE`, `ON DUPLICATE KEY UPDATE` (→ `MERGE`), `NOW()`, `JSON_EXTRACT`, `LIMIT` (→ `OFFSET/FETCH`), and `?` → `@p` placeholders.
 
-**Data model / tab-based frontend**: core entities are `work_items`,
-`priorities`, `goals`, `areas` (priorities/areas self-reference via
-`parent_id`); tabs render upfront, switch client-side, no router. Full detail:
-`CLAUDE_REFERENCE.md`.
+**Data model / tab-based frontend**: every editable type is a row in
+`entity_types` and its records live in `entities` - Dailies (`daily`),
+Projects (`priority`), Categories (`category`), Goals, Todos, Tasks, Tickets,
+Ideas, Templates. A slug is the SINGULAR of the label. Tabs render upfront,
+switch client-side, no router. Full detail: `CLAUDE_REFERENCE.md`.
 
 **Request pipeline** (`src/app.js`): helmet → session → CSRF → rate limiter →
 routes → error handler. Full order: `CLAUDE_REFERENCE.md`.
@@ -120,3 +146,34 @@ Todos and tasks can have a recurring schedule that causes them to automatically 
 
 **Bug fixes:**
 - Fixed `getAllToDos()` query: removed `OR context_id IS NULL` to prevent todos from appearing in wrong contexts after deletion
+
+## Lint is a real signal, so keep it at zero
+
+`npm run lint` reports nothing on a clean tree. That is the whole value of it:
+any output is something the change in hand introduced, so it is worth reading
+rather than scrolling past. It stayed useless for a long time because no config
+was checked in at all — `eslint src` simply errored — and 491 findings had
+accumulated behind that by the time one was added.
+
+Two things about `eslint.config.js` that are not obvious and should not be
+"tidied up":
+
+**It is code, not data, because `src/public/js/**` are 35 CLASSIC scripts.**
+No `import`/`export`, no `<script type="module">` — they share one global
+namespace and call each other's top-level functions. ESLint cannot see the load
+order (it is in the EJS templates), so every cross-file call reads as undefined:
+324 phantom `no-undef`s. The config DERIVES the globals by scanning column-0
+declarations in those files, so adding a function does not mean editing a list.
+`no-unused-vars` has the same blind spot from the other side — a function called
+only from a sibling file or an `onclick=` looks unused — which is why those
+files use `vars: 'local'`.
+
+**ESLint must stay on 9+.** espree 9 cannot parse import attributes
+(`with { type: 'json' }`), and it does not warn — it silently skips the whole
+file. `entityTypeService.js` was never linted once under ESLint 8.
+
+The rule this earns: **a finding is a defect until proven otherwise.** The first
+run of the working config turned up `connectionPool` being called in
+`contextSsoService.js` with no import (every SSO endpoint threw), a live pool
+left pointing at the wrong context's database after a migration, and a
+`schema/update` route shadowed by a duplicate it could never beat.

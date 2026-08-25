@@ -86,7 +86,7 @@ test('Dailies shows no column headers until the day has work', async ({ page }) 
   const today = new Date().toISOString().slice(0,10);
   await page.evaluate(async ({today}) => {
     const t = document.body.dataset.csrfToken;
-    await fetch('/api/work', {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':t},
+    await fetch('/api/dailies', {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':t},
       body: JSON.stringify({title:'ZZZ header probe', date: today})});
   }, {today});
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
@@ -95,9 +95,9 @@ test('Dailies shows no column headers until the day has work', async ({ page }) 
 
   await page.evaluate(async ({today}) => {
     const t = document.body.dataset.csrfToken;
-    const all = (await (await fetch(`/api/work/date/${today}`)).json()).data || [];
+    const all = (await (await fetch(`/api/dailies/date/${today}`)).json()).data || [];
     for (const w of all.filter(x=>(x.title||'').startsWith('ZZZ header probe')))
-      await fetch(`/api/work/${w.id}`, {method:'DELETE', headers:{'X-CSRF-Token':t}});
+      await fetch(`/api/dailies/${w.id}`, {method:'DELETE', headers:{'X-CSRF-Token':t}});
   }, {today});
   expect(errs).toEqual([]);
 });

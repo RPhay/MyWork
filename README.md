@@ -59,15 +59,32 @@ The app will be available at http://localhost:3000
 
 ## Database Schema
 
-### Tables
-- `sources` - Data source configurations
-- `goals` - Yearly goals
-- `goal_categories` - Goal categorization
-- `priorities` - User priorities
-- `work_items` - Daily work entries
-- `work_goal_associations` - Work-to-goal relationships
-- `work_priority_associations` - Work-to-priority relationships
-- `work_source_associations` - Work-to-source relationships
+Almost everything is one generic engine rather than a table per type. An
+editable type is a row in `entity_types`; every record of every type - Dailies,
+Projects, Categories, Goals, Todos, Tasks, Tickets, Ideas, Templates - is a row
+in `entities`. A type's slug is the singular of its label (`daily`, `category`).
+
+### The engine
+- `entity_types` - the types themselves (slug, label, icon, flags)
+- `entity_type_fields` - each type's fields
+- `entity_type_relationships` - which types may nest inside which
+- `entities` - every record of every type
+- `entity_field_values` - those records' field values
+- `entity_relationships` - nesting and associations between records
+
+### Supporting
+- `contexts`, `context_folders`, `users`, `sso_identities` - scope and identity
+- `sources`, `source_auth` - data source configuration
+- `work_entity_associations` - links a day to a row of ANY type
+- `work_source_associations` - links a day to a source
+- `daily_entities`, `day_highlights` - per-day extras
+- `priorities` + `priority_areas` / `priority_goals` - the last legacy table
+  and its bridges into `entities`
+- `work_item_templates` + `template_*` - template presets, also still legacy
+
+The per-type tables this list used to name (`work_items`, `areas`, `goals`,
+`goal_categories`, `ideas`, `to_dos`, `tickets`, and the `work_*_associations`
+pairs) were migrated into the engine and dropped.
 
 ## Project Structure
 

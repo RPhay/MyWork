@@ -90,9 +90,9 @@ router.patch('/reorder-siblings', async (req, res) => {
 
 
 // Link/unlink a category (area)
-router.post('/:id/areas/:areaId', async (req, res) => {
+router.post('/:id/categories/:categoryId', async (req, res) => {
   try {
-    const priority = await priorityService.addAreaAssociation(req.params.id, req.params.areaId);
+    const priority = await priorityService.addCategoryAssociation(req.params.id, req.params.categoryId);
     res.status(201).json({ success: true, message: 'Category linked', data: priority });
   } catch (error) {
     logger.error('Error linking category to project:', error);
@@ -100,9 +100,9 @@ router.post('/:id/areas/:areaId', async (req, res) => {
   }
 });
 
-router.delete('/:id/areas/:areaId', async (req, res) => {
+router.delete('/:id/categories/:categoryId', async (req, res) => {
   try {
-    await priorityService.removeAreaAssociation(req.params.id, req.params.areaId);
+    await priorityService.removeCategoryAssociation(req.params.id, req.params.categoryId);
     res.json({ success: true, message: 'Category unlinked' });
   } catch (error) {
     logger.error('Error unlinking category from project:', error);

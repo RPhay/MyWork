@@ -86,7 +86,7 @@
             </div>
           </div>
           <form id="workItemEditorForm">
-            <input type="hidden" id="workItemEditorId" name="workId">
+            <input type="hidden" id="workItemEditorId" name="dailyId">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
             <div class="mb-3">
@@ -113,7 +113,7 @@
               <!-- Every value on screen with a box round the current one, the
                    same control every typed page uses. It was a <select>, whose
                    options were "", in_progress, blocked and completed - none of
-                   which are values this app stores. workItemService only accepts
+                   which are values this app stores. dailyService only accepts
                    'Not Started', 'In Progress' and 'Complete', so picking
                    anything but the first was rejected. The hidden input is what
                    the form reads, so the ids the JS drives still resolve. -->
@@ -169,7 +169,7 @@
               <textarea class="form-control" id="childItemEditorNotes" name="notes" rows="3"></textarea>
             </div>
 
-            <!-- For priorities/areas: description -->
+            <!-- For priorities/categories: description -->
             <div class="mb-3" id="childItemEditorDescriptionField" style="display: none;">
               <label for="childItemEditorDescription" class="form-label">Description</label>
               <textarea class="form-control" id="childItemEditorDescription" name="description" rows="3"></textarea>

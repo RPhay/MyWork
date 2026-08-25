@@ -66,7 +66,8 @@ npx playwright test \
   tests/e2e/drag-protocol.spec.js \
   tests/e2e/column-reorder-editor-sync.spec.js \
   tests/e2e/debug.spec.js \
-  tests/e2e/ui-check.spec.js
+  tests/e2e/ui-check.spec.js \
+  tests/e2e/rail-selection.spec.js
 ```
 
 Plus, **headed**, whenever an editable type page or its engine is touched —
@@ -87,6 +88,7 @@ see "Editable types" below for the command and file list.
 | `column-reorder-editor-sync.spec.js` | Column order and editor field order stay one value |
 | `debug.spec.js` | CSP and console errors |
 | `ui-check.spec.js` | Tab structure |
+| `rail-selection.spec.js` | Which panes may share the screen, and the click-to-toggle rule |
 | `editable-types.spec.js` | Per-type UI elements and folders (headed) |
 
 Why it's a merged list, and the traps it's caught in itself (read before
@@ -112,13 +114,13 @@ Times are wall-clock on this machine. **Measured** = observed in a real run;
 
 | # | Tier | What it runs | Time | Use it when |
 |---|---|---|---|---|
-| 0 | Static | `node --check` on changed JS, `npm run lint` | ~5s (est.) | After any JS edit. Catches syntax, nothing else |
+| 0 | Static | `node --check` on changed JS, `npm run lint` | **~4s** | After any JS edit. A clean tree reports NOTHING, so any output is yours |
 | 1 | Unit | `npm run test:unit` | **0.4s** | Touching `mssqlTranslation.js`. 12 tests |
 | 2 | Smoke | `debug` + `ui-check` + `drag-protocol` | ~20s (est.) | "Did I break the page load?" CSP, console errors, tab structure, drag globals |
 | 3 | Targeted | The 1-3 specs covering the change | 5-30s | **The default while working.** `column-reorder-editor-sync` alone is 7s |
 | 4 | Editor / engine | `entity-editor-behaviour`, `entity-type-integrity`, `entity-field-types`, `column-reorder-editor-sync`, `row-icon-sizing` | ~1m (est.) | Editor, field types, row rendering, the generic engine |
 | 5 | Drag | `drag-protocol`, `real-drag-drop`, `template-drops`, `dailies-drop`, `dailies-any-type`, `priorities-rail` | **~1.2m** | Anything touching drag sources, drop targets or `dragDropUtils.js` |
-| 6 | Guard set | The 13 specs above + `npm run test:unit` | **6.2m** | Before a commit or push |
+| 6 | Guard set | The 14 specs above + `npm run test:unit` | **6.2m** | Before a commit or push |
 | 7 | Guard + headed | Tier 6 + `editable-types --headed` | ~8m (est.) | Editable type pages or their engine — see "Editable types" |
 | 8 | Full suite | `npx playwright test` | **~12.3m** | Rarely. Mostly stale specs; the number needs a baseline to mean anything |
 
@@ -127,6 +129,14 @@ Tiers 4 and 5 deliberately overlap — a generic-engine change is usually both.
 **Two runs must not overlap.** Every Playwright process shares the one
 database (`workers: 1` exists for this reason); a second run beside one
 already in flight collides the way parallel workers did.
+
+**Do not edit files under `src/` or `server.js` while a run is in flight.**
+Playwright starts `npm run dev`, so a save restarts nodemon underneath the
+browser and the specs mid-flight fail for reasons that have nothing to do with
+them. Four runs were thrown away to this before it was written down. Editing
+`tests/` is safe - `nodemon.json` pins `watch` to `["server.js", "src"]` for
+exactly this reason, so leave that list alone unless you mean to widen the
+blast radius.
 
 ## Browser testing after changes
 

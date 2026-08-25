@@ -16,15 +16,15 @@ test('Test editor field population and save', async ({ page }) => {
   const todoId = todoData.data.id;
 
   // Create work item
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'Test Work Item Data', date: '2026-08-14' },
     headers
   });
   const workData = await workResp.json();
-  const workItemId = workData.data.id;
+  const dailyId = workData.data.id;
 
   // Associate
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
 
   // Reload and expand
   await page.reload();

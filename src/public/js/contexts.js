@@ -1114,9 +1114,6 @@ function initContextsEventListeners() {
 
   list.addEventListener("dragover", (e) => {
     const folderHeader = e.target.closest(".context-folder-header");
-    const contextId =
-      e.dataTransfer.types.includes("context-id") ||
-      e.dataTransfer.types.includes("Files");
     if (folderHeader) {
       e.preventDefault();
       list
@@ -1153,7 +1150,11 @@ function initContextsEventListeners() {
       .forEach((el) => el.classList.remove("drag-over"));
 
     const draggedContextId = e.dataTransfer.getData("context-id");
-    const draggedFolderId = e.dataTransfer.getData("folder-id");
+    // NOTE: dragging a FOLDER is only half-built. The dragstart above sets a
+    // "folder-id", but nothing here ever acted on it - a folder picks up and
+    // then silently does nothing wherever you drop it. Reading it back into a
+    // variable that went unused was all that remained of the other half.
+    // context_folders.parent_id can model nesting whenever it is finished.
 
     const targetFolderHeader = e.target.closest(".context-folder-header");
     const targetContextRow = e.target.closest(".context-row");

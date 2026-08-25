@@ -388,7 +388,7 @@ export const SYSTEM_TYPE_RELATIONSHIPS = [
   // never disagree.
   { type_slugs: null, relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
-  // Associations: work items link to priorities, areas, goals
+  // Associations: a daily links to priorities, categories and goals
   { type_slugs_parent: 'daily', type_slugs_child: ['priority', 'category', 'goal'], relationship_kind: 'association', max_children_per_parent: null, max_parents_per_child: null },
 
   // Todos/Tasks can recur to work items

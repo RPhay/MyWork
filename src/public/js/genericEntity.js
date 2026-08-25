@@ -4,7 +4,7 @@
  */
 
 const GenericEntity = (() => {
-  let currentTypeSlug, typeSchema, splitPane, currentEntityId, hasChanges, currentIsFolder = false, currentSaveSlug = null, allEntities = [];
+  let currentTypeSlug, typeSchema, currentEntityId, hasChanges, currentIsFolder = false, currentSaveSlug = null, allEntities = [];
   const splitPanesByType = {}; // Store splitPane instances per type
   let currentSaveBtn = null; // Track current save button element
 
@@ -1260,7 +1260,6 @@ const GenericEntity = (() => {
   // Header + body share one grid template, set here as a custom property, so
   // the header cells line up with the row cells beneath them.
   function renderListShell(typeSchema, body, count, entities, rollups) {
-    const cols = visibleColumns(typeSchema);
     const empty = `<div class="entity-empty text-muted">Nothing to show${
       Object.values(readViewState(typeSchema.slug).filters || {}).some(Boolean) ? ' for this filter' : ''
     }.</div>`;
@@ -1810,7 +1809,6 @@ const GenericEntity = (() => {
     init: (typeSlug, typeConfig, splitPaneInstance) => {
       currentTypeSlug = typeSlug;
       typeSchema = typeConfig;
-      splitPane = splitPaneInstance;
       splitPanesByType[typeSlug] = splitPaneInstance; // Store per-type reference
     },
 

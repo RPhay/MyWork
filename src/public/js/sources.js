@@ -155,14 +155,6 @@ function openSsoLoginModal() {
 }
 
 
-function openNewSourceForm() {
-  document.getElementById('sourceId').value = '';
-  document.getElementById('sourceForm').reset();
-  currentSourceType = null;
-  currentAuthMethod = null;
-  updateSourceConfig();
-}
-
 function openAuthCredentialsForm() {
   document.getElementById('sourceId').value = '';
   document.getElementById('sourceType').value = currentSourceType || '';
@@ -429,7 +421,7 @@ function initSourcesEventListeners() {
 
   // Provider type buttons in sourceTypeModal
   document.querySelectorAll('.provider-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', () => {
       console.log('Provider button clicked:', btn.dataset.provider);
       selectSourceType(btn.dataset.provider);
     });
@@ -437,7 +429,7 @@ function initSourcesEventListeners() {
 
   // Auth method buttons in sourceAuthModal
   document.querySelectorAll('.auth-method-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', () => {
       console.log('Auth method button clicked:', btn.dataset.method);
       selectAuthMethod(btn.dataset.method);
     });

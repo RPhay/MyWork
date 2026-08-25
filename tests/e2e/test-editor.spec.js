@@ -36,18 +36,18 @@ test('Test type-specific editor field display', async ({ page }) => {
   console.log('Created priority:', priorityId);
 
   // Create a work item
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'Test Work Item Editor', date: '2026-08-14' },
     headers
   });
   const workData = await workResp.json();
-  const workItemId = workData.data.id;
-  console.log('Created work item:', workItemId);
+  const dailyId = workData.data.id;
+  console.log('Created work item:', dailyId);
 
   // Associate items
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
-  await page.request.post(`/api/work/${workItemId}/tasks/${taskId}`, { headers });
-  await page.request.post(`/api/work/${workItemId}/priorities/${priorityId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/tasks/${taskId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/priorities/${priorityId}`, { headers });
 
   // Reload and expand work item
   await page.reload();

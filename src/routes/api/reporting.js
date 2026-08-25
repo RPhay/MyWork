@@ -11,8 +11,8 @@ const router = express.Router();
 router.get('/work-items', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const { startDate, endDate, status, priorityId, areaId } = req.query;
-    const items = await reportingService.getWorkItemsReport(contextId, { startDate, endDate, status, priorityId, areaId });
+    const { startDate, endDate, status, priorityId, categoryId } = req.query;
+    const items = await reportingService.getWorkItemsReport(contextId, { startDate, endDate, status, priorityId, categoryId });
     res.json({ success: true, data: items });
   } catch (error) {
     logger.error('Error fetching work items report:', error);
@@ -82,7 +82,7 @@ router.get('/summary', async (req, res) => {
 
 // ===== Portfolio reporting =====
 // Everything below reports across every entity type. What came before only ever
-// read work_items, so it went blank on a quiet day and never mentioned the
+// read the legacy work_items table, so it went blank on a quiet day and never mentioned the
 // projects, categories, goals and ideas the app actually holds.
 
 router.get('/portfolio', async (req, res) => {

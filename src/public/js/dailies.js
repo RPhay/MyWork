@@ -46,7 +46,7 @@ async function createWorkItemFromCalendarEvent(event, date) {
   console.log('[createWorkItemFromCalendarEvent] Sending to API:', { ...data, date });
 
   try {
-    const response = await app.fetchRaw("/api/work", {
+    const response = await app.fetchRaw("/api/dailies", {
       method: "POST",
       
       body: JSON.stringify({ ...data, date }) });
@@ -85,7 +85,7 @@ async function createWorkItemFromEmail(email, date) {
   };
 
   try {
-    const response = await app.fetchRaw("/api/work", {
+    const response = await app.fetchRaw("/api/dailies", {
       method: "POST",
       
       body: JSON.stringify({ ...data, date }) });
@@ -103,9 +103,9 @@ async function createWorkItemFromEmail(email, date) {
   }
 }
 
-function openWorkItemNotesModal(workItemId) {
+function openWorkItemNotesModal(dailyId) {
   const item = currentWorkItems.find(
-    (i) => String(i.id) === String(workItemId),
+    (i) => String(i.id) === String(dailyId),
   );
   if (!item) return;
 
@@ -121,7 +121,7 @@ async function saveWorkItemNotes() {
   const notes = document.getElementById("workNotesModalText").value;
 
   try {
-    const response = await app.fetchRaw(`/api/work/${id}/notes`, {
+    const response = await app.fetchRaw(`/api/dailies/${id}/notes`, {
       method: "PATCH",
       
       body: JSON.stringify({ notes }) });
@@ -144,12 +144,12 @@ async function saveWorkItemNotes() {
 
 
 
-async function cycleWorkItemStatus(workId, currentStatus) {
+async function cycleWorkItemStatus(dailyId, currentStatus) {
   const currentIndex = STATUS_CYCLE.indexOf(currentStatus);
   const nextStatus = STATUS_CYCLE[(currentIndex + 1) % STATUS_CYCLE.length];
 
   try {
-    const response = await app.fetchRaw(`/api/work/${workId}/status`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/status`, {
       method: "PATCH",
       
       body: JSON.stringify({ status: nextStatus }) });
@@ -165,7 +165,7 @@ async function cycleWorkItemStatus(workId, currentStatus) {
     const result = await response.json();
     if (result.success) {
       // Update just this work item's status in the DOM without reloading everything
-      const workItemEl = document.querySelector(`[data-work-id="${workId}"]`);
+      const workItemEl = document.querySelector(`[data-work-id="${dailyId}"]`);
       if (workItemEl) {
         const header = workItemEl.querySelector(".work-item-header");
         if (header) {
@@ -201,7 +201,7 @@ function formatTimeBox(minutes) {
 
 const WORK_ITEM_TIME_BOX_CYCLE = [null, 15, 30, 45, 60, 90, 120];
 
-async function cycleWorkItemTimeBox(workId, currentMinutes) {
+async function cycleWorkItemTimeBox(dailyId, currentMinutes) {
   const currentIndex = WORK_ITEM_TIME_BOX_CYCLE.indexOf(currentMinutes);
   const nextMinutes =
     WORK_ITEM_TIME_BOX_CYCLE[
@@ -209,7 +209,7 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
     ];
 
   try {
-    const response = await app.fetchRaw(`/api/work/${workId}/timebox`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/timebox`, {
       method: "PATCH",
       
       body: JSON.stringify({ time_box_minutes: nextMinutes }) });
@@ -225,7 +225,7 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
     const result = await response.json();
     if (result.success) {
       // Update just this work item's timebox in the DOM
-      const workItemEl = document.querySelector(`[data-work-id="${workId}"]`);
+      const workItemEl = document.querySelector(`[data-work-id="${dailyId}"]`);
       if (workItemEl) {
         const timeboxBtn = workItemEl.querySelector('[data-action="cycle-timebox"]');
         if (timeboxBtn) {
@@ -252,9 +252,9 @@ async function cycleWorkItemTimeBox(workId, currentMinutes) {
   }
 }
 
-async function toggleWorkItemClaude(workId) {
+async function toggleWorkItemClaude(dailyId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workId}/claude`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/claude`, {
       method: "PATCH",
       
       body: JSON.stringify({}) });
@@ -270,7 +270,7 @@ async function toggleWorkItemClaude(workId) {
     const result = await response.json();
     if (result.success) {
       // Update just this work item's claude flag in the DOM
-      const workItemEl = document.querySelector(`[data-work-id="${workId}"]`);
+      const workItemEl = document.querySelector(`[data-work-id="${dailyId}"]`);
       if (workItemEl) {
         const claudeToggle = workItemEl.querySelector('[data-action="toggle-claude"] i');
         if (claudeToggle) {
@@ -330,8 +330,8 @@ function updateCalendarDayTotal(dateStr) {
 
 function toggleWorkItem(workItemEl) {
   // CSS-only expand/collapse (children already in the DOM, see
-  // renderWorkItemsList) - no re-render, matching areas.js's toggleAreaNode.
-  const id = String(workItemEl.dataset.workId);
+  // renderWorkItemsList) - no re-render; just the .expanded class is toggled.
+  const id = String(workItemEl.dataset.dailyId);
   if (expandedWorkItems.has(id)) {
     expandedWorkItems.delete(id);
     workItemEl.classList.remove("expanded");
@@ -341,18 +341,18 @@ function toggleWorkItem(workItemEl) {
   }
 }
 
-async function linkChild(workId, type, id) {
+async function linkChild(dailyId, type, id) {
   // ONE path for every type. The seven per-type junctions could not hold a type
   // invented later, and - the reason this matters here - they have no order
   // column, so a day's children could never be reordered through them.
   const path = 'entities';
 
   try {
-    const response = await app.fetchRaw(`/api/work/${workId}/${path}/${id}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/${path}/${id}`, {
       method: "POST" });
     const result = await response.json();
     if (result.success) {
-      expandedWorkItems.add(String(workId));
+      expandedWorkItems.add(String(dailyId));
       loadWorkItems();
     } else {
       app.notify("Error: " + result.message, "danger");
@@ -391,7 +391,7 @@ async function cloneForDrop(type, id) {
 // Put a record on the day itself, with no work item wrapped round it.
 async function putEntityOnDay(entityId, date) {
   try {
-    const response = await app.fetchRaw(`/api/work/date/${date}/roots/${entityId}`, {
+    const response = await app.fetchRaw(`/api/dailies/date/${date}/roots/${entityId}`, {
       method: "POST" });
     const result = await response.json();
     if (!result.success) {
@@ -410,7 +410,7 @@ async function takeEntityOffDay(entityId) {
   const date = document.getElementById("selectedDate")?.value;
   if (!date) return;
   try {
-    const response = await app.fetchRaw(`/api/work/date/${date}/roots/${entityId}`, {
+    const response = await app.fetchRaw(`/api/dailies/date/${date}/roots/${entityId}`, {
       method: "DELETE" });
     const result = await response.json();
     if (!result.success) {
@@ -430,7 +430,7 @@ async function addDaily() {
   const date = document.getElementById("selectedDate")?.value
     || new Date().toISOString().split("T")[0];
   try {
-    const response = await app.fetchRaw("/api/work", {
+    const response = await app.fetchRaw("/api/dailies", {
       method: "POST",
       body: JSON.stringify({ date, title: "New daily" }) });
     const result = await response.json();
@@ -450,7 +450,7 @@ async function addDaily() {
 
 async function createWorkItemFromChild(type, id, name, date, asCopy = false) {
   try {
-    const response = await app.fetchRaw("/api/work", {
+    const response = await app.fetchRaw("/api/dailies", {
       method: "POST",
       
       body: JSON.stringify({ date, title: name }) });
@@ -469,11 +469,11 @@ async function createWorkItemFromChild(type, id, name, date, asCopy = false) {
   }
 }
 
-async function unlinkChild(workId, type, id) {
+async function unlinkChild(dailyId, type, id) {
   const path = 'entities';
 
   try {
-    const response = await app.fetchRaw(`/api/work/${workId}/${path}/${id}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/${path}/${id}`, {
       method: "DELETE" });
     const result = await response.json();
     if (result.success) {
@@ -867,7 +867,7 @@ function initDailies() {
 
   if (saveWorkItemEditorBtn) {
     saveWorkItemEditorBtn.addEventListener("click", async () => {
-      const workId = document.getElementById("workItemEditorId").value;
+      const dailyId = document.getElementById("workItemEditorId").value;
       const title = document.getElementById("workItemEditorTitle").value;
       const description = document.getElementById("workItemEditorDescription").value;
       const status = document.getElementById("workItemEditorStatus").value;
@@ -879,7 +879,7 @@ function initDailies() {
       }
 
       try {
-        const response = await app.fetchRaw(`/api/work/${workId}`, {
+        const response = await app.fetchRaw(`/api/dailies/${dailyId}`, {
           method: "PUT",
           
           body: JSON.stringify({
@@ -931,9 +931,9 @@ function initDailies() {
       try {
         const typeMap = {
           'priority': '/api/priorities',
-          'category': '/api/areas',
+          'category': '/api/categories',
           'goal': '/api/goals',
-          'template': '/api/work-item-templates',
+          'template': '/api/daily-templates',
           'todo': '/api/to-dos',
           'task': '/api/tasks',
           'ticket': '/api/tickets',

@@ -1,11 +1,11 @@
 import express from "express";
 import goalsRouter from "./api/goals.js";
 import prioritiesRouter from "./api/priorities.js";
-import workRouter from "./api/work.js";
+import dailiesRouter from "./api/dailies.js";
 import sourcesRouter from "./api/sources.js";
-import areasRouter from "./api/areas.js";
+import categoriesRouter from "./api/categories.js";
 import yearsRouter from "./api/years.js";
-import workItemTemplatesRouter from "./api/workItemTemplates.js";
+import dailyTemplatesRouter from "./api/dailyTemplates.js";
 import toDosRouter from "./api/toDos.js";
 import tasksRouter from "./api/tasks.js";
 import ticketsRouter from "./api/tickets.js";
@@ -90,11 +90,11 @@ router.use("/api/", async (req, res, next) => {
 // API Routes
 router.use("/api/goals", goalsRouter);
 router.use("/api/priorities", prioritiesRouter);
-router.use("/api/work", workRouter);
+router.use("/api/dailies", dailiesRouter);
 router.use("/api/sources", sourcesRouter);
-router.use("/api/areas", areasRouter);
+router.use("/api/categories", categoriesRouter);
 router.use("/api/years", yearsRouter);
-router.use("/api/work-item-templates", workItemTemplatesRouter);
+router.use("/api/daily-templates", dailyTemplatesRouter);
 router.use("/api/to-dos", toDosRouter);
 router.use("/api/tasks", tasksRouter);
 router.use("/api/tickets", ticketsRouter);

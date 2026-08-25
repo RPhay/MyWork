@@ -1,7 +1,7 @@
 import * as db from '../database/connectionPool.js';
 import { NotFoundError, ValidationError } from '../config/errors.js';
-import * as workItemService from './workItemService.js';
-import { normalizeTimeBox } from './workItemService.js';
+import * as dailyService from './dailyService.js';
+import { normalizeTimeBox } from './dailyService.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
 import * as entityService from './entityService.js';
 
@@ -11,7 +11,7 @@ async function attachAssociations(templates) {
   const ids = templates.map(t => t.id);
   const placeholders = ids.map(() => '?').join(',');
 
-  const [areaRows, goalRows, priorityRows, allAreas, allPriorities] = await Promise.all([
+  const [categoryRows, goalRows, priorityRows, allCategories, allPriorities] = await Promise.all([
     // Areas and goals are entities now (Phases 2-3); template_areas /
     // template_goals bridge the legacy templates table to them.
     db.query(
@@ -39,12 +39,12 @@ async function attachAssociations(templates) {
     entityService.getEntityPathLookup('priority'),
   ]);
 
-  const areaPaths = buildPathMap(allAreas);
+  const categoryPaths = buildPathMap(allCategories);
   const priorityPaths = buildPathMap(allPriorities, 'title');
 
   return templates.map(template => ({
     ...template,
-    areas: areaRows.filter(r => r.template_id === template.id).map(r => ({ id: r.id, name: r.name, path: areaPaths.get(r.id) || r.name })),
+    categories: categoryRows.filter(r => r.template_id === template.id).map(r => ({ id: r.id, name: r.name, path: categoryPaths.get(r.id) || r.name })),
     goals: goalRows.filter(r => r.template_id === template.id).map(r => ({ id: r.id, name: r.name })),
     priorities: priorityRows.filter(r => r.template_id === template.id).map(r => ({ id: r.id, title: r.title, path: priorityPaths.get(r.id) || r.title })),
   }));
@@ -185,13 +185,13 @@ export async function updateTemplateTimeBox(id, timeBoxMinutes) {
   return getTemplateById(id);
 }
 
-export async function addAreaAssociation(templateId, areaId) {
-  await db.query('INSERT IGNORE INTO template_areas (template_id, area_id) VALUES (?, ?)', [templateId, areaId]);
+export async function addCategoryAssociation(templateId, categoryId) {
+  await db.query('INSERT IGNORE INTO template_areas (template_id, area_id) VALUES (?, ?)', [templateId, categoryId]);
   return getTemplateById(templateId);
 }
 
-export async function removeAreaAssociation(templateId, areaId) {
-  await db.deleteRecord('DELETE FROM template_areas WHERE template_id = ? AND area_id = ?', [templateId, areaId]);
+export async function removeCategoryAssociation(templateId, categoryId) {
+  await db.deleteRecord('DELETE FROM template_areas WHERE template_id = ? AND area_id = ?', [templateId, categoryId]);
 }
 
 export async function addGoalAssociation(templateId, goalId) {
@@ -219,11 +219,11 @@ export async function instantiateTemplate(templateId, date) {
 
   const template = await getTemplateById(templateId);
 
-  // Goes through workItemService.createWorkItem rather than a raw INSERT, now
+  // Goes through dailyService.createWorkItem rather than a raw INSERT, now
   // that a work item is an `entities` row - createWorkItem already computes
   // the per-date order and writes the date/description/emoji/status/time-box
   // fields.
-  const created = await workItemService.createWorkItem({
+  const created = await dailyService.createWorkItem({
     date,
     title: template.title,
     description: template.description,
@@ -232,19 +232,19 @@ export async function instantiateTemplate(templateId, date) {
     time_box_minutes: template.time_box_minutes,
     source_id: template.source_id,
   }, template.context_id);
-  const workItemId = created.id;
+  const dailyId = created.id;
 
-  // areas, goals and priorities are all ENTITIES (getTemplateById joins each
+  // categories, goals and priorities are all ENTITIES (getTemplateById joins each
   // bridge junction to `entities`), so all three land in the one junction that
   // links a day to a row of any type. This replaces three per-type inserts into
   // tables that no longer exist in either schema file.
   let order = 0;
-  for (const row of [...template.areas, ...template.goals, ...template.priorities]) {
+  for (const row of [...template.categories, ...template.goals, ...template.priorities]) {
     await db.query(
-      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
-      [workItemId, row.id, order++]
+      'INSERT IGNORE INTO work_entity_associations (daily_id, entity_id, order_index) VALUES (?, ?, ?)',
+      [dailyId, row.id, order++]
     );
   }
 
-  return workItemService.getWorkItemById(workItemId);
+  return dailyService.getWorkItemById(dailyId);
 }

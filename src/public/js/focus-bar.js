@@ -1,5 +1,5 @@
 // The focus bar: what you are working on right now, pinned to the top of
-// every page whatever tab is open, grouped into 1-6 "monitors" configured in
+// every page whatever tab is open, grouped into 0-n "monitors" configured in
 // Settings > Miscellaneous > Focus monitors.
 //
 // Elapsed time is never stored by this file. The server returns banked seconds
@@ -15,10 +15,15 @@
   let monitorSettings = {
     count: 1,
     showNumbers: false,
-    monitors: Array.from({ length: 6 }, () => ({ label: '', layout: 'side-by-side' })),
+    maxMonitors: 32,
+    monitors: Array.from({ length: 32 }, () => ({ label: '', layout: 'side-by-side' })),
   };
   let ticker = null;
   let menuEl = null;
+
+  // The server owns the bound and ships it with every settings read; the
+  // fallback only covers the first paint, before that read lands.
+  const monitorLimit = () => Number(monitorSettings.maxMonitors) || 32;
 
   // Which stacked monitor the pointer is currently over, 1-based or null.
   // Driven by our own mouseover/mouseout rather than left to CSS :hover,
@@ -170,14 +175,28 @@
     `;
   }
 
-  // The bar always shows its configured monitors, whether or not anything is
-  // pinned - they are the persistent zones you drag onto, not a strip that
-  // only exists once something lands on it.
+  // The bar shows its configured monitors whether or not anything is pinned to
+  // them - they are the persistent zones you drag onto, not a strip that only
+  // exists once something lands on it.
+  //
+  // ZERO monitors is the one exception, and it means exactly what it says:
+  // nothing is drawn. Not an empty strip, not a drop hint - the bar leaves the
+  // navbar entirely. Whatever is pinned stays pinned in the database and comes
+  // back untouched the moment a monitor exists again; see reassignOverflow,
+  // which deliberately does NOT sweep pins onto monitor 1 on the way to zero.
   function render() {
     const bar = document.getElementById('focusBar');
     if (!bar) return;
 
-    const count = monitorSettings.count || 1;
+    // NOT `|| 1`: 0 is falsy, so that turned "no monitors" back into one.
+    const count = Math.max(0, Number(monitorSettings.count) || 0);
+    if (count === 0) {
+      bar.innerHTML = '';
+      bar.classList.add('no-monitors');
+      stopTicking();
+      return;
+    }
+    bar.classList.remove('no-monitors');
     const byMonitor = new Map();
     for (const item of items) {
       const n = Math.min(Math.max(item.monitor || 1, 1), count);
@@ -322,7 +341,7 @@
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'context-menu-item';
-    addBtn.disabled = monitorSettings.count >= 6;
+    addBtn.disabled = monitorSettings.count >= monitorLimit();
     addBtn.innerHTML = '<span>+</span><span>Add a monitor</span>';
     addBtn.addEventListener('click', async () => {
       closeMenu();
@@ -596,7 +615,7 @@
       const placeable = reordering || (e.dataTransfer.types.includes('id') && e.dataTransfer.types.includes('type'));
       if (zone) {
         zone.classList.add('drop-target');
-      } else if (placeable && monitorSettings.count < 6) {
+      } else if (placeable && monitorSettings.count < monitorLimit()) {
         // The bar's own empty space, not any existing monitor - dropping
         // here makes a new one for whatever is let go, so it gets its own
         // cue rather than looking like nothing is there to land on.
@@ -637,8 +656,8 @@
       // make a new one for it, the same one the dragover cue above promised,
       // rather than silently falling back to monitor 1.
       if (targetMonitor === null) {
-        if (monitorSettings.count >= 6) {
-          app.notify('Already at the maximum of 6 monitors', 'danger');
+        if (monitorSettings.count >= monitorLimit()) {
+          app.notify(`Already at the maximum of ${monitorLimit()} monitors`, 'danger');
           return;
         }
         try {

@@ -751,6 +751,13 @@ footer {
    than a strip that only appears once something lands on it.
    ========================================================================== */
 
+/* Zero monitors: the bar is not just empty, it is gone. Without this it still
+   claimed `flex: 1 1 auto` of the navbar and its gap/padding, leaving a
+   conspicuous hole between the brand and the context switcher. */
+.focus-bar.no-monitors {
+  display: none;
+}
+
 .focus-bar {
   display: flex;
   flex: 1 1 auto;

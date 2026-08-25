@@ -1,5 +1,5 @@
 import * as db from '../database/connectionPool.js';
-import { NotFoundError, ValidationError, ConflictError } from '../config/errors.js';
+import { NotFoundError, ValidationError } from '../config/errors.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
 import * as entityService from './entityService.js';
 import * as entityRelationshipService from './entityRelationshipService.js';
@@ -11,7 +11,7 @@ async function attachAssociations(priorities) {
   const ids = priorities.map(p => p.id);
   const placeholders = ids.map(() => '?').join(',');
 
-  const [areaRows, goalRows, allAreas] = await Promise.all([
+  const [categoryRows, goalRows, allCategories] = await Promise.all([
     // Areas and goals are entities now (Phases 2-3); priority_areas /
     // priority_goals bridge the legacy priorities table to them. `title` is
     // aliased to `name` to keep the response shape the frontend expects.
@@ -32,13 +32,13 @@ async function attachAssociations(priorities) {
     entityService.getEntityPathLookup('category'),
   ]);
 
-  const areaPaths = buildPathMap(allAreas);
+  const categoryPaths = buildPathMap(allCategories);
 
   return priorities.map(priority => ({
     ...priority,
-    areas: areaRows
+    categories: categoryRows
       .filter(r => r.priority_id === priority.id)
-      .map(r => ({ id: r.id, name: r.name, path: areaPaths.get(r.id) || r.name })),
+      .map(r => ({ id: r.id, name: r.name, path: categoryPaths.get(r.id) || r.name })),
     goals: goalRows
       .filter(r => r.priority_id === priority.id)
       .map(r => ({ id: r.id, name: r.name })),
@@ -104,10 +104,10 @@ async function getDescendantIds(id) {
   return entityService.getDescendantIds(Number(id), contextId);
 }
 
-async function setAreaAssociations(priorityId, areaIds) {
+async function setAreaAssociations(priorityId, categoryIds) {
   await db.query('DELETE FROM priority_areas WHERE priority_id = ?', [priorityId]);
-  for (const areaId of areaIds) {
-    await db.insert('INSERT INTO priority_areas (priority_id, area_id) VALUES (?, ?)', [priorityId, areaId]);
+  for (const categoryId of categoryIds) {
+    await db.insert('INSERT INTO priority_areas (priority_id, area_id) VALUES (?, ?)', [priorityId, categoryId]);
   }
 }
 
@@ -270,18 +270,18 @@ export async function reorderPrioritiesAmongSiblings(orderedIds, draggedId, upda
 // chip from the Projects page's right panel onto a project/sub-project - unlike
 // setAreaAssociations/setGoalAssociations (full replace, used by the edit form),
 // these only add or remove the one association being dragged.
-export async function addAreaAssociation(priorityId, areaId) {
+export async function addCategoryAssociation(priorityId, categoryId) {
   await db.query(
     'INSERT IGNORE INTO priority_areas (priority_id, area_id) VALUES (?, ?)',
-    [priorityId, areaId]
+    [priorityId, categoryId]
   );
   return getPriorityById(priorityId);
 }
 
-export async function removeAreaAssociation(priorityId, areaId) {
+export async function removeCategoryAssociation(priorityId, categoryId) {
   await db.deleteRecord(
     'DELETE FROM priority_areas WHERE priority_id = ? AND area_id = ?',
-    [priorityId, areaId]
+    [priorityId, categoryId]
   );
 }
 

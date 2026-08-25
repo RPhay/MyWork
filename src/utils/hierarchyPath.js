@@ -1,5 +1,5 @@
 // Builds a Map of id -> full "Parent\Child\Grandchild" path for a self-referencing
-// (parent_id) list of records, e.g. areas or priorities/projects.
+// (parent_id) list of records, e.g. categories or priorities/projects.
 //
 // Walks iteratively rather than recursively. A cycle in the parent chain
 // should be impossible - entityRelationshipService rejects edges that would

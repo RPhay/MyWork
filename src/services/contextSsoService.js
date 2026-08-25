@@ -1,4 +1,4 @@
-import { query, queryOne, update } from '../database/connectionPool.js';
+import { queryOne, update } from '../database/connectionPool.js';
 import { encrypt, decrypt } from '../utils/credentialCrypto.js';
 import EntraIdAuth from '../auth/entraId.js';
 
@@ -8,18 +8,18 @@ import EntraIdAuth from '../auth/entraId.js';
  */
 
 export async function getContextSsoConfig(contextId) {
-  const query = `
-    SELECT
+  // queryOne returns the row itself, or null. This used to call
+  // `connectionPool.query(...)` - an identifier this module never imported -
+  // and destructure `[rows]` mysql2-style, so every call threw ReferenceError.
+  const row = await queryOne(
+    `SELECT
       id, sso_enabled, sso_provider, sso_tenant_id_enc,
       sso_client_id_enc, sso_client_secret_enc, sso_redirect_uri
     FROM contexts
-    WHERE id = ?
-  `;
-
-  const [rows] = await connectionPool.query(query, [contextId]);
-  if (rows.length === 0) return null;
-
-  const row = rows[0];
+    WHERE id = ?`,
+    [contextId],
+  );
+  if (!row) return null;
   if (!row.sso_enabled) return null;
 
   return {
@@ -46,7 +46,7 @@ export async function saveContextSsoConfig(contextId, config) {
   const clientIdEnc = clientId ? encrypt(clientId) : null;
   const clientSecretEnc = clientSecret ? encrypt(clientSecret) : null;
 
-  const query = `
+  const sql = `
     UPDATE contexts SET
       sso_enabled = ?,
       sso_provider = ?,
@@ -58,7 +58,7 @@ export async function saveContextSsoConfig(contextId, config) {
     WHERE id = ?
   `;
 
-  await connectionPool.query(query, [
+  await update(sql, [
     ssoEnabled ? 1 : 0,
     ssoEnabled ? ssoProvider : null,
     ssoEnabled ? tenantIdEnc : null,
@@ -97,7 +97,7 @@ export async function testSsoConnection(config) {
 }
 
 export async function disableContextSso(contextId) {
-  const query = `
+  const sql = `
     UPDATE contexts SET
       sso_enabled = 0,
       sso_provider = NULL,
@@ -109,7 +109,7 @@ export async function disableContextSso(contextId) {
     WHERE id = ?
   `;
 
-  await connectionPool.query(query, [contextId]);
+  await update(sql, [contextId]);
 }
 
 export async function maskContextSsoConfig(contextConfig) {

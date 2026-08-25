@@ -893,12 +893,18 @@ test('dragging an item onto the bar\'s own empty space (not any existing monitor
   await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
 });
 
-test('dragging onto the bar\'s empty space at the cap of 6 monitors does not create a new one', async ({ page }) => {
+// The bound is read from the server rather than written here as a number. It
+// is deliberately not a product limit (see MAX_MONITORS in
+// focusMonitorsService.js) and moved once already, from 6 to 32; a spec that
+// hardcodes it fails on the change rather than on the behaviour it guards.
+test('dragging onto the bar\'s empty space at the cap does not create a new monitor', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 6 }) });
+  const cap = (await api(page, '/api/focus-monitors')).body.data.maxMonitors;
+  expect(cap, 'the settings payload carries the bound').toBeGreaterThan(0);
+  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: cap }) });
 
   const made = await makeIdeas(page, ['ZZZ at cap']);
   await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: 1 }) });
@@ -920,7 +926,7 @@ test('dragging onto the bar\'s empty space at the cap of 6 monitors does not cre
   await page.waitForTimeout(900);
 
   const settings = (await api(page, '/api/focus-monitors')).body.data;
-  expect(settings.count, 'still at the cap - no monitor was added').toBe(6);
+  expect(settings.count, 'still at the cap - no monitor was added').toBe(cap);
 
   const focus = (await api(page, '/api/focus')).body.data;
   expect(focus.find(i => i.id === made[0].id).monitor, 'the item stayed where it was').toBe(1);
@@ -951,18 +957,26 @@ test('shrinking the monitor count moves overflow items to monitor 1', async ({ p
 
 // ===== Add/remove a monitor from its own context menu =====
 
-test('POST /api/focus-monitors/add adds one monitor, capped at 6', async ({ page }) => {
+test('POST /api/focus-monitors/add adds one monitor, and refuses past the cap', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
 
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 5 }) });
+  const cap = (await api(page, '/api/focus-monitors')).body.data.maxMonitors;
 
-  const five = await api(page, '/api/focus-monitors/add', { method: 'POST' });
-  expect(five.body.data.count).toBe(6);
+  // One below the cap, so /add has exactly one move left to make.
+  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: cap - 1 }) });
 
-  const six = await api(page, '/api/focus-monitors/add', { method: 'POST' });
-  expect(six.status, 'refuses past the cap of 6').toBe(400);
+  const atCap = await api(page, '/api/focus-monitors/add', { method: 'POST' });
+  expect(atCap.body.data.count).toBe(cap);
+
+  const pastCap = await api(page, '/api/focus-monitors/add', { method: 'POST' });
+  expect(pastCap.status, 'refuses past the cap').toBe(400);
+
+  // Well clear of the old fixed limit of six - the point of the change.
+  expect(cap).toBeGreaterThan(6);
+
+  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
 });
 
 test('POST /api/focus-monitors/:position/remove removes that monitor, shifts the rest, and reassigns items', async ({ page }) => {
@@ -998,17 +1012,31 @@ test('POST /api/focus-monitors/:position/remove removes that monitor, shifts the
   await cleanup(page, made);
 });
 
-test('cannot remove the last remaining monitor', async ({ page }) => {
+// Removing the last monitor takes the count to 0, which is a real setting: the
+// bar is not drawn at all. This used to be refused with a 400 on the argument
+// that "at least one monitor is required", which contradicted the 0 that
+// Settings already offered and that sanitizeSettings already preserved.
+test('removing the last remaining monitor leaves none, and hides the bar', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
 
   await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
   const res = await api(page, '/api/focus-monitors/1/remove', { method: 'POST' });
-  expect(res.status).toBe(400);
+  expect(res.status, 'removing the last one is allowed').toBe(200);
 
   const settings = (await api(page, '/api/focus-monitors')).body.data;
-  expect(settings.count).toBe(1);
+  expect(settings.count, 'down to no monitors').toBe(0);
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#focusBar'), 'the bar is not drawn with no monitors').toBeHidden();
+
+  // With none left there is nothing to remove, and that IS the error case.
+  const again = await api(page, '/api/focus-monitors/1/remove', { method: 'POST' });
+  expect(again.status, 'nothing to remove').toBe(400);
+
+  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
 });
 
 test('right-clicking a monitor offers add/remove/layout, right from the page', async ({ page }) => {

@@ -1,5 +1,5 @@
 import * as db from '../database/connectionPool.js';
-import { NotFoundError, ValidationError } from '../config/errors.js';
+import { ValidationError } from '../config/errors.js';
 
 export async function getQuotesForObject(objectType, objectId) {
   const quotes = await db.query(

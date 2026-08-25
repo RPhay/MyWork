@@ -1,7 +1,5 @@
 import express from 'express';
 import * as entityTypeService from '../../services/entityTypeService.js';
-import * as entityService from '../../services/entityService.js';
-import * as entityRelationshipService from '../../services/entityRelationshipService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();

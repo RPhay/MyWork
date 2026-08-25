@@ -1,4 +1,4 @@
-import { query, queryOne, update, insert } from '../database/connectionPool.js';
+import { query, update, insert } from '../database/connectionPool.js';
 import { encrypt, decrypt } from '../utils/credentialCrypto.js';
 import EntraIdAuth from '../auth/entraId.js';
 import logger from '../utils/logger.js';

@@ -2,10 +2,10 @@ import * as db from '../database/connectionPool.js';
 import { ValidationError } from '../config/errors.js';
 import * as entityTypeService from './entityTypeService.js';
 
-// Not workItemService.js or entityService.js: both already import this file
+// Not dailyService.js or entityService.js: both already import this file
 // (directly, or via entityService -> generateWorkItemsForDate), so either
 // reverse import would be circular. Raw queries instead, the same way
-// entityService.instantiateTemplate avoids importing workItemService.
+// entityService.instantiateTemplate avoids importing dailyService.
 let workItemTypeIdCache = null;
 async function getWorkItemTypeId() {
   if (workItemTypeIdCache) return workItemTypeIdCache;
@@ -21,8 +21,6 @@ async function setWorkItemFieldValue(entityId, fieldKey, column, value) {
     [entityId, fieldKey, value]
   );
 }
-
-const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export function validateRecurrence(recurrence) {
   if (!recurrence) return;
@@ -337,9 +335,10 @@ export function shouldOccurOnDate(dateStr, recurrence) {
     case 'daily':
       return true;
 
-    case 'weekly':
+    case 'weekly': {
       const daysOfWeek = recurrence.daysOfWeek || [targetDay];
       return daysOfWeek.includes(targetDay);
+    }
 
     case 'monthly':
       if (recurrence.lastDay) {
@@ -376,7 +375,7 @@ export function shouldOccurOnDate(dateStr, recurrence) {
 
       return false;
 
-    case 'interval':
+    case 'interval': {
       if (!recurrence.startDate) {
         return false;
       }
@@ -397,6 +396,7 @@ export function shouldOccurOnDate(dateStr, recurrence) {
       }
 
       return true;
+    }
 
     default:
       return false;
@@ -405,7 +405,7 @@ export function shouldOccurOnDate(dateStr, recurrence) {
 
 // Whether a work_item entity already exists for this date, generated from
 // this particular recurring to-do/task - a join over entity_field_values
-// rather than a WHERE on work_items, now that a work item is an entity.
+// rather than a WHERE on the legacy work_items table, now that a daily is an entity.
 async function workItemExistsForRecurrence(date, recurrenceFieldKey, sourceId, contextId) {
   const typeId = await getWorkItemTypeId();
   const row = await db.queryOne(

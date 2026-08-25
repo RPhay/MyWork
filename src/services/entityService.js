@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { query as queryPool } from '../database/connectionPool.js';
-import { getActiveContextId, setActiveContextId } from './activeContextService.js';
+import { getActiveContextId } from './activeContextService.js';
 import { ValidationError, NotFoundError } from '../config/errors.js';
 import * as entityTypeService from './entityTypeService.js';
 import * as entityRelationshipService from './entityRelationshipService.js';
@@ -8,12 +8,12 @@ import { getNextOccurrenceDate, generateWorkItemsForDate } from './recurrenceSer
 
 /**
  * Generic entity CRUD service (content DB, per-context).
- * All entity instances (work items, priorities, areas, todos, etc.) live in the entities table,
+ * All entity instances (dailies, priorities, categories, todos, etc.) live in the entities table,
  * discriminated by entity_type_id. Field values live in entity_field_values (EAV pattern).
  */
 
 // Batch-load entities with all their field values. Exported for
-// workItemService.js, which needs the same entity_id -> {field: value} shape
+// dailyService.js, which needs the same entity_id -> {field: value} shape
 // for queries the generic getAllEntities/getEntitiesByFieldKey don't cover
 // (filtering work_item entities by an exact date or date range).
 export async function attachFieldValues(entityIds) {
@@ -73,12 +73,12 @@ const BRIDGE_JUNCTION_COLUMNS = [
   ['template_areas', 'area_id'],
   ['template_goals', 'goal_id'],
   ['work_entity_associations', 'entity_id'],
-  // Since the Phase 10 work_items -> entities migration, work_item_id is ALSO
+  // Since the Phase 10 work_items -> entities migration, daily_id is ALSO
   // an entities.id (a "day" is itself a work_item entity) - so purging a
   // work_item entity has to clear rows where it's on either side, not just
   // the entity_id side.
-  ['work_entity_associations', 'work_item_id'],
-  ['work_source_associations', 'work_item_id'],
+  ['work_entity_associations', 'daily_id'],
+  ['work_source_associations', 'daily_id'],
   // A record put straight onto a day. MySQL cascades this one, but MSSQL
   // declares it NO ACTION - entities is already the target of a cascading FK
   // and a second would be "multiple cascade paths" - so on MSSQL the delete
@@ -86,15 +86,15 @@ const BRIDGE_JUNCTION_COLUMNS = [
   ['daily_entities', 'entity_id'],
 ];
 
-// Legacy bridge: areas, goals and ideas are entities now, but workItemService,
-// priorityService and workItemTemplateService still reach them through legacy
+// Legacy bridge: categories, goals and ideas are entities now, but dailyService,
+// priorityService and dailyTemplateService still reach them through legacy
 // junction tables and hand the result to hierarchyPath.js#buildPathMap, which
 // wants the old self-referencing row shape ({id, <label>, parent_id}).
 // `entities` has no parent column - hierarchy lives in entity_relationships -
 // so the parent is joined back in here and aliased to match.
 //
 // Deliberately not context-filtered, matching the `SELECT id, name, parent_id
-// FROM areas` it replaces: entity ids are globally unique, and a path only
+// FROM areas` it replaced: entity ids are globally unique, and a path only
 // needs to resolve, not to be scoped.
 export async function getEntityPathLookup(entityTypeSlug) {
   return queryPool(
@@ -283,7 +283,7 @@ export async function createEntity(entityTypeSlug, data, contextId = null) {
   if (data.fields) {
     for (const [fieldKey, value] of Object.entries(data.fields)) {
       if (value !== null && value !== undefined && value !== '') {
-        await setEntityFieldValue(entity.id, fieldKey, value, contextId);
+        await setEntityFieldValue(entity.id, fieldKey, value);
       }
     }
     // Reload after setting fields
@@ -332,7 +332,7 @@ export async function updateEntity(entityId, data, contextId = null) {
           [entityId, fieldKey]
         );
       } else {
-        await setEntityFieldValue(entityId, fieldKey, value, contextId);
+        await setEntityFieldValue(entityId, fieldKey, value);
       }
     }
   }
@@ -420,7 +420,7 @@ async function triggerRecurrenceForCompletedEntity(entity, contextId) {
 }
 
 // Set a single field value
-async function setEntityFieldValue(entityId, fieldKey, value, contextId) {
+async function setEntityFieldValue(entityId, fieldKey, value) {
   // Determine which value column to use based on the field type
   // (In a real implementation, we'd fetch the field definition to know the type)
   // For now, we'll do a simple type detection
@@ -703,14 +703,14 @@ export async function instantiateTemplate(templateEntityId, date, contextId = nu
   const template = await getEntityById(templateEntityId, contextId);
   const children = await entityRelationshipService.getEntityChildren(templateEntityId, contextId, 'hierarchy');
 
-  // Inlined rather than calling workItemService.createWorkItem: workItemService
+  // Inlined rather than calling dailyService.createWorkItem: dailyService
   // already imports this file, so the reverse import would be circular.
   const workItem = await createEntity('daily', {
     title: template.title,
     order_index: 0,
     fields: { date, status: 'Not Started' },
   }, contextId);
-  const workItemId = workItem.id;
+  const dailyId = workItem.id;
 
   const copied = [];
   let order = 0;
@@ -720,13 +720,13 @@ export async function instantiateTemplate(templateEntityId, date, contextId = nu
 
     const copy = await cloneEntity(child.child_entity_id, contextId);
     await queryPool(
-      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
-      [workItemId, copy.id, order++]
+      'INSERT IGNORE INTO work_entity_associations (daily_id, entity_id, order_index) VALUES (?, ?, ?)',
+      [dailyId, copy.id, order++]
     );
     copied.push({ id: copy.id, title: copy.title, type: type.slug });
   }
 
-  return { workItemId, title: template.title, date, copied };
+  return { dailyId, title: template.title, date, copied };
 }
 
 // Reorder siblings (same parent)

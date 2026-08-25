@@ -1,33 +1,45 @@
-import { query, insert } from '../database/connectionPool.js';
+import { query, queryOne, insert } from '../database/connectionPool.js';
 
 /**
  * Service for managing SSO user identities and auto-creation
  * Links Entra ID users to MyWork users
+ *
+ * NOTE ON `findOrCreateSsoUser`: it is the one function here that CANNOT work,
+ * and not for a reason that can be fixed in this file. It reads and writes
+ * `users.username` and `users.email`, but this project's `users` table is
+ * `(id, name, created_at)` - see mysqlSchema.js - so every one of those
+ * statements fails on an unknown column. Giving SSO a real user record means
+ * deciding what a user IS here, which is the same decision CLAUDE.md defers
+ * under "There is no authentication". Left as-is deliberately rather than
+ * papered over, so it fails loudly instead of half-working.
+ *
+ * Everything else in this file talks only to `sso_identities`, which does
+ * exist, and is correct.
  */
 
 export async function findOrCreateSsoUser(provider, providerUser) {
-  const { id: providerId, email, displayName } = providerUser;
+  const { id: providerId, email } = providerUser;
 
   // First, check if this SSO identity is already linked
-  const [existingIdentity] = await query(
+  const existingIdentity = await queryOne(
     `SELECT user_id FROM sso_identities WHERE provider = ? AND provider_id = ?`,
     [provider, providerId]
   );
 
-  if (existingIdentity.length > 0) {
-    return existingIdentity[0].user_id;
+  if (existingIdentity) {
+    return existingIdentity.user_id;
   }
 
   // Check if a user with this email already exists
-  const [existingUsers] = await query(
+  const existingUser = await queryOne(
     `SELECT id FROM users WHERE email = ?`,
     [email]
   );
 
   let userId;
-  if (existingUsers.length > 0) {
+  if (existingUser) {
     // User exists, link this SSO identity to them
-    userId = existingUsers[0].id;
+    userId = existingUser.id;
     // Update username to email if not already set or if it's a default
     await query(
       `UPDATE users SET username = ?, updated_at = NOW() WHERE id = ? AND (username IS NULL OR username = ?)`,
@@ -35,11 +47,10 @@ export async function findOrCreateSsoUser(provider, providerUser) {
     );
   } else {
     // Create new user with email as username
-    const [result] = await query(
+    userId = await insert(
       `INSERT INTO users (username, email, created_at, updated_at) VALUES (?, ?, NOW(), NOW())`,
       [email, email]
     );
-    userId = result.insertId;
   }
 
   // Create SSO identity mapping
@@ -53,24 +64,22 @@ export async function findOrCreateSsoUser(provider, providerUser) {
 }
 
 export async function getSsoIdentity(provider, providerId) {
-  const [rows] = await query(
+  return queryOne(
     `SELECT user_id, provider_email FROM sso_identities WHERE provider = ? AND provider_id = ?`,
     [provider, providerId]
   );
-
-  return rows.length > 0 ? rows[0] : null;
 }
 
 export async function linkSsoIdentity(userId, provider, providerUser) {
   const { id: providerId, email } = providerUser;
 
   // Check if already linked
-  const [existing] = await query(
+  const existing = await queryOne(
     `SELECT id FROM sso_identities WHERE user_id = ? AND provider = ?`,
     [userId, provider]
   );
 
-  if (existing.length > 0) {
+  if (existing) {
     // Update existing identity
     await query(
       `UPDATE sso_identities SET provider_id = ?, provider_email = ?, updated_at = NOW()
@@ -95,7 +104,7 @@ export async function unlinkSsoIdentity(userId, provider) {
 }
 
 export async function getSsoIdentitiesForUser(userId) {
-  const [rows] = await query(
+  const rows = await query(
     `SELECT provider, provider_id, provider_email FROM sso_identities WHERE user_id = ?`,
     [userId]
   );

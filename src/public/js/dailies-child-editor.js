@@ -72,9 +72,9 @@ function closeChildItemEditor() {
 async function loadChildItemForEditing(type, id) {
   const typeMap = {
     'priority': '/api/priorities',
-    'category': '/api/areas',
+    'category': '/api/categories',
     'goal': '/api/goals',
-    'template': '/api/work-item-templates',
+    'template': '/api/daily-templates',
     'todo': '/api/to-dos',
     'task': '/api/tasks',
     'ticket': '/api/tickets',
@@ -133,18 +133,18 @@ async function loadChildItemForEditing(type, id) {
   }
 }
 
-// Editor functions - open child item editor in right pane. Named editChild*
-// (not e.g. editPriority) because areas.js/priorities.js/goals.js/templates.js/
-// tickets.js/brainstorming.js each declare their own same-named global edit
-// function - all tab scripts share one scope (no modules), so a plain editArea
-// here would silently overwrite areas.js's editArea and vice versa depending on
-// script load order.
+// Editor functions - open child item editor in the right pane. The editChild*
+// prefix is kept deliberately: every tab script shares one global scope (no
+// modules), so a bare editCategory here would collide with any same-named
+// global. The per-type scripts that used to declare those are all gone now,
+// replaced by the generic entity engine, but the prefix still buys the
+// isolation cheaply.
 function editChildPriority(priorityId) {
   openChildItemEditor('priority', priorityId);
 }
 
-function editChildArea(areaId) {
-  openChildItemEditor('category', areaId);
+function editChildCategory(categoryId) {
+  openChildItemEditor('category', categoryId);
 }
 
 function editChildGoal(goalId) {

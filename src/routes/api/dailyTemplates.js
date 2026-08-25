@@ -1,5 +1,5 @@
 import express from 'express';
-import * as templateService from '../../services/workItemTemplateService.js';
+import * as templateService from '../../services/dailyTemplateService.js';
 import * as activeContextService from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 
@@ -110,7 +110,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/instantiate', async (req, res) => {
   try {
     const workItem = await templateService.instantiateTemplate(req.params.id, req.body.date);
-    res.status(201).json({ success: true, message: 'Work item created from template', data: workItem });
+    res.status(201).json({ success: true, message: 'Daily created from template', data: workItem });
   } catch (error) {
     logger.error('Error instantiating template:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
@@ -118,20 +118,20 @@ router.post('/:id/instantiate', async (req, res) => {
 });
 
 // Link/unlink an area
-router.post('/:id/areas/:areaId', async (req, res) => {
+router.post('/:id/categories/:categoryId', async (req, res) => {
   try {
-    const template = await templateService.addAreaAssociation(req.params.id, req.params.areaId);
-    res.status(201).json({ success: true, message: 'Area linked', data: template });
+    const template = await templateService.addCategoryAssociation(req.params.id, req.params.categoryId);
+    res.status(201).json({ success: true, message: 'Category linked', data: template });
   } catch (error) {
     logger.error('Error linking area:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
-router.delete('/:id/areas/:areaId', async (req, res) => {
+router.delete('/:id/categories/:categoryId', async (req, res) => {
   try {
-    await templateService.removeAreaAssociation(req.params.id, req.params.areaId);
-    res.json({ success: true, message: 'Area unlinked' });
+    await templateService.removeCategoryAssociation(req.params.id, req.params.categoryId);
+    res.json({ success: true, message: 'Category unlinked' });
   } catch (error) {
     logger.error('Error unlinking area:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });

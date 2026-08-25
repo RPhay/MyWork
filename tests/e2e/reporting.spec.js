@@ -70,7 +70,7 @@ test('the report reflects real activity', async ({ page }) => {
   await page.goto('/'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
 
   // something finished today, something due soon, something overdue
-  const wi = (await api(page,'/api/work',{method:'POST',body:JSON.stringify({title:'ZZZrep finished thing', date: today(), status:'Complete'})})).body.data;
+  const wi = (await api(page,'/api/dailies',{method:'POST',body:JSON.stringify({title:'ZZZrep finished thing', date: today(), status:'Complete'})})).body.data;
   const soon = (await api(page,'/api/entities/to_do',{method:'POST',
     body:JSON.stringify({title:'ZZZrep due soon', fields:{status:'Not Started', target_date: new Date(Date.now()+3*86400000).toISOString().slice(0,10)}})})).body.data;
   const late = (await api(page,'/api/entities/to_do',{method:'POST',
@@ -88,6 +88,6 @@ test('the report reflects real activity', async ({ page }) => {
   expect(r.upcoming.some(u=>u.title==='ZZZrep due soon'), 'a dated todo is upcoming').toBe(true);
   expect(r.needsAttention.some(n=>n.title==='ZZZrep overdue'), 'an overdue todo needs attention').toBe(true);
 
-  await api(page,`/api/work/${wi.id}`,{method:'DELETE'});
+  await api(page,`/api/dailies/${wi.id}`,{method:'DELETE'});
   for (const id of [soon.id, late.id]) await api(page,`/api/entities/to_do/${id}`,{method:'DELETE'});
 });

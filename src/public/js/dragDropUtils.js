@@ -2,12 +2,6 @@
 
 // Parse calendar events (both iCalendar and Outlook plain text formats)
 function parseCalendarEvent(text) {
-  const event = {
-    title: '',
-    description: '',
-    duration: null
-  };
-
   // Check if this is iCalendar format
   if (text.includes('BEGIN:VEVENT') || text.includes('DTSTART')) {
     return parseICalendarFormat(text);
@@ -295,7 +289,7 @@ async function createTodoFromCalendarEvent(event) {
     const result = await response.json();
     if (result.success) {
       app.notify(`Todo created from calendar event: ${event.title}`, 'success');
-      if (typeof loadToDos === 'function') loadToDos();
+      window.GenericEntityTabs?.refresh('to_do');
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -329,7 +323,7 @@ async function createTodoFromEmail(email) {
     const result = await response.json();
     if (result.success) {
       app.notify(`Todo created from email: ${email.subject}`, 'success');
-      if (typeof loadToDos === 'function') loadToDos();
+      window.GenericEntityTabs?.refresh('to_do');
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -356,7 +350,7 @@ async function createIdeaFromCalendarEvent(event) {
     const result = await response.json();
     if (result.success) {
       app.notify(`Idea created from calendar event: ${event.title}`, 'success');
-      if (typeof loadIdeas === 'function') loadIdeas();
+      window.GenericEntityTabs?.refresh('idea');
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -383,7 +377,7 @@ async function createTemplateFromEmail(email) {
   };
 
   try {
-    const response = await app.fetchRaw('/api/work-item-templates', {
+    const response = await app.fetchRaw('/api/daily-templates', {
       method: 'POST',
       
       body: JSON.stringify(data)

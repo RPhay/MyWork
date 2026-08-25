@@ -24,16 +24,16 @@ test('Full type-specific editor flow', async ({ page }) => {
   console.log('2. Created task:', taskId);
 
   // Create a work item
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'Editor Flow Test Item', date: '2026-08-14' },
     headers
   });
-  const workItemId = (await workResp.json()).data.id;
-  console.log('3. Created work item:', workItemId);
+  const dailyId = (await workResp.json()).data.id;
+  console.log('3. Created work item:', dailyId);
 
   // Associate both
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
-  await page.request.post(`/api/work/${workItemId}/tasks/${taskId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/tasks/${taskId}`, { headers });
   console.log('4. Associated items');
 
   // Reload

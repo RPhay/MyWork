@@ -86,9 +86,9 @@ function renderWorkItemsList(items, roots = []) {
         </div>
     `;
 
-    // Render child items - always in the DOM when there are any (CSS-only
-    // expand/collapse, matching areas.js's toggleAreaNode: only the parent's
-    // .expanded class is toggled, no re-render), wrapped so
+    // Render child items - always in the DOM when there are any. Expand and
+    // collapse are CSS-only: just the parent's .expanded class is toggled, with
+    // no re-render. Wrapped so
     // ".work-item.expanded > .work-item-children" in dailies.ejs applies.
     if (hasChildren) {
       let childrenHtml = '';
@@ -189,8 +189,8 @@ async function loadWorkItems() {
     // The day's work items and whatever sits on the day beside them. Both, or
     // the list is drawn twice and flickers.
     const [response, rootsResponse] = await Promise.all([
-      fetch(`/api/work/date/${date}`),
-      fetch(`/api/work/date/${date}/roots`),
+      fetch(`/api/dailies/date/${date}`),
+      fetch(`/api/dailies/date/${date}/roots`),
     ]);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
@@ -220,9 +220,9 @@ async function loadWorkItems() {
 // which is the only child link that HAS an order column - the eight per-type
 // junctions it replaced had none, which is why a day's children could not be
 // reordered at all before.
-async function reorderDayChildren(workItemId, draggedId, targetId, position) {
+async function reorderDayChildren(dailyId, draggedId, targetId, position) {
   const rows = [...document.querySelectorAll(
-    `.child-item-row[data-parent-work-id="${workItemId}"]`)]
+    `.child-item-row[data-parent-work-id="${dailyId}"]`)]
     .map(el => el.dataset.childId);
 
   const from = rows.indexOf(String(draggedId));
@@ -234,7 +234,7 @@ async function reorderDayChildren(workItemId, draggedId, targetId, position) {
   rows.splice(to, 0, String(draggedId));
 
   try {
-    const res = await app.fetchRaw(`/api/work/${workItemId}/entities/order`, {
+    const res = await app.fetchRaw(`/api/dailies/${dailyId}/entities/order`, {
       method: 'PATCH',
       body: JSON.stringify({ orderedIds: rows }),
     });
@@ -264,7 +264,7 @@ async function reorderWorkItemsOnDrop(draggedId, targetId, position) {
   if (!date) return;
 
   try {
-    const response = await app.fetchRaw("/api/work/reorder", {
+    const response = await app.fetchRaw("/api/dailies/reorder", {
       method: "PATCH",
       
       body: JSON.stringify({ date, orderedIds: ids }) });
@@ -327,12 +327,12 @@ let dailiesClickTimer = null;
 function dailiesRowIds() {
   return [...document.querySelectorAll('#workItemsList .work-item:not(.child-item-row)')]
     .filter(el => el.offsetParent !== null)
-    .map(el => el.dataset.workId);
+    .map(el => el.dataset.dailyId);
 }
 
 function paintDailiesSelection() {
   document.querySelectorAll('#workItemsList .work-item:not(.child-item-row)').forEach(el => {
-    el.classList.toggle('multi-selected', dailiesSelected.has(el.dataset.workId));
+    el.classList.toggle('multi-selected', dailiesSelected.has(el.dataset.dailyId));
   });
   const bar = document.getElementById('dailiesSelectionBar');
   if (bar) {
@@ -351,7 +351,7 @@ function clearDailiesSelection() {
 // Returns true when the click was purely about selection and nothing else
 // should happen - the same contract the typed pages use.
 function handleDailiesSelectionClick(e, el) {
-  const id = el.dataset.workId;
+  const id = el.dataset.dailyId;
 
   if (e.shiftKey && dailiesAnchor) {
     const ids = dailiesRowIds();
@@ -391,7 +391,7 @@ async function deleteSelectedDailies() {
   if (!ok) return;
 
   for (const id of ids) {
-    await app.fetchRaw(`/api/work/${id}`, { method: 'DELETE' }).catch(() => {});
+    await app.fetchRaw(`/api/dailies/${id}`, { method: 'DELETE' }).catch(() => {});
   }
   clearDailiesSelection();
   loadWorkItems();
@@ -411,10 +411,10 @@ function syncDailiesRowSelection() {
   app.selectRow(row, ".work-item");
 }
 
-async function editWorkItem(workId) {
+async function editWorkItem(dailyId) {
   try {
     // Check if clicking on same row that's already open
-    if (currentWorkItemId === workId) {
+    if (currentWorkItemId === dailyId) {
       if (workItemEditorHasChanges) {
         return; // Don't close if there are unsaved changes
       }
@@ -425,7 +425,7 @@ async function editWorkItem(workId) {
     // Increment request ID to track which request is current
     const requestId = ++workItemEditorRequestId;
 
-    const response = await fetch(`/api/work/${workId}`);
+    const response = await fetch(`/api/dailies/${dailyId}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
 
@@ -449,7 +449,7 @@ async function editWorkItem(workId) {
       if (el) el.textContent = value;
     };
 
-    currentWorkItemId = workId;
+    currentWorkItemId = dailyId;
     resetWorkItemEditorTracking();
 
     // Make sure form is visible
@@ -487,11 +487,11 @@ function closeWorkItemEditor() {
   syncDailiesRowSelection();
 }
 
-async function deleteWorkItem(workId) {
+async function deleteWorkItem(dailyId) {
   if (!(await app.confirm("Delete this work item?"))) return;
 
   try {
-    const response = await app.fetchRaw(`/api/work/${workId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}`, {
       method: "DELETE" });
 
     const result = await response.json();

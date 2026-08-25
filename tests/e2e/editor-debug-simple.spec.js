@@ -12,14 +12,14 @@ test('Debug: Check if child rows render', async ({ page }) => {
     headers
   })).json()).data.id;
 
-  const workItemId = (await (await page.request.post('/api/work', {
+  const dailyId = (await (await page.request.post('/api/dailies', {
     data: { title: 'DEBUG_WORK_' + Date.now(), date: '2026-08-14' },
     headers
   })).json()).data.id;
 
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
 
-  console.log(`Created TODO ${todoId}, Work ${workItemId}`);
+  console.log(`Created TODO ${todoId}, Work ${dailyId}`);
 
   await page.reload();
   await page.waitForLoadState('networkidle');

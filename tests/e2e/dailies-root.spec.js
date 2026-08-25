@@ -58,9 +58,9 @@ test.describe('Records on the day itself', () => {
     // line leaks every time an assertion fails earlier.
     const page = await browser.newPage();
     await page.goto('/?tab=area', { waitUntil: 'networkidle' });
-    const items = (await api(page, `/api/work/date/${today()}`)).body?.data || [];
+    const items = (await api(page, `/api/dailies/date/${today()}`)).body?.data || [];
     for (const w of items.filter(x => (x.title || '').startsWith('ZZZroot') || x.title === 'New daily'))
-      await api(page, `/api/work/${w.id}`, { method: 'DELETE' });
+      await api(page, `/api/dailies/${w.id}`, { method: 'DELETE' });
     const areas = (await api(page, '/api/entities/area')).body?.data || [];
     for (const a of areas.filter(x => (x.title || '').startsWith('ZZZroot')))
       await api(page, `/api/entities/area/${a.id}`, { method: 'DELETE' });
@@ -79,11 +79,11 @@ test.describe('Records on the day itself', () => {
     await page.locator('#copyOrReferenceRefBtn').click();
     await page.waitForTimeout(1600);
 
-    const items = (await api(page, `/api/work/date/${today()}`)).body.data;
+    const items = (await api(page, `/api/dailies/date/${today()}`)).body.data;
     expect(items.find(w => w.title === 'ZZZroot loose'),
       'no work item is invented to hold it').toBeFalsy();
 
-    const roots = (await api(page, `/api/work/date/${today()}/roots`)).body.data;
+    const roots = (await api(page, `/api/dailies/date/${today()}/roots`)).body.data;
     expect(roots.some(r => r.id === rec.id && r.depth === 0),
       'it is on the day').toBe(true);
 
@@ -97,14 +97,14 @@ test.describe('Records on the day itself', () => {
     await openDailies(page);
     await page.waitForTimeout(1200);
 
-    const before = (await api(page, `/api/work/date/${today()}/roots`)).body.data;
+    const before = (await api(page, `/api/dailies/date/${today()}/roots`)).body.data;
     const target = before.find(r => r.title === 'ZZZroot loose');
     expect(target, 'the previous test left it on the day').toBeTruthy();
 
     await page.locator(`.child-item-row[data-child-id="${target.id}"] [data-action="unroot"]`).click();
     await page.waitForTimeout(1400);
 
-    const after = (await api(page, `/api/work/date/${today()}/roots`)).body.data;
+    const after = (await api(page, `/api/dailies/date/${today()}/roots`)).body.data;
     expect(after.some(r => r.id === target.id), 'off the day').toBe(false);
 
     const areas = (await api(page, '/api/entities/area')).body.data;
@@ -114,11 +114,11 @@ test.describe('Records on the day itself', () => {
   test('+ Daily creates a daily on the selected day', async ({ page }) => {
     await openDailies(page);
 
-    const before = (await api(page, `/api/work/date/${today()}`)).body.data.length;
+    const before = (await api(page, `/api/dailies/date/${today()}`)).body.data.length;
     await page.click('#addDailyBtn');
     await page.waitForTimeout(1800);
 
-    const after = (await api(page, `/api/work/date/${today()}`)).body.data;
+    const after = (await api(page, `/api/dailies/date/${today()}`)).body.data;
     expect(after.length, 'one more daily on the day').toBe(before + 1);
 
     // Straight into its editor, so it can be named without hunting for it.
@@ -129,7 +129,7 @@ test.describe('Records on the day itself', () => {
   test('a record dropped ON a daily still goes inside it', async ({ page }) => {
     await openDailies(page);
 
-    const daily = (await api(page, '/api/work', {
+    const daily = (await api(page, '/api/dailies', {
       method: 'POST', body: JSON.stringify({ date: today(), title: 'ZZZroot holder' }),
     })).body.data;
     const rec = (await api(page, '/api/entities/area', {
@@ -142,12 +142,12 @@ test.describe('Records on the day itself', () => {
     await page.locator('#copyOrReferenceRefBtn').click();
     await page.waitForTimeout(1800);
 
-    const items = (await api(page, `/api/work/date/${today()}`)).body.data;
+    const items = (await api(page, `/api/dailies/date/${today()}`)).body.data;
     const holder = items.find(w => w.id === daily.id);
     expect((holder.entities || []).some(c => c.id === rec.id),
       'it went inside the daily, not onto the day').toBe(true);
 
-    const roots = (await api(page, `/api/work/date/${today()}/roots`)).body.data;
+    const roots = (await api(page, `/api/dailies/date/${today()}/roots`)).body.data;
     expect(roots.some(r => r.id === rec.id),
       'and it is NOT also loose on the day').toBe(false);
   });

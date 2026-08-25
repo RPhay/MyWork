@@ -21,14 +21,14 @@ test('Editor toggle behavior - click to open, click to close, switch between row
   })).json()).data.id;
 
   // Create work item
-  const workItemId = (await (await page.request.post('/api/work', {
+  const dailyId = (await (await page.request.post('/api/dailies', {
     data: { title: `TOGGLE_WORK_${ts}`, date: '2026-08-14' },
     headers
   })).json()).data.id;
 
   // Associate both todos
-  await page.request.post(`/api/work/${workItemId}/todos/${todo1Id}`, { headers });
-  await page.request.post(`/api/work/${workItemId}/todos/${todo2Id}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todo1Id}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todo2Id}`, { headers });
 
   // Load page
   await page.reload();

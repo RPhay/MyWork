@@ -5,14 +5,14 @@ import logger from '../../utils/logger.js';
 
 const router = express.Router();
 
-// Get all areas
+// Get all categories
 router.get('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const areas = await entityService.getAllEntities('category', contextId);
-    res.json({ success: true, data: areas });
+    const categories = await entityService.getAllEntities('category', contextId);
+    res.json({ success: true, data: categories });
   } catch (error) {
-    logger.error('Error fetching areas:', error);
+    logger.error('Error fetching categories:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -22,8 +22,8 @@ router.get('/', async (req, res) => {
 router.patch('/reorder-siblings', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const areas = await entityService.reorderEntitiesBySiblings(req.body.orderedIds, contextId);
-    res.json({ success: true, message: 'Categories reordered', data: areas });
+    const categories = await entityService.reorderEntitiesBySiblings(req.body.orderedIds, contextId);
+    res.json({ success: true, message: 'Categories reordered', data: categories });
   } catch (error) {
     logger.error('Error reordering sibling categories:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
@@ -47,7 +47,7 @@ router.post('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
     const area = await entityService.createEntity('category', req.body, contextId);
-    res.status(201).json({ success: true, message: 'Area created', data: area });
+    res.status(201).json({ success: true, message: 'Category created', data: area });
   } catch (error) {
     logger.error('Error creating area:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
@@ -58,7 +58,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const area = await entityService.updateEntity(req.params.id, req.body);
-    res.json({ success: true, message: 'Area updated', data: area });
+    res.json({ success: true, message: 'Category updated', data: area });
   } catch (error) {
     logger.error('Error updating area:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
@@ -69,7 +69,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     await entityService.deleteEntity(req.params.id);
-    res.json({ success: true, message: 'Area deleted' });
+    res.json({ success: true, message: 'Category deleted' });
   } catch (error) {
     logger.error('Error deleting area:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });

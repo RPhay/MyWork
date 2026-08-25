@@ -148,21 +148,21 @@ async function loadSummary() {
 
 async function loadFilterOptions() {
   try {
-    const [prioRes, areaRes] = await Promise.all([
+    const [prioRes, categoryRes] = await Promise.all([
       fetch('/api/priorities'),
-      fetch('/api/areas'),
+      fetch('/api/categories'),
     ]);
     const prioResult = await prioRes.json();
-    const areaResult = await areaRes.json();
+    const categoryResult = await categoryRes.json();
 
     const projects = (prioResult.success && app.flattenTree(prioResult.data)) || [];
-    const areas = (areaResult.success && app.flattenTree(areaResult.data)) || [];
+    const categories = (categoryResult.success && app.flattenTree(categoryResult.data)) || [];
 
     document.getElementById('rptWiProject').innerHTML = '<option value="">All</option>' +
       projects.map(p => `<option value="${p.id}">${'  '.repeat(p.depth)}${app.escapeHtml(p.title)}</option>`).join('');
 
     document.getElementById('rptWiCategory').innerHTML = '<option value="">All</option>' +
-      areas.map(a => `<option value="${a.id}">${'  '.repeat(a.depth)}${app.escapeHtml(a.name)}</option>`).join('');
+      categories.map(a => `<option value="${a.id}">${'  '.repeat(a.depth)}${app.escapeHtml(a.name)}</option>`).join('');
   } catch (error) {
     console.error('Error loading filter options:', error);
   }
@@ -175,12 +175,12 @@ async function loadWorkItemsReport() {
 
   const status = document.getElementById('rptWiStatus').value;
   const priorityId = document.getElementById('rptWiProject').value;
-  const areaId = document.getElementById('rptWiCategory').value;
+  const categoryId = document.getElementById('rptWiCategory').value;
 
   const params = new URLSearchParams({ startDate, endDate });
   if (status) params.set('status', status);
   if (priorityId) params.set('priorityId', priorityId);
-  if (areaId) params.set('areaId', areaId);
+  if (categoryId) params.set('categoryId', categoryId);
 
   const tbody = document.getElementById('rptWiTableBody');
   tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Loading&hellip;</td></tr>';
@@ -201,7 +201,7 @@ async function loadWorkItemsReport() {
           <td>${app.escapeHtml((item.date || '').slice(0, 10))}</td>
           <td>${app.escapeHtml(item.title)}</td>
           <td>${(item.priorities || []).map(p => app.escapeHtml(p.path || p.title)).join(', ') || '&mdash;'}</td>
-          <td>${(item.areas || []).map(a => app.escapeHtml(a.path || a.name)).join(', ') || '&mdash;'}</td>
+          <td>${(item.categories || []).map(a => app.escapeHtml(a.path || a.name)).join(', ') || '&mdash;'}</td>
           <td><span class="badge bg-${statusBadgeColor(item.status)}">${app.escapeHtml(item.status)}</span></td>
           <td>${item.time_box_minutes ? formatMinutes(item.time_box_minutes) : '&mdash;'}</td>
         </tr>

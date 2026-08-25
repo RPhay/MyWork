@@ -79,7 +79,7 @@ router.get('/sources/auth/sso/initiate', async (req, res, next) => {
  * GET /api/sources/auth/sso/callback
  * Handle OAuth callback and auto-save source
  */
-router.get('/sources/auth/sso/callback', async (req, res, next) => {
+router.get('/sources/auth/sso/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
 

@@ -78,11 +78,11 @@ test('REAL drag: template -> a day', async ({ page }) => {
   await src.dragTo(dst);
   await page.waitForTimeout(2000);
 
-  const items = (await api(page,`/api/work/date/${today()}`)).body.data;
+  const items = (await api(page,`/api/dailies/date/${today()}`)).body.data;
   console.log('day after real drag ->', JSON.stringify(items.map(w=>w.title)));
   expect(items.length).toBeGreaterThan(0);
 
-  for (const w of items) await api(page,`/api/work/${w.id}`,{method:'DELETE'});
+  for (const w of items) await api(page,`/api/dailies/${w.id}`,{method:'DELETE'});
   await api(page,`/api/entities/template/${tpl.id}`,{method:'DELETE'});
 });
 
@@ -102,7 +102,7 @@ test('template with contents -> day, as independent copies', async ({ page }) =>
   await page.locator('#templateEntityList .entity-row', {hasText:'ZZZfull template'}).first().dragTo(page.locator('#workItemsList'));
   await page.waitForTimeout(2200);
 
-  const items = (await api(page,`/api/work/date/${today()}`)).body.data;
+  const items = (await api(page,`/api/dailies/date/${today()}`)).body.data;
   const wi = items.find(w => w.title === 'ZZZfull template');
   expect(wi, 'work item created from the template').toBeTruthy();
   const gotIdea = (wi.ideas||[])[0], gotCat = (wi.areas||[])[0];
@@ -117,6 +117,6 @@ test('template with contents -> day, as independent copies', async ({ page }) =>
   const rels = (await api(page,'/api/entities/template/relationships?kind=hierarchy')).body.data;
   expect(rels.some(r=>r.parent_entity_id===tpl.id && r.child_entity_id===idea.id)).toBe(true);
 
-  for (const w of items.filter(x=>(x.title||'').startsWith('ZZZfull'))) await api(page,`/api/work/${w.id}`,{method:'DELETE'});
+  for (const w of items.filter(x=>(x.title||'').startsWith('ZZZfull'))) await api(page,`/api/dailies/${w.id}`,{method:'DELETE'});
   await api(page,`/api/entities/template/${tpl.id}`,{method:'DELETE'});
 });

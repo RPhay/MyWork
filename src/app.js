@@ -10,7 +10,6 @@ import config from "./config/environment.js";
 import logger from "./utils/logger.js";
 import { ValidationError, AppError } from "./config/errors.js";
 import indexRouter from "./routes/index.js";
-import { readVersion } from "./utils/version.js";
 import { checkDbHealth } from "./utils/dbHealth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -184,7 +183,7 @@ app.use((req, res) => {
 });
 
 // Error handling middleware (must be last)
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   // Log error
   logger.error("Unhandled error:", {
     error: err.message,

@@ -1,7 +1,6 @@
 import express from 'express';
 import * as entityService from '../../services/entityService.js';
 import * as entityRelationshipService from '../../services/entityRelationshipService.js';
-import * as entityTypeService from '../../services/entityTypeService.js';
 import { getActiveContextId } from '../../services/activeContextService.js';
 import logger from '../../utils/logger.js';
 import { ValidationError } from '../../config/errors.js';

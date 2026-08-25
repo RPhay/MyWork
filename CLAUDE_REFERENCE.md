@@ -27,7 +27,7 @@ development machines are separate checkouts, so both will edit the same line and
 From "Database schema changes must cover every supported database type" in
 `CLAUDE.md`. Read when adding or changing a foreign key.
 
-When translating, don't assume a 1:1 mapping of referential actions: SQL Server rejects `ON DELETE CASCADE`/`SET NULL`/`SET DEFAULT` on a foreign key if it would form a cycle or multiple cascade path ("may cause cycles or multiple cascade paths") — MySQL has no such restriction. Where mirroring MySQL's action would hit this, use `ON DELETE NO ACTION` in `mssqlSchema.js` instead (see the `parent_id` self-references and the `to_dos`/`tickets`/`areas` cross-references for precedent) and leave a comment noting the behavioral difference.
+When translating, don't assume a 1:1 mapping of referential actions: SQL Server rejects `ON DELETE CASCADE`/`SET NULL`/`SET DEFAULT` on a foreign key if it would form a cycle or multiple cascade path ("may cause cycles or multiple cascade paths") — MySQL has no such restriction. Where mirroring MySQL's action would hit this, use `ON DELETE NO ACTION` in `mssqlSchema.js` instead (see the `parent_id` self-references for precedent) and leave a comment noting the behavioral difference.
 
 ## Verifying MSSQL: run it, do not read it
 
@@ -56,7 +56,7 @@ before shipping.
 Two things that test will only reveal if it is set up like the real thing:
 
 - **Never connect as `dbo`/`sa`.** Every object lives in the `[MyWork]` schema,
-  and the app's runtime SQL is unqualified (`SELECT * FROM work_items`), which
+  and the app's runtime SQL is unqualified (`SELECT * FROM entities`), which
   resolves against the caller's `DEFAULT_SCHEMA` and then `dbo` — never
   `[MyWork]`. `createMssqlSchema` sets `DEFAULT_SCHEMA = [MyWork]` on the
   connecting user, but **`dbo` cannot be altered** (error 15150). Connect as a
@@ -107,7 +107,7 @@ Read when touching `connectionPool.js`'s type branching, or the Settings →
 Database Configuration flow (`databaseConfigService.js`).
 
 - `src/database/connectionPool.js` is the pool the app actually queries against at runtime. It **does** branch on `type === 'mssql'` and build a real `mssql.ConnectionPool` (see `getPool`), so MSSQL is a live runtime target, not just a schema-creation flow. Since `mysql2` speaks the MySQL wire protocol, the MySQL path works against either MySQL or MariaDB with no branching — there is no separate "mariadb" type anywhere in the codebase, and none should be added; `mysqlSchema.js` uses only standard DDL/SQL that both engines support identically.
-- `src/services/databaseConfigService.js` (behind Settings → Database Configuration) lets a user test connections and create schema against either MySQL/MariaDB (`type: 'mysql'`) or MSSQL, storing profiles encrypted at `data/db-connections.enc.json` via `src/utils/credentialCrypto.js`. Setting the MySQL/MariaDB profile active (`setActiveType`) tests it, then calls `connectionPool.reconfigure()` to actually swap the live pool — the running app really does start querying that target, no restart needed. MSSQL has no such path: `mssqlSchema.js` exists only for the create-schema flow, and every service (`workItemService.js`, etc.) queries exclusively through `connectionPool.js`'s `mysql2` pool, so setting MSSQL active only records intent.
+- `src/services/databaseConfigService.js` (behind Settings → Database Configuration) lets a user test connections and create schema against either MySQL/MariaDB (`type: 'mysql'`) or MSSQL, storing profiles encrypted at `data/db-connections.enc.json` via `src/utils/credentialCrypto.js`. Setting the MySQL/MariaDB profile active (`setActiveType`) tests it, then calls `connectionPool.reconfigure()` to actually swap the live pool — the running app really does start querying that target, no restart needed. MSSQL has no such path: `mssqlSchema.js` exists only for the create-schema flow, and every service (`dailyService.js`, etc.) queries exclusively through `connectionPool.js`'s `mysql2` pool, so setting MSSQL active only records intent.
 
 **History, for context, not action:** the "constraint that follows" note in
 `CLAUDE.md`'s Architecture section previously claimed the pool ignored mssql
@@ -120,7 +120,7 @@ schema, then threw on every single field save.
 From "Architecture" in `CLAUDE.md`. Read when touching the core entity tables
 or join tables, or the tab-switching frontend.
 
-**Data model**: work items, priorities, goals, and areas are the core entities (`work_items`, `priorities`, `goals`, `areas` tables). Priorities and areas are self-referencing hierarchies (`parent_id`); `src/utils/hierarchyPath.js#buildPathMap` walks that into a flat `id -> "Parent\Child"` path map, used whenever a hierarchical label needs to be shown flat. Work items relate to priorities/goals/areas/sources through join tables (`work_*_associations`); `workItemService.js#attachAssociations` batch-loads and stitches these onto items after every read.
+**Data model**: every editable type is a row in `entity_types`, and every record of every type is a row in `entities` with its values in `entity_field_values` and its nesting in `entity_relationships`. The per-type tables this file used to describe (`work_items`, `areas`, `goals`, `ideas`, `to_dos`, `tasks`, `tickets`) are gone. `priorities` is the last legacy table still standing, bridged to entities by `priority_areas`/`priority_goals`. `src/utils/hierarchyPath.js#buildPathMap` walks a `parent_id` list into a flat `id -> "Parent\Child"` path map, used whenever a hierarchical label needs to be shown flat. A day links to a row of ANY type through the single `work_entity_associations` junction; `dailyService.js#attachAssociations` batch-loads and stitches these onto items after every read.
 
 **Tab-based frontend**: `src/views/pages/dashboard.ejs` and `settings.ejs` render all tabs' content into the DOM upfront (`src/views/tabs/*.ejs`); `src/public/js/tabs.js` handles switching between them client-side and syncing the `?tab=` query param, so there's no client-side router. Each tab generally has a matching `src/public/js/<tab>.js` file that owns its fetch calls against `/api/<resource>` and DOM updates.
 
@@ -143,7 +143,7 @@ and hide the rail instead of switching panes.
 
 Consequences worth knowing before touching either file:
 
-- **There is no `#tab-work_item`.** Anything looking for a Dailies *page* will
+- **There is no `#tab-daily`.** Anything looking for a Dailies *page* will
   find nothing.
 - **Dailies cannot be the landing tab.** The default resolves to the first tab
   button that actually exists.
@@ -217,6 +217,20 @@ the focus bar — each rule below came from a specific regression.
   Only the clock starts and stops the clock. Its redraws are suspended while a
   chip is being dragged, or the timer's refresh deletes the element under the
   cursor mid-gesture.
+- **Monitors run 0 to n, and 0 means the bar is not drawn at all.** Pins are
+  kept when the count drops, not discarded — set a monitor back and they return
+  where they were. `MAX_MONITORS` in `focusMonitorsService.js` exists only so a
+  nonsense count cannot allocate an absurd array; it is not a product limit, it
+  is exported, it ships with every settings read as `maxMonitors`, and the
+  browser and routes both take the bound from there rather than repeating it.
+  Raise it freely. What must NOT come back is a literal: the cap was written out
+  as `6` in seven places across the service, the route, `focus-bar.js` and a
+  hardcoded `<select>` in `settings-misc.ejs`, so "0 to n" was really "1 to 6".
+- **`Number(count) || 1` is always wrong here**, because `Number(0)` is falsy
+  and 0 is the one value that hides the bar. It has been reintroduced twice —
+  once in the service, once in the Settings pane, where a saved 0 displayed as
+  1 — so the coercion tests `Number.isFinite` instead, and null/undefined/''
+  are what count as unset.
 
 ## Recurring Todos/Tasks: mechanism, JSON schema, API example
 

@@ -168,7 +168,7 @@
 
     const el = (id) => document.getElementById(id);
     const blankMonitor = () => ({ label: '', layout: 'side-by-side' });
-    let state = { count: 1, showNumbers: false, monitors: Array.from({ length: 6 }, blankMonitor) };
+    let state = { count: 1, showNumbers: false, maxMonitors: 32, monitors: [] };
 
     function rowHtml(n, m) {
       return `
@@ -198,17 +198,26 @@
     }
 
     function renderRows() {
-      const count = Number(el('monitorCount').value) || 1;
+      // NOT `|| 1`: Number('0') is falsy, which turned "no monitors" back into one.
+      const count = Math.min(
+        state.maxMonitors,
+        Math.max(0, Number(el('monitorCount').value) || 0),
+      );
       el('monitorRows').innerHTML = Array.from({ length: count }, (_, i) =>
         rowHtml(i + 1, state.monitors[i] || blankMonitor())).join('');
     }
 
     function paint(data) {
+      const max = Number(data.maxMonitors) || 32;
       state = {
-        count: data.count || 1,
+        // NOT `|| 1`: Number(0) is falsy, so `|| 1` showed "1 monitor" for a
+        // setting saved as 0 - the one value that hides the bar.
+        count: Number.isFinite(Number(data.count)) ? Math.max(0, Number(data.count)) : 1,
         showNumbers: !!data.showNumbers,
-        monitors: Array.from({ length: 6 }, (_, i) => data.monitors?.[i] || blankMonitor()),
+        maxMonitors: max,
+        monitors: Array.from({ length: max }, (_, i) => data.monitors?.[i] || blankMonitor()),
       };
+      el('monitorCount').max = String(max);
       el('monitorCount').value = String(state.count);
       el('monitorShowNumbers').checked = state.showNumbers;
       renderRows();
@@ -220,14 +229,17 @@
       if (body.success) paint(body.data);
     };
 
-    el('monitorCount')?.addEventListener('change', () => {
+    el('monitorCount')?.addEventListener('input', () => {
       collectRows();
       renderRows();
     });
 
     el('saveMonitorsBtn')?.addEventListener('click', async () => {
       collectRows();
-      state.count = Number(el('monitorCount').value) || 1;
+      state.count = Math.min(
+        state.maxMonitors,
+        Math.max(0, Number(el('monitorCount').value) || 0),
+      );
       state.showNumbers = el('monitorShowNumbers').checked;
 
       const res = await app.fetchRaw('/api/focus-monitors', { method: 'PUT', body: JSON.stringify(state) });

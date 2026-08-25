@@ -1,6 +1,5 @@
 import { query } from '../database/connectionPool.js';
 import { ValidationError, NotFoundError, ConflictError } from '../config/errors.js';
-import { SYSTEM_ENTITY_TYPES } from '../database/systemEntityTypes.js';
 // A captured snapshot of a working configuration - see revertSystemType.
 import typeDefaults from '../database/typeDefaults.json' with { type: 'json' };
 

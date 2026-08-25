@@ -17,13 +17,13 @@ test('Editor save functionality', async ({ page }) => {
   })).json()).data.id;
 
   // Create fresh work item
-  const workItemId = (await (await page.request.post('/api/work', {
+  const dailyId = (await (await page.request.post('/api/dailies', {
     data: { title: uniqueId + '_WORK', date: '2026-08-14' },
     headers
   })).json()).data.id;
 
   // Associate
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
 
   // Load page, find and expand work item
   await page.reload();

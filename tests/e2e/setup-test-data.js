@@ -24,7 +24,7 @@ export async function setupTestData(page) {
     }
 
     // Create a test category/area
-    const areaResp = await page.request.post('/api/areas', {
+    const areaResp = await page.request.post('/api/categories', {
       data: { name: 'Test Category for Context Menu' },
       headers
     });
@@ -105,7 +105,7 @@ export async function createTestWorkItem(page, title) {
   const headers = csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
 
   const today = new Date().toISOString().split('T')[0];
-  const response = await page.request.post('/api/work', {
+  const response = await page.request.post('/api/dailies', {
     data: {
       date: today,
       title: title || 'Test Work Item',

@@ -12,7 +12,6 @@
 // why those settings kept reverting after a schema run.
 import {
   SYSTEM_ENTITY_TYPES,
-  SPECIAL_ENTITY_TYPES,
   resolveTypeRelationships,
 } from '../systemEntityTypes.js';
 
@@ -99,8 +98,6 @@ export async function createMysqlSchema(connection) {
   // `category`, formerly `area`), which lives in entities like every other
   // editable type. Nothing read it.
 
-  // areas table removed in Phase 2 (areas migrated to generic entities)
-
   // Create years table (selectable years for Yearly Goals)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS years (
@@ -115,9 +112,8 @@ export async function createMysqlSchema(connection) {
     new Date().getFullYear(),
   ]);
 
-  // goals and goal_categories tables removed in Phase 3 (goals migrated to generic entities)
-
-  // Create priorities table (supports sub-projects via parent_id; areas/goals are many-to-many;
+  // Create priorities table (supports sub-projects via parent_id; categories/goals
+  // are many-to-many through the bridge junctions at the end of this file;
   // status + order_index drive the Priority Board's per-bay drag ordering)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS priorities (
@@ -157,8 +153,9 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // A prior revision linked priorities to the categories table via category_id;
-  // drop it now that priorities link to the dedicated areas table instead.
+  // A prior revision linked priorities to the old static `categories` table via
+  // category_id. Both that table and this column are gone; priorities link to
+  // Category ENTITIES through priority_areas now.
   if (await columnExists(connection, "priorities", "category_id")) {
     await dropForeignKeysOnColumn(connection, "priorities", "category_id");
     await connection.query("ALTER TABLE priorities DROP COLUMN category_id");
@@ -193,13 +190,14 @@ export async function createMysqlSchema(connection) {
 
 
   // work_source_associations: created further down, alongside
-  // work_entity_associations, because its work_item_id column now points at
+  // work_entity_associations, because its daily_id column now points at
   // `entities` (see "Legacy <-> entity association bridge") - `entities`
   // does not exist yet at this point in the file.
 
 
 
-  // Create work_item_templates table (reusable work item presets with pre-associated areas/goals/priorities)
+  // Create work_item_templates table (reusable daily presets with pre-associated
+  // categories/goals/priorities)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS work_item_templates (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -431,8 +429,7 @@ export async function createMysqlSchema(connection) {
 
 
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
-  // distinct from the "areas" table, which backs the unrelated Categories tab)
-  // Note: This must be created BEFORE tickets since tickets references contexts
+  // not to be confused with Categories, which are entities of type `category`)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS contexts (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -686,8 +683,6 @@ export async function createMysqlSchema(connection) {
   // "work_items" and "tickets" were here until they were retired - see
   // RETIRED_TABLES. Leaving a dropped table in this list makes the ALTER below
   // throw on every schema run.
-  // Note: "areas", "goals", "idea_folders", "ideas" were migrated to generic entities
-  // in Phases 1-3 and no longer exist as separate tables
   for (const table of contextTables) {
     if (!(await columnExists(connection, table, "context_id"))) {
       await connection.query(
@@ -704,7 +699,6 @@ export async function createMysqlSchema(connection) {
   // (e.g. only one priority could ever be named "Project A" across the whole app).
   // Widen them to be per-context so the same name can exist in different
   // contexts without colliding.
-  // Note: areas and goals were migrated to generic entities and no longer have these tables
   if (await indexExists(connection, "priorities", "title")) {
     await connection.query("ALTER TABLE priorities DROP INDEX `title`");
     await connection.query(
@@ -715,8 +709,6 @@ export async function createMysqlSchema(connection) {
   // The to_dos <-> tickets cross-links are gone with the `tickets` table. Both
   // sides were FKs into a table nothing read; cross-entity relationships live in
   // entity_relationships now.
-
-  // Note: areas table was migrated to generic entities and no longer exists
 
   // Create quotes table (person + quote attribution for any object type)
   await connection.query(`
@@ -1012,6 +1004,35 @@ export async function createMysqlSchema(connection) {
         AND field_type = 'number' AND label = 'Focus time (seconds)'`
   );
 
+  // Remove the orphaned `recurrence` field definitions.
+  //
+  // Recurrence was withdrawn on 2026-08-19 (a9e720a took its <option> out of the
+  // type editor) but the field definitions stayed behind on Todos and Tasks, so
+  // the app carried a field type it no longer knows how to edit - which is what
+  // entity-type-integrity.spec.js exists to catch.
+  //
+  // Guarded on having no stored values, so this can only ever remove an EMPTY
+  // definition. If a future recurrence implementation puts data here, this stops
+  // firing rather than deleting it.
+  // Guarded because entity_field_values is created LATER in this file, so on a
+  // brand new database it does not exist yet - the same trap the `entities`
+  // reference in the rename block above fell into. On a fresh build there are no
+  // recurrence fields to clean up anyway.
+  const [[{ hasValues }]] = await connection.query(
+    `SELECT COUNT(*) AS hasValues FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'entity_field_values'`
+  );
+  if (hasValues) {
+    await connection.query(
+      `DELETE FROM entity_type_fields
+        WHERE field_type = 'recurrence'
+          AND NOT EXISTS (
+            SELECT 1 FROM (SELECT DISTINCT field_key FROM entity_field_values) v
+             WHERE v.field_key = entity_type_fields.field_key
+          )`
+    );
+  }
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS entity_type_relationships (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1070,14 +1091,14 @@ export async function createMysqlSchema(connection) {
       title VARCHAR(255) NOT NULL,
       order_index INT DEFAULT 0,
       is_folder BOOLEAN DEFAULT FALSE,
-      legacy_work_item_id INT UNIQUE,
+      legacy_daily_id INT UNIQUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE,
       INDEX idx_type (entity_type_id),
       INDEX idx_context (context_id),
       INDEX idx_type_context (entity_type_id, context_id),
-      INDEX idx_legacy (legacy_work_item_id)
+      INDEX idx_legacy (legacy_daily_id)
     )
   `);
 
@@ -1174,7 +1195,7 @@ export async function createMysqlSchema(connection) {
   // column is a legacy row id, the right column is an `entities.id`.
   //
   // Phases 1-3 dropped these tables outright without updating their consumers
-  // (workItemService/priorityService/workItemTemplateService), which is what
+  // (dailyService/priorityService/dailyTemplateService), which is what
   // left Dailies, Projects and Reporting throwing "a required database table is
   // missing" on every load. They are back deliberately and temporarily.
   //
@@ -1204,8 +1225,8 @@ export async function createMysqlSchema(connection) {
   // user created - no table existed for it and none could be added from the app
   // - and having no order column, they could not order a day's children either.
   //
-  // work_item_id points at `entities`, not the legacy `work_items` table - a
-  // "day" is itself a work_item entity now (see the work_items -> entities
+  // daily_id points at `entities`, not the legacy `work_items` table - a
+  // "day" is itself a `daily` entity now (see the work_items -> entities
   // migration below), so both columns share one id space. A fresh install
   // never has a legacy work_items row to point at in the first place; an
   // existing install's already-created FK is repointed by
@@ -1213,34 +1234,34 @@ export async function createMysqlSchema(connection) {
   await connection.query(`
     CREATE TABLE IF NOT EXISTS work_entity_associations (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
+      daily_id INT NOT NULL,
       entity_id INT NOT NULL,
       order_index INT DEFAULT 0,
-      FOREIGN KEY (work_item_id) REFERENCES entities(id) ON DELETE CASCADE,
+      FOREIGN KEY (daily_id) REFERENCES entities(id) ON DELETE CASCADE,
       FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_entity (work_item_id, entity_id),
-      INDEX idx_wea_work (work_item_id),
+      UNIQUE KEY unique_work_entity (daily_id, entity_id),
+      INDEX idx_wea_work (daily_id),
       INDEX idx_wea_entity (entity_id)
     )
   `);
 
   // A source is not an entity, so this one stays a plain junction rather than
-  // joining the bridge below - but work_item_id is the same entities-pointing
+  // joining the bridge below - but daily_id is the same entities-pointing
   // column as work_entity_associations above, for the same reason.
   await connection.query(`
     CREATE TABLE IF NOT EXISTS work_source_associations (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
+      daily_id INT NOT NULL,
       source_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES entities(id) ON DELETE CASCADE,
+      FOREIGN KEY (daily_id) REFERENCES entities(id) ON DELETE CASCADE,
       FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_source (work_item_id, source_id)
+      UNIQUE KEY unique_work_source (daily_id, source_id)
     )
   `);
 
   // A record put on a day WITHOUT a work item wrapped round it.
   //
-  // work_entity_associations requires a work_item_id, so until this table
+  // work_entity_associations requires a daily_id, so until this table
   // existed nothing could sit on a date unless a work item was created to hold
   // it - dragging an idea onto a day invented a work item named after the idea,
   // whether or not that was wanted. This is the same relationship one level up:
@@ -1278,7 +1299,35 @@ export async function createMysqlSchema(connection) {
       )
     `);
   }
+  await renameLegacyColumns(connection);
   await dropRetiredTables(connection);
+}
+
+// Columns still named after concepts that were renamed: a `work_item` is a
+// `daily` now. The tables these live on are permanent, so unlike the *_areas
+// bridges (which disappear when `priorities` becomes an entity type) it is
+// worth spending the rename on them.
+//
+// `CHANGE COLUMN` rather than `RENAME COLUMN`: RENAME needs MySQL 8.0+ /
+// MariaDB 10.5.2+, and this file has to run on whatever either engine offers.
+// The definition is restated exactly - get it wrong and you silently alter the
+// column instead of renaming it.
+const LEGACY_COLUMN_RENAMES = [
+  ['work_entity_associations', 'work_item_id', 'daily_id', 'INT NOT NULL'],
+  ['work_source_associations', 'work_item_id', 'daily_id', 'INT NOT NULL'],
+  ['entities', 'legacy_work_item_id', 'legacy_daily_id', 'INT NULL'],
+];
+
+async function renameLegacyColumns(connection) {
+  for (const [table, from, to, definition] of LEGACY_COLUMN_RENAMES) {
+    // Guarded on BOTH sides: the old name must still be there and the new one
+    // must not, so the rename runs exactly once and a re-run is a no-op.
+    if (!(await columnExists(connection, table, from))) continue;
+    if (await columnExists(connection, table, to)) continue;
+    await connection.query(
+      `ALTER TABLE \`${table}\` CHANGE COLUMN \`${from}\` \`${to}\` ${definition}`,
+    );
+  }
 }
 
 // Tables the app no longer has any code for. Dropped on every schema run, so a
@@ -1299,8 +1348,44 @@ export async function createMysqlSchema(connection) {
 //     this drop reaches a database that still has unmigrated ones.
 const RETIRED_TABLES = ["work_items", "tickets", "categories"];
 
+// Would dropping `work_items` destroy Dailies that were never migrated?
+//
+// The rows move into `entities` as type `daily` by way of
+// scripts/phase10-migrate-work-items.js, which is MySQL-only and has to be run
+// by hand. A database where that has not happened yet still holds every daily
+// in this table, and the schema runs on every server start - so an unguarded
+// DROP would silently destroy them on the first restart after a pull. Each
+// migrated row leaves a `legacy_daily_id` on its entity, which is exactly
+// the evidence needed.
+async function workItemsSafeToDrop(connection) {
+  const [[{ n: rows }]] = await connection.query('SELECT COUNT(*) AS n FROM work_items');
+  if (rows === 0) return true;                       // nothing to lose
+  const [[{ n: migrated }]] = await connection.query(
+    'SELECT COUNT(*) AS n FROM entities WHERE legacy_daily_id IS NOT NULL',
+  );
+  return migrated >= rows;
+}
+
 async function dropRetiredTables(connection) {
   for (const table of RETIRED_TABLES) {
+    // The one table that can still hold data worth keeping - see above. Left in
+    // place, loudly, rather than dropped: a table nobody reads is harmless, and
+    // a lost day of work is not.
+    if (table === 'work_items') {
+      const [exists] = await connection.query(
+        `SELECT COUNT(*) AS n FROM information_schema.TABLES
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_items'`,
+      );
+      if (!exists[0].n) continue;
+      if (!(await workItemsSafeToDrop(connection))) {
+        console.warn(
+          '[schema] work_items still holds rows with no matching entity - NOT dropping it. '
+          + 'Run scripts/phase10-migrate-work-items.js first.',
+        );
+        continue;
+      }
+    }
+
     // Drop the foreign keys this table declares first. MySQL will not drop a
     // table whose FKs are still referenced, and a half-dropped schema is worse
     // than an untouched one.

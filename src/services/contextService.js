@@ -177,41 +177,37 @@ export async function checkAndUpdateContextSchema(contextId) {
     errors: [],
   };
 
-  try {
-    if (config.type === 'mysql') {
-      const connection = await mysql.createConnection({
-        host: config.host,
-        port: config.port,
-        user: config.user,
-        password: config.password,
-        database: config.database,
-      });
+  if (config.type === 'mysql') {
+    const connection = await mysql.createConnection({
+      host: config.host,
+      port: config.port,
+      user: config.user,
+      password: config.password,
+      database: config.database,
+    });
 
-      try {
-        await createMysqlSchema(connection);
-      } finally {
-        await connection.end();
-      }
-    } else if (config.type === 'mssql') {
-      const pool = await mssql.connect({
-        server: config.host,
-        port: config.port,
-        user: config.user,
-        password: config.password,
-        database: config.database,
-        options: { encrypt: true, trustServerCertificate: false },
-      });
-
-      try {
-        await createMssqlSchema(pool);
-      } finally {
-        await pool.close();
-      }
-    } else {
-      throw new ValidationError(`Unknown database type: ${config.type}`);
+    try {
+      await createMysqlSchema(connection);
+    } finally {
+      await connection.end();
     }
-  } catch (error) {
-    throw error;
+  } else if (config.type === 'mssql') {
+    const pool = await mssql.connect({
+      server: config.host,
+      port: config.port,
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      options: { encrypt: true, trustServerCertificate: false },
+    });
+
+    try {
+      await createMssqlSchema(pool);
+    } finally {
+      await pool.close();
+    }
+  } else {
+    throw new ValidationError(`Unknown database type: ${config.type}`);
   }
 
   return result;

@@ -92,17 +92,17 @@ describe('the rewrites already in place', () => {
   });
 
   it('dedupes on the real UNIQUE KEY, not every inserted column', () => {
-    // work_entity_associations' key is (work_item_id, entity_id) - order_index
+    // work_entity_associations' key is (daily_id, entity_id) - order_index
     // is payload, not identity. Checking it too means a re-drag that only
     // changes order_index looks like "no existing row" and the INSERT that
     // follows then hits the real UNIQUE KEY and throws, instead of no-oping.
     const { sql, values } = rewriteInsertIgnoreForMssql(
-      'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
+      'INSERT IGNORE INTO work_entity_associations (daily_id, entity_id, order_index) VALUES (?, ?, ?)',
       [1, 2, 5],
     );
     expect(sql).toBe(
-      'IF NOT EXISTS (SELECT 1 FROM work_entity_associations WHERE work_item_id = ? AND entity_id = ?) ' +
-        'INSERT INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
+      'IF NOT EXISTS (SELECT 1 FROM work_entity_associations WHERE daily_id = ? AND entity_id = ?) ' +
+        'INSERT INTO work_entity_associations (daily_id, entity_id, order_index) VALUES (?, ?, ?)',
     );
     expect(values).toEqual([1, 2, 1, 2, 5]);
   });
@@ -144,7 +144,7 @@ describe('qualifyTablesForMssql', () => {
   // Only names confirmed to exist in [MyWork] are ever rewritten. That is the
   // safety property: an alias, a CTE or a column cannot be mistaken for a
   // table, because none of them will be in this set.
-  const known = new Set(['contexts', 'entities', 'work_items', 'entity_field_values']);
+  const known = new Set(['contexts', 'entities', 'entity_types', 'entity_field_values']);
 
   it('qualifies a bare table in FROM', () => {
     expect(qualifyTablesForMssql('SELECT * FROM contexts WHERE id = ?', known))
@@ -153,8 +153,8 @@ describe('qualifyTablesForMssql', () => {
 
   it('qualifies every table in a join, leaving aliases alone', () => {
     expect(qualifyTablesForMssql(
-      'SELECT e.* FROM entities e JOIN work_items w ON w.id = e.legacy_work_item_id', known))
-      .toBe('SELECT e.* FROM [MyWork].[entities] e JOIN [MyWork].[work_items] w ON w.id = e.legacy_work_item_id');
+      'SELECT e.* FROM entities e JOIN entity_types t ON t.id = e.entity_type_id', known))
+      .toBe('SELECT e.* FROM [MyWork].[entities] e JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id');
   });
 
   it('qualifies INSERT INTO, UPDATE and DELETE FROM', () => {

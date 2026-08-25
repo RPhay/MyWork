@@ -17,16 +17,16 @@ test('Check if OUR todo renders after association', async ({ page }) => {
   console.log('Created our unique todo:', todoId);
 
   // Create work item
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'OUR UNIQUE WORK ITEM 12345', date: '2026-08-14' },
     headers
   });
   const workData = await workResp.json();
-  const workItemId = workData.data.id;
-  console.log('Created our unique work item:', workItemId);
+  const dailyId = workData.data.id;
+  console.log('Created our unique work item:', dailyId);
 
   // Associate
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
   console.log('Associated todo to work item');
 
   // Reload
@@ -66,10 +66,10 @@ test('Check if OUR todo renders after association', async ({ page }) => {
   for (const row of childRows) {
     const title = await row.locator('.work-item-title').textContent();
     const type = await row.getAttribute('data-item-type');
-    const workId = await row.getAttribute('data-work-id');
-    console.log(`  ${type}/${workId}: ${title}`);
+    const dailyId = await row.getAttribute('data-work-id');
+    console.log(`  ${type}/${dailyId}: ${title}`);
 
-    if (workId === String(todoId)) {
+    if (dailyId === String(todoId)) {
       foundOurTodo = true;
       console.log('  ^^^ THIS IS OUR TODO!');
     }

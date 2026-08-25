@@ -1,11 +1,11 @@
-import * as workItemService from './workItemService.js';
+import * as dailyService from './dailyService.js';
 import * as toDoService from './toDoService.js';
 import * as entityService from './entityService.js';
 import * as entityRelationshipService from './entityRelationshipService.js';
 import { ValidationError } from '../config/errors.js';
 
 // Read-only aggregation over existing entities - no new tables. Only
-// work_items (date) and goals (due_date/year) have a real business date, so
+// dailies (date) and goals (due_date/year) have a real business date, so
 // Projects/Categories are reported via linked Work Item activity in the
 // selected range rather than a date field of their own (they don't have
 // one), and To Dos/Ideas use created_at as the closest available date.
@@ -19,13 +19,13 @@ function requireDateRange(startDate, endDate) {
   }
 }
 
-export async function getWorkItemsReport(contextId, { startDate, endDate, status, priorityId, areaId } = {}) {
+export async function getWorkItemsReport(contextId, { startDate, endDate, status, priorityId, categoryId } = {}) {
   requireDateRange(startDate, endDate);
-  let items = await workItemService.getWorkItemsByDateRange(startDate, endDate, contextId);
+  let items = await dailyService.getWorkItemsByDateRange(startDate, endDate, contextId);
 
   if (status) items = items.filter(i => i.status === status);
   if (priorityId) items = items.filter(i => i.priorities.some(p => String(p.id) === String(priorityId)));
-  if (areaId) items = items.filter(i => i.areas.some(a => String(a.id) === String(areaId)));
+  if (categoryId) items = items.filter(i => i.categories.some(a => String(a.id) === String(categoryId)));
 
   return items;
 }
@@ -59,7 +59,7 @@ export async function getGoalsReport(contextId, { year, status } = {}) {
 }
 
 // Buckets already-fetched work items by whichever entity they're linked to
-// via `field` ('priorities' or 'areas') - an item linked to more than one
+// via `field` ('priorities' or 'categories') - an item linked to more than one
 // counts toward each, matching the many-to-many associations the rest of
 // the app already treats this way. Items with no link land in a single
 // "(Unassigned)" bucket.
@@ -101,7 +101,7 @@ export async function getProjectBreakdown(contextId, { startDate, endDate } = {}
 
 export async function getCategoryBreakdown(contextId, { startDate, endDate } = {}) {
   const items = await getWorkItemsReport(contextId, { startDate, endDate });
-  return bucketByLinked(items, 'areas');
+  return bucketByLinked(items, 'categories');
 }
 
 export async function getToDosIdeasReport(contextId, { startDate, endDate } = {}) {
@@ -199,6 +199,6 @@ export async function getTimeSummary(contextId, { startDate, endDate } = {}) {
     statusCounts,
     byDay,
     topProjects: bucketByLinked(items, 'priorities').slice(0, 5),
-    topCategories: bucketByLinked(items, 'areas').slice(0, 5),
+    topCategories: bucketByLinked(items, 'categories').slice(0, 5),
   };
 }

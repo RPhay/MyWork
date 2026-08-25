@@ -37,7 +37,7 @@ test('Comprehensive child item editor test - REAL USER FLOW', async ({ page }) =
   console.log(`✓ Created PRIORITY: ID=${priorityId}, title="${priorityData.title}", description="${priorityData.description}"`);
 
   // Create WORK ITEM
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: {
       title: 'COMPREHENSIVE_TEST_WORK_' + Date.now(),
       date: '2026-08-14'
@@ -45,12 +45,12 @@ test('Comprehensive child item editor test - REAL USER FLOW', async ({ page }) =
     headers
   });
   const workData = (await workResp.json()).data;
-  const workItemId = workData.id;
-  console.log(`✓ Created WORK ITEM: ID=${workItemId}, title="${workData.title}"`);
+  const dailyId = workData.id;
+  console.log(`✓ Created WORK ITEM: ID=${dailyId}, title="${workData.title}"`);
 
   // Associate
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
-  await page.request.post(`/api/work/${workItemId}/priorities/${priorityId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/priorities/${priorityId}`, { headers });
   console.log(`✓ Associated TODO and PRIORITY to work item`);
 
   console.log('\n========== LOAD PAGE ==========\n');
@@ -284,13 +284,13 @@ test('Check console for save errors', async ({ page }) => {
   const todoId = (await todoResp.json()).data.id;
 
   // Create work item and associate
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'Console Test Work', date: '2026-08-14' },
     headers
   });
-  const workItemId = (await workResp.json()).data.id;
+  const dailyId = (await workResp.json()).data.id;
 
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
 
   // Reload and find work item
   await page.reload();

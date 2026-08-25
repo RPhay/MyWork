@@ -18,7 +18,7 @@ The schema seeders insert what is missing and reconcile only the attributes Sett
 
 `entity_types.is_visible` decides whether a type gets a dashboard tab; `entity_types.order_index` decides the tab order. Both are **global, single sources of truth** — the Settings list and the dashboard tab bar are two views of the same values, editable from either end. A per-context layer (`context_tab_settings`) used to reorder tabs after render; it was removed, because two mechanisms owning one property disagree the moment either is used.
 
-**UPDATED (Phase 10):** This document describes the unified generic entity rendering system, fully implemented as of Phase 10. All entity types (work items, priorities, todos, tasks, goals, areas, tickets, ideas, templates) now use the same generic engine instead of type-specific implementations.
+**UPDATED (Phase 10):** This document describes the unified generic entity rendering system, fully implemented as of Phase 10. All entity types (dailies, priorities, todos, tasks, goals, categories, tickets, ideas, templates) now use the same generic engine instead of type-specific implementations.
 
 The architecture relies on:
 - **Generic Entity Service** (`src/services/entityService.js`): CRUD for any entity type

@@ -99,82 +99,82 @@ function buildTreeHTML(items, parentId = null, depth = 0, visited = new Set()) {
 // Modal for removing associations (scoped to only currently-associated items)
 
 // Fetch and show selection modal for projects/priorities
-async function showProjectSelector(workItemId) {
+async function showProjectSelector(dailyId) {
   const response = await fetch('/api/priorities');
   const result = await response.json();
   const projects = result.success ? result.data : [];
   showSelectionModal('Associate Project', projects, (projectId) => {
-    associateProject(workItemId, projectId);
+    associateProject(dailyId, projectId);
   }, true); // Projects are hierarchical
 }
 
-// Fetch and show selection modal for areas
-async function showAreaSelector(workItemId) {
-  const response = await fetch('/api/areas');
+// Fetch and show selection modal for categories
+async function showAreaSelector(dailyId) {
+  const response = await fetch('/api/categories');
   const result = await response.json();
-  const areas = result.success ? result.data : [];
-  showSelectionModal('Associate Category', areas, (areaId) => {
-    associateArea(workItemId, areaId);
+  const categories = result.success ? result.data : [];
+  showSelectionModal('Associate Category', categories, (categoryId) => {
+    associateCategory(dailyId, categoryId);
   }, true); // Areas are hierarchical
 }
 
 // Fetch and show selection modal for goals
-async function showGoalSelector(workItemId) {
+async function showGoalSelector(dailyId) {
   const year = window.APP_CONFIG?.currentYear || new Date().getFullYear();
   const response = await fetch(`/api/goals/year/${year}`);
   const result = await response.json();
   const goals = result.success ? result.data : [];
   showSelectionModal('Associate Goal', goals, (goalId) => {
-    associateGoal(workItemId, goalId);
+    associateGoal(dailyId, goalId);
   });
 }
 
 // Fetch and show selection modal for templates
 
 // Fetch and show selection modal for todos
-async function showTodoSelector(workItemId) {
+async function showTodoSelector(dailyId) {
   const response = await fetch('/api/to-dos');
   const result = await response.json();
   const todos = result.success ? result.data : [];
   showSelectionModal('Associate Todo', todos, (todoId) => {
-    associateTodo(workItemId, todoId);
+    associateTodo(dailyId, todoId);
   });
 }
 
 // Fetch and show selection modal for tasks
-async function showTaskSelector(workItemId) {
+async function showTaskSelector(dailyId) {
   const response = await fetch('/api/tasks');
   const result = await response.json();
   const tasks = result.success ? result.data : [];
   showSelectionModal('Associate Task', tasks, (taskId) => {
-    associateTask(workItemId, taskId);
+    associateTask(dailyId, taskId);
   });
 }
 
 // Fetch and show selection modal for tickets
-async function showTicketSelector(workItemId) {
+async function showTicketSelector(dailyId) {
   const response = await fetch('/api/tickets');
   const result = await response.json();
   const tickets = result.success ? result.data : [];
   showSelectionModal('Associate Ticket', tickets, (ticketId) => {
-    associateTicket(workItemId, ticketId);
+    associateTicket(dailyId, ticketId);
   });
 }
 
 // Fetch and show selection modal for ideas
-async function showIdeaSelector(workItemId) {
+async function showIdeaSelector(dailyId) {
   const response = await fetch('/api/ideas');
   const result = await response.json();
   const ideas = result.success ? result.data : [];
   showSelectionModal('Associate Idea', ideas, (ideaId) => {
-    associateIdea(workItemId, ideaId);
+    associateIdea(dailyId, ideaId);
   });
 }
 
 // Association functions
-async function associateProject(workItemId, projectId) {
+async function associateProject(dailyId, projectId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workItemId}/priorities/${projectId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/priorities/${projectId}`, {
       method: 'POST' });
     const result = await response.json();
     if (result.success) {
@@ -189,9 +189,9 @@ async function associateProject(workItemId, projectId) {
   }
 }
 
-async function associateArea(workItemId, areaId) {
+async function associateCategory(dailyId, categoryId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workItemId}/areas/${areaId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/categories/${categoryId}`, {
       method: 'POST' });
     const result = await response.json();
     if (result.success) {
@@ -206,9 +206,9 @@ async function associateArea(workItemId, areaId) {
   }
 }
 
-async function associateGoal(workItemId, goalId) {
+async function associateGoal(dailyId, goalId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workItemId}/goals/${goalId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/goals/${goalId}`, {
       method: 'POST' });
     const result = await response.json();
     if (result.success) {
@@ -223,9 +223,9 @@ async function associateGoal(workItemId, goalId) {
   }
 }
 
-async function associateTemplate(workItemId, templateId) {
+async function associateTemplate(dailyId, templateId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workItemId}/templates/${templateId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/templates/${templateId}`, {
       method: 'POST' });
     const result = await response.json();
     if (result.success) {
@@ -240,9 +240,9 @@ async function associateTemplate(workItemId, templateId) {
   }
 }
 
-async function associateTodo(workItemId, todoId) {
+async function associateTodo(dailyId, todoId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workItemId}/todos/${todoId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/todos/${todoId}`, {
       method: 'POST' });
     const result = await response.json();
     if (result.success) {
@@ -257,9 +257,9 @@ async function associateTodo(workItemId, todoId) {
   }
 }
 
-async function associateTask(workItemId, taskId) {
+async function associateTask(dailyId, taskId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workItemId}/tasks/${taskId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/tasks/${taskId}`, {
       method: 'POST' });
     const result = await response.json();
     if (result.success) {
@@ -274,9 +274,9 @@ async function associateTask(workItemId, taskId) {
   }
 }
 
-async function associateTicket(workItemId, ticketId) {
+async function associateTicket(dailyId, ticketId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workItemId}/tickets/${ticketId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/tickets/${ticketId}`, {
       method: 'POST' });
     const result = await response.json();
     if (result.success) {
@@ -291,9 +291,9 @@ async function associateTicket(workItemId, ticketId) {
   }
 }
 
-async function associateIdea(workItemId, ideaId) {
+async function associateIdea(dailyId, ideaId) {
   try {
-    const response = await app.fetchRaw(`/api/work/${workItemId}/ideas/${ideaId}`, {
+    const response = await app.fetchRaw(`/api/dailies/${dailyId}/ideas/${ideaId}`, {
       method: 'POST' });
     const result = await response.json();
     if (result.success) {
@@ -309,7 +309,7 @@ async function associateIdea(workItemId, ideaId) {
 }
 
 // Create and associate functions
-async function createAndAssociateProject(workItemId) {
+async function createAndAssociateProject(dailyId) {
   const title = await app.prompt('Enter project name:', { title: 'New Project', placeholder: 'Project name' });
   if (!title) return;
   try {
@@ -321,7 +321,7 @@ async function createAndAssociateProject(workItemId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Project created and associated!', 'success');
-      await associateProject(workItemId, result.data.id);
+      await associateProject(dailyId, result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -331,11 +331,11 @@ async function createAndAssociateProject(workItemId) {
   }
 }
 
-async function createAndAssociateArea(workItemId) {
+async function createAndAssociateCategory(dailyId) {
   const name = await app.prompt('Enter category name:', { title: 'New Category', placeholder: 'Category name' });
   if (!name) return;
   try {
-    const response = await app.fetchRaw('/api/areas', {
+    const response = await app.fetchRaw('/api/categories', {
       method: 'POST',
       
       body: JSON.stringify({ name })
@@ -343,7 +343,7 @@ async function createAndAssociateArea(workItemId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Category created and associated!', 'success');
-      await associateArea(workItemId, result.data.id);
+      await associateCategory(dailyId, result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -353,7 +353,7 @@ async function createAndAssociateArea(workItemId) {
   }
 }
 
-async function createAndAssociateGoal(workItemId) {
+async function createAndAssociateGoal(dailyId) {
   const name = await app.prompt('Enter goal name:', { title: 'New Goal', placeholder: 'Goal name' });
   if (!name) return;
   try {
@@ -365,7 +365,7 @@ async function createAndAssociateGoal(workItemId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Goal created and associated!', 'success');
-      await associateGoal(workItemId, result.data.id);
+      await associateGoal(dailyId, result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -375,7 +375,7 @@ async function createAndAssociateGoal(workItemId) {
   }
 }
 
-async function createAndAssociateTodo(workItemId) {
+async function createAndAssociateTodo(dailyId) {
   const title = await app.prompt('Enter todo title:', { title: 'New Todo', placeholder: 'Todo title' });
   if (!title) return;
   try {
@@ -387,7 +387,7 @@ async function createAndAssociateTodo(workItemId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Todo created and associated!', 'success');
-      await associateTodo(workItemId, result.data.id);
+      await associateTodo(dailyId, result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -397,7 +397,7 @@ async function createAndAssociateTodo(workItemId) {
   }
 }
 
-async function createAndAssociateTask(workItemId) {
+async function createAndAssociateTask(dailyId) {
   const title = await app.prompt('Enter task title:', { title: 'New Task', placeholder: 'Task title' });
   if (!title) return;
   try {
@@ -409,7 +409,7 @@ async function createAndAssociateTask(workItemId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Task created and associated!', 'success');
-      await associateTask(workItemId, result.data.id);
+      await associateTask(dailyId, result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -419,7 +419,7 @@ async function createAndAssociateTask(workItemId) {
   }
 }
 
-async function createAndAssociateTicket(workItemId) {
+async function createAndAssociateTicket(dailyId) {
   const title = await app.prompt('Enter ticket title:', { title: 'New Ticket', placeholder: 'Ticket title' });
   if (!title) return;
   try {
@@ -431,7 +431,7 @@ async function createAndAssociateTicket(workItemId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Ticket created and associated!', 'success');
-      await associateTicket(workItemId, result.data.id);
+      await associateTicket(dailyId, result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -441,7 +441,7 @@ async function createAndAssociateTicket(workItemId) {
   }
 }
 
-async function createAndAssociateIdea(workItemId) {
+async function createAndAssociateIdea(dailyId) {
   const title = await app.prompt('Enter idea title:', { title: 'New Idea', placeholder: 'Idea title' });
   if (!title) return;
   try {
@@ -453,7 +453,7 @@ async function createAndAssociateIdea(workItemId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Idea created and associated!', 'success');
-      await associateIdea(workItemId, result.data.id);
+      await associateIdea(dailyId, result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }
@@ -532,7 +532,7 @@ function deleteChildItem(itemType, itemId) {
   // Delete the association
   const apiMap = {
     'priority': 'priorities',
-    'category': 'areas',
+    'category': 'categories',
     'goal': 'goals',
     'template': 'templates',
     'todo': 'todos',
@@ -544,7 +544,7 @@ function deleteChildItem(itemType, itemId) {
   const endpoint = apiMap[itemType];
   if (!endpoint) return;
 
-  app.fetchRaw(`/api/work/${parentWorkItemId}/${endpoint}/${itemId}`, {
+  app.fetchRaw(`/api/dailies/${parentWorkItemId}/${endpoint}/${itemId}`, {
     method: 'DELETE' })
     .then(r => r.json())
     .then(result => {
@@ -564,7 +564,7 @@ function editChildItem(itemType, itemId) {
   // Map item types to their editor functions
   const editorMap = {
     'priority': () => editChildPriority(itemId),
-    'category': () => editChildArea(itemId),
+    'category': () => editChildCategory(itemId),
     'goal': () => editChildGoal(itemId),
     'template': () => editChildTemplate(itemId),
     'todo': () => editChildTodo(itemId),
@@ -586,7 +586,7 @@ async function createAndEditItem(itemType, parentWorkItemId) {
   // Use existing create-and-associate functions which now open in editors
   const createFunctionMap = {
     'priority': () => createAndAssociateProject(parentWorkItemId),
-    'category': () => createAndAssociateArea(parentWorkItemId),
+    'category': () => createAndAssociateCategory(parentWorkItemId),
     'goal': () => createAndAssociateGoal(parentWorkItemId),
     'template': () => createAndAssociateTemplate(parentWorkItemId),
     'todo': () => createAndAssociateTodo(parentWorkItemId),
@@ -602,11 +602,11 @@ async function createAndEditItem(itemType, parentWorkItemId) {
 }
 
 // Template creation (was missing)
-async function createAndAssociateTemplate(workItemId) {
+async function createAndAssociateTemplate(dailyId) {
   const title = await app.prompt('Enter template name:', { title: 'New Template', placeholder: 'Template name' });
   if (!title) return;
   try {
-    const response = await app.fetchRaw('/api/work-item-templates', {
+    const response = await app.fetchRaw('/api/daily-templates', {
       method: 'POST',
       
       body: JSON.stringify({ title })
@@ -614,7 +614,7 @@ async function createAndAssociateTemplate(workItemId) {
     const result = await response.json();
     if (result.success) {
       app.notify('Template created and associated!', 'success');
-      await associateTemplate(workItemId, result.data.id);
+      await associateTemplate(dailyId, result.data.id);
     } else {
       app.notify('Error: ' + result.message, 'danger');
     }

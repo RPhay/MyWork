@@ -9,7 +9,7 @@ import {
   createMssqlSchema as createMssqlSchemaInDb,
 } from "../database/schema/mssqlSchema.js";
 import { applyBootstrapConnection } from "./activeContextService.js";
-import { getCurrentConfig, reconfigure } from "../database/connectionPool.js";
+import { getCurrentConfig } from "../database/connectionPool.js";
 import { invalidateDbHealthCache } from "../utils/dbHealth.js";
 import { validateIdentifier } from "../utils/validateIdentifier.js";
 import { ValidationError } from "../config/errors.js";

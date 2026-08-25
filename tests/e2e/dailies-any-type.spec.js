@@ -29,7 +29,7 @@ test.afterEach(async ({ page }) => {
   await page.evaluate(async ({ made }) => {
     const csrf = window.APP_CONFIG?.csrfToken;
     for (const w of made.work) {
-      await fetch(`/api/work/${w}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
+      await fetch(`/api/dailies/${w}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
     }
     for (const e of made.entities) {
       await fetch(`/api/entities/tests/${e}`, { method: 'DELETE', headers: { 'CSRF-Token': csrf } });
@@ -53,16 +53,16 @@ test('a user-created type can be put on a day, with its children', async ({ page
   });
 
   // The day's work item, and the link that used to be impossible.
-  const work = (await api(page, '/api/work', {
+  const work = (await api(page, '/api/dailies', {
     method: 'POST', body: JSON.stringify({ title: 'ZZZ any day', date: DAY }),
   })).body.data;
   made.work.push(work.id);
 
-  const linked = await api(page, `/api/work/${work.id}/entities/${parent.id}`, { method: 'POST' });
+  const linked = await api(page, `/api/dailies/${work.id}/entities/${parent.id}`, { method: 'POST' });
   expect(linked.status, 'a type with no junction table of its own can still be linked').toBe(201);
 
   // Read it back: the row is there, and so is what was inside it.
-  const items = (await api(page, `/api/work/date/${DAY}`)).body.data;
+  const items = (await api(page, `/api/dailies/date/${DAY}`)).body.data;
   const day = items.find(i => String(i.id) === String(work.id));
   const titles = (day.entities || []).map(c => `${c.title}@${c.depth}`);
   console.log('children on the day ->', JSON.stringify(titles));
@@ -79,13 +79,13 @@ test('unlinking removes it from the day but not from its own tab', async ({ page
 
   const row = (await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: 'ZZZ unlink me' }) })).body.data;
   made.entities.push(row.id);
-  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ unlink day', date: DAY }) })).body.data;
+  const work = (await api(page, '/api/dailies', { method: 'POST', body: JSON.stringify({ title: 'ZZZ unlink day', date: DAY }) })).body.data;
   made.work.push(work.id);
 
-  await api(page, `/api/work/${work.id}/entities/${row.id}`, { method: 'POST' });
-  await api(page, `/api/work/${work.id}/entities/${row.id}`, { method: 'DELETE' });
+  await api(page, `/api/dailies/${work.id}/entities/${row.id}`, { method: 'POST' });
+  await api(page, `/api/dailies/${work.id}/entities/${row.id}`, { method: 'DELETE' });
 
-  const day = (await api(page, `/api/work/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
+  const day = (await api(page, `/api/dailies/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
   expect((day.entities || []).length, 'off the day').toBe(0);
 
   const still = (await api(page, '/api/entities/tests')).body.data.some(e => String(e.id) === String(row.id));
@@ -110,11 +110,11 @@ test('a subtree copied onto a day is copies all the way down', async ({ page }) 
   // a day and read back what the day says about each row.
   const clone = (await api(page, `/api/entities/tests/${parent.id}/clone`, { method: 'POST' })).body.data;
   made.entities.push(clone.id);
-  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dcopy day', date: DAY }) })).body.data;
+  const work = (await api(page, '/api/dailies', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dcopy day', date: DAY }) })).body.data;
   made.work.push(work.id);
-  await api(page, `/api/work/${work.id}/entities/${clone.id}`, { method: 'POST' });
+  await api(page, `/api/dailies/${work.id}/entities/${clone.id}`, { method: 'POST' });
 
-  const day = (await api(page, `/api/work/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
+  const day = (await api(page, `/api/dailies/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
   const rows = (day.entities || []);
   const origins = rows.map(c => `${c.title}@${c.depth}=${c.isCopy ? 'copy' : 'reference'}`);
   console.log('day rows ->', JSON.stringify(origins));
@@ -137,11 +137,11 @@ test('a subtree REFERENCED onto a day is references all the way down', async ({ 
     body: JSON.stringify({ parentEntityId: parent.id, childEntityId: child.id, relationshipKind: 'hierarchy' }),
   });
 
-  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dref day', date: DAY }) })).body.data;
+  const work = (await api(page, '/api/dailies', { method: 'POST', body: JSON.stringify({ title: 'ZZZ dref day', date: DAY }) })).body.data;
   made.work.push(work.id);
-  await api(page, `/api/work/${work.id}/entities/${parent.id}`, { method: 'POST' });
+  await api(page, `/api/dailies/${work.id}/entities/${parent.id}`, { method: 'POST' });
 
-  const day = (await api(page, `/api/work/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
+  const day = (await api(page, `/api/dailies/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
   const rows = (day.entities || []);
   console.log('day rows ->', JSON.stringify(rows.map(c => `${c.title}@${c.depth}=${c.isCopy ? 'copy' : 'reference'}`)));
   expect(rows.filter(r => r.isCopy).map(r => r.title),
@@ -160,16 +160,16 @@ test('a day\'s children reorder, and the order sticks', async ({ page }) => {
     rows.push((await api(page, '/api/entities/tests', { method: 'POST', body: JSON.stringify({ title: t }) })).body.data);
   }
   made.entities.push(...rows.map(r => r.id));
-  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ ord day', date: DAY }) })).body.data;
+  const work = (await api(page, '/api/dailies', { method: 'POST', body: JSON.stringify({ title: 'ZZZ ord day', date: DAY }) })).body.data;
   made.work.push(work.id);
-  for (const r of rows) await api(page, `/api/work/${work.id}/entities/${r.id}`, { method: 'POST' });
+  for (const r of rows) await api(page, `/api/dailies/${work.id}/entities/${r.id}`, { method: 'POST' });
 
-  const titles = async () => (await api(page, `/api/work/date/${DAY}`)).body.data
+  const titles = async () => (await api(page, `/api/dailies/date/${DAY}`)).body.data
     .find(i => String(i.id) === String(work.id)).entities.map(c => c.title);
   expect(await titles()).toEqual(['ZZZ ord one', 'ZZZ ord two', 'ZZZ ord three']);
 
   // Put the last one first.
-  const res = await api(page, `/api/work/${work.id}/entities/order`, {
+  const res = await api(page, `/api/dailies/${work.id}/entities/order`, {
     method: 'PATCH',
     body: JSON.stringify({ orderedIds: [rows[2].id, rows[0].id, rows[1].id] }),
   });
@@ -191,9 +191,9 @@ test('a child dropped outside its own level is refused', async ({ page }) => {
     method: 'POST',
     body: JSON.stringify({ parentEntityId: parent.id, childEntityId: child.id, relationshipKind: 'hierarchy' }),
   });
-  const work = (await api(page, '/api/work', { method: 'POST', body: JSON.stringify({ title: 'ZZZ lvl day', date: DAY }) })).body.data;
+  const work = (await api(page, '/api/dailies', { method: 'POST', body: JSON.stringify({ title: 'ZZZ lvl day', date: DAY }) })).body.data;
   made.work.push(work.id);
-  await api(page, `/api/work/${work.id}/entities/${parent.id}`, { method: 'POST' });
+  await api(page, `/api/dailies/${work.id}/entities/${parent.id}`, { method: 'POST' });
 
   await page.goto('/?tab=tests', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
@@ -212,20 +212,20 @@ test('a child dropped outside its own level is refused', async ({ page }) => {
   await expect(kid, 'the grandchild is on the day').toHaveCount(1);
 
   // Drag the grandchild onto the ROOT work item - a level change, not a reorder.
-  await page.evaluate(({ childId, workId }) => {
+  await page.evaluate(({ childId, dailyId }) => {
     const src = document.querySelector(`.child-item-row[data-child-id="${childId}"] .work-item-header`);
-    const dst = document.querySelector(`.work-item[data-work-id="${workId}"] .work-item-header`);
+    const dst = document.querySelector(`.work-item[data-work-id="${dailyId}"] .work-item-header`);
     const dt = new DataTransfer();
     const fire = (el, name) => el.dispatchEvent(new DragEvent(name, {
       bubbles: true, cancelable: true, dataTransfer: dt,
       clientX: el.getBoundingClientRect().left + 5,
       clientY: el.getBoundingClientRect().top + 5 }));
     fire(src, 'dragstart'); fire(dst, 'dragover'); fire(dst, 'drop'); fire(src, 'dragend');
-  }, { childId: child.id, workId: work.id });
+  }, { childId: child.id, dailyId: work.id });
   await page.waitForTimeout(1200);
 
   // Nothing changed: the record is still inside its parent, not on the day.
-  const day = (await api(page, `/api/work/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
+  const day = (await api(page, `/api/dailies/date/${DAY}`)).body.data.find(i => String(i.id) === String(work.id));
   const depths = (day.entities || []).map(c => `${c.title}@${c.depth}`);
   console.log('after the refused drop ->', JSON.stringify(depths));
   expect(depths, 'the tree is unchanged').toContain('ZZZ lvl child@1');

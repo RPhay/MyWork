@@ -12,11 +12,11 @@ let emojiPickerFieldTarget = null;
 
 const EMOJI_ENTITY_CONFIG = {
   "work-item": {
-    endpoint: (id) => `/api/work/${id}/emoji`,
+    endpoint: (id) => `/api/dailies/${id}/emoji`,
     reload: () => loadWorkItems(),
   },
   template: {
-    endpoint: (id) => `/api/work-item-templates/${id}/emoji`,
+    endpoint: (id) => `/api/daily-templates/${id}/emoji`,
     reload: () => window.GenericEntityTabs?.refresh("template"),
   },
 };

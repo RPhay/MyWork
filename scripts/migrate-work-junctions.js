@@ -3,7 +3,7 @@
 /**
  * Retire the seven per-type work_*_associations junctions.
  *
- * Audit 07 rewrote workItemService to derive every typed list a day exposes
+ * Audit 07 rewrote dailyService to derive every typed list a day exposes
  * (priorities, goals, areas, todos...) from ONE junction, work_entity_
  * associations, and removed the seven per-type tables from both schema files.
  * What it did not do was move the rows. On MySQL that left 20 links sitting in

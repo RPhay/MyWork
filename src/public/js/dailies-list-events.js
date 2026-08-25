@@ -5,15 +5,14 @@
 function initWorkItemsListEventListeners() {
   const container = document.getElementById("workItemsList");
   const centerPane = document.getElementById("dailiesCenterPane");
-  let clickTimer = null;
 
   app.bindInlineRename(
     container,
     ".work-item-title",
     async (newTitle, titleEl) => {
-      const workId = titleEl.closest(".work-item").dataset.workId;
+      const dailyId = titleEl.closest(".work-item").dataset.dailyId;
       try {
-        const response = await app.fetchRaw(`/api/work/${workId}`, {
+        const response = await app.fetchRaw(`/api/dailies/${dailyId}`, {
           method: "PUT",
           
           body: JSON.stringify({ title: newTitle }) });
@@ -154,9 +153,9 @@ function initWorkItemsListEventListeners() {
 
     const workItemEl = header.closest(".work-item");
     if (workItemEl.classList.contains("child-item-row")) {
-      editChildItem(workItemEl.dataset.itemType, workItemEl.dataset.workId);
+      editChildItem(workItemEl.dataset.itemType, workItemEl.dataset.dailyId);
     } else {
-      editWorkItem(workItemEl.dataset.workId);
+      editWorkItem(workItemEl.dataset.dailyId);
     }
   });
 
@@ -167,7 +166,7 @@ function initWorkItemsListEventListeners() {
     const childItem = e.target.closest(".child-item-row");
     if (childItem) {
       const itemType = childItem.dataset.itemType;
-      const itemId = childItem.dataset.workId;
+      const itemId = childItem.dataset.dailyId;
       showChildItemContextMenu(e.clientX, e.clientY, itemType, itemId);
       return;
     }
@@ -175,7 +174,7 @@ function initWorkItemsListEventListeners() {
     // Otherwise check for work item (which is not a child item)
     const workItemEl = e.target.closest(".work-item");
     if (workItemEl && !workItemEl.classList.contains("child-item-row")) {
-      showWorkItemContextMenu(e.clientX, e.clientY, workItemEl.dataset.workId);
+      showWorkItemContextMenu(e.clientX, e.clientY, workItemEl.dataset.dailyId);
     }
   });
 
@@ -199,7 +198,7 @@ function initWorkItemsListEventListeners() {
     } else {
       currentDragType = "work-item";
       e.dataTransfer.setData("type", "work-item");
-      e.dataTransfer.setData("id", workItemEl.dataset.workId);
+      e.dataTransfer.setData("id", workItemEl.dataset.dailyId);
     }
     header.classList.add("dragging-item");
   });
@@ -301,8 +300,8 @@ function initWorkItemsListEventListeners() {
 
     if (type === "work-item") {
       const targetId =
-        workItemEl && workItemEl.dataset.workId !== id
-          ? workItemEl.dataset.workId
+        workItemEl && workItemEl.dataset.dailyId !== id
+          ? workItemEl.dataset.dailyId
           : null;
       const position = workItemEl
         ? dropZone(e, workItemEl)
@@ -325,13 +324,13 @@ function initWorkItemsListEventListeners() {
           "drop-indicator-after",
         );
         if (type === "template") {
-          linkChild(workItemEl.dataset.workId, type, id);
+          linkChild(workItemEl.dataset.dailyId, type, id);
           return;
         }
         const choice = await app.askCopyOrReference(e.dataTransfer.getData("name"));
         if (!choice) return;
         const linkId = choice === "copy" ? await cloneForDrop(type, id) : id;
-        if (linkId) linkChild(workItemEl.dataset.workId, type, linkId);
+        if (linkId) linkChild(workItemEl.dataset.dailyId, type, linkId);
         return;
       }
 
@@ -448,25 +447,25 @@ function initWorkItemContextMenu() {
     if (!actionBtn || !contextMenuWorkItemId) return;
 
     const action = actionBtn.dataset.action;
-    const workItemId = contextMenuWorkItemId;
+    const dailyId = contextMenuWorkItemId;
     hideWorkItemContextMenu();
 
-    if (action === "add-project") showProjectSelector(workItemId);
-    else if (action === "add-area") showAreaSelector(workItemId);
-    else if (action === "add-goal") showGoalSelector(workItemId);
-    else if (action === "add-todo") showTodoSelector(workItemId);
-    else if (action === "add-task") showTaskSelector(workItemId);
-    else if (action === "add-ticket") showTicketSelector(workItemId);
-    else if (action === "add-idea") showIdeaSelector(workItemId);
-    else if (action === "create-project") createAndEditItem("priority", workItemId);
-    else if (action === "create-area") createAndEditItem("category", workItemId);
-    else if (action === "create-goal") createAndEditItem("goal", workItemId);
-    else if (action === "create-todo") createAndEditItem("todo", workItemId);
-    else if (action === "create-task") createAndEditItem("task", workItemId);
-    else if (action === "create-ticket") createAndEditItem("ticket", workItemId);
-    else if (action === "create-idea") createAndEditItem("idea", workItemId);
-    else if (action === "move-to") openMoveCloneModal(workItemId, "move");
-    else if (action === "clone-to") openMoveCloneModal(workItemId, "clone");
+    if (action === "add-project") showProjectSelector(dailyId);
+    else if (action === "add-area") showAreaSelector(dailyId);
+    else if (action === "add-goal") showGoalSelector(dailyId);
+    else if (action === "add-todo") showTodoSelector(dailyId);
+    else if (action === "add-task") showTaskSelector(dailyId);
+    else if (action === "add-ticket") showTicketSelector(dailyId);
+    else if (action === "add-idea") showIdeaSelector(dailyId);
+    else if (action === "create-project") createAndEditItem("priority", dailyId);
+    else if (action === "create-area") createAndEditItem("category", dailyId);
+    else if (action === "create-goal") createAndEditItem("goal", dailyId);
+    else if (action === "create-todo") createAndEditItem("todo", dailyId);
+    else if (action === "create-task") createAndEditItem("task", dailyId);
+    else if (action === "create-ticket") createAndEditItem("ticket", dailyId);
+    else if (action === "create-idea") createAndEditItem("idea", dailyId);
+    else if (action === "move-to") openMoveCloneModal(dailyId, "move");
+    else if (action === "clone-to") openMoveCloneModal(dailyId, "clone");
   });
 
   document.addEventListener("keydown", (e) => {

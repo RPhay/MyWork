@@ -18,22 +18,22 @@ test('Verify association actually worked', async ({ page }) => {
   console.log('Created TODO data:', JSON.stringify(todoData.data));
 
   // Create work item
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'NEW Work Item', date: '2026-08-14' },
     headers
   });
   const workData = await workResp.json();
-  const workItemId = workData.data.id;
-  console.log('Created NEW work item ID:', workItemId);
+  const dailyId = workData.data.id;
+  console.log('Created NEW work item ID:', dailyId);
 
   // Associate the NEW todo to the NEW work item
-  console.log(`\nAssociating TODO ${todoId} to WORK ITEM ${workItemId}...`);
-  const assocResp = await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
+  console.log(`\nAssociating TODO ${todoId} to WORK ITEM ${dailyId}...`);
+  const assocResp = await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
   const assocData = await assocResp.json();
   console.log('Association response:', JSON.stringify(assocData));
 
   // Now fetch the work item to see what todos it has
-  const fetchResp = await page.request.get(`/api/work/${workItemId}`);
+  const fetchResp = await page.request.get(`/api/dailies/${dailyId}`);
   const fetchData = await fetchResp.json();
   console.log('\nWork item after association:', JSON.stringify(fetchData.data, null, 2));
   console.log('Associated todos:', fetchData.data.todos);

@@ -169,7 +169,7 @@ async function loadCalendarDayTotals(year, month) {
 
   try {
     const response = await fetch(
-      `/api/work/range?startDate=${startDate}&endDate=${endDate}`,
+      `/api/dailies/range?startDate=${startDate}&endDate=${endDate}`,
     );
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();

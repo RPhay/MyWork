@@ -4,8 +4,8 @@
 
 let contextMenuWorkItemId = null;
 
-function showWorkItemContextMenu(x, y, workItemId) {
-  contextMenuWorkItemId = workItemId;
+function showWorkItemContextMenu(x, y, dailyId) {
+  contextMenuWorkItemId = dailyId;
   const menu = document.getElementById("workItemContextMenu");
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
@@ -22,8 +22,8 @@ function hideWorkItemContextMenu() {
 // move it there or leave the original in place and copy it.
 let calendarDropPending = null;
 
-function showCalendarDropMenu(x, y, workItemId, date) {
-  calendarDropPending = { workItemId, date };
+function showCalendarDropMenu(x, y, dailyId, date) {
+  calendarDropPending = { dailyId, date };
   const menu = document.getElementById("calendarDropMenu");
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
@@ -37,14 +37,14 @@ function hideCalendarDropMenu() {
 
 async function performCalendarDropAction(action) {
   if (!calendarDropPending) return;
-  const { workItemId, date } = calendarDropPending;
+  const { dailyId, date } = calendarDropPending;
   hideCalendarDropMenu();
 
   try {
     const endpoint =
       action === "copy"
-        ? `/api/work/${workItemId}/clone`
-        : `/api/work/${workItemId}/move`;
+        ? `/api/dailies/${dailyId}/clone`
+        : `/api/dailies/${dailyId}/move`;
     const response = await app.fetchRaw(endpoint, {
       method: "POST",
       

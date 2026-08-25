@@ -28,7 +28,7 @@ built up over many sessions because each one left its rows behind.
 
 - **`tests/e2e/setup-test-data.js`** is the main one. Its `setupTestData()`
   creates `Test Project for Context Menu` and `Test Idea for Context Menu` (plus
-  goals, areas, todos, tasks, tickets) on **every call**, exports no teardown,
+  goals, categories, todos, tasks, tickets) on **every call**, exports no teardown,
   and is imported by six specs: `context-menu-comprehensive`,
   `test-add-operations`, `verify-associations`, `debug-goal`,
   `debug-association-data`, `debug-failing-associations`. It accounted for 208
@@ -59,9 +59,10 @@ Calling `deleteEntity` alone fails for any nested row with
 keys `ON DELETE NO ACTION`. `deleteEntity` clears the legacy↔entity bridge
 junctions but not the relationship edges.
 
-Note that Dailies work items and Templates live in **legacy tables**
-(`work_items`, `work_item_templates`), not in `entities`, so clearing the entity
-types does not touch them — and clearing them needs its own pass.
+Note that Templates still live in a **legacy table** (`work_item_templates`),
+not in `entities`, so clearing the entity types does not touch them — and
+clearing them needs its own pass. Dailies no longer have this problem: they are
+entities of type `daily` and the `work_items` table was dropped on 2026-08-25.
 
 ## Why the guard set is the list
 

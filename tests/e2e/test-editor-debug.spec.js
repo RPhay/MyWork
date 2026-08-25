@@ -17,15 +17,15 @@ test('Debug editor data loading', async ({ page }) => {
   console.log('Created todo ID:', todoId);
 
   // Create work item
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'Debug Work Item', date: '2026-08-14' },
     headers
   });
   const workData = await workResp.json();
-  const workItemId = workData.data.id;
+  const dailyId = workData.data.id;
 
   // Associate
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
 
   // Reload and expand
   await page.reload();

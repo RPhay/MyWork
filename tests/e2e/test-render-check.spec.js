@@ -17,16 +17,16 @@ test('Check if child rows are rendered', async ({ page }) => {
   console.log('Created todo:', todoId);
 
   // Create work item
-  const workResp = await page.request.post('/api/work', {
+  const workResp = await page.request.post('/api/dailies', {
     data: { title: 'RENDER TEST Work Item', date: '2026-08-14' },
     headers
   });
   const workData = await workResp.json();
-  const workItemId = workData.data.id;
-  console.log('Created work item:', workItemId);
+  const dailyId = workData.data.id;
+  console.log('Created work item:', dailyId);
 
   // Associate
-  await page.request.post(`/api/work/${workItemId}/todos/${todoId}`, { headers });
+  await page.request.post(`/api/dailies/${dailyId}/todos/${todoId}`, { headers });
   console.log('Associated todo to work item');
 
   // Reload page
@@ -50,19 +50,19 @@ test('Check if child rows are rendered', async ({ page }) => {
   // Get details of first todo row
   if (todoRows.length > 0) {
     const firstTodoRow = todoRows[0];
-    const workId = await firstTodoRow.getAttribute('data-work-id');
+    const dailyId = await firstTodoRow.getAttribute('data-work-id');
     const itemType = await firstTodoRow.getAttribute('data-item-type');
     const title = await firstTodoRow.locator('.work-item-title').textContent();
-    console.log(`First todo row: workId=${workId}, type=${itemType}, title=${title}`);
+    console.log(`First todo row: dailyId=${dailyId}, type=${itemType}, title=${title}`);
   }
 
   // List all child row data-work-ids
   console.log('\nAll child row IDs and types:');
   for (const row of childRows) {
-    const workId = await row.getAttribute('data-work-id');
+    const dailyId = await row.getAttribute('data-work-id');
     const type = await row.getAttribute('data-item-type');
     const title = await row.locator('.work-item-title').textContent();
-    console.log(`  ${type}/${workId}: ${title}`);
+    console.log(`  ${type}/${dailyId}: ${title}`);
   }
 
   // Check if our specific todo is in the list

@@ -1,5 +1,5 @@
 /**
- * Definitions for the focus bar's monitors: how many zones (1-6), whether
+ * Definitions for the focus bar's monitors: how many zones (0 upwards), whether
  * each shows its number, and each one's optional label and layout
  * (side-by-side or stacked).
  *
@@ -18,14 +18,23 @@ const SETTINGS_FILE = path.join(DIR, 'focus-monitors.json');
 const LAYOUTS = new Set(['side-by-side', 'stacked']);
 const MAX_LABEL_LENGTH = 40;
 
+// There is no product limit on how many monitors you may have - 0 is valid and
+// so is "more than fit comfortably". This bound exists only so a nonsense
+// `count` (a typo, or an unvalidated client) cannot ask us to build and store
+// an arbitrarily long array. Raise it freely; it is not a design statement.
+export const MAX_MONITORS = 32;
+
 const DEFAULT_MONITOR = { label: '', layout: 'side-by-side' };
 
 const DEFAULT_SETTINGS = {
+  // The count may be 0 (the bar disappears entirely); 1 is only the default
+  // for a config that has never been saved.
   count: 1,
   showNumbers: false,
-  // Always 6 entries regardless of `count`, so turning the count down and
-  // back up never loses a label or layout already set for a hidden monitor.
-  monitors: Array.from({ length: 6 }, () => ({ ...DEFAULT_MONITOR })),
+  // Always MAX_MONITORS entries regardless of `count`, so turning the count
+  // down and back up never loses a label or layout already set for a hidden
+  // monitor.
+  monitors: Array.from({ length: MAX_MONITORS }, () => ({ ...DEFAULT_MONITOR })),
 };
 
 async function readJson(file, fallback) {
@@ -49,11 +58,28 @@ async function writeJson(file, value) {
  * first (see setMonitorSettings).
  */
 export function sanitizeSettings(patch) {
-  const count = Math.min(6, Math.max(1, Number(patch?.count) || 1));
+  // 0 is a real setting, not "unset": with no monitors the focus bar shows
+  // nothing at all. So the floor is 0, and the coercion cannot use `|| 1` -
+  // Number(0) is falsy, so `|| 1` silently turned "no monitors" back into one.
+  // `null`, `undefined` and '' are UNSET and fall back to the default; only a
+  // real number counts. Number() alone will not do: Number(null) and Number('')
+  // are both 0, which would read a missing setting as a deliberate "no
+  // monitors" and hide the bar on a config that never mentioned it.
+  const givenCount = patch?.count;
+  const raw = (givenCount === null || givenCount === undefined || givenCount === '')
+    ? NaN
+    : Number(givenCount);
+  const count = Number.isFinite(raw)
+    ? Math.min(MAX_MONITORS, Math.max(0, Math.trunc(raw)))
+    : DEFAULT_SETTINGS.count;
   const showNumbers = !!patch?.showNumbers;
 
+  // Shipped with every read so the browser enforces the SAME bound as the
+  // server without a second copy of the number in the frontend.
+  const maxMonitors = MAX_MONITORS;
+
   const given = Array.isArray(patch?.monitors) ? patch.monitors : [];
-  const monitors = Array.from({ length: 6 }, (_, i) => {
+  const monitors = Array.from({ length: MAX_MONITORS }, (_, i) => {
     const m = given[i] || {};
     return {
       label: String(m.label ?? '').slice(0, MAX_LABEL_LENGTH),
@@ -61,7 +87,7 @@ export function sanitizeSettings(patch) {
     };
   });
 
-  return { count, showNumbers, monitors };
+  return { count, showNumbers, monitors, maxMonitors };
 }
 
 export async function getMonitorSettings() {
@@ -77,7 +103,7 @@ export async function setMonitorSettings(patch) {
 /**
  * The settings after removing the monitor at `position` (1-based): its slot
  * is spliced out, a blank one is pushed back onto the end so the array still
- * holds exactly 6 entries, and the count drops by one.
+ * holds exactly MAX_MONITORS entries, and the count drops by one.
  *
  * Pure - reassigning whatever was pinned to the removed monitor (or to a
  * later one, which is about to be renumbered) is focusService's job, since
@@ -87,6 +113,7 @@ export async function setMonitorSettings(patch) {
  */
 export function withMonitorRemoved(settings, position) {
   const pos = Math.max(1, Number(position) || 1);
+  if (settings.count <= 0) return sanitizeSettings(settings);   // nothing to remove
   const monitors = settings.monitors.slice();
   monitors.splice(pos - 1, 1);
   monitors.push({ ...DEFAULT_MONITOR });

@@ -10,7 +10,7 @@
 // correct when the statement inserts nothing but the key columns themselves.
 const INSERT_IGNORE_KEY_COLUMNS = {
   entity_relationships: ["parent_entity_id", "child_entity_id", "relationship_kind"],
-  work_entity_associations: ["work_item_id", "entity_id"],
+  work_entity_associations: ["daily_id", "entity_id"],
   daily_entities: ["context_id", "date", "entity_id"],
   priority_areas: ["priority_id", "area_id"],
   priority_goals: ["priority_id", "goal_id"],
@@ -231,7 +231,7 @@ export function qualifyTablesForMssql(sqlText, knownTables) {
   // everything else arrives via FROM, JOIN or INTO.
   const pattern = /\b(FROM|JOIN|INTO|UPDATE|TABLE)\s+(\[?)([A-Za-z_][A-Za-z0-9_]*)(\]?)/gi;
 
-  return sqlText.replace(pattern, (match, keyword, openBracket, name, closeBracket) => {
+  return sqlText.replace(pattern, (match, keyword, openBracket, name) => {
     if (!knownTables.has(name.toLowerCase())) return match;
 
     // Already qualified - "[MyWork].[x]" reaches here as the [MyWork] part, and

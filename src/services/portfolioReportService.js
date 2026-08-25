@@ -1,14 +1,13 @@
-import { query } from '../database/connectionPool.js';
 import { getActiveContextId } from './activeContextService.js';
 import * as entityTypeService from './entityTypeService.js';
 import * as entityService from './entityService.js';
-import * as workItemService from './workItemService.js';
-import { buildPathMap } from '../utils/hierarchyPath.js';
+import * as dailyService from './dailyService.js';
 
 /**
  * Reporting across every entity type, not just work items.
  *
- * The reporting that existed before this only ever read `work_items`, so it went
+ * The reporting that existed before this only ever read the legacy `work_items`
+ * table, so it went
  * blank the moment a day had nothing on it and said nothing at all about the
  * hundreds of projects, categories, goals and ideas the app now holds.
  *
@@ -131,7 +130,7 @@ export async function getAccomplishments(contextId = null, { startDate, endDate 
   if (!contextId) contextId = await getActiveContextId();
   if (!startDate || !endDate) return [];
 
-  const workItems = await workItemService.getWorkItemsByDateRange(startDate, endDate, contextId);
+  const workItems = await dailyService.getWorkItemsByDateRange(startDate, endDate, contextId);
   const completed = workItems.filter(w => /complete|done/i.test(w.status || ''));
 
   return completed.map(w => ({
@@ -139,7 +138,7 @@ export async function getAccomplishments(contextId = null, { startDate, endDate 
     title: w.title,
     minutes: w.time_box_minutes || 0,
     projects: (w.priorities || []).map(p => p.path || p.title),
-    categories: (w.areas || []).map(a => a.path || a.name),
+    categories: (w.categories || []).map(a => a.path || a.name),
     goals: (w.goals || []).map(g => g.name),
   }));
 }

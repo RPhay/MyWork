@@ -1,5 +1,4 @@
 import { query, getCurrentConfig, getPool } from '../database/connectionPool.js';
-import * as entityTypeService from './entityTypeService.js';
 import logger from '../utils/logger.js';
 import {
   SYSTEM_ENTITY_TYPES,
@@ -539,12 +538,18 @@ export async function migrateRetiredWorkJunctions({ drop = false } = {}) {
     // cannot tell you that about any particular table.
     let accounted = 0;
 
-    const rows = await query(`SELECT work_item_id, ${column} AS entity_id FROM ${quoteIdentifier(table)}`);
+    const rows = await query(`SELECT daily_id, ${column} AS entity_id FROM ${quoteIdentifier(table)}`);
     for (const r of rows) {
-      // A link whose entity or work item is gone would fail the foreign key and
-      // abort the run, and describes nothing worth keeping.
+      // A link whose entity or day is gone would fail the foreign key and abort
+      // the run, and describes nothing worth keeping.
+      //
+      // BOTH sides are checked against `entities`. daily_id was repointed
+      // at entities by the Phase 10 migration, and the legacy `work_items`
+      // table it used to name has since been dropped - so the old
+      // "SELECT id FROM work_items" here queried a table that no longer exists
+      // and would have thrown the moment this ran.
       const [e] = await query('SELECT id FROM entities WHERE id = ?', [r.entity_id]);
-      const [w] = await query('SELECT id FROM work_items WHERE id = ?', [r.work_item_id]);
+      const [w] = await query('SELECT id FROM entities WHERE id = ?', [r.daily_id]);
       if (!e || !w) { result.dangling++; accounted++; continue; }
 
       // Checked rather than relying on the insert to no-op, so `migrated`
@@ -552,14 +557,14 @@ export async function migrateRetiredWorkJunctions({ drop = false } = {}) {
       // wrote nothing is the kind of true-sounding number that hides whether
       // the migration ever really happened.
       const [already] = await query(
-        'SELECT work_item_id FROM work_entity_associations WHERE work_item_id = ? AND entity_id = ?',
-        [r.work_item_id, r.entity_id]
+        'SELECT daily_id FROM work_entity_associations WHERE daily_id = ? AND entity_id = ?',
+        [r.daily_id, r.entity_id]
       );
       if (already) { result.alreadyPresent++; accounted++; continue; }
 
       await query(
-        'INSERT INTO work_entity_associations (work_item_id, entity_id) VALUES (?, ?)',
-        [r.work_item_id, r.entity_id]
+        'INSERT INTO work_entity_associations (daily_id, entity_id) VALUES (?, ?)',
+        [r.daily_id, r.entity_id]
       );
       result.migrated++;
       accounted++;
@@ -838,6 +843,9 @@ export async function analyzeAndMigrateAll() {
     }
   };
 
+  // Declared out here because the `finally` below reads it.
+  let configBeforeMigration = null;
+
   try {
     // Step 1: Analyze and migrate system database
     logger.info('Starting unified schema migration for all databases');
@@ -852,7 +860,17 @@ export async function analyzeAndMigrateAll() {
     const contexts = await contextService.getAllContexts();
     logger.info(`Found ${contexts.length} contexts to check`);
 
-    // Step 3: For each context with a database configuration, migrate it
+    // Step 3: For each context with a database configuration, migrate it.
+    //
+    // This walks the LIVE pool through every context's database in turn, so
+    // where it is left pointing when the loop ends matters. The config was
+    // captured here as `currentConfig` and then never used: the pool was left
+    // on whichever context happened to be migrated last, and every request
+    // after that read and wrote the wrong database until something else
+    // reconfigured it. Captured once, outside the loop, and restored in a
+    // `finally` below - the failure path is the one that stranded it.
+    configBeforeMigration = connectionPool.getCurrentConfig();
+
     for (const context of contexts) {
       try {
         const liveConfig = await contextDatabaseConfigService.getLiveConnectionConfig(context.id);
@@ -861,9 +879,6 @@ export async function analyzeAndMigrateAll() {
           logger.info(`Context ${context.id} (${context.name}) has no database configured, skipping`);
           continue;
         }
-
-        // Save current config
-        const currentConfig = connectionPool.getCurrentConfig();
 
         // Switch to context database
         await connectionPool.reconfigure(liveConfig);
@@ -907,6 +922,20 @@ export async function analyzeAndMigrateAll() {
     report.totalErrors++;
     report.fatalError = error.message;
     report.errors.push(`Fatal: ${error.message}`);
+  } finally {
+    // Back to where the caller was, whatever happened above. In a `finally`
+    // and not on the happy path: a throw part-way through the contexts is
+    // exactly the case that used to strand the pool on someone else's
+    // database, and it is the case a success-path restore would miss.
+    if (configBeforeMigration) {
+      try {
+        await connectionPool.reconfigure(configBeforeMigration);
+        logger.info('Restored the connection the migration started from');
+      } catch (restoreError) {
+        logger.error('Could not restore the original connection:', restoreError);
+        report.errors.push(`Could not restore the original connection: ${restoreError.message}`);
+      }
+    }
   }
 
   return report;
