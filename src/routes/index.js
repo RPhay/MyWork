@@ -26,6 +26,7 @@ import contextSsoRouter from "./api/contextSso.js";
 import dataSourceAuthRouter from "./api/dataSourceAuth.js";
 import quotesRouter from "./api/quotes.js";
 import entityTypesRouter from "./api/entityTypes.js";
+import contextSyncRouter from "./api/contextSync.js";
 import linkTitleRouter from "./api/linkTitle.js";
 import entitiesRouter from "./api/entities.js";
 import priorityBoardRouter from "./api/priorityBoard.js";
@@ -54,6 +55,7 @@ router.use("/api/", async (req, res, next) => {
     "/api/sso",
     "/api/backup",  // Read-only export
     "/api/entity-types",  // System types, not context-specific data
+    "/api/context-sync",  // Names both contexts itself; opens their DBs directly
   ];
 
   // Use originalUrl to get the full path
@@ -113,6 +115,10 @@ router.use("/api", contextSsoRouter);
 router.use("/api", dataSourceAuthRouter);
 router.use("/api/quotes", quotesRouter);
 router.use("/api/entity-types", entityTypesRouter);
+// Compares two contexts and ports type structure between them. Not
+// context-specific: it names both contexts explicitly and opens their
+// databases itself, so it must not go through the active-context gate.
+router.use("/api/context-sync", contextSyncRouter);
 // Resolves a dropped URL's page title. Not context-specific.
 router.use("/api/link-title", linkTitleRouter);
 router.use("/api/entities", entitiesRouter);

@@ -23,4 +23,3 @@ launch-work.ps1
 # Playwright output. .last-run.json was tracked and rewritten by every run.
 test-results/
 playwright-report/
-probe-mssql.mjs

@@ -1288,7 +1288,16 @@ export async function createMssqlSchema(pool) {
       title NVARCHAR(255) NOT NULL,
       order_index INT DEFAULT 0,
       is_folder BIT DEFAULT 0,
-      legacy_work_item_id INT UNIQUE,
+      -- NOT "INT UNIQUE", which is what mysqlSchema.js says and what this file
+      -- used to copy. SQL Server counts NULLs as equal to one another in a
+      -- UNIQUE constraint, so exactly ONE row may have a NULL here - and every
+      -- entity created after the phase-9 migration has NULL, because there is
+      -- no legacy work item to point at. On a freshly built MSSQL database the
+      -- SECOND record you ever create failed with "Cannot insert duplicate key
+      -- ... The duplicate key value is (<NULL>)". The filtered unique index
+      -- below restores MySQL's meaning: unique among rows that HAVE a value,
+      -- unlimited NULLs.
+      legacy_work_item_id INT,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       FOREIGN KEY (context_id) REFERENCES [MyWork].[contexts](id) ON DELETE CASCADE
@@ -1296,6 +1305,33 @@ export async function createMssqlSchema(pool) {
   `,
   );
   await createUpdatedAtTrigger(pool, "entities");
+
+  // Drop the old unconditional UNIQUE constraint on installs that already have
+  // it, then add the filtered index. Both halves are idempotent, so this is
+  // safe on every schema run.
+  await pool.request().query(`
+    DECLARE @c SYSNAME = (
+      SELECT kc.name FROM sys.key_constraints kc
+        JOIN sys.index_columns ic
+          ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+        JOIN sys.columns col
+          ON col.object_id = ic.object_id AND col.column_id = ic.column_id
+       WHERE kc.parent_object_id = OBJECT_ID('[MyWork].[entities]')
+         AND kc.type = 'UQ' AND col.name = 'legacy_work_item_id'
+    );
+    IF @c IS NOT NULL
+      EXEC('ALTER TABLE [MyWork].[entities] DROP CONSTRAINT [' + @c + ']');
+  `);
+  await pool.request().query(`
+    IF NOT EXISTS (
+      SELECT 1 FROM sys.indexes
+       WHERE name = 'uq_entities_legacy_work_item_id'
+         AND object_id = OBJECT_ID('[MyWork].[entities]')
+    )
+      CREATE UNIQUE INDEX uq_entities_legacy_work_item_id
+        ON [MyWork].[entities] (legacy_work_item_id)
+        WHERE legacy_work_item_id IS NOT NULL;
+  `);
 
   // Backfill for entities tables created before is_folder existed - see mysqlSchema.js
   if (!(await columnExists(pool, "entities", "is_folder"))) {

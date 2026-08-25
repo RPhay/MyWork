@@ -1,0 +1,49 @@
+<%# Compare two contexts and carry type structure from one to the other.
+
+    The screen is deliberately two steps - Compare, then Apply - because the
+    whole value is seeing what WOULD change before anything does. There is no
+    one-click "make them the same": you pick the types. %>
+<div class="context-sync">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h5 class="mb-1">Compare &amp; Sync Contexts</h5>
+      <p class="text-muted small mb-0">
+        Set a type up the way you want it in one context, then carry that structure to another -
+        across MySQL and SQL Server alike. Nothing on the target is ever deleted.
+      </p>
+    </div>
+  </div>
+
+  <div class="row g-3 align-items-end mb-3">
+    <div class="col-md-4">
+      <label class="form-label" for="syncSource">Source <span class="text-muted small">(copy from)</span></label>
+      <select class="form-select" id="syncSource"></select>
+    </div>
+    <div class="col-md-1 text-center d-none d-md-block pb-2">
+      <i class="bi bi-arrow-right fs-4 text-muted"></i>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="syncTarget">Target <span class="text-muted small">(copy to)</span></label>
+      <select class="form-select" id="syncTarget"></select>
+    </div>
+    <div class="col-md-3">
+      <button class="btn btn-primary w-100" id="syncCompareBtn" type="button">
+        <i class="bi bi-arrow-left-right"></i> Compare
+      </button>
+    </div>
+  </div>
+
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" id="syncIncludeRecords">
+    <label class="form-check-label" for="syncIncludeRecords">
+      Include records
+      <span class="text-muted small">
+        - also copy the rows and their nesting, not just the type's structure. Rows already on the
+        target are matched by their path and left exactly as they are.
+      </span>
+    </label>
+  </div>
+
+  <div id="syncStatus"></div>
+  <div id="syncResults"></div>
+</div>

@@ -46,6 +46,11 @@
         </button>
       </li>
       <li class="nav-item" role="presentation">
+        <button class="nav-link" id="context-sync-tab" data-tab="context-sync" type="button" role="tab">
+          <i class="bi bi-arrow-left-right"></i> Compare &amp; Sync
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
         <button class="nav-link" id="theme-editor-tab" data-tab="theme-editor" type="button" role="tab">
           <i class="bi bi-palette"></i> Theme Editor
         </button>
@@ -71,6 +76,11 @@
            now live inside it, per-context, rather than as separate top-level tabs) -->
       <div id="tab-contexts" class="tab-content-pane">
         <%- include('../tabs/contexts.ejs') %>
+      </div>
+      <!-- Compare & Sync: two contexts side by side, and a way to carry a type's
+           structure (and optionally its records) from one to the other. -->
+      <div id="tab-context-sync" class="tab-content-pane">
+        <%- include('../tabs/settings-context-sync.ejs') %>
       </div>
       <!-- Theme Editor Tab (Customize app appearance) -->
       <div id="tab-theme-editor" class="tab-content-pane">
@@ -101,6 +111,7 @@
   <script src="/js/draggable-modal.js"></script>
   <script src="/js/entity-type-editor.js"></script>
   <script src="/js/settings-entity-types.js"></script>
+  <script src="/js/settings-context-sync.js"></script>
   <script src="/js/theme-editor.js"></script>
 </body>
 </html>
