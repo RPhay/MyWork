@@ -41,9 +41,9 @@ const DONE_STATUS = {
 
 export const SYSTEM_ENTITY_TYPES = [
   {
-    slug: 'work_item',
+    slug: 'daily',
     label: 'Dailies',
-    label_singular: 'Work Item',
+    label_singular: 'Daily',
     icon: '⭐',
     supports_hierarchy: true,
     is_system: true,
@@ -129,9 +129,9 @@ export const SYSTEM_ENTITY_TYPES = [
     ],
   },
   {
-    slug: 'area',
+    slug: 'category',
     label: 'Categories',
-    label_singular: 'Area',
+    label_singular: 'Category',
     icon: '🏷️',
     supports_hierarchy: true,
     is_system: true,
@@ -389,20 +389,20 @@ export const SYSTEM_TYPE_RELATIONSHIPS = [
   { type_slugs: null, relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
   // Associations: work items link to priorities, areas, goals
-  { type_slugs_parent: 'work_item', type_slugs_child: ['priority', 'area', 'goal'], relationship_kind: 'association', max_children_per_parent: null, max_parents_per_child: null },
+  { type_slugs_parent: 'daily', type_slugs_child: ['priority', 'category', 'goal'], relationship_kind: 'association', max_children_per_parent: null, max_parents_per_child: null },
 
   // Todos/Tasks can recur to work items
-  { type_slugs_parent: 'to_do', type_slugs_child: 'work_item', relationship_kind: 'recurrence', max_children_per_parent: null, max_parents_per_child: 1 },
-  { type_slugs_parent: 'task', type_slugs_child: 'work_item', relationship_kind: 'recurrence', max_children_per_parent: null, max_parents_per_child: 1 },
+  { type_slugs_parent: 'to_do', type_slugs_child: 'daily', relationship_kind: 'recurrence', max_children_per_parent: null, max_parents_per_child: 1 },
+  { type_slugs_parent: 'task', type_slugs_child: 'daily', relationship_kind: 'recurrence', max_children_per_parent: null, max_parents_per_child: 1 },
 
   // A template may contain any editable type, in whatever arrangement the user
   // wants, and is then dropped onto a day to produce that work. This
   // cross-type hierarchy rule is the ONLY thing that distinguishes a template
   // from any other typed row - everything else about it is the generic engine.
-  { type_slugs_parent: 'template', type_slugs_child: ['priority', 'area', 'goal', 'to_do', 'task', 'ticket', 'idea', 'template'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+  { type_slugs_parent: 'template', type_slugs_child: ['priority', 'category', 'goal', 'to_do', 'task', 'ticket', 'idea', 'template'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
   // Templates instantiate to work items
-  { type_slugs_parent: 'template', type_slugs_child: 'work_item', relationship_kind: 'instantiated_from', max_children_per_parent: null, max_parents_per_child: 1 },
+  { type_slugs_parent: 'template', type_slugs_child: 'daily', relationship_kind: 'instantiated_from', max_children_per_parent: null, max_parents_per_child: 1 },
 ];
 
 // Non-editable types: external import sources. The Daily day-container

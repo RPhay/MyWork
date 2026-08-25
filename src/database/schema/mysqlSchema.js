@@ -47,9 +47,15 @@ async function indexExists(connection, table, indexName) {
 
 // Checks for a single well-known table as a signal that the MyWork schema has
 // already been created in the connection's current database.
+//
+// `entities`, NOT `work_items`. This probe is what app.js uses to decide
+// whether to send every page to /setup, and it pointed at a legacy table that
+// has now been dropped - which would have redirected the whole app to the setup
+// wizard on a perfectly good database. `entities` is the right sentinel
+// regardless: it is the table the engine cannot run without.
 export async function mysqlSchemaExists(connection) {
   const [rows] = await connection.query(
-    "SELECT COUNT(*) as cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_items'",
+    "SELECT COUNT(*) as cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'entities'",
   );
   return rows[0].cnt > 0;
 }
@@ -57,6 +63,7 @@ export async function mysqlSchemaExists(connection) {
 // `connection` must already be USE'd into the target database.
 export async function createMysqlSchema(connection) {
   // Create sources table
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS sources (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -87,39 +94,10 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
-  // Create categories table (static, goal-only grouping - distinct from Areas)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS categories (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NOT NULL UNIQUE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // A prior revision briefly reused this table for Areas; remove those columns
-  // if present so categories stays the plain goal-grouping table it always was.
-  if (await columnExists(connection, "categories", "description")) {
-    await connection.query("ALTER TABLE categories DROP COLUMN description");
-  }
-  if (await columnExists(connection, "categories", "updated_at")) {
-    await connection.query("ALTER TABLE categories DROP COLUMN updated_at");
-  }
-
-  // Seed the standard goal categories so they're selectable out of the box
-  const standardCategories = [
-    "Financial",
-    "Impact",
-    "M&A",
-    "Operational Excellence",
-    "Other",
-    "People",
-    "Technology Excellence",
-  ];
-  for (const name of standardCategories) {
-    await connection.query("INSERT IGNORE INTO categories (name) VALUES (?)", [
-      name,
-    ]);
-  }
+  // The `categories` table is gone - see RETIRED_TABLES at the end of this file.
+  // It was a static goal-grouping list, unrelated to the Categories TYPE (slug
+  // `category`, formerly `area`), which lives in entities like every other
+  // editable type. Nothing read it.
 
   // areas table removed in Phase 2 (areas migrated to generic entities)
 
@@ -202,66 +180,10 @@ export async function createMysqlSchema(connection) {
     await connection.query("ALTER TABLE priorities DROP COLUMN area_id");
   }
 
-  // Create work_items table (time_box_minutes: 15/30/45/60, or NULL for freeform;
-  // order_index controls manual drag-to-reorder position within a single date)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_items (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      date DATE NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      description LONGTEXT,
-      notes LONGTEXT,
-      emoji VARCHAR(16),
-      status VARCHAR(50) DEFAULT 'Not Started',
-      time_box_minutes INT,
-      order_index INT DEFAULT 0,
-      worked_with_claude BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_date (date),
-      INDEX idx_status (status)
-    )
-  `);
-
-  // Backfill notes for pre-existing work_items tables
-  if (!(await columnExists(connection, "work_items", "notes"))) {
-    await connection.query("ALTER TABLE work_items ADD COLUMN notes LONGTEXT");
-  }
-
-  // Backfill emoji ("Oh!") for pre-existing work_items tables
-  if (!(await columnExists(connection, "work_items", "emoji"))) {
-    await connection.query(
-      "ALTER TABLE work_items ADD COLUMN emoji VARCHAR(16)",
-    );
-  }
-
-  // Backfill time_box_minutes for pre-existing work_items tables
-  if (!(await columnExists(connection, "work_items", "time_box_minutes"))) {
-    await connection.query(
-      "ALTER TABLE work_items ADD COLUMN time_box_minutes INT",
-    );
-  }
-
-  // Backfill order_index for pre-existing work_items tables
-  if (!(await columnExists(connection, "work_items", "order_index"))) {
-    await connection.query(
-      "ALTER TABLE work_items ADD COLUMN order_index INT DEFAULT 0",
-    );
-  }
-
-  // Backfill start_time for pre-existing work_items tables
-  if (!(await columnExists(connection, "work_items", "start_time"))) {
-    await connection.query(
-      "ALTER TABLE work_items ADD COLUMN start_time VARCHAR(5)",
-    );
-  }
-
-  // Backfill worked_with_claude for pre-existing work_items tables
-  if (!(await columnExists(connection, "work_items", "worked_with_claude"))) {
-    await connection.query(
-      "ALTER TABLE work_items ADD COLUMN worked_with_claude BOOLEAN DEFAULT FALSE",
-    );
-  }
+  // The `work_items` table is gone - see RETIRED_TABLES at the end of this
+  // file. Dailies are entities of type `daily` now; scripts/phase10-migrate-
+  // work-items.js moved the rows and repointed the two junctions that used to
+  // reference work_items(id).
 
   // Backfill tracking columns for recurring items (link to source todo/task)
   // Note: This FK creation is moved to after to_dos and tasks tables are created
@@ -498,17 +420,6 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Now that to_dos and tasks tables are created, add the FK from work_items to them
-  if (!(await columnExists(connection, "work_items", "recurring_from_todo_id"))) {
-    await connection.query(`
-      ALTER TABLE work_items
-        ADD COLUMN recurring_from_todo_id INT,
-        ADD COLUMN recurring_from_task_id INT,
-        ADD FOREIGN KEY (recurring_from_todo_id) REFERENCES to_dos(id) ON DELETE SET NULL,
-        ADD FOREIGN KEY (recurring_from_task_id) REFERENCES tasks(id) ON DELETE SET NULL
-    `);
-  }
-
   // Drop folder tables if they exist (replaced by parent_id nesting on to_dos and tasks)
   if (await indexExists(connection, "to_do_folders", "PRIMARY")) {
     await connection.query("DROP TABLE IF EXISTS to_do_folders");
@@ -550,30 +461,9 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Create tickets table (issue/ticket tracking with fixed categories: ServiceNow, Azure DevOps, Other)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS tickets (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      notes LONGTEXT,
-      ticket_type VARCHAR(50) NOT NULL DEFAULT 'Other' COMMENT 'ServiceNow, Azure DevOps, or Other',
-      context_id INT,
-      priority_id INT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (context_id) REFERENCES contexts(id),
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
-    )
-  `);
-
-
-  // Add priority_id column to tickets table (for project association)
-  if (!(await columnExists(connection, "tickets", "priority_id"))) {
-    await connection.query(
-      "ALTER TABLE tickets ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL"
-    );
-  }
-
+  // The `tickets` table is gone - see RETIRED_TABLES at the end of this file.
+  // Unrelated to the Tickets TYPE (slug `ticket`), which lives in entities like
+  // every other editable type. Nothing read the table.
 
   // Create users table - identity is deliberately minimal (name only, no
   // password): logging in with a name that doesn't exist yet creates it.
@@ -789,12 +679,13 @@ export async function createMysqlSchema(connection) {
   const contextTables = [
     "sources",
     "priorities",
-    "work_items",
     "work_item_templates",
     "to_dos",
     "tasks",
-    "tickets",
   ];
+  // "work_items" and "tickets" were here until they were retired - see
+  // RETIRED_TABLES. Leaving a dropped table in this list makes the ALTER below
+  // throw on every schema run.
   // Note: "areas", "goals", "idea_folders", "ideas" were migrated to generic entities
   // in Phases 1-3 and no longer exist as separate tables
   for (const table of contextTables) {
@@ -821,19 +712,9 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Add hierarchical associations for cross-entity relationships
-  // Todos can have tickets as children
-  if (!(await columnExists(connection, "to_dos", "ticket_id"))) {
-    await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN ticket_id INT, ADD FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE SET NULL"
-    );
-  }
-
-  if (!(await columnExists(connection, "tickets", "todo_id"))) {
-    await connection.query(
-      "ALTER TABLE tickets ADD COLUMN todo_id INT, ADD FOREIGN KEY (todo_id) REFERENCES to_dos(id) ON DELETE SET NULL"
-    );
-  }
+  // The to_dos <-> tickets cross-links are gone with the `tickets` table. Both
+  // sides were FKs into a table nothing read; cross-entity relationships live in
+  // entity_relationships now.
 
   // Note: areas table was migrated to generic entities and no longer exists
 
@@ -909,6 +790,62 @@ export async function createMysqlSchema(connection) {
     await connection.query("CREATE INDEX idx_type_category ON entity_types(type_category)");
   }
 
+  // Slug renames, which MUST run before the seed loop below.
+  //
+  // Seeding matches on slug, so a renamed type looks like a MISSING one: without
+  // this the loop would insert a brand new empty `daily` beside the existing
+  // `work_item`, and the app would show two Dailies tabs, one of them holding
+  // every record and the other nothing.
+  //
+  // A slug is now the singular of the label - Dailies/daily, Categories/category
+  // - so the internal name and the visible one agree. `work_item` and `area`
+  // were the pre-migration names and matched neither.
+  //
+  // The retired, empty `daily` type has to go first because slug is UNIQUE and
+  // it is sitting on the name. It is only removed when it really is empty; if a
+  // row ever attached itself to it, it is left alone and the rename below is
+  // skipped rather than losing anything.
+  // `entities` is created LATER in this file, so on a brand new database it does
+  // not exist yet and naming it here made the whole schema build fail with
+  // "Table 'entities' doesn't exist". Guarded rather than moved: this has to run
+  // before the seed loop, and the seed loop comes before entities.
+  const [[{ hasEntities }]] = await connection.query(
+    `SELECT COUNT(*) AS hasEntities FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'entities'`
+  );
+  await connection.query(
+    hasEntities
+      ? `DELETE FROM entity_types
+          WHERE slug = 'daily' AND deleted_at IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM entities WHERE entities.entity_type_id = entity_types.id)`
+      : `DELETE FROM entity_types WHERE slug = 'daily' AND deleted_at IS NOT NULL`
+  );
+  const renameType = async (from, to, label, labelSingular) => {
+    const [clash] = await connection.query('SELECT id FROM entity_types WHERE slug = ?', [to]);
+    if (clash.length) return;                       // already renamed, or the name is taken
+    // The label moves with the slug. The seed loop below only ever INSERTs, so
+    // an existing type keeps whatever label it had - which left the tab reading
+    // "Work Items" long after systemEntityTypes.js said "Dailies".
+    await connection.query(
+      'UPDATE entity_types SET slug = ?, label = ?, label_singular = ? WHERE slug = ?',
+      [to, label, labelSingular, from]
+    );
+  };
+  await renameType('work_item', 'daily', 'Dailies', 'Daily');
+  await renameType('area', 'category', 'Categories', 'Category');
+
+  // Repair the labels the rename left behind. renameType only fires while the
+  // OLD slug is still present, so an install that renamed on an earlier run
+  // kept its stale label - the tab read "Work Items" under the slug `daily`.
+  // Matched on the exact legacy label so a deliberate rename in Settings is
+  // never overwritten.
+  await connection.query(
+    "UPDATE entity_types SET label = 'Dailies', label_singular = 'Daily' WHERE slug = 'daily' AND label = 'Work Items'",
+  );
+  await connection.query(
+    "UPDATE entity_types SET label_singular = 'Category' WHERE slug = 'category' AND label_singular = 'Area'",
+  );
+
   // Seed system entity types if they don't exist.
   for (const type of SYSTEM_ENTITY_TYPES) {
     const [existing] = await connection.query(
@@ -952,28 +889,13 @@ export async function createMysqlSchema(connection) {
     );
   }
 
-  // Seed special types (Daily day container and External integrations).
-  // Daily = read-only type representing one complete day's work.
-  for (const type of SPECIAL_ENTITY_TYPES) {
-    const [existing] = await connection.query(
-      'SELECT id FROM entity_types WHERE slug = ?',
-      [type.slug]
-    );
-    if (existing.length === 0) {
-      await connection.query(
-        'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [type.slug, type.label, type.label_singular, type.icon, type.type_category, type.external_source, 0, 1, 0]
-      );
-    }
-  }
-
-  // The 'daily' type used to be seeded above too (SPECIAL_ENTITY_TYPES no
-  // longer lists it - see systemEntityTypes.js). It was dead configuration:
-  // "Dailies" (work_item) already serves the day-grouping role via "+ Daily",
-  // which has always created a work_item row, not a row of this type. Retire
-  // any already-seeded row the same soft-delete way any other type is removed.
+  // The old 'daily' type - a read-only day container - used to be retired here
+  // on every schema run. That statement is GONE, and must not come back: `daily` is
+  // now the slug of the Dailies type itself (renamed from `work_item` above), so
+  // re-adding it would soft-delete the live Dailies tab on every restart. The
+  // empty retired row it used to target is deleted by the rename block instead.
   await connection.query(
-    "UPDATE entity_types SET deleted_at = NOW() WHERE slug = 'daily' AND deleted_at IS NULL",
+    "UPDATE entity_types SET deleted_at = NULL WHERE slug = 'daily' AND is_system = 1",
   );
 
   await connection.query(`
@@ -1074,6 +996,21 @@ export async function createMysqlSchema(connection) {
       }
     }
   }
+
+  // Worked Time drifted. `focus_seconds` has been declared as a `duration`
+  // labelled "Worked Time" since 2026-08-19, but the loop above only INSERTs and
+  // deliberately does NOT reconcile field_type or label (they are user-editable
+  // - see the note there), so every database created before that date kept the
+  // old `number` / "Focus time (seconds)". CLAUDE.md's rule is that Worked Time
+  // is on every type, and as a plain number it does not render as one.
+  //
+  // Matched on the exact stale pair, so a field a user deliberately retyped or
+  // renamed is left alone - the same rule the icon repair follows.
+  await connection.query(
+    `UPDATE entity_type_fields SET field_type = 'duration', label = 'Worked Time'
+      WHERE field_key = 'focus_seconds'
+        AND field_type = 'number' AND label = 'Focus time (seconds)'`
+  );
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS entity_type_relationships (
@@ -1340,5 +1277,41 @@ export async function createMysqlSchema(connection) {
         INDEX idx_${table}_entity (${entityCol})
       )
     `);
+  }
+  await dropRetiredTables(connection);
+}
+
+// Tables the app no longer has any code for. Dropped on every schema run, so a
+// database that predates their retirement is cleaned up by the same "Fix
+// Schema" that builds a new one.
+//
+// Order matters: a table is only dropped after anything that referenced it, so
+// the DROPs cannot be blocked by a foreign key. `entities` is deliberately NOT
+// here - it is the schema-exists sentinel now.
+//
+// A note on names, because two of these are dangerously close to live things:
+//   `categories` was a static goal-grouping list. The Categories TYPE is slug
+//     `category` (formerly `area`) and lives in `entities`. Untouched.
+//   `tickets` was the pre-migration ticket table. The Tickets TYPE is slug
+//     `ticket` and lives in `entities`. Untouched.
+//   `work_items` held Dailies before they became entities of type `daily`.
+//     scripts/phase10-migrate-work-items.js moves those rows; run it BEFORE
+//     this drop reaches a database that still has unmigrated ones.
+const RETIRED_TABLES = ["work_items", "tickets", "categories"];
+
+async function dropRetiredTables(connection) {
+  for (const table of RETIRED_TABLES) {
+    // Drop the foreign keys this table declares first. MySQL will not drop a
+    // table whose FKs are still referenced, and a half-dropped schema is worse
+    // than an untouched one.
+    const [fks] = await connection.query(
+      `SELECT TABLE_NAME t, CONSTRAINT_NAME c FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME = ?`,
+      [table],
+    );
+    for (const { t, c } of fks) {
+      await connection.query(`ALTER TABLE \`${t}\` DROP FOREIGN KEY \`${c}\``);
+    }
+    await connection.query(`DROP TABLE IF EXISTS \`${table}\``);
   }
 }

@@ -23,9 +23,12 @@ import {
 // gone - retired in favour of work_entity_associations, which links a day to a
 // row of ANY type. work_source_associations is the one that stayed: a source
 // is not an entity.
+// Retired tables are deliberately still listed: this is the "do you still have
+// old tables with data in them?" survey, and a table that has since been
+// dropped simply reports as absent, which is the answer we want.
 const OLD_ENTITY_TABLES = [
   'priorities', 'areas', 'goals', 'to_dos', 'tasks', 'tickets', 'ideas', 'templates',
-  'idea_folders'
+  'idea_folders', 'work_items', 'categories'
 ];
 
 const NEW_GENERIC_TABLES = [
@@ -53,8 +56,10 @@ const REQUIRED_SUPPORT_TABLES = [
   // become entities themselves.
   'priority_areas', 'priority_goals', 'template_areas', 'template_goals',
   'template_priorities', 'work_source_associations',
-  // The two legacy tables the bridges hang off.
-  'work_items', 'priorities',
+  // The legacy table the bridges hang off. `work_items` was here too until it
+  // was retired on 2026-08-25 - leaving it would make verification report every
+  // healthy database as invalid for missing a table nothing creates any more.
+  'priorities',
 ];
 
 export async function analyzeAndMigrate() {

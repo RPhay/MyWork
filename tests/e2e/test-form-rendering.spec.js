@@ -25,7 +25,7 @@ test('Check form field rendering for Categories', async ({ page }) => {
   await page.goto('http://localhost:3000');
   
   // Go to Categories
-  await page.locator('.type-area').click();
+  await page.locator('.type-category').click();
   await page.waitForTimeout(500);
   
   // Click add

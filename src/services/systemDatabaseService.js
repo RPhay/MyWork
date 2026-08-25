@@ -27,11 +27,15 @@ const VALID_TYPES = ['mysql', 'mssql'];
 //
 // The four per-type *_links tables went on 2026-08-19: a `links` field on the
 // entity replaced them, and nothing had read them for some time.
-const ALL_SYSTEM_TABLES = [
+export const ALL_SYSTEM_TABLES = [
   // Still first-class tables of their own.
   'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
-  'sources', 'source_auth', 'categories', 'years', 'priorities', 'work_items',
-  'work_item_templates', 'to_dos', 'to_do_items', 'tasks', 'tickets',
+  'sources', 'source_auth', 'years', 'priorities',
+  'work_item_templates', 'to_dos', 'to_do_items', 'tasks',
+  // 'work_items', 'tickets' and 'categories' went on 2026-08-25. Dailies are
+  // entities of type `daily` now, and the other two were pre-migration tables
+  // nothing read - NOT the Categories/Tickets types, which are `category` and
+  // `ticket` in entity_types. See RETIRED_TABLES in mysqlSchema.js.
   // The legacy <-> entity association bridge (right-hand column points at
   // `entities`); see the block of that name in mysqlSchema.js.
   'priority_areas', 'priority_goals',

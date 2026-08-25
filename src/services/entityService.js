@@ -387,7 +387,7 @@ async function triggerRecurrenceForCompletedEntity(entity, contextId) {
 
         if (nextDate) {
           // For work items, use generateWorkItemsForDate to maintain compatibility
-          if (typeSchema.slug === 'work_item') {
+          if (typeSchema.slug === 'daily') {
             // generateWorkItemsForDate will create work items for this date from recurring todos/tasks
             await generateWorkItemsForDate(nextDate, contextId);
           } else {
@@ -705,7 +705,7 @@ export async function instantiateTemplate(templateEntityId, date, contextId = nu
 
   // Inlined rather than calling workItemService.createWorkItem: workItemService
   // already imports this file, so the reverse import would be circular.
-  const workItem = await createEntity('work_item', {
+  const workItem = await createEntity('daily', {
     title: template.title,
     order_index: 0,
     fields: { date, status: 'Not Started' },

@@ -66,7 +66,7 @@ export async function getPortfolio(contextId = null, { startDate, endDate } = {}
   if (!contextId) contextId = await getActiveContextId();
 
   const types = (await entityTypeService.getAllEntityTypes('editable'))
-    .filter(t => t.slug !== 'work_item' && t.slug !== 'template');
+    .filter(t => t.slug !== 'daily' && t.slug !== 'template');
 
   const today = isoDay(new Date());
   const rows = [];
@@ -188,7 +188,7 @@ export async function getNeedsAttention(contextId = null, { stalledDays = 30 } =
   const stalledBefore = isoDay(new Date(Date.now() - stalledDays * 86400000));
 
   const types = (await entityTypeService.getAllEntityTypes('editable'))
-    .filter(t => t.slug !== 'work_item' && t.slug !== 'template');
+    .filter(t => t.slug !== 'daily' && t.slug !== 'template');
 
   const flagged = [];
   for (const type of types) {

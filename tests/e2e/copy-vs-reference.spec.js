@@ -21,7 +21,7 @@ async function api(page, path, options={}) {
   }, {path,options,t: await page.evaluate(()=>document.body.dataset.csrfToken)});
 }
 async function showPanes(page) {
-  if (await page.locator('#rail-work_item').isVisible()) { await page.locator('button[data-rail-toggle="work_item"]').click(); await page.waitForTimeout(600); }
+  if (await page.locator('#rail-daily').isVisible()) { await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(600); }
   if (!(await page.locator('#rail-template').isVisible())) { await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(800); }
 }
 

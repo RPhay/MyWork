@@ -10,7 +10,7 @@ test('Create folder in Categories type', async ({ page, context }) => {
   await page.goto('http://localhost:3000');
   
   // Click on Categories tab
-  await page.locator('#area-tab').click();
+  await page.locator('#category-tab').click();
   await page.waitForTimeout(500);
   
   // Enable console message logging

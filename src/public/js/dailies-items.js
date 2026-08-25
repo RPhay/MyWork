@@ -71,7 +71,7 @@ function renderWorkItemsList(items, roots = []) {
         <div class="work-item-header" draggable="true" data-status="${item.status}" title="${hasChildren ? "Click to expand/collapse, double-click to edit; drag to reorder" : "Click to change status, double-click to edit; drag to reorder"}">
           <span class="work-item-title-cell">
             <i class="bi bi-chevron-right work-item-toggle" data-action="toggle-expand" title="Expand/collapse"></i>
-            <i class="bi ${APP_ICONS.workItem} text-muted" title="Work Item"></i>
+            <i class="bi ${APP_ICONS.workItem} text-muted" title="Daily"></i>
             <span class="work-item-title">${app.escapeHtml(item.title)}</span>${app.childCountBadge(childCount)}
           </span>
           <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || "")}</span>

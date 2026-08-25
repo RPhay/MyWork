@@ -72,7 +72,7 @@ function closeChildItemEditor() {
 async function loadChildItemForEditing(type, id) {
   const typeMap = {
     'priority': '/api/priorities',
-    'area': '/api/areas',
+    'category': '/api/areas',
     'goal': '/api/goals',
     'template': '/api/work-item-templates',
     'todo': '/api/to-dos',
@@ -83,7 +83,7 @@ async function loadChildItemForEditing(type, id) {
 
   const typeLabels = {
     'priority': 'Priority',
-    'area': 'Category',
+    'category': 'Category',
     'goal': 'Goal',
     'template': 'Template',
     'todo': 'Todo',
@@ -144,7 +144,7 @@ function editChildPriority(priorityId) {
 }
 
 function editChildArea(areaId) {
-  openChildItemEditor('area', areaId);
+  openChildItemEditor('category', areaId);
 }
 
 function editChildGoal(goalId) {

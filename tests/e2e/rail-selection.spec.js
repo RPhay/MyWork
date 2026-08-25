@@ -21,7 +21,7 @@ import { dblclick } from './dblclick.js';
  * than the one showing is a switch, not a toggle.
  */
 
-const RAILS = ['work_item', 'template', 'priority-board'];
+const RAILS = ['daily', 'template', 'priority-board'];
 
 async function shown(page) {
   return page.evaluate((slugs) => {
@@ -51,19 +51,19 @@ test('clicking a second tab shows both, and clicking either one collapses to it'
   expect(await shown(page), 'the type alone').toEqual(['TYPE']);
 
   // Another allowed tab joins it rather than replacing it.
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(600);
-  expect(await shown(page), 'Dailies joins the type').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'Dailies joins the type').toEqual(['daily', 'TYPE']);
 
   // Clicking either of the two showing collapses to that one...
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(600);
-  expect(await shown(page), 'Dailies takes the screen').toEqual(['work_item']);
+  expect(await shown(page), 'Dailies takes the screen').toEqual(['daily']);
 
   // ...and clicking the other brings the pair back.
   await page.locator('button[data-tab="idea"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page), 'the type comes back beside it').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'the type comes back beside it').toEqual(['daily', 'TYPE']);
 
   // ...and the type collapses the same way, so the toggling keeps going.
   await page.locator('button[data-tab="idea"]').click();
@@ -76,17 +76,17 @@ test('clicking a second tab shows both, and clicking either one collapses to it'
 // then Categories again, then Categories again - and back to both.
 test('one tab toggles the pair on and off, over and over', async ({ page }) => {
   // Dailies on its own to start.
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(600);
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(600);
-  expect(await shown(page), 'Dailies alone').toEqual(['work_item']);
+  expect(await shown(page), 'Dailies alone').toEqual(['daily']);
 
-  const categories = page.locator('button[data-tab="area"]');
+  const categories = page.locator('button[data-tab="category"]');
 
   await categories.click();
   await page.waitForTimeout(800);
-  expect(await shown(page), 'Categories opens beside it').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'Categories opens beside it').toEqual(['daily', 'TYPE']);
 
   await categories.click();
   await page.waitForTimeout(700);
@@ -94,7 +94,7 @@ test('one tab toggles the pair on and off, over and over', async ({ page }) => {
 
   await categories.click();
   await page.waitForTimeout(700);
-  expect(await shown(page), 'and Dailies comes back').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'and Dailies comes back').toEqual(['daily', 'TYPE']);
 
   // ...and it keeps going, which is the part that breaks if the recency list
   // is touched for the partner as well as the clicked tab.
@@ -103,7 +103,7 @@ test('one tab toggles the pair on and off, over and over', async ({ page }) => {
   expect(await shown(page), 'away again').toEqual(['TYPE']);
   await categories.click();
   await page.waitForTimeout(700);
-  expect(await shown(page), 'back again').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'back again').toEqual(['daily', 'TYPE']);
 });
 
 // A rail toggles the same way - the rule does not know which kind of tab it is.
@@ -123,22 +123,22 @@ test('a lone rail brings its companion back too', async ({ page }) => {
 
 test('two rails pair with a plain click - no modifier', async ({ page }) => {
   // Join, then collapse: two clicks on Dailies leave it on its own.
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page)).toEqual(['work_item']);
+  expect(await shown(page)).toEqual(['daily']);
 
   await page.locator('button[data-rail-toggle="template"]').click();
   await page.waitForTimeout(600);
-  expect(await shown(page), 'Dailies + Templates').toEqual(['work_item', 'template']);
+  expect(await shown(page), 'Dailies + Templates').toEqual(['daily', 'template']);
 
   // Priorities may not join Templates, so it takes the slot beside Dailies -
   // the older of the two on screen is the one that steps out.
   await page.locator('button[data-rail-toggle="priority-board"]').click();
   await page.waitForTimeout(700);
   expect(await shown(page), 'Priorities replaces Templates beside Dailies')
-    .toEqual(['work_item', 'priority-board']);
+    .toEqual(['daily', 'priority-board']);
 });
 
 test('Templates and Priorities never share the screen', async ({ page }) => {
@@ -170,13 +170,13 @@ test('every rail pairs with a type', async ({ page }) => {
 });
 
 test('switching to a DIFFERENT type keeps the rail beside it', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page)).toEqual(['work_item', 'TYPE']);
+  expect(await shown(page)).toEqual(['daily', 'TYPE']);
 
   await page.locator('button[data-tab="goal"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page), 'a switch is not a toggle').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'a switch is not a toggle').toEqual(['daily', 'TYPE']);
   await expect(page.locator('#tab-goal')).toHaveClass(/active/);
 
   // The SAME type again: now it collapses to the type alone.
@@ -186,33 +186,33 @@ test('switching to a DIFFERENT type keeps the rail beside it', async ({ page }) 
 });
 
 test('a type put away comes back when its tab is clicked', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  await page.locator('button[data-rail-toggle="work_item"]').click();   // collapse to Dailies
+  await page.locator('button[data-rail-toggle="daily"]').click();   // collapse to Dailies
   await page.waitForTimeout(700);
-  expect(await shown(page)).toEqual(['work_item']);
+  expect(await shown(page)).toEqual(['daily']);
 
   await page.locator('button[data-tab="goal"]').click();
   await page.waitForTimeout(800);
-  expect(await shown(page), 'a different type joins the rail').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'a different type joins the rail').toEqual(['daily', 'TYPE']);
   await expect(page.locator('#tab-goal')).toHaveClass(/active/);
 });
 
 // One pane has nothing to split the width with - it should fill the space
 // rather than sit at half width with dead space beside it.
 test('a lone rail fills the width once the type pane is put away', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page)).toEqual(['work_item', 'TYPE']);
+  expect(await shown(page)).toEqual(['daily', 'TYPE']);
 
   const shellWidth = await page.locator('#appShell').evaluate(el => el.getBoundingClientRect().width);
-  const paired = await page.locator('#rail-work_item').evaluate(el => el.getBoundingClientRect().width);
+  const paired = await page.locator('#rail-daily').evaluate(el => el.getBoundingClientRect().width);
   expect(paired, 'sharing with the type pane, it takes about half').toBeLessThan(shellWidth * 0.8);
 
   // Collapse to the rail - it should now take (nearly) everything.
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  const alone = await page.locator('#rail-work_item').evaluate(el => el.getBoundingClientRect().width);
+  const alone = await page.locator('#rail-daily').evaluate(el => el.getBoundingClientRect().width);
   console.log(`rail width: paired=${Math.round(paired)} alone=${Math.round(alone)} shell=${Math.round(shellWidth)}`);
   expect(alone, 'alone, it fills the space').toBeGreaterThan(shellWidth * 0.9);
 });
@@ -221,19 +221,19 @@ test('a lone rail fills the width once the type pane is put away', async ({ page
 // Asking for a rail is asking to leave it - the toggle used to be stored while
 // apply() filtered every rail out, so there was no way back.
 test('a rail can be reached again after opening Reporting', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  await page.locator('button[data-rail-toggle="work_item"]').click();   // collapse to Dailies
+  await page.locator('button[data-rail-toggle="daily"]').click();   // collapse to Dailies
   await page.waitForTimeout(700);
-  expect(await shown(page)).toEqual(['work_item']);
+  expect(await shown(page)).toEqual(['daily']);
 
   await page.locator('button[data-tab="reporting"]').click();
   await page.waitForTimeout(800);
   expect(await shown(page), 'Reporting owns the screen').toEqual(['TYPE']);
 
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(800);
-  expect(await shown(page), 'and Dailies comes back when asked for').toEqual(['work_item']);
+  expect(await shown(page), 'and Dailies comes back when asked for').toEqual(['daily']);
 
   // The other two as well.
   await page.locator('button[data-tab="reporting"]').click();
@@ -245,40 +245,40 @@ test('a rail can be reached again after opening Reporting', async ({ page }) => 
 
 // Which panes you have open is a choice, and a refresh should not undo it.
 test('pane choices survive a hard refresh', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page)).toEqual(['work_item', 'TYPE']);
+  expect(await shown(page)).toEqual(['daily', 'TYPE']);
 
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  expect(await shown(page), 'rail + type comes back').toEqual(['work_item', 'TYPE']);
+  expect(await shown(page), 'rail + type comes back').toEqual(['daily', 'TYPE']);
 
   // Collapse to the rail, refresh again: the type must STAY away.
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page)).toEqual(['work_item']);
+  expect(await shown(page)).toEqual(['daily']);
 
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  expect(await shown(page), 'a pane put away stays away').toEqual(['work_item']);
+  expect(await shown(page), 'a pane put away stays away').toEqual(['daily']);
 
   // Two rails survive too.
   await page.locator('button[data-rail-toggle="template"]').click();
   await page.waitForTimeout(700);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  expect(await shown(page), 'a pair of rails comes back').toEqual(['work_item', 'template']);
+  expect(await shown(page), 'a pair of rails comes back').toEqual(['daily', 'template']);
 });
 
 // Two clicks on a type tab still means "just this" - every rail stands down.
 test('double-clicking a type tab leaves it the only pane', async ({ page }) => {
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(700);
-  await page.locator('button[data-rail-toggle="work_item"]').click();   // collapse to Dailies
+  await page.locator('button[data-rail-toggle="daily"]').click();   // collapse to Dailies
   await page.waitForTimeout(700);
   await page.locator('button[data-rail-toggle="template"]').click();
   await page.waitForTimeout(700);
-  expect(await shown(page), 'two rails to start').toEqual(['work_item', 'template']);
+  expect(await shown(page), 'two rails to start').toEqual(['daily', 'template']);
 
   await dblclick(page.locator('button[data-tab="idea"]'));
   await page.waitForTimeout(900);

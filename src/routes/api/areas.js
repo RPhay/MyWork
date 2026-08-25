@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const areas = await entityService.getAllEntities('area', contextId);
+    const areas = await entityService.getAllEntities('category', contextId);
     res.json({ success: true, data: areas });
   } catch (error) {
     logger.error('Error fetching areas:', error);
@@ -46,7 +46,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const contextId = await activeContextService.getActiveContextId();
-    const area = await entityService.createEntity('area', req.body, contextId);
+    const area = await entityService.createEntity('category', req.body, contextId);
     res.status(201).json({ success: true, message: 'Area created', data: area });
   } catch (error) {
     logger.error('Error creating area:', error);

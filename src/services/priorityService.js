@@ -29,7 +29,7 @@ async function attachAssociations(priorities) {
        WHERE pg.priority_id IN (${placeholders})`,
       ids
     ),
-    entityService.getEntityPathLookup('area'),
+    entityService.getEntityPathLookup('category'),
   ]);
 
   const areaPaths = buildPathMap(allAreas);

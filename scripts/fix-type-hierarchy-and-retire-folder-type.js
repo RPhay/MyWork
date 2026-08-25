@@ -24,7 +24,7 @@
 
 import { query, getCurrentConfig } from '../src/database/connectionPool.js';
 
-const HIERARCHY_TYPES = ['area', 'goal', 'to_do', 'task', 'ticket', 'idea', 'priority'];
+const HIERARCHY_TYPES = ['category', 'goal', 'to_do', 'task', 'ticket', 'idea', 'priority'];
 
 async function main() {
   const config = getCurrentConfig();

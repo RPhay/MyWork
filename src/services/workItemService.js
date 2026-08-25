@@ -29,7 +29,7 @@ export function normalizeTimeBox(value) {
 let workItemTypeIdCache = null;
 async function getWorkItemTypeId() {
   if (workItemTypeIdCache) return workItemTypeIdCache;
-  const type = await entityTypeService.getEntityType('work_item');
+  const type = await entityTypeService.getEntityType('daily');
   workItemTypeIdCache = type.id;
   return workItemTypeIdCache;
 }
@@ -117,7 +117,7 @@ async function attachAssociations(items) {
     // entity_relationships rather than a parent_id column - the lookup reshapes
     // it so buildPathMap below still works unchanged.
     entityService.getEntityPathLookup('priority'),
-    entityService.getEntityPathLookup('area'),
+    entityService.getEntityPathLookup('category'),
   ]);
 
   // Any type at all, including ones created by the user, plus whatever is
@@ -146,7 +146,7 @@ async function attachAssociations(items) {
       .map(r => ({ id: r.id, title: r.title, path: priorityPaths.get(r.id) || r.title, isCopy: copies.has(r.id) })),
     goals: ofType(item, 'goal')
       .map(r => ({ id: r.id, name: r.title, isCopy: copies.has(r.id) })),
-    areas: ofType(item, 'area')
+    areas: ofType(item, 'category')
       .map(r => ({ id: r.id, name: r.title, path: areaPaths.get(r.id) || r.title, isCopy: copies.has(r.id) })),
     templates: ofType(item, 'template').map(r => ({ id: r.id, title: r.title })),
     todos: ofType(item, 'to_do').map(r => ({ id: r.id, title: r.title })),
@@ -207,7 +207,7 @@ export async function createWorkItem(data, contextId) {
 
   const nextOrder = await nextOrderIndexForDate(date, contextId);
 
-  const created = await entityService.createEntity('work_item', {
+  const created = await entityService.createEntity('daily', {
     title,
     order_index: nextOrder,
     fields: {
@@ -371,7 +371,7 @@ export async function cloneWorkItem(id, date) {
   // subtree via entity_relationships, which is not what cloning a day does -
   // a day's children are shallow-copied references (work_entity_associations
   // rows), not new entities of their own.
-  const created = await entityService.createEntity('work_item', {
+  const created = await entityService.createEntity('daily', {
     title: original.title,
     order_index: nextOrder,
     fields: {

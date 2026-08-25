@@ -1,10 +1,12 @@
-import { query, getCurrentConfig } from '../database/connectionPool.js';
+import { query, getPool, getCurrentConfig } from '../database/connectionPool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import archiver from 'archiver';
 import logger from '../utils/logger.js';
+import { ValidationError } from '../config/errors.js';
+import { ALL_SYSTEM_TABLES } from './systemDatabaseService.js';
 
 const execAsync = promisify(exec);
 const writeFile = promisify(fs.writeFile);
@@ -120,30 +122,112 @@ function serializeValue(value) {
   return value;
 }
 
+// The tables a JSON backup covers, and the ONLY tables an import will empty.
+//
+// Reused from systemDatabaseService rather than listed a second time: this is
+// the same question ("which tables is this app's data in?"), and two copies is
+// how a retired table stays in one list after being removed from the other -
+// which here would mean an import trying to DELETE FROM a table that no longer
+// exists, and rolling the whole restore back.
+const TABLES = ALL_SYSTEM_TABLES;
+
+// Table and column names cannot be parameterised, so they are interpolated -
+// which means they have to be checked. Everything here comes from a file the
+// user supplies, so this is the boundary where a hostile backup would try to
+// get SQL into an identifier position.
+function validateIdentifier(name, what) {
+  if (typeof name !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new ValidationError(`${what} is not a valid identifier: ${JSON.stringify(name)}`);
+  }
+  return name;
+}
+
+/**
+ * Every row of every table, as JSON. This is what GET /api/backup/export
+ * downloads and what importDatabase() reads back.
+ *
+ * A table that does not exist is skipped rather than throwing: a database that
+ * predates a table, or has had one retired, should still be backup-able.
+ */
+export async function exportDatabase() {
+  const tables = {};
+  let rowsExported = 0;
+
+  for (const table of TABLES) {
+    validateIdentifier(table, 'Table name');
+    try {
+      const rows = await query(`SELECT * FROM \`${table}\``);
+      tables[table] = rows;
+      rowsExported += rows.length;
+    } catch (error) {
+      // ER_NO_SUCH_TABLE and its MSSQL equivalent both mean "nothing to back
+      // up here", which is not a failed backup.
+      logger.warn(`Backup: skipping ${table} (${error.message})`);
+    }
+  }
+
+  return {
+    exportedAt: new Date().toISOString(),
+    database: getCurrentConfig()?.database ?? null,
+    tableCount: Object.keys(tables).length,
+    rowsExported,
+    tables,
+  };
+}
+
 export async function importDatabase(payload) {
   if (!payload || typeof payload !== 'object' || !payload.tables) {
     throw new ValidationError('That file doesn\'t look like a MyWork backup');
   }
 
-  const pool = await db.getPool();
+  const pool = await getPool();
   const connection = await pool.getConnection();
 
   try {
     await connection.query('SET FOREIGN_KEY_CHECKS = 0');
     await connection.beginTransaction();
 
-    for (const table of [...TABLES].reverse()) {
+    // Only the tables this backup actually carries. Emptying a table the file
+    // says nothing about would silently destroy data the restore cannot then
+    // put back - a "restore" that deletes is the worst possible outcome here.
+    const present = TABLES.filter((t) => Array.isArray(payload.tables[t]));
+    if (!present.length) {
+      throw new ValidationError('That backup contains no recognisable tables');
+    }
+    for (const table of [...present].reverse()) {
+      validateIdentifier(table, 'Table name');
       await connection.query(`DELETE FROM \`${table}\``);
     }
 
     let rowsImported = 0;
 
-    for (const table of TABLES) {
+    for (const table of present) {
       const rows = payload.tables[table] || [];
       let maxId = 0;
 
+      // Which columns this table ACTUALLY has right now. A backup taken against
+      // an older schema carries columns that have since been dropped
+      // (`priorities.is_weekly` is a real example), and inserting one of those
+      // failed the entire restore with "Unknown column" - so the one file you
+      // reach for when something has gone wrong was the one that would not
+      // load. Unknown columns are skipped and logged instead.
+      const [columnRows] = await connection.query(
+        `SELECT COLUMN_NAME c FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+        [table],
+      );
+      const liveColumns = new Set(columnRows.map(r => r.c));
+      const dropped = new Set();
+
       for (const row of rows) {
-        const columns = Object.keys(row).map(c => validateIdentifier(c, `Column name in ${table}`));
+        const columns = Object.keys(row)
+          .map(c => validateIdentifier(c, `Column name in ${table}`))
+          .filter((c) => {
+            if (liveColumns.has(c)) return true;
+            dropped.add(c);
+            return false;
+          });
+        if (!columns.length) continue;
         const placeholders = columns.map(() => '?').join(',');
         const values = columns.map(c => serializeValue(row[c]));
 
@@ -157,6 +241,13 @@ export async function importDatabase(payload) {
         }
       }
 
+      if (dropped.size) {
+        logger.warn(
+          `Restore: ${table} - ignored ${dropped.size} column(s) this schema no `
+          + `longer has: ${[...dropped].join(', ')}`,
+        );
+      }
+
       rowsImported += rows.length;
 
       if (maxId > 0) {
@@ -167,7 +258,7 @@ export async function importDatabase(payload) {
     await connection.commit();
     await connection.query('SET FOREIGN_KEY_CHECKS = 1');
 
-    return { tablesImported: TABLES.length, rowsImported };
+    return { tablesImported: present.length, rowsImported };
   } catch (error) {
     await connection.rollback();
     await connection.query('SET FOREIGN_KEY_CHECKS = 1');

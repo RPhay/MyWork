@@ -18,7 +18,7 @@ const TYPES = [
   { slug: 'task', label: 'Tasks', hierarchy: true },
   { slug: 'ticket', label: 'Tickets', hierarchy: true },
   { slug: 'goal', label: 'Goals', hierarchy: true },
-  { slug: 'area', label: 'Categories', hierarchy: true },
+  { slug: 'category', label: 'Categories', hierarchy: true },
   { slug: 'idea', label: 'Ideas', hierarchy: true },
 ];
 

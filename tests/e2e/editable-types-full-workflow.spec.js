@@ -7,7 +7,7 @@ test('Categories: Full workflow - create, edit, delete', async ({ page }) => {
   await page.goto('http://localhost:3000');
   
   // Click Categories tab
-  await page.locator('.type-area').click();
+  await page.locator('.type-category').click();
   await page.waitForTimeout(500);
   
   console.log('✓ Navigated to Categories tab');
@@ -47,7 +47,7 @@ test('Categories: Full workflow - create, edit, delete', async ({ page }) => {
           console.log('✓ Save clicked');
           
           // Check if item appears in list
-          const rows = await page.locator('#tab-area .entity-row:visible').count();
+          const rows = await page.locator('#tab-category .entity-row:visible').count();
           console.log(`Entity rows after save: ${rows}`);
         }
       }
@@ -125,15 +125,15 @@ test('Drag and drop: Create parent-child relationship', async ({ page }) => {
   await page.goto('http://localhost:3000');
   
   // Click Categories tab
-  await page.locator('.type-area').click();
+  await page.locator('.type-category').click();
   await page.waitForTimeout(500);
   
-  const rows = await page.locator('#tab-area .entity-row:visible').count();
+  const rows = await page.locator('#tab-category .entity-row:visible').count();
   console.log(`Category rows found: ${rows}`);
   
   if (rows >= 2) {
-    const firstRow = page.locator('#tab-area .entity-row:visible').nth(0);
-    const secondRow = page.locator('#tab-area .entity-row:visible').nth(1);
+    const firstRow = page.locator('#tab-category .entity-row:visible').nth(0);
+    const secondRow = page.locator('#tab-category .entity-row:visible').nth(1);
     
     // Drag first to second
     await firstRow.dragTo(secondRow);

@@ -111,8 +111,11 @@ async function createUpdatedAtTrigger(pool, tableName) {
   );
 }
 
+// `entities`, NOT `work_items` - see the note on mysqlSchemaExists. This probe
+// decides whether app.js redirects every page to /setup, and the legacy table
+// it used to name has been dropped.
 export async function mssqlSchemaExists(pool) {
-  return tableExists(pool, "work_items");
+  return tableExists(pool, "entities");
 }
 
 export async function createMssqlSchema(pool) {
@@ -188,35 +191,10 @@ export async function createMssqlSchema(pool) {
   );
   await createUpdatedAtTrigger(pool, "source_auth");
 
-  await createTableIfNotExists(
-    pool,
-    "categories",
-    `
-    CREATE TABLE [MyWork].[categories] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      name NVARCHAR(255) NOT NULL UNIQUE,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME()
-    )
-  `,
-  );
-
-  // Seed the standard goal categories so they're selectable out of the box
-  const standardCategories = [
-    "Financial",
-    "Impact",
-    "M&A",
-    "Operational Excellence",
-    "Other",
-    "People",
-    "Technology Excellence",
-  ];
-  for (const name of standardCategories) {
-    const request = pool.request();
-    request.input("name", name);
-    await request.query(
-      "IF NOT EXISTS (SELECT 1 FROM [MyWork].[categories] WHERE name = @name) INSERT INTO [MyWork].[categories] (name) VALUES (@name)",
-    );
-  }
+  // The `categories` table is gone - see RETIRED_TABLES at the end of this
+  // file. It was a static goal-grouping list, unrelated to the Categories TYPE
+  // (slug `category`, formerly `area`), which lives in entities like every
+  // other editable type. Nothing read it.
 
   // areas table removed in Phase 2 (areas migrated to generic entities)
 
@@ -298,84 +276,10 @@ export async function createMssqlSchema(pool) {
 
   // priority_goals: recreated as a legacy<->entity bridge at the end of this file
 
-  await createTableIfNotExists(
-    pool,
-    "work_items",
-    `
-    CREATE TABLE [MyWork].[work_items] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      date DATE NOT NULL,
-      title NVARCHAR(255) NOT NULL,
-      description NVARCHAR(MAX),
-      notes NVARCHAR(MAX),
-      emoji NVARCHAR(16),
-      status NVARCHAR(50) DEFAULT 'Not Started',
-      time_box_minutes INT NULL,
-      start_time VARCHAR(5) NULL,
-      order_index INT DEFAULT 0,
-      worked_with_claude BIT DEFAULT 0,
-      recurring_from_todo_id INT NULL,
-      recurring_from_task_id INT NULL,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "work_items");
-  await createIndexIfNotExists(
-    pool,
-    "idx_work_items_date",
-    "work_items",
-    "CREATE INDEX idx_work_items_date ON [MyWork].[work_items](date)",
-  );
-  await createIndexIfNotExists(
-    pool,
-    "idx_work_items_status",
-    "work_items",
-    "CREATE INDEX idx_work_items_status ON [MyWork].[work_items](status)",
-  );
-
-  // Backfill for work_items created before these existed - see mysqlSchema.js
-  if (!(await columnExists(pool, "work_items", "notes"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items] ADD notes NVARCHAR(MAX)
-    `);
-  }
-  if (!(await columnExists(pool, "work_items", "emoji"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items] ADD emoji NVARCHAR(16)
-    `);
-  }
-  if (!(await columnExists(pool, "work_items", "time_box_minutes"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items] ADD time_box_minutes INT NULL
-    `);
-  }
-  if (!(await columnExists(pool, "work_items", "order_index"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items] ADD order_index INT DEFAULT 0
-    `);
-  }
-  if (!(await columnExists(pool, "work_items", "start_time"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items] ADD start_time VARCHAR(5) NULL
-    `);
-  }
-  if (!(await columnExists(pool, "work_items", "worked_with_claude"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items] ADD worked_with_claude BIT DEFAULT 0
-    `);
-  }
-  if (!(await columnExists(pool, "work_items", "recurring_from_todo_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items] ADD
-        recurring_from_todo_id INT NULL CONSTRAINT fk_work_items_recurring_todo FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE SET NULL,
-        recurring_from_task_id INT NULL CONSTRAINT fk_work_items_recurring_task FOREIGN KEY REFERENCES [MyWork].[tasks](id) ON DELETE SET NULL
-    `);
-  }
-
-
-
+  // The `work_items` table is gone - see RETIRED_TABLES at the end of this
+  // file. Dailies are entities of type `daily` now; the rows were moved by
+  // scripts/phase10-migrate-work-items.js, which also repointed the two
+  // junctions that used to reference work_items(id).
 
   // work_source_associations: created further down, alongside
   // work_entity_associations - see the matching note in mysqlSchema.js. Its
@@ -617,26 +521,7 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  // Now that to_dos and tasks tables are created, add the FK from work_items to them
-  // Use ALTER TABLE instead of adding to CREATE TABLE since those tables didn't exist yet
-  try {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items]
-      ADD CONSTRAINT fk_work_items_recurring_todo FOREIGN KEY (recurring_from_todo_id) REFERENCES [MyWork].[to_dos](id) ON DELETE SET NULL
-    `);
-  } catch (err) {
-    // Constraint might already exist, ignore
-  }
-  try {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_items]
-      ADD CONSTRAINT fk_work_items_recurring_task FOREIGN KEY (recurring_from_task_id) REFERENCES [MyWork].[tasks](id) ON DELETE SET NULL
-    `);
-  } catch (err) {
-    // Constraint might already exist, ignore
-  }
-
-
+  // The work_items -> to_dos/tasks recurrence FKs went with the table.
 
   // Create contexts table (top-level scope toggle, e.g. Work vs Life vs Hobbies -
   // distinct from the "areas" table, which backs the unrelated Categories tab)
@@ -677,33 +562,9 @@ export async function createMssqlSchema(pool) {
       );
   }
 
-  await createTableIfNotExists(
-    pool,
-    "tickets",
-    `
-    CREATE TABLE [MyWork].[tickets] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      title NVARCHAR(255) NOT NULL,
-      notes NVARCHAR(MAX),
-      ticket_type NVARCHAR(50) DEFAULT 'Other',
-      context_id INT,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_tickets_context FOREIGN KEY (context_id) REFERENCES [MyWork].[contexts](id)
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "tickets");
-
-  // Backfill priority_id for pre-existing tickets tables (project association) - see mysqlSchema.js
-  if (!(await columnExists(pool, "tickets", "priority_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[tickets] ADD
-        priority_id INT NULL CONSTRAINT fk_tickets_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
-    `);
-  }
-
-
+  // The `tickets` table is gone - see RETIRED_TABLES at the end of this file.
+  // Unrelated to the Tickets TYPE (slug `ticket`), which lives in entities like
+  // every other editable type. Nothing read the table.
 
   await createTableIfNotExists(
     pool,
@@ -885,12 +746,13 @@ export async function createMssqlSchema(pool) {
   const contextTables = [
     "sources",
     "priorities",
-    "work_items",
     "work_item_templates",
     "to_dos",
     "tasks",
-    "tickets",
   ];
+  // "work_items" and "tickets" were here until they were retired - see
+  // RETIRED_TABLES. Leaving a dropped table in this list makes the ALTER below
+  // throw on every schema run.
   // Note: "areas", "goals", "idea_folders", "ideas" were migrated to generic entities
   // in Phases 1-3 and no longer exist as separate tables
   for (const table of contextTables) {
@@ -931,19 +793,9 @@ export async function createMssqlSchema(pool) {
   // dangling reference. The other two columns (goals.ticket_id, tickets.category_id)
   // aren't part of a cycle and keep MySQL's SET NULL behavior.
 
-  // Todos can have tickets as children
-  if (!(await columnExists(pool, "to_dos", "ticket_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_dos] ADD
-        ticket_id INT NULL CONSTRAINT fk_to_dos_ticket FOREIGN KEY REFERENCES [MyWork].[tickets](id) ON DELETE NO ACTION
-    `);
-  }
-  if (!(await columnExists(pool, "tickets", "todo_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[tickets] ADD
-        todo_id INT NULL CONSTRAINT fk_tickets_todo FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION
-    `);
-  }
+  // The to_dos <-> tickets cross-links went with the `tickets` table. Both sides
+  // were FKs into a table nothing read; cross-entity relationships live in
+  // entity_relationships now.
 
   // Note: goals and areas tables were migrated to generic entities and no longer exist
 
@@ -1039,6 +891,54 @@ export async function createMssqlSchema(pool) {
   // driver bind a JS string as NVarChar, which is Unicode-safe. If you add a
   // statement here, bind its values; do not build the literal yourself.
 
+  // Slug renames - the twin of the block in mysqlSchema.js, and it MUST run
+  // before the seed loop below for the same reason: seeding matches on slug, so
+  // a renamed type reads as a missing one and would be inserted a second time,
+  // giving two Dailies tabs with the records in only one of them.
+  //
+  // A slug is now the singular of its label (Dailies/daily, Categories/category)
+  // rather than the pre-migration name.
+  // Guarded because [MyWork].[entities] is created later in this file - see the
+  // matching note in mysqlSchema.js. T-SQL resolves table names at compile time
+  // for the whole batch, so the reference has to be kept out of the statement
+  // entirely, not just out of the executed branch.
+  const hasEntities = await tableExists(pool, "entities");
+  await pool.request().query(
+    hasEntities
+      ? `DELETE FROM [MyWork].[entity_types]
+          WHERE slug = 'daily' AND deleted_at IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM [MyWork].[entities]
+               WHERE [entities].entity_type_id = [entity_types].id
+            )`
+      : `DELETE FROM [MyWork].[entity_types] WHERE slug = 'daily' AND deleted_at IS NOT NULL`,
+  );
+  const renameType = async (from, to, label, labelSingular) => {
+    const clash = await pool.request()
+      .input('slug', to)
+      .query('SELECT id FROM [MyWork].[entity_types] WHERE slug = @slug');
+    if (clash.recordset.length) return;             // already renamed, or taken
+    // The label moves with the slug - the seed loop below only ever INSERTs, so
+    // an existing type would otherwise keep its old label forever.
+    await pool.request()
+      .input('to', to)
+      .input('label', label)
+      .input('labelSingular', labelSingular)
+      .input('from', from)
+      .query('UPDATE [MyWork].[entity_types] SET slug = @to, label = @label, label_singular = @labelSingular WHERE slug = @from');
+  };
+  await renameType('work_item', 'daily', 'Dailies', 'Daily');
+  await renameType('area', 'category', 'Categories', 'Category');
+
+  // Label repair - see the matching note in mysqlSchema.js. Matched on the exact
+  // legacy label so a deliberate rename in Settings is never overwritten.
+  await pool.request().query(
+    "UPDATE [MyWork].[entity_types] SET label = 'Dailies', label_singular = 'Daily' WHERE slug = 'daily' AND label = 'Work Items'",
+  );
+  await pool.request().query(
+    "UPDATE [MyWork].[entity_types] SET label_singular = 'Category' WHERE slug = 'category' AND label_singular = 'Area'",
+  );
+
   for (const type of SYSTEM_ENTITY_TYPES) {
     const checkResult = await pool.request()
       .input('slug', type.slug)
@@ -1116,10 +1016,11 @@ export async function createMssqlSchema(pool) {
     }
   }
 
-  // See the matching note in mysqlSchema.js - 'daily' is dead configuration,
-  // retired the same soft-delete way any other type is removed.
+  // See the matching note in mysqlSchema.js. The statement that used to retire
+  // 'daily' here is GONE and must not come back: `daily` is now the Dailies type
+  // itself, so retiring it would soft-delete the live tab on every restart.
   await pool.request().query(
-    "UPDATE [MyWork].[entity_types] SET deleted_at = SYSUTCDATETIME() WHERE slug = 'daily' AND deleted_at IS NULL",
+    "UPDATE [MyWork].[entity_types] SET deleted_at = NULL WHERE slug = 'daily' AND is_system = 1",
   );
 
   await createTableIfNotExists(
@@ -1211,6 +1112,14 @@ export async function createMssqlSchema(pool) {
       }
     }
   }
+
+  // Worked Time drift repair - the twin of the block in mysqlSchema.js. Matched
+  // on the exact stale pair so a deliberately retyped field is left alone.
+  await pool.request().query(
+    `UPDATE [MyWork].[entity_type_fields] SET field_type = 'duration', label = 'Worked Time'
+      WHERE field_key = 'focus_seconds'
+        AND field_type = 'number' AND label = 'Focus time (seconds)'`,
+  );
 
   await createTableIfNotExists(
     pool,
@@ -1550,5 +1459,28 @@ export async function createMssqlSchema(pool) {
       table,
       `CREATE INDEX idx_${table}_entity ON [MyWork].[${table}] (${entityCol})`,
     );
+  }
+  await dropRetiredTables(pool);
+}
+
+// The twin of RETIRED_TABLES in mysqlSchema.js - read the note there for what
+// each one was and, in particular, why `categories` and `tickets` are NOT the
+// Categories and Tickets types. Dropped on every schema run so an existing
+// database is cleaned by the same "Fix Schema" that builds a new one.
+const RETIRED_TABLES = ["work_items", "tickets", "categories"];
+
+async function dropRetiredTables(pool) {
+  for (const table of RETIRED_TABLES) {
+    // SQL Server refuses to drop a table while a foreign key still references
+    // it, and unlike MySQL it names every constraint, so drop those first.
+    const fks = await pool.request().input("table", table).query(`
+      SELECT OBJECT_NAME(fk.parent_object_id) AS t, fk.name AS c
+        FROM sys.foreign_keys fk
+       WHERE fk.referenced_object_id = OBJECT_ID('[MyWork].[' + @table + ']')
+    `);
+    for (const { t, c } of fks.recordset) {
+      await pool.request().query(`ALTER TABLE [MyWork].[${t}] DROP CONSTRAINT [${c}]`);
+    }
+    await pool.request().query(`DROP TABLE IF EXISTS [MyWork].[${table}]`);
   }
 }

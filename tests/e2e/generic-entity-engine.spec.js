@@ -45,7 +45,7 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
     expect(data.data.length).toBeGreaterThanOrEqual(9);
 
     const typeNames = data.data.map(t => t.slug);
-    expect(typeNames).toContain('work_item');
+    expect(typeNames).toContain('daily');
     expect(typeNames).toContain('priority');
     expect(typeNames).toContain('to_do');
     expect(typeNames).toContain('task');

@@ -39,7 +39,7 @@ test('a rail tab offers isolating it, pairing it with Dailies, and closing it', 
   expect(text).toContain('Close');
 
   // Dailies itself has nothing to sit beside.
-  const dailies = await menuFor(page, 'button[data-rail-toggle="work_item"]');
+  const dailies = await menuFor(page, 'button[data-rail-toggle="daily"]');
   console.log('dailies menu ->', JSON.stringify(dailies));
   expect(dailies.join(' | '), 'Dailies is the one it pairs WITH').not.toContain('Show beside Dailies');
 });
@@ -47,7 +47,7 @@ test('a rail tab offers isolating it, pairing it with Dailies, and closing it', 
 test('"Show only this" from a tab menu leaves that tab alone on screen', async ({ page }) => {
   await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1400);
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.waitForTimeout(600);
 
   await page.locator('button[data-tab="idea"]').click({ button: 'right' });
@@ -55,7 +55,7 @@ test('"Show only this" from a tab menu leaves that tab alone on screen', async (
   await page.locator('.tab-context-menu .context-menu-item', { hasText: 'Show only this' }).click();
   await page.waitForTimeout(900);
 
-  const rails = await page.evaluate(() => ['work_item', 'template', 'priority-board']
+  const rails = await page.evaluate(() => ['daily', 'template', 'priority-board']
     .filter(s => document.getElementById(`rail-${s}`)?.classList.contains('active')));
   expect(rails, 'every rail stood down').toEqual([]);
   await expect(page.locator('#tab-idea')).toHaveClass(/active/);

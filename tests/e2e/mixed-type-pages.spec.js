@@ -66,7 +66,7 @@ test('editing a referenced idea updates it inside the template on screen', async
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(2000);
 
   // Templates beside Ideas, so both views of the same record are on screen
-  if (await page.locator('#rail-work_item').isVisible()) { await page.locator('button[data-rail-toggle="work_item"]').click(); await page.waitForTimeout(600); }
+  if (await page.locator('#rail-daily').isVisible()) { await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(600); }
   if (!(await page.locator('#rail-template').isVisible())) { await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(900); }
 
   await expect(page.locator('#templateEntityList .entity-row', {hasText:'ZZZmir before'})).toHaveCount(1);

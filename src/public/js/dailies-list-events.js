@@ -459,7 +459,7 @@ function initWorkItemContextMenu() {
     else if (action === "add-ticket") showTicketSelector(workItemId);
     else if (action === "add-idea") showIdeaSelector(workItemId);
     else if (action === "create-project") createAndEditItem("priority", workItemId);
-    else if (action === "create-area") createAndEditItem("area", workItemId);
+    else if (action === "create-area") createAndEditItem("category", workItemId);
     else if (action === "create-goal") createAndEditItem("goal", workItemId);
     else if (action === "create-todo") createAndEditItem("todo", workItemId);
     else if (action === "create-task") createAndEditItem("task", workItemId);

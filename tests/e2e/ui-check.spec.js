@@ -4,7 +4,7 @@ test('Verify UI layout and folder buttons', async ({ page }) => {
   await page.goto('/');
 
   // Check that Dailies tab exists
-  await expect(page.locator('#work_item-tab')).toContainText('Dailies');
+  await expect(page.locator('#daily-tab')).toContainText('Dailies');
 
   // Check that Projects tab exists
   await expect(page.locator('#priority-tab')).toContainText('Projects');
@@ -23,16 +23,22 @@ test('Verify UI layout and folder buttons', async ({ page }) => {
   expect(typeSlugs.length).toBeGreaterThan(0);
 
   // "+ Folder" is rendered for every type but REMOVED by generic-entity-init.js
-  // for flat ones (`supports_hierarchy = 0`, e.g. Templates) - folders are a
-  // nesting feature, so a flat type having none is correct, not a defect.
+  // for types that do not allow them (`supports_folders = 0`, e.g. Templates) -
+  // a template row is itself the container, so a folder inside it would be a
+  // pointless second layer. That is correct, not a defect.
   //
   // This used to assert a folder button on every type, which made it a race:
   // it passed only when it ran before init got round to removing them, and
   // failed whenever the page was warm enough for init to win. Waiting for that
   // removal to have happened is what makes the result mean anything.
-  const hierarchical = await page.evaluate(async () => {
+  const foldersAllowed = await page.evaluate(async () => {
     const body = await (await fetch('/api/entity-types')).json();
-    return Object.fromEntries((body.data || []).map(t => [t.slug, !!t.supports_hierarchy]));
+    // supports_FOLDERS, not supports_hierarchy. They are different properties
+    // and Templates is the case that separates them: it nests (hierarchy) but
+    // cannot hold folders, because the template row is itself the container -
+    // see CLAUDE.md. Asserting on hierarchy demanded a + Folder button the app
+    // is right not to render.
+    return Object.fromEntries((body.data || []).map(t => [t.slug, !!t.supports_folders]));
   });
   await page.waitForFunction(
     () => window.GenericEntityTabs && Object.keys(window.GenericEntityTabs._bySlug || {}).length > 0,
@@ -43,8 +49,8 @@ test('Verify UI layout and folder buttons', async ({ page }) => {
     await expect(page.locator(`#add${slug}Btn`)).toHaveCount(1);
     await expect(
       page.locator(`#add${slug}FolderBtn`),
-      `${slug}: supports_hierarchy=${hierarchical[slug]} should ${hierarchical[slug] ? '' : 'not '}offer + Folder`
-    ).toHaveCount(hierarchical[slug] ? 1 : 0);
+      `${slug}: supports_folders=${foldersAllowed[slug]} should ${foldersAllowed[slug] ? '' : 'not '}offer + Folder`
+    ).toHaveCount(foldersAllowed[slug] ? 1 : 0);
   }
 
   // Projects used to have its own hand-written tab (with a "Project Form"

@@ -2,7 +2,7 @@
 
 // Server-rendered config, passed via data attributes on <body> (CSP-safe: no inline script needed)
 window.APP_CONFIG = {
-  activeTab: document.body.dataset.activeTab || 'work_item',
+  activeTab: document.body.dataset.activeTab || 'daily',
   currentYear: parseInt(document.body.dataset.currentYear, 10),
   csrfToken: document.body.dataset.csrfToken,
   version: document.body.dataset.version,

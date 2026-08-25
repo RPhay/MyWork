@@ -199,8 +199,8 @@ test('a child dropped outside its own level is refused', async ({ page }) => {
   await page.waitForTimeout(1200);
   // Only if it is not already up: clicking an open rail CLOSES it, and Dailies
   // opens by default.
-  if (!(await page.locator('#rail-work_item.active').count())) {
-    await page.locator('button[data-rail-toggle="work_item"]').click();
+  if (!(await page.locator('#rail-daily.active').count())) {
+    await page.locator('button[data-rail-toggle="daily"]').click();
   }
   await page.waitForTimeout(1800);
 

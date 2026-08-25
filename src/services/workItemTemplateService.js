@@ -35,7 +35,7 @@ async function attachAssociations(templates) {
        WHERE tp.template_id IN (${placeholders})`,
       ids
     ),
-    entityService.getEntityPathLookup('area'),
+    entityService.getEntityPathLookup('category'),
     entityService.getEntityPathLookup('priority'),
   ]);
 

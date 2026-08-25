@@ -61,7 +61,7 @@ test.describe('Phase 2: Areas/Categories Migration', () => {
 
     const data = await response.json();
     expect(data.success).toBe(true);
-    expect(data.data.slug).toBe('area');
+    expect(data.data.slug).toBe('category');
     expect(data.data.label).toBe('Categories');
     expect(data.data.supports_hierarchy).toBe(1);
   });

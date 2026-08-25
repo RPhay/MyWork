@@ -22,8 +22,8 @@ async function api(page, path, options = {}) {
 }
 
 async function openBoardRail(page) {
-  if (await page.locator('#rail-work_item').isVisible().catch(() => false)) {
-    await page.locator('button[data-rail-toggle="work_item"]').click();
+  if (await page.locator('#rail-daily').isVisible().catch(() => false)) {
+    await page.locator('button[data-rail-toggle="daily"]').click();
     await page.waitForTimeout(600);
   }
   if (!(await page.locator('#rail-priority-board').isVisible().catch(() => false))) {

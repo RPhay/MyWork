@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Editable Types - Comprehensive Functionality', () => {
   // Test all editable types: areas, goals, todos, tasks, tickets, ideas
   const editableTypes = [
-    { slug: 'area', label: 'Area', buttonId: 'addareaBtnote' },
+    { slug: 'category', label: 'Area', buttonId: 'addareaBtnote' },
     { slug: 'goal', label: 'Goal', buttonId: 'addgoalBtnote' },
     { slug: 'todo', label: 'Todo', buttonId: 'addtodoBtnote' },
     { slug: 'task', label: 'Task', buttonId: 'addtaskBtnote' },

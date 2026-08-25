@@ -475,7 +475,7 @@ function showChildItemContextMenu(x, y, itemType, itemId) {
 
   const typeNames = {
     'priority': 'Project',
-    'area': 'Category',
+    'category': 'Category',
     'goal': 'Goal',
     'template': 'Template',
     'todo': 'Todo',
@@ -532,7 +532,7 @@ function deleteChildItem(itemType, itemId) {
   // Delete the association
   const apiMap = {
     'priority': 'priorities',
-    'area': 'areas',
+    'category': 'areas',
     'goal': 'goals',
     'template': 'templates',
     'todo': 'todos',
@@ -564,7 +564,7 @@ function editChildItem(itemType, itemId) {
   // Map item types to their editor functions
   const editorMap = {
     'priority': () => editChildPriority(itemId),
-    'area': () => editChildArea(itemId),
+    'category': () => editChildArea(itemId),
     'goal': () => editChildGoal(itemId),
     'template': () => editChildTemplate(itemId),
     'todo': () => editChildTodo(itemId),
@@ -586,7 +586,7 @@ async function createAndEditItem(itemType, parentWorkItemId) {
   // Use existing create-and-associate functions which now open in editors
   const createFunctionMap = {
     'priority': () => createAndAssociateProject(parentWorkItemId),
-    'area': () => createAndAssociateArea(parentWorkItemId),
+    'category': () => createAndAssociateArea(parentWorkItemId),
     'goal': () => createAndAssociateGoal(parentWorkItemId),
     'template': () => createAndAssociateTemplate(parentWorkItemId),
     'todo': () => createAndAssociateTodo(parentWorkItemId),

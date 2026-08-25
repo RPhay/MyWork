@@ -13,7 +13,7 @@ test('Debug save operation', async ({ page }) => {
   await page.goto('http://localhost:3000/');
   
   // Click Areas tab
-  await page.click('[data-tab="area"]');
+  await page.click('[data-tab="category"]');
   await page.waitForLoadState('networkidle');
 
   // Click add button

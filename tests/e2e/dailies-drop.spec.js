@@ -15,7 +15,7 @@ import { test, expect } from '@playwright/test';
  */
 
 const TYPES = [
-  { slug: 'area', dropType: 'area', key: 'areas' },
+  { slug: 'category', dropType: 'category', key: 'areas' },
   { slug: 'goal', dropType: 'goal', key: 'goals' },
   { slug: 'idea', dropType: 'idea', key: 'ideas' },
   // to_do/task/ticket were unlinkable until their junctions were bridged to
@@ -114,7 +114,7 @@ test.describe('Dropping onto Dailies', () => {
       row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
       return { type: dt.getData('type'), id: dt.getData('id'), name: dt.getData('name') };
     });
-    expect(payload.type).toBe('area');
+    expect(payload.type).toBe('category');
     expect(payload.id).not.toBe('');
     expect(payload.name).toBe('ZZZ payload');
   });
@@ -131,7 +131,7 @@ test.describe('Dropping onto Dailies', () => {
 async function drop(page, id, title) {
   await page.evaluate(({id,title}) => {
     const dt = new DataTransfer();
-    dt.setData('type','area'); dt.setData('id',String(id)); dt.setData('name',title); dt.setData('text/plain',title);
+    dt.setData('type','category'); dt.setData('id',String(id)); dt.setData('name',title); dt.setData('text/plain',title);
     document.getElementById('dailiesCenterPane').dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt}));
     document.getElementById('workItemsList').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));
   }, {id,title});

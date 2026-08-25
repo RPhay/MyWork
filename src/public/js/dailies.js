@@ -858,7 +858,7 @@ function initDailies() {
   const outerSplitPane = new SplitPane("dailiesOuterSplitPane", "dailiesCalendarPane", "dailiesOuterDivider", "dailiesContentRight", 25);
   outerSplitPane.showRightPane(75);
 
-  // Setup inner split-pane (Work Items | Editor)
+  // Setup inner split-pane (Dailies | Editor)
   dailiesSplitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
 
   // Setup split-pane editor buttons
@@ -931,7 +931,7 @@ function initDailies() {
       try {
         const typeMap = {
           'priority': '/api/priorities',
-          'area': '/api/areas',
+          'category': '/api/areas',
           'goal': '/api/goals',
           'template': '/api/work-item-templates',
           'todo': '/api/to-dos',

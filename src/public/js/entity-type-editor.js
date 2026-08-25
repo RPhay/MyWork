@@ -568,14 +568,15 @@ function addFieldRow(field = null) {
 // Which types can appear in the "Can have parents" / "Can have children" lists.
 //
 // Excluded, and why:
-//  - Dailies (work_item): a daily is never a child of anything, and it is
+//  - Dailies (slug `daily`, formerly `work_item`): a daily is never a child
+//    of anything, and it is
 //    implicitly a parent of everything, so offering it in either list is
 //    either wrong or a no-op the user has to keep re-ticking.
 //  - Outlook Calendar (type_category 'external'): an import source, not a
 //    regular type - it has no place in hand-authored relationship rules.
 function canBeRelated(t) {
   if (t.type_category === 'external') return false;
-  if (t.slug === 'work_item') return false;
+  if (t.slug === 'daily') return false;
   return true;
 }
 

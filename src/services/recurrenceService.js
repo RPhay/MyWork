@@ -9,7 +9,7 @@ import * as entityTypeService from './entityTypeService.js';
 let workItemTypeIdCache = null;
 async function getWorkItemTypeId() {
   if (workItemTypeIdCache) return workItemTypeIdCache;
-  const type = await entityTypeService.getEntityType('work_item');
+  const type = await entityTypeService.getEntityType('daily');
   workItemTypeIdCache = type.id;
   return workItemTypeIdCache;
 }

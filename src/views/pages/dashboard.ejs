@@ -155,7 +155,7 @@
   </style>
 </head>
 <body
-  data-active-tab="<%= activeTab || 'work_item' %>"
+  data-active-tab="<%= activeTab || 'daily' %>"
   data-current-year="<%= currentYear %>"
   data-csrf-token="<%= csrfToken %>"
   data-version="<%= version %>"
@@ -184,10 +184,15 @@
         // value seen two ways.
         const sortedTypes = entityTypes
           .filter(t => t.is_visible === undefined || t.is_visible)
-          .filter(t => !['daily', 'outlook_calendar', 'folder'].includes(t.slug))
+          // 'daily' is NOT excluded here. It used to be, back when `daily` was a
+          // separate read-only day-container type and Dailies itself was
+          // `work_item`. Now that Dailies IS `daily`, excluding it removed the
+          // Dailies tab from the bar entirely - the rail still rendered, so the
+          // only symptom was a missing button.
+          .filter(t => !['outlook_calendar', 'folder'].includes(t.slug))
           .sort((a, b) => {
-            if (a.slug === 'work_item') return -1;
-            if (b.slug === 'work_item') return 1;
+            if (a.slug === 'daily') return -1;
+            if (b.slug === 'daily') return 1;
             return 0;
           });
       %>
@@ -197,12 +202,12 @@
         // page of their own: Dailies (the day's work) and Templates (the
         // presets you drag from). Two panes show at a time and every pair is
         // legal except Templates + Priorities - see setupRails() in tabs.js.
-        const RAIL_SLUGS = ['work_item', 'template'];
+        const RAIL_SLUGS = ['daily', 'template'];
         // Left-to-right order of the rail toggles in the tab bar. Priority
         // Board sits between Dailies and Templates. It is named here rather
         // than coming from sortedTypes because it is a view, not an entity
         // type - there is no row in entity_types to sort it by.
-        const RAIL_TAB_ORDER = ['work_item', 'priority-board', 'template'];
+        const RAIL_TAB_ORDER = ['daily', 'priority-board', 'template'];
         const fixedTypes = sortedTypes.filter(t => RAIL_SLUGS.includes(t.slug));
         const editableTypes = sortedTypes.filter(t => !RAIL_SLUGS.includes(t.slug));
       %>
@@ -284,10 +289,10 @@
           its companion back - so one tab toggles a pair on and off. Both rails
           are always rendered so each initialises on page load; setupRails() in
           tabs.js decides what is shown. %>
-      <aside class="app-rail" id="rail-work_item" data-rail="work_item">
+      <aside class="app-rail" id="rail-daily" data-rail="daily">
         <%- include('../tabs/dailies.ejs') %>
       </aside>
-      <div class="app-rail-divider" id="railDivider-work_item"></div>
+      <div class="app-rail-divider" id="railDivider-daily"></div>
       <%# Templates is a typed page like any other now - same tree, same editor,
           same drag and drop. Its one difference is a type rule, not code: a
           template may contain any editable type (see systemEntityTypes.js), so

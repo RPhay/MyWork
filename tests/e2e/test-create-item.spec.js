@@ -8,11 +8,11 @@ test('Areas - Create and Edit Item', async ({ page }) => {
   await page.goto('http://localhost:3000/');
 
   // Click Areas tab
-  await page.click('[data-tab="area"]');
+  await page.click('[data-tab="category"]');
   await page.waitForLoadState('networkidle');
 
   // Get initial item count
-  const initialCount = await page.locator('#tab-area .entity-row:visible').count();
+  const initialCount = await page.locator('#tab-category .entity-row:visible').count();
 
   // Click add button
   const addBtn = page.locator('#addareaBtn');
@@ -37,11 +37,11 @@ test('Areas - Create and Edit Item', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 
   // Verify new item was created
-  const finalCount = await page.locator('#tab-area .entity-row:visible').count();
+  const finalCount = await page.locator('#tab-category .entity-row:visible').count();
   expect(finalCount).toBeGreaterThan(initialCount);
 
   // Verify item title appears
-  const newItem = page.locator('#tab-area .entity-row:visible').first();
+  const newItem = page.locator('#tab-category .entity-row:visible').first();
   await expect(newItem).toContainText('New Area Test');
 });
 
@@ -71,6 +71,6 @@ test('Goals - Create Item', async ({ page }) => {
 
   // Verify
   await page.waitForLoadState('networkidle');
-  const newItem = page.locator('#tab-area .entity-row:visible').first();
+  const newItem = page.locator('#tab-category .entity-row:visible').first();
   await expect(newItem).toContainText('New Goal Test');
 });

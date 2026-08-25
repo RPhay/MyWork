@@ -36,7 +36,7 @@ test.describe('Work item associations', () => {
 
   test.afterEach(async ({ page }) => {
     await page.goto('/');
-    for (const slug of ['area', 'goal', 'idea']) {
+    for (const slug of ['category', 'goal', 'idea']) {
       const { body } = await api(page, `/api/entities/${slug}`);
       for (const e of (body?.data || []).filter((x) => (x.title || '').startsWith(PREFIX))) {
         await api(page, `/api/entities/${slug}/${e.id}`, { method: 'DELETE' });
@@ -83,7 +83,7 @@ test.describe('Work item associations', () => {
   });
 
   for (const { slug, label, key, labelField } of [
-    { slug: 'area', label: 'areas', key: 'areas', labelField: 'name' },
+    { slug: 'category', label: 'areas', key: 'areas', labelField: 'name' },
     { slug: 'goal', label: 'goals', key: 'goals', labelField: 'name' },
     { slug: 'idea', label: 'ideas', key: 'ideas', labelField: 'title' },
   ]) {

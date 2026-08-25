@@ -9,7 +9,7 @@ test('Check pane state after add button click', async ({ page }) => {
   });
 
   await page.goto('http://localhost:3000/');
-  await page.click('[data-tab="area"]');
+  await page.click('[data-tab="category"]');
   await page.waitForLoadState('networkidle');
 
   // Check pane state before clicking add

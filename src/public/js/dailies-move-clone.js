@@ -53,7 +53,7 @@ function openMoveCloneModal(workItemId, mode) {
   document.getElementById("moveCloneWorkId").value = workItemId;
   document.getElementById("moveCloneMode").value = mode;
   document.getElementById("moveCloneModalTitle").textContent =
-    mode === "clone" ? "Clone Work Item To" : "Move Work Item To";
+    mode === "clone" ? "Clone Daily To" : "Move Daily To";
   document.getElementById("confirmMoveCloneBtn").textContent =
     mode === "clone" ? "Clone" : "Move";
   document.getElementById("moveCloneHint").textContent =

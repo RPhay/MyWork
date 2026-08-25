@@ -77,7 +77,7 @@ test.describe('Verify Associations Persist and Display', () => {
   });
 
   test('Add -> Category and verify display', async ({ page }) => {
-    const result = await testAssociation(page, 'Category', '[data-action="add-area"]', 'area');
+    const result = await testAssociation(page, 'Category', '[data-action="add-area"]', 'category');
     expect(result).toBe(true);
   });
 

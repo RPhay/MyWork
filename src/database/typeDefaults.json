@@ -2,9 +2,9 @@
   "capturedAt": "2026-08-20T21:01:56.183Z",
   "types": [
     {
-      "slug": "work_item",
+      "slug": "daily",
       "label": "Work Items",
-      "label_singular": "Work Item",
+      "label_singular": "Daily",
       "icon": "⭐",
       "type_category": "editable",
       "external_source": null,
@@ -197,23 +197,6 @@
       ]
     },
     {
-      "slug": "daily",
-      "label": "Daily",
-      "label_singular": "Daily",
-      "icon": "📅",
-      "type_category": "daily",
-      "external_source": null,
-      "template_structure": null,
-      "supports_hierarchy": 0,
-      "is_system": 1,
-      "primary_date_field": null,
-      "order_index": 0,
-      "is_visible": 1,
-      "title_order": 0,
-      "supports_folders": 1,
-      "fields": []
-    },
-    {
       "slug": "outlook_calendar",
       "label": "Outlook Calendar",
       "label_singular": "Outlook Event",
@@ -378,7 +361,7 @@
       ]
     },
     {
-      "slug": "area",
+      "slug": "category",
       "label": "Categories",
       "label_singular": "Category",
       "icon": "🏷️",

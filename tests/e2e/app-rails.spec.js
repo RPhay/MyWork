@@ -16,9 +16,9 @@ async function state(page) {
     const vis = (sel) => { const el=document.querySelector(sel); return !!el && el.offsetParent !== null; };
     const x = (sel) => { const el=document.querySelector(sel); return el ? Math.round(el.getBoundingClientRect().x) : null; };
     return {
-      dailies: vis('#rail-work_item'), templates: vis('#rail-template'),
+      dailies: vis('#rail-daily'), templates: vis('#rail-template'),
       content: vis('#mainTabContent'),
-      xd: x('#rail-work_item'), xt: x('#rail-template'), xc: x('#mainTabContent'),
+      xd: x('#rail-daily'), xt: x('#rail-template'), xc: x('#mainTabContent'),
     };
   });
 }
@@ -26,7 +26,7 @@ test('the three valid two-pane combinations', async ({ page }) => {
   const errs=[]; page.on('pageerror',e=>errs.push(e.message));
   await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
 
-  const D = page.locator('button[data-rail-toggle="work_item"]');
+  const D = page.locator('button[data-rail-toggle="daily"]');
   const T = page.locator('button[data-rail-toggle="template"]');
 
   // Dailies + type
@@ -62,13 +62,13 @@ test('the three valid two-pane combinations', async ({ page }) => {
 test('rail choices survive a reload', async ({ page }) => {
   await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
   // Leave it on Templates + type
-  await page.locator('button[data-rail-toggle="work_item"]').click();
+  await page.locator('button[data-rail-toggle="daily"]').click();
   await page.locator('button[data-rail-toggle="template"]').click();
   await page.waitForTimeout(500);
 
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1500);
   await expect(page.locator('#rail-template')).toBeVisible();
-  await expect(page.locator('#rail-work_item')).toBeHidden();
+  await expect(page.locator('#rail-daily')).toBeHidden();
   await expect(page.locator('#mainTabContent')).toBeVisible();
 });
 test('Dailies shows no column headers until the day has work', async ({ page }) => {
@@ -114,7 +114,7 @@ test('no type tab is selected while both rails are up', async ({ page }) => {
   expect(await activeTypeTabs()).toBe(0);
 
   // Asking for a type is a request to see it: the right-hand rail stands down.
-  await page.locator('#mainTabs button[data-tab="area"]').click();
+  await page.locator('#mainTabs button[data-tab="category"]').click();
   await page.waitForTimeout(700);
   expect(await activeTypeTabs()).toBe(1);
   await expect(page.locator('#mainTabContent')).toBeVisible();

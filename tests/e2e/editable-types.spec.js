@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Comprehensive tests for all editable types (Areas, Goals, Todos, Tasks, Tickets, Ideas)
 
 const editableTypes = [
-  { slug: 'area', name: 'Categories' },
+  { slug: 'category', name: 'Categories' },
   { slug: 'goal', name: 'Goals' },
   { slug: 'to_do', name: 'Todos' },
   { slug: 'task', name: 'Tasks' },

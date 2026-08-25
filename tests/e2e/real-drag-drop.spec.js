@@ -26,8 +26,8 @@ test('REAL drag: idea -> template actually nests', async ({ page }) => {
   const idea = (await api(page,'/api/entities/idea',{method:'POST',body:JSON.stringify({title:'ZZZrd idea'})})).body.data;
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
 
-  if (await page.locator('#rail-work_item').isVisible()) {
-    await page.locator('button[data-rail-toggle="work_item"]').click(); await page.waitForTimeout(700);
+  if (await page.locator('#rail-daily').isVisible()) {
+    await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(700);
   }
   if (!(await page.locator('#rail-template').isVisible())) {
     await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(900);
@@ -66,8 +66,8 @@ test('REAL drag: template -> a day', async ({ page }) => {
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
 
   // Dailies AND Templates both up: that is the combination where you drag one into the other.
-  if (!(await page.locator('#rail-work_item').isVisible())) {
-    await page.locator('button[data-rail-toggle="work_item"]').click(); await page.waitForTimeout(700);
+  if (!(await page.locator('#rail-daily').isVisible())) {
+    await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(700);
   }
   if (!(await page.locator('#rail-template').isVisible())) {
     await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(900);
@@ -96,7 +96,7 @@ test('template with contents -> day, as independent copies', async ({ page }) =>
       body:JSON.stringify({parentEntityId:tpl.id, childEntityId:c.id, relationshipKind:'hierarchy'})});
   }
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
-  if (!(await page.locator('#rail-work_item').isVisible())) { await page.locator('button[data-rail-toggle="work_item"]').click(); await page.waitForTimeout(700); }
+  if (!(await page.locator('#rail-daily').isVisible())) { await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(700); }
   if (!(await page.locator('#rail-template').isVisible())) { await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(900); }
 
   await page.locator('#templateEntityList .entity-row', {hasText:'ZZZfull template'}).first().dragTo(page.locator('#workItemsList'));

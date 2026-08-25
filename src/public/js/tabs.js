@@ -72,7 +72,7 @@ class TabManager {
   //
   // Both rails are always in the DOM, so each initialises on page load.
   setupRails() {
-    const RAILS = ['work_item', 'template', 'priority-board'];
+    const RAILS = ['daily', 'template', 'priority-board'];
     // The type pane is a participant like the rails, so the rule above can be
     // written once for all four rather than twice with two sets of edge cases.
     const CONTENT = 'content';
@@ -95,8 +95,8 @@ class TabManager {
     const isOn = (slug) => localStorage.getItem(KEY(slug)) === 'true';
     // Dailies starts on, matching how the rail behaved when it was the only
     // one; Templates starts off.
-    if (localStorage.getItem(KEY('work_item')) === null) {
-      localStorage.setItem(KEY('work_item'), 'true');
+    if (localStorage.getItem(KEY('daily')) === null) {
+      localStorage.setItem(KEY('daily'), 'true');
     }
 
     const shell = document.getElementById('appShell');
@@ -510,10 +510,10 @@ class TabManager {
         ];
 
         // Dailies is the one rail the others may sit beside.
-        if (slug !== 'work_item') {
+        if (slug !== 'daily') {
           items.push({ icon: '📅', label: `Show beside Dailies`, action: () => {
             this.fullWidthTab = false;
-            this.setPanes?.([slug, 'work_item']);
+            this.setPanes?.([slug, 'daily']);
             this.touchPane?.(slug);
             this.applyRails?.();
           } });
@@ -638,7 +638,7 @@ class TabManager {
   setupUrlSync() {
     // Handle browser back/forward
     window.addEventListener('popstate', (e) => {
-      const tab = e.state?.tab || window.APP_CONFIG?.activeTab || 'work_item';
+      const tab = e.state?.tab || window.APP_CONFIG?.activeTab || 'daily';
       this.showTab(tab);
     });
   }

@@ -31,7 +31,7 @@ const today = () => new Date().toISOString().split('T')[0];
 async function drop(page, id, title, onto = '#workItemsList') {
   await page.evaluate(({ id, title, onto }) => {
     const dt = new DataTransfer();
-    dt.setData('type', 'area'); dt.setData('id', String(id));
+    dt.setData('type', 'category'); dt.setData('id', String(id));
     dt.setData('name', title); dt.setData('text/plain', title);
     document.getElementById('dailiesCenterPane')
       .dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
@@ -44,8 +44,8 @@ async function drop(page, id, title, onto = '#workItemsList') {
 async function openDailies(page) {
   await page.goto('/?tab=area', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1600);
-  if (!(await page.locator('#rail-work_item').isVisible())) {
-    await page.locator('button[data-rail-toggle="work_item"]').click();
+  if (!(await page.locator('#rail-daily').isVisible())) {
+    await page.locator('button[data-rail-toggle="daily"]').click();
     await page.waitForTimeout(900);
   }
 }

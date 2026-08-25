@@ -20,7 +20,7 @@ test('Verify schema fetching in browser', async ({ page }) => {
   });
 
   // Click Categories tab to trigger schema fetch
-  await page.locator('.type-area').click();
+  await page.locator('.type-category').click();
   await page.waitForTimeout(500);
   
   // Click Goals tab
