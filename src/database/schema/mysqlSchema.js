@@ -938,6 +938,20 @@ export async function createMysqlSchema(connection) {
     );
   }
 
+  // Put back icons destroyed by a previous MSSQL build, which wrote its
+  // replacement icon as a VARCHAR literal and so stored every emoji as literal
+  // question marks. MySQL never caused that damage, but a context database
+  // moved or restored from an MSSQL install carries it, and this file is the
+  // twin of mssqlSchema.js - the two stay identical in behaviour so a database
+  // is repaired the same way whichever engine it is opened on. '?' is never a
+  // legitimate icon, so this cannot clobber a real customisation.
+  for (const type of SYSTEM_ENTITY_TYPES) {
+    await connection.query(
+      "UPDATE entity_types SET icon = ? WHERE slug = ? AND icon <> '' AND icon IS NOT NULL AND icon REGEXP '^[?]+$'",
+      [type.icon, type.slug]
+    );
+  }
+
   // Seed special types (Daily day container and External integrations).
   // Daily = read-only type representing one complete day's work.
   for (const type of SPECIAL_ENTITY_TYPES) {

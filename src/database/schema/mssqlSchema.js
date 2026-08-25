@@ -1029,17 +1029,32 @@ export async function createMssqlSchema(pool) {
 
   // Seed system entity types if they don't exist (MSSQL)
   // Note: work_item represents individual items that can be associated with a Daily
-  const escapeSQL = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
+  //
+  // EVERY value below is bound as a parameter, never interpolated into the SQL
+  // text. That is not only about injection: a T-SQL literal written as '...'
+  // is a VARCHAR literal, so an emoji in it is converted to the database code
+  // page - which is to say to '?' - on its way into an NVARCHAR column. Icons
+  // are emoji, and this is exactly how every icon on an MSSQL install was
+  // being replaced by '?' on each server start. request.input() lets the
+  // driver bind a JS string as NVarChar, which is Unicode-safe. If you add a
+  // statement here, bind its values; do not build the literal yourself.
 
   for (const type of SYSTEM_ENTITY_TYPES) {
     const checkResult = await pool.request()
-      .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL(type.slug)}'`);
+      .input('slug', type.slug)
+      .query('SELECT id FROM [MyWork].[entity_types] WHERE slug = @slug');
 
     if (checkResult.recordset.length === 0) {
-      const primaryDateField = type.primary_date_field ? `'${escapeSQL(type.primary_date_field)}'` : 'NULL';
       await pool.request()
+        .input('slug', type.slug)
+        .input('label', type.label)
+        .input('labelSingular', type.label_singular)
+        .input('icon', type.icon)
+        .input('primaryDateField', type.primary_date_field ?? null)
+        .input('supportsHierarchy', type.supports_hierarchy ? 1 : 0)
+        .input('orderIndex', SYSTEM_ENTITY_TYPES.indexOf(type))
         .query(`INSERT INTO [MyWork].[entity_types] (slug, label, label_singular, icon, type_category, supports_hierarchy, is_system, primary_date_field, order_index)
-                VALUES ('${escapeSQL(type.slug)}', '${escapeSQL(type.label)}', '${escapeSQL(type.label_singular)}', '${escapeSQL(type.icon)}', 'editable', ${type.supports_hierarchy ? 1 : 0}, 1, ${primaryDateField}, ${SYSTEM_ENTITY_TYPES.indexOf(type)})`);
+                VALUES (@slug, @label, @labelSingular, @icon, 'editable', @supportsHierarchy, 1, @primaryDateField, @orderIndex)`);
     }
   }
 
@@ -1047,21 +1062,57 @@ export async function createMssqlSchema(pool) {
   // Repair forbidden icons on existing installs - mirrors mysqlSchema.js. A
   // folder-like icon is never a legitimate customisation, so overwriting it
   // cannot clobber a deliberate choice. Labels are deliberately not touched.
+  //
+  // The comparison is forced to a binary collation. Legacy (non-_SC) database
+  // collations treat every supplementary-plane code point as undefined and
+  // therefore equal to every other, so N'📍' IN (N'📁', N'📂') is TRUE and this
+  // repair fired on Priorities, Categories, Goals, Tasks, Tickets, Ideas and
+  // Templates - every icon outside the BMP - rather than only on the two
+  // folder icons it is meant to catch. BIN2 compares by code point, so it
+  // matches the two icons named and nothing else.
   for (const type of SYSTEM_ENTITY_TYPES) {
     await pool.request()
-      .query(`UPDATE [MyWork].[entity_types] SET icon = '${escapeSQL(type.icon)}' WHERE slug = '${escapeSQL(type.slug)}' AND icon IN (N'📁', N'📂')`);
+      .input('slug', type.slug)
+      .input('icon', type.icon)
+      .query(`UPDATE [MyWork].[entity_types] SET icon = @icon
+              WHERE slug = @slug
+                AND icon COLLATE Latin1_General_100_BIN2
+                    IN (N'\u{1F4C1}' COLLATE Latin1_General_100_BIN2,
+                        N'\u{1F4C2}' COLLATE Latin1_General_100_BIN2)`);
+  }
+
+  // Put back icons that a previous build destroyed. Until this was fixed, the
+  // repair above wrote its replacement as a VARCHAR literal, so every emoji it
+  // touched was stored as literal question marks - one per code unit, so '??'
+  // for a supplementary-plane icon. '?' is never a legitimate icon (the type
+  // editor offers an emoji picker), so a column that is nothing but question
+  // marks is damage, not a choice, and restoring the seed value cannot clobber
+  // a real customisation. Without this an affected install stays broken until
+  // someone finds Settings > Entity Types > Restore all to defaults.
+  for (const type of SYSTEM_ENTITY_TYPES) {
+    await pool.request()
+      .input('slug', type.slug)
+      .input('icon', type.icon)
+      .query(`UPDATE [MyWork].[entity_types] SET icon = @icon
+              WHERE slug = @slug AND icon IS NOT NULL AND icon != '' AND icon NOT LIKE '%[^?]%'`);
   }
 
   // Daily = read-only type representing one complete day's work (a tree of all associated items)
   for (const type of SPECIAL_ENTITY_TYPES) {
     const checkResult = await pool.request()
-      .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL(type.slug)}'`);
+      .input('slug', type.slug)
+      .query('SELECT id FROM [MyWork].[entity_types] WHERE slug = @slug');
 
     if (checkResult.recordset.length === 0) {
-      const externalSource = type.external_source ? `'${escapeSQL(type.external_source)}'` : 'NULL';
       await pool.request()
+        .input('slug', type.slug)
+        .input('label', type.label)
+        .input('labelSingular', type.label_singular)
+        .input('icon', type.icon)
+        .input('typeCategory', type.type_category)
+        .input('externalSource', type.external_source ?? null)
         .query(`INSERT INTO [MyWork].[entity_types] (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index)
-                VALUES ('${escapeSQL(type.slug)}', '${escapeSQL(type.label)}', '${escapeSQL(type.label_singular)}', '${escapeSQL(type.icon)}', '${escapeSQL(type.type_category)}', ${externalSource}, 0, 1, 0)`);
+                VALUES (@slug, @label, @labelSingular, @icon, @typeCategory, @externalSource, 0, 1, 0)`);
     }
   }
 
@@ -1115,14 +1166,14 @@ export async function createMssqlSchema(pool) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_type_fields] ADD show_column_label BIT DEFAULT 1");
   }
 
-  // Seed default fields for system entity types (MSSQL, restored from original schema)
-  const escapeSQL2 = (str) => (str ? str.replace(/'/g, "''") : 'NULL');
-  const escapeJSON = (obj) => (obj ? escapeSQL2(JSON.stringify(obj)) : 'NULL');
-
   // Seed default fields for system entity types. Array order is display_order.
+  // Values are bound, not interpolated - a field label is NVARCHAR and any
+  // non-ASCII character in one would be mangled by a VARCHAR literal exactly
+  // the way the type icons were. See the note on the entity_types seed above.
   for (const type of SYSTEM_ENTITY_TYPES) {
     const typeResult = await pool.request()
-      .query(`SELECT id FROM [MyWork].[entity_types] WHERE slug = '${escapeSQL2(type.slug)}'`);
+      .input('slug', type.slug)
+      .query('SELECT id FROM [MyWork].[entity_types] WHERE slug = @slug');
 
     if (typeResult.recordset.length === 0) continue;
     const typeId = typeResult.recordset[0].id;
@@ -1130,19 +1181,33 @@ export async function createMssqlSchema(pool) {
     for (let i = 0; i < type.fields.length; i++) {
       const field = type.fields[i];
       const checkResult = await pool.request()
-        .query(`SELECT id FROM [MyWork].[entity_type_fields] WHERE entity_type_id = ${typeId} AND field_key = '${escapeSQL2(field.field_key)}'`);
+        .input('typeId', typeId)
+        .input('fieldKey', field.field_key)
+        .query('SELECT id FROM [MyWork].[entity_type_fields] WHERE entity_type_id = @typeId AND field_key = @fieldKey');
 
       if (checkResult.recordset.length === 0) {
-        const fieldOptionsStr = field.field_options ? `'${escapeJSON(field.field_options)}'` : 'NULL';
         await pool.request()
+          .input('typeId', typeId)
+          .input('fieldKey', field.field_key)
+          .input('label', field.label)
+          .input('fieldType', field.field_type)
+          .input('fieldOptions', field.field_options ? JSON.stringify(field.field_options) : null)
+          .input('required', field.required ? 1 : 0)
+          .input('displayOrder', i)
+          .input('showInRow', field.show_in_row ? 1 : 0)
+          .input('isCompletionSignal', field.is_completion_signal ? 1 : 0)
+          .input('rollup', field.rollup ?? null)
           .query(`INSERT INTO [MyWork].[entity_type_fields] (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal, rollup)
-                  VALUES (${typeId}, '${escapeSQL2(field.field_key)}', '${escapeSQL2(field.label)}', '${escapeSQL2(field.field_type)}', ${fieldOptionsStr}, ${field.required ? 1 : 0}, ${i}, ${field.show_in_row ? 1 : 0}, ${field.is_completion_signal ? 1 : 0}, ${field.rollup ? `'${escapeSQL2(field.rollup)}'` : 'NULL'})`);
+                  VALUES (@typeId, @fieldKey, @label, @fieldType, @fieldOptions, @required, @displayOrder, @showInRow, @isCompletionSignal, @rollup)`);
       } else {
         // Reconcile only what the type editor does not expose - see the same
         // block in mysqlSchema.js. show_in_row is excluded on purpose: it is
         // user-editable now, so overwriting it would reset chosen columns.
         await pool.request()
-          .query(`UPDATE [MyWork].[entity_type_fields] SET display_order = ${i}, is_completion_signal = ${field.is_completion_signal ? 1 : 0} WHERE id = ${checkResult.recordset[0].id}`);
+          .input('displayOrder', i)
+          .input('isCompletionSignal', field.is_completion_signal ? 1 : 0)
+          .input('id', checkResult.recordset[0].id)
+          .query('UPDATE [MyWork].[entity_type_fields] SET display_order = @displayOrder, is_completion_signal = @isCompletionSignal WHERE id = @id');
       }
     }
   }
@@ -1185,13 +1250,19 @@ export async function createMssqlSchema(pool) {
       const childId = typeIdBySlug.get(childSlug);
       if (!parentId || !childId) return;
       const existing = await pool.request()
-        .query(`SELECT id FROM [MyWork].[entity_type_relationships] WHERE parent_type_id = ${parentId} AND child_type_id = ${childId} AND relationship_kind = '${escapeSQL2(rel.relationship_kind)}'`);
+        .input('parentId', parentId)
+        .input('childId', childId)
+        .input('kind', rel.relationship_kind)
+        .query('SELECT id FROM [MyWork].[entity_type_relationships] WHERE parent_type_id = @parentId AND child_type_id = @childId AND relationship_kind = @kind');
       if (existing.recordset.length > 0) return;
-      const maxChildren = rel.max_children_per_parent ?? 'NULL';
-      const maxParents = rel.max_parents_per_child ?? 'NULL';
       await pool.request()
+        .input('parentId', parentId)
+        .input('childId', childId)
+        .input('kind', rel.relationship_kind)
+        .input('maxChildren', rel.max_children_per_parent ?? null)
+        .input('maxParents', rel.max_parents_per_child ?? null)
         .query(`INSERT INTO [MyWork].[entity_type_relationships] (parent_type_id, child_type_id, relationship_kind, max_children_per_parent, max_parents_per_child)
-                VALUES (${parentId}, ${childId}, '${escapeSQL2(rel.relationship_kind)}', ${maxChildren}, ${maxParents})`);
+                VALUES (@parentId, @childId, @kind, @maxChildren, @maxParents)`);
     };
 
     for (const rel of resolveTypeRelationships()) {
