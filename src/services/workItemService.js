@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '../config/errors.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
 import * as recurrenceService from './recurrenceService.js';
 import * as entityService from './entityService.js';
+import * as entityTypeService from './entityTypeService.js';
 // Called at three existing sites in this file and never imported, so any path
 // reaching them without a contextId threw ReferenceError rather than falling
 // back to the active context. entityService imports it the same way.
@@ -16,6 +17,89 @@ export function normalizeTimeBox(value) {
     throw new ValidationError('Time box must be a positive whole number of minutes, or left blank for no time box');
   }
   return minutes;
+}
+
+// A day (a "work item") is an `entities` row of type work_item as of Phase 10
+// (scripts/phase10-migrate-work-items.js) - date/description/notes/emoji/
+// status/time_box_minutes/start_time/worked_with_claude/recurring_from_*
+// live in entity_field_values, not as columns on a work_items row. Every
+// function below still takes and returns the exact flat shape it always has,
+// so routes/api/work.js and every dailies-*.js file need no changes at all.
+
+let workItemTypeIdCache = null;
+async function getWorkItemTypeId() {
+  if (workItemTypeIdCache) return workItemTypeIdCache;
+  const type = await entityTypeService.getEntityType('work_item');
+  workItemTypeIdCache = type.id;
+  return workItemTypeIdCache;
+}
+
+// entity + its {field: value} map -> the flat object every caller expects.
+function toLegacyShape(entity, fields) {
+  return {
+    id: entity.id,
+    date: fields.date ?? null,
+    title: entity.title,
+    description: fields.description ?? null,
+    notes: fields.notes ?? null,
+    emoji: fields.emoji ?? null,
+    status: fields.status ?? 'Not Started',
+    time_box_minutes: fields.time_box_minutes ?? null,
+    order_index: entity.order_index,
+    worked_with_claude: !!fields.worked_with_claude,
+    start_time: fields.start_time ?? null,
+    context_id: entity.context_id,
+    recurring_from_todo_id: fields.recurring_from_todo_id ?? null,
+    recurring_from_task_id: fields.recurring_from_task_id ?? null,
+    created_at: entity.created_at,
+    updated_at: entity.updated_at,
+  };
+}
+
+async function attachFlattened(rows) {
+  const fieldMap = await entityService.attachFieldValues(rows.map(r => r.id));
+  return rows.map(e => toLegacyShape(e, fieldMap.get(e.id) || {}));
+}
+
+// The date field lives in entity_field_values, so "work items on this date"
+// is a join, not a WHERE on work_items.date. Filtered at the SQL level
+// (rather than fetched-then-JS-filtered) because mysql2 returns a DATE column
+// as a Date object, not a string - comparing that to a 'YYYY-MM-DD' string in
+// JS would never match.
+async function getWorkItemEntitiesByDate(date, contextId) {
+  const typeId = await getWorkItemTypeId();
+  const rows = await db.query(
+    `SELECT e.* FROM entities e
+     JOIN entity_field_values v ON v.entity_id = e.id AND v.field_key = 'date'
+     WHERE e.entity_type_id = ? AND e.context_id = ? AND e.deleted_at IS NULL AND v.value_date = ?
+     ORDER BY e.order_index ASC, e.created_at ASC`,
+    [typeId, contextId, date]
+  );
+  return attachFlattened(rows);
+}
+
+async function getWorkItemEntitiesByDateRange(startDate, endDate, contextId) {
+  const typeId = await getWorkItemTypeId();
+  const rows = await db.query(
+    `SELECT e.* FROM entities e
+     JOIN entity_field_values v ON v.entity_id = e.id AND v.field_key = 'date'
+     WHERE e.entity_type_id = ? AND e.context_id = ? AND e.deleted_at IS NULL
+       AND v.value_date >= ? AND v.value_date <= ?
+     ORDER BY v.value_date ASC, e.order_index ASC, e.created_at ASC`,
+    [typeId, contextId, startDate, endDate]
+  );
+  return attachFlattened(rows);
+}
+
+async function nextOrderIndexForDate(date, contextId) {
+  const typeId = await getWorkItemTypeId();
+  const result = await db.queryOne(
+    `SELECT MAX(e.order_index) as maxOrder FROM entities e
+     JOIN entity_field_values v ON v.entity_id = e.id AND v.field_key = 'date'
+     WHERE e.entity_type_id = ? AND e.context_id = ? AND e.deleted_at IS NULL AND v.value_date = ?`,
+    [typeId, contextId, date]
+  );
+  return (result?.maxOrder ?? -1) + 1;
 }
 
 async function attachAssociations(items) {
@@ -88,37 +172,29 @@ export async function getWorkItemsByDate(date, contextId) {
   // Generate any recurring items due on this date
   await recurrenceService.generateWorkItemsForDate(date, contextId);
 
-  const items = await db.query(
-    'SELECT * FROM work_items WHERE date = ? AND context_id = ? ORDER BY order_index ASC, created_at ASC',
-    [date, contextId]
-  );
+  const items = await getWorkItemEntitiesByDate(date, contextId);
   return attachAssociations(items);
 }
 
 export async function getWorkItemsByDateRange(startDate, endDate, contextId) {
-  const items = await db.query(
-    'SELECT * FROM work_items WHERE date >= ? AND date <= ? AND context_id = ? ORDER BY date ASC, order_index ASC, created_at ASC',
-    [startDate, endDate, contextId]
-  );
+  const items = await getWorkItemEntitiesByDateRange(startDate, endDate, contextId);
   return attachAssociations(items);
 }
 
 export async function reorderWorkItems(date, orderedIds, contextId) {
-  for (let i = 0; i < orderedIds.length; i++) {
-    await db.update(
-      'UPDATE work_items SET order_index = ? WHERE id = ? AND date = ?',
-      [i, orderedIds[i], date]
-    );
-  }
+  await entityService.reorderEntitiesBySiblings(orderedIds, contextId);
   return getWorkItemsByDate(date, contextId);
 }
 
 export async function getWorkItemById(id) {
-  const workItem = await db.queryOne('SELECT * FROM work_items WHERE id = ?', [id]);
-  if (!workItem) {
+  let entity;
+  try {
+    entity = await entityService.getEntityById(id);
+  } catch {
     throw new NotFoundError('Work item not found');
   }
-  const [withAssociations] = await attachAssociations([workItem]);
+  const flat = toLegacyShape(entity, entity.fields || {});
+  const [withAssociations] = await attachAssociations([flat]);
   return withAssociations;
 }
 
@@ -129,13 +205,22 @@ export async function createWorkItem(data, contextId) {
     throw new ValidationError('Date and title are required');
   }
 
-  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?', [date, contextId]);
-  const nextOrder = (result?.maxOrder ?? -1) + 1;
+  const nextOrder = await nextOrderIndexForDate(date, contextId);
 
-  const workItemId = await db.insert(
-    'INSERT INTO work_items (date, title, description, notes, emoji, status, time_box_minutes, start_time, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [date, title, description ?? null, notes ?? null, emoji ?? null, status || 'Not Started', normalizeTimeBox(time_box_minutes), start_time || null, nextOrder, contextId]
-  );
+  const created = await entityService.createEntity('work_item', {
+    title,
+    order_index: nextOrder,
+    fields: {
+      date,
+      description: description ?? null,
+      notes: notes ?? null,
+      emoji: emoji ?? null,
+      status: status || 'Not Started',
+      time_box_minutes: normalizeTimeBox(time_box_minutes),
+      start_time: start_time || null,
+    },
+  }, contextId);
+  const workItemId = created.id;
 
   // Goals and projects passed at creation are just children, like anything
   // else on a day - one junction, so a caller can pass any type's ids.
@@ -158,43 +243,22 @@ export async function createWorkItem(data, contextId) {
 }
 
 export async function updateWorkItem(id, data) {
-  const { goal_ids, priority_ids, source_id } = data;
+  const { goal_ids, priority_ids, source_id, title, description, notes, emoji, status, time_box_minutes, start_time } = data;
 
-  const setClauses = [];
-  const values = [];
+  const update = {};
+  if (title !== undefined) update.title = title;
 
-  if (data.title !== undefined) {
-    setClauses.push('title = ?');
-    values.push(data.title);
-  }
-  if (data.description !== undefined) {
-    setClauses.push('description = ?');
-    values.push(data.description ?? null);
-  }
-  if (data.notes !== undefined) {
-    setClauses.push('notes = ?');
-    values.push(data.notes ?? null);
-  }
-  if (data.emoji !== undefined) {
-    setClauses.push('emoji = ?');
-    values.push(data.emoji || null);
-  }
-  if (data.status !== undefined) {
-    setClauses.push('status = ?');
-    values.push(data.status);
-  }
-  if (data.time_box_minutes !== undefined) {
-    setClauses.push('time_box_minutes = ?');
-    values.push(normalizeTimeBox(data.time_box_minutes));
-  }
-  if (data.start_time !== undefined) {
-    setClauses.push('start_time = ?');
-    values.push(data.start_time || null);
-  }
+  const fields = {};
+  if (description !== undefined) fields.description = description ?? null;
+  if (notes !== undefined) fields.notes = notes ?? null;
+  if (emoji !== undefined) fields.emoji = emoji || null;
+  if (status !== undefined) fields.status = status;
+  if (time_box_minutes !== undefined) fields.time_box_minutes = normalizeTimeBox(time_box_minutes);
+  if (start_time !== undefined) fields.start_time = start_time || null;
+  if (Object.keys(fields).length > 0) update.fields = fields;
 
-  if (setClauses.length > 0) {
-    values.push(id);
-    await db.update(`UPDATE work_items SET ${setClauses.join(', ')} WHERE id = ?`, values);
+  if (Object.keys(update).length > 0) {
+    await entityService.updateEntity(id, update);
   }
 
   // Goals and projects are children like any other, through the one junction.
@@ -230,9 +294,17 @@ export async function updateWorkItem(id, data) {
   return getWorkItemById(id);
 }
 
+// Soft delete (entityService.deleteEntity) rather than the old hard DELETE -
+// a removed day now goes to Recently Deleted like every other type, instead
+// of vanishing outright. A missing id returns false rather than throwing,
+// matching the original DELETE-affected-zero-rows behaviour.
 export async function deleteWorkItem(id) {
-  const affectedRows = await db.deleteRecord('DELETE FROM work_items WHERE id = ?', [id]);
-  return affectedRows > 0;
+  try {
+    await entityService.deleteEntity(id);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const VALID_STATUSES = ['Not Started', 'In Progress', 'Complete'];
@@ -244,7 +316,7 @@ export async function updateWorkItemStatus(id, status) {
 
   const workItem = await getWorkItemById(id);
 
-  await db.update('UPDATE work_items SET status = ? WHERE id = ?', [status, id]);
+  await entityService.updateEntity(id, { fields: { status } });
 
   // If marking a recurring item as complete, generate the next occurrence
   if (status === 'Complete' && (workItem.recurring_from_todo_id || workItem.recurring_from_task_id)) {
@@ -255,30 +327,25 @@ export async function updateWorkItemStatus(id, status) {
 }
 
 export async function updateWorkItemNotes(id, notes) {
-  await db.update('UPDATE work_items SET notes = ? WHERE id = ?', [notes ?? null, id]);
+  await entityService.updateEntity(id, { fields: { notes: notes ?? null } });
   return getWorkItemById(id);
 }
 
 export async function updateWorkItemEmoji(id, emoji) {
-  await db.update('UPDATE work_items SET emoji = ? WHERE id = ?', [emoji || null, id]);
+  await entityService.updateEntity(id, { fields: { emoji: emoji || null } });
   return getWorkItemById(id);
 }
 
 export async function updateWorkItemTimeBox(id, timeBoxMinutes) {
-  await db.update('UPDATE work_items SET time_box_minutes = ? WHERE id = ?', [normalizeTimeBox(timeBoxMinutes), id]);
+  await entityService.updateEntity(id, { fields: { time_box_minutes: normalizeTimeBox(timeBoxMinutes) } });
   return getWorkItemById(id);
 }
 
 export async function toggleWorkItemClaude(id) {
   const item = await getWorkItemById(id);
   const newValue = !item.worked_with_claude;
-  await db.update('UPDATE work_items SET worked_with_claude = ? WHERE id = ?', [newValue, id]);
+  await entityService.updateEntity(id, { fields: { worked_with_claude: newValue } });
   return getWorkItemById(id);
-}
-
-async function nextOrderIndexForDate(date, contextId) {
-  const result = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?', [date, contextId]);
-  return (result?.maxOrder ?? -1) + 1;
 }
 
 export async function moveWorkItem(id, date) {
@@ -288,7 +355,7 @@ export async function moveWorkItem(id, date) {
 
   const existing = await getWorkItemById(id);
   const nextOrder = await nextOrderIndexForDate(date, existing.context_id);
-  await db.update('UPDATE work_items SET date = ?, order_index = ? WHERE id = ?', [date, nextOrder, id]);
+  await entityService.updateEntity(id, { order_index: nextOrder, fields: { date } });
   return getWorkItemById(id);
 }
 
@@ -300,10 +367,22 @@ export async function cloneWorkItem(id, date) {
   const original = await getWorkItemById(id);
   const nextOrder = await nextOrderIndexForDate(date, original.context_id);
 
-  const newId = await db.insert(
-    'INSERT INTO work_items (date, title, description, notes, emoji, status, time_box_minutes, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [date, original.title, original.description, original.notes, original.emoji, 'Not Started', original.time_box_minutes, nextOrder, original.context_id]
-  );
+  // Not entityService.cloneEntity: that deep-clones the whole hierarchy
+  // subtree via entity_relationships, which is not what cloning a day does -
+  // a day's children are shallow-copied references (work_entity_associations
+  // rows), not new entities of their own.
+  const created = await entityService.createEntity('work_item', {
+    title: original.title,
+    order_index: nextOrder,
+    fields: {
+      date,
+      description: original.description,
+      notes: original.notes,
+      emoji: original.emoji,
+      status: 'Not Started',
+      time_box_minutes: original.time_box_minutes,
+    },
+  }, original.context_id);
 
   // One junction, so cloning copies every child whatever its type - including
   // types that did not exist when this was written. Eight loops over eight
@@ -315,11 +394,11 @@ export async function cloneWorkItem(id, date) {
   for (const c of children) {
     await db.query(
       'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
-      [newId, c.entity_id, c.order_index ?? 0]
+      [created.id, c.entity_id, c.order_index ?? 0]
     );
   }
 
-  return getWorkItemById(newId);
+  return getWorkItemById(created.id);
 }
 
 /**

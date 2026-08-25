@@ -247,13 +247,6 @@ const GenericEntity = (() => {
         <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="notes" placeholder="Your own notes">${value || ''}</textarea>
       </div>
     `,
-    // Separate from `notes` on purpose: two writers, two fields, so neither
-    // overwrites the other.
-    claude_notes: (field, value = '') => `
-      <div class="form-group">
-        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="claude_notes" placeholder="Notes written by Claude">${value || ''}</textarea>
-      </div>
-    `,
     worked_with_claude: (field, value = false) => `
       <div class="form-group">
         <input type="checkbox" name="${field.field_key}" class="form-check-input" ${value ? 'checked' : ''} data-field-type="worked_with_claude">
@@ -396,7 +389,7 @@ const GenericEntity = (() => {
     'board_bay', 'board_order',
     // focus_seconds is deliberately NOT here: it is Worked Time, a property
     // people read and correct by hand. The rest are engine bookkeeping.
-    'focus_slot', 'focus_started_at', 'focus_color',
+    'focus_slot', 'focus_started_at', 'focus_color', 'focus_monitor',
   ]);
 
   // How long something is MEANT to take. None first, so cycling always has a
@@ -999,38 +992,36 @@ const GenericEntity = (() => {
     // Not `derived`: a folder's cell is a roll-up of what is inside it, and
     // "some row in here has notes" is not a fact worth a control. It shows the
     // glyph muted and does nothing, like the other roll-ups.
-    if ((f.field_type === 'notes' || f.field_type === 'claude_notes') && !derived) {
+    if (f.field_type === 'notes' && !derived) {
       const has = value !== null && value !== undefined && String(value).trim() !== '';
-      const mine = f.field_type === 'notes';
-      const glyph = mine ? 'bi-sticky-fill' : 'bi-chat-square-text-fill';
-      const lit = mine ? '#ffd43b' : '#FFA500';
-      const who = mine ? 'Your own notes' : 'Notes written by Claude';
       return `<span class="row-field notes-cell" data-action="edit-notes-field"
               data-entity-id="${entity.id}" data-field-key="${escapeAttr(f.field_key)}"
               data-field-type="${f.field_type}" role="button" tabindex="0"
-              title="${escapeAttr(who)} - ${has ? 'click to read or edit' : 'click to add'}">
-          <i class="bi ${glyph}" style="color: ${has ? lit : '#dee2e6'};" aria-hidden="true"></i>
+              title="${has ? 'click to read or edit' : 'click to add'}">
+          <i class="bi bi-sticky-fill" style="color: ${has ? '#ffd43b' : '#dee2e6'};" aria-hidden="true"></i>
         </span>`;
     }
-    if (f.field_type === 'notes' || f.field_type === 'claude_notes') {
+    if (f.field_type === 'notes') {
       const has = value !== null && value !== undefined && String(value).trim() !== '';
-      return `<span class="row-field notes-cell"><i class="bi ${f.field_type === 'notes' ? 'bi-sticky-fill' : 'bi-chat-square-text-fill'}" style="color: ${has ? '#adb5bd' : '#dee2e6'};" aria-hidden="true"></i></span>`;
+      return `<span class="row-field notes-cell"><i class="bi bi-sticky-fill" style="color: ${has ? '#adb5bd' : '#dee2e6'};" aria-hidden="true"></i></span>`;
     }
 
-    // Whether Claude was involved at all - the sun from Dailies, same glyph and
-    // same two colours, so it reads identically wherever it appears.
+    // Whether AI was used at all - a robot glyph, lit when on. The
+    // data-action/field-key names stay "claude" internally (that's the
+    // stored field_type and DB column, unchanged to avoid a migration); only
+    // the label and icon a person sees are "AI".
     if (f.field_type === 'worked_with_claude' && !derived) {
       const on = value === true || value === 1 || value === '1' || value === 'true';
       return `<span class="row-field claude-cell" data-action="toggle-claude-field"
               data-entity-id="${entity.id}" data-field-key="${escapeAttr(f.field_key)}"
               data-value="${on ? '1' : '0'}" role="button" tabindex="0"
-              title="Worked on with Claude - click to change">
-          <i class="bi bi-sun-fill" style="color: ${on ? '#FFA500' : '#ddd'}; opacity: ${on ? '1' : '0.5'};" aria-hidden="true"></i>
+              title="AI used - click to change">
+          <i class="bi bi-robot" style="color: ${on ? '#FFA500' : '#ddd'}; opacity: ${on ? '1' : '0.5'};" aria-hidden="true"></i>
         </span>`;
     }
     if (f.field_type === 'worked_with_claude') {
       const on = value === true || value === 1 || value === '1' || value === 'true';
-      return `<span class="row-field claude-cell"><i class="bi bi-sun-fill" style="color: ${on ? '#FFA500' : '#ddd'}; opacity: ${on ? '1' : '0.5'};" aria-hidden="true"></i></span>`;
+      return `<span class="row-field claude-cell"><i class="bi bi-robot" style="color: ${on ? '#FFA500' : '#ddd'}; opacity: ${on ? '1' : '0.5'};" aria-hidden="true"></i></span>`;
     }
 
     // A checkbox reads as a box, ticked or not, and toggles on click.
@@ -1048,6 +1039,17 @@ const GenericEntity = (() => {
       return value ? `<span class="row-field">${escapeHtml(value)}</span>` : '';
     }
 
+    // Worked Time is always stored under focus_seconds/focus_started_at - the
+    // same two fields the pin bar's own chip clock reads and writes - so a
+    // click here starts/stops the identical timer, pinned or not.
+    if (f.field_type === 'duration' && !derived) {
+      const running = !!entity.fields?.focus_started_at;
+      return `<span class="row-field duration-cell ${running ? 'running' : ''}" data-action="toggle-timer-field"
+              data-entity-id="${entity.id}" role="button" tabindex="0"
+              title="${running ? 'Click to stop the clock' : 'Click to start the clock'}">
+          ${escapeHtml(formatDuration(value))}
+        </span>`;
+    }
     if (f.field_type === 'duration') {
       return `<span class="row-field">${escapeHtml(formatDuration(value))}</span>`;
     }
@@ -1423,7 +1425,7 @@ const GenericEntity = (() => {
   // How one of those values should read in a menu.
   function choiceLabel(field, value) {
     if (field.field_type === 'checkbox') return value ? 'Checked' : 'Unchecked';
-    if (field.field_type === 'worked_with_claude') return value ? 'Worked on with Claude' : 'Not worked on with Claude';
+    if (field.field_type === 'worked_with_claude') return value ? 'AI used' : 'AI not used';
     if (field.field_type === 'priority') return (PRIORITY_STYLE[value] || PRIORITY_STYLE['']).label;
     if (field.field_type === 'timebox') return timeBoxLabel(value);
     return value === '' || value == null ? '(none)' : String(value);

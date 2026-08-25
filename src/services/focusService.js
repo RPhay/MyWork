@@ -31,7 +31,7 @@ export const MAX_FOCUS_ITEMS = null;
 
 // Written by the engine, never rendered as an editable control. Kept in sync
 // with INTERNAL_FIELD_KEYS in public/js/genericEntity.js.
-export const FOCUS_FIELDS = ['focus_slot', 'focus_seconds', 'focus_started_at', 'focus_color'];
+export const FOCUS_FIELDS = ['focus_slot', 'focus_seconds', 'focus_started_at', 'focus_color', 'focus_monitor'];
 
 /**
  * A single record's RAG, as opposed to the portfolio-level RAG in
@@ -110,6 +110,8 @@ export async function getFocusItems(contextId = null) {
       typeLabel: type.label,
       icon: type.icon,
       slot: Number(entity.fields?.focus_slot ?? 0),
+      // Pinned before monitors existed, or the field is simply absent: monitor 1.
+      monitor: Number(entity.fields?.focus_monitor ?? 1) || 1,
       color: entity.fields?.focus_color || null,
       running: !!entity.fields?.focus_started_at,
       startedAt: Number(entity.fields?.focus_started_at ?? 0) || null,
@@ -118,7 +120,7 @@ export async function getFocusItems(contextId = null) {
     });
   }
 
-  return items.sort((a, b) => a.slot - b.slot);
+  return items.sort((a, b) => a.monitor - b.monitor || a.slot - b.slot);
 }
 
 // Types that are never "what I am working on". A template is a pattern you
@@ -126,8 +128,9 @@ export async function getFocusItems(contextId = null) {
 // a clock would be meaningless.
 const UNPINNABLE_TYPE_SLUGS = new Set(['template']);
 
-/** Pin a record. Pin as many as you like; slots are handed out in order. */
-export async function addFocus(entityId, contextId = null) {
+/** Pin a record to a monitor (1 by default). Pin as many as you like; slots
+ * are handed out in order, scoped to that monitor. */
+export async function addFocus(entityId, contextId = null, monitor = 1) {
   if (!contextId) contextId = await getActiveContextId();
 
   const entity = await entityService.getEntityById(Number(entityId), contextId);
@@ -136,39 +139,115 @@ export async function addFocus(entityId, contextId = null) {
     throw new ValidationError(`${ofType.label_singular || ofType.label} cannot be put on the focus bar`);
   }
 
+  const target = Math.max(1, Number(monitor) || 1);
   const current = await getFocusItems(contextId);
   if (current.some(i => String(i.id) === String(entityId))) return current;
 
-  const used = new Set(current.map(i => i.slot));
+  const used = new Set(current.filter(i => i.monitor === target).map(i => i.slot));
   let slot = 1;
   while (used.has(slot)) slot++;
 
-  await entityService.updateEntity(Number(entityId), { fields: { focus_slot: slot } }, contextId);
+  await entityService.updateEntity(
+    Number(entityId),
+    { fields: { focus_slot: slot, focus_monitor: target } },
+    contextId,
+  );
   return getFocusItems(contextId);
 }
 
 /**
- * Set the left-to-right order of the bar. Slots are renumbered from 1 in the
- * order given, so the caller sends what it wants to see rather than computing
- * slot numbers itself.
+ * Set the order of items WITHIN one monitor. Slots are renumbered from 1 in
+ * the order given, scoped to that monitor - every other monitor's slots are
+ * untouched.
  */
-export async function reorderFocus(orderedIds, contextId = null) {
+export async function reorderFocus(monitor, orderedIds, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
+  const target = Math.max(1, Number(monitor) || 1);
   const current = await getFocusItems(contextId);
-  const pinned = new Set(current.map(i => String(i.id)));
+  const onMonitor = current.filter(i => i.monitor === target);
+  const pinned = new Set(onMonitor.map(i => String(i.id)));
 
-  // Ignore anything not actually on the bar rather than pinning it by accident.
+  // Ignore anything not actually on this monitor rather than moving it by accident.
   const ids = (orderedIds || []).map(String).filter(id => pinned.has(id));
   if (ids.length === 0) return current;
 
   // Anything the caller left out keeps its relative order, after the rest.
-  const rest = current.filter(i => !ids.includes(String(i.id))).map(i => String(i.id));
+  const rest = onMonitor.filter(i => !ids.includes(String(i.id))).map(i => String(i.id));
   const finalOrder = [...ids, ...rest];
 
   for (const [i, id] of finalOrder.entries()) {
     await entityService.updateEntity(Number(id), { fields: { focus_slot: i + 1 } }, contextId);
   }
   return getFocusItems(contextId);
+}
+
+/**
+ * Move a pinned item to a different monitor, appended after whatever is
+ * already there. The caller (the drag handler) follows this with
+ * reorderFocus on the target monitor to fix the exact drop position - the
+ * same two-step technique used for a same-monitor reorder.
+ */
+export async function moveFocus(entityId, monitor, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  const target = Math.max(1, Number(monitor) || 1);
+  const current = await getFocusItems(contextId);
+  const onTarget = current.filter(i => i.monitor === target);
+  const slot = onTarget.length ? Math.max(...onTarget.map(i => i.slot)) + 1 : 1;
+
+  await entityService.updateEntity(
+    Number(entityId),
+    { fields: { focus_monitor: target, focus_slot: slot } },
+    contextId,
+  );
+  return getFocusItems(contextId);
+}
+
+/**
+ * When the monitor count shrinks, anything pinned beyond the new count has
+ * nowhere to live. Rather than block the save, they land on monitor 1, kept
+ * in their relative order after whatever is already there. Returns how many
+ * moved, so the settings save can report it.
+ */
+export async function reassignOverflow(newCount, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  const limit = Math.max(1, Number(newCount) || 1);
+  const current = await getFocusItems(contextId);
+  const overflow = current
+    .filter(i => i.monitor > limit)
+    .sort((a, b) => a.monitor - b.monitor || a.slot - b.slot);
+
+  for (const item of overflow) {
+    await moveFocus(item.id, 1, contextId);
+  }
+  return overflow.length;
+}
+
+/**
+ * Removing monitor `position` shifts every later monitor down by one to fill
+ * the gap. Anything pinned to the removed monitor, and anything on a monitor
+ * being renumbered, needs to follow: the removed monitor's own items land on
+ * monitor 1 (same fallback as reassignOverflow), and everything past it
+ * drops by one to match its new number. Returns how many items moved.
+ */
+export async function shiftMonitorsAfterRemoval(position, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  const pos = Math.max(1, Number(position) || 1);
+  const current = await getFocusItems(contextId);
+
+  // Ascending (monitor, slot) so items land in their prior relative order
+  // within whichever monitor they end up sharing - moveFocus always appends.
+  const affected = current
+    .filter(i => i.monitor >= pos)
+    .sort((a, b) => a.monitor - b.monitor || a.slot - b.slot);
+
+  let moved = 0;
+  for (const item of affected) {
+    const newMonitor = item.monitor === pos ? 1 : item.monitor - 1;
+    if (newMonitor === item.monitor) continue;   // pos is 1 and this was already there
+    await moveFocus(item.id, newMonitor, contextId);
+    moved++;
+  }
+  return moved;
 }
 
 /**
@@ -202,12 +281,17 @@ export async function removeFocus(entityId, contextId = null) {
  * one thing at a time, and two clocks running at once would make the totals
  * mean nothing.
  */
+// Not limited to items pinned to the focus bar - the Worked Time field
+// (focus_seconds/focus_started_at) is on every type regardless of pinning,
+// and a row's own Worked Time cell can start/stop it the same way the pin
+// bar's chip does. "Stop whatever else is running" therefore has to search
+// every entity with a running clock, not just the pinned ones, or an
+// unpinned item's clock could keep running alongside a newly-started one.
 export async function toggleTimer(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
   const entity = await entityService.getEntityById(Number(entityId), contextId);
   if (!entity) throw new ValidationError('Item not found');
-  if (!entity.fields?.focus_slot) throw new ValidationError('That item is not on the focus bar');
 
   const wasRunning = !!entity.fields?.focus_started_at;
 
@@ -218,10 +302,9 @@ export async function toggleTimer(entityId, contextId = null) {
     return getFocusItems(contextId);
   }
 
-  for (const item of await getFocusItems(contextId)) {
-    if (!item.running || String(item.id) === String(entityId)) continue;
-    const other = await entityService.getEntityById(item.id, contextId);
-    await entityService.updateEntity(item.id, {
+  for (const other of await entityService.getEntitiesByFieldKey('focus_started_at', contextId)) {
+    if (String(other.id) === String(entityId)) continue;
+    await entityService.updateEntity(other.id, {
       fields: { focus_seconds: elapsedSeconds(other.fields), focus_started_at: null },
     }, contextId);
   }

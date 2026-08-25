@@ -17,6 +17,11 @@
         <i class="bi bi-envelope-paper"></i> Status digest
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" type="button" role="tab" data-misc-tab="focus-monitors">
+        <i class="bi bi-grid-3x3-gap"></i> Focus monitors
+      </button>
+    </li>
   </ul>
 
   <div class="misc-subpane" data-misc-pane="focus-colours">
@@ -99,6 +104,50 @@
         <button type="button" class="btn btn-sm btn-outline-secondary" id="copyDigestBtn">Copy</button>
         <a class="btn btn-sm btn-outline-secondary" id="mailDigestBtn" href="#">Open in mail client</a>
       </div>
+    </div>
+  </div>
+
+  <div class="misc-subpane" data-misc-pane="focus-monitors" hidden>
+    <p class="text-muted small">
+      The pin bar can be split into up to 6 "monitors" - black squares you drag
+      pinned items onto and between. Each one can carry an optional label and
+      choose whether its items sit side by side or stack with only the top one
+      showing until you click it open.
+    </p>
+
+    <div class="row g-2 align-items-end" style="max-width: 40rem;">
+      <div class="col-auto">
+        <label class="form-label small mb-0" for="monitorCount">Number of monitors</label>
+        <select class="form-select form-select-sm" id="monitorCount">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="monitorShowNumbers">
+          <label class="form-check-label" for="monitorShowNumbers">Show monitor numbers</label>
+        </div>
+      </div>
+    </div>
+
+    <table class="table table-sm align-middle mt-3" style="max-width: 40rem;">
+      <thead>
+        <tr>
+          <th style="width: 3rem;">#</th>
+          <th>Label (optional)</th>
+          <th style="width: 14rem;">Layout</th>
+        </tr>
+      </thead>
+      <tbody id="monitorRows"></tbody>
+    </table>
+
+    <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="saveMonitorsBtn">Save</button>
     </div>
   </div>
 </div>

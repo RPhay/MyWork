@@ -359,8 +359,7 @@ function addFieldRow(field = null) {
           <option value="emoji" ${field?.field_type === 'emoji' ? 'selected' : ''}>Emoji (free pick)</option>
           <option value="emojis" ${field?.field_type === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
           <option value="notes" ${field?.field_type === 'notes' ? 'selected' : ''}>Notes (your own)</option>
-          <option value="claude_notes" ${field?.field_type === 'claude_notes' ? 'selected' : ''}>Claude Notes (written by Claude)</option>
-          <option value="worked_with_claude" ${field?.field_type === 'worked_with_claude' ? 'selected' : ''}>Worked with Claude (toggle)</option>
+          <option value="worked_with_claude" ${field?.field_type === 'worked_with_claude' ? 'selected' : ''}>AI (yes/no toggle)</option>
         </select>
       </div>
       <div class="col-auto field-emoji-col" style="display: ${['emoji', 'emojis'].includes(field?.field_type) ? 'block' : 'none'};">
@@ -569,14 +568,13 @@ function addFieldRow(field = null) {
 // Which types can appear in the "Can have parents" / "Can have children" lists.
 //
 // Excluded, and why:
-//  - Dailies (work_item) and the daily type: a daily is never a child of
-//    anything, and it is implicitly a parent of everything, so offering it in
-//    either list is either wrong or a no-op the user has to keep re-ticking.
+//  - Dailies (work_item): a daily is never a child of anything, and it is
+//    implicitly a parent of everything, so offering it in either list is
+//    either wrong or a no-op the user has to keep re-ticking.
 //  - Outlook Calendar (type_category 'external'): an import source, not a
 //    regular type - it has no place in hand-authored relationship rules.
 function canBeRelated(t) {
   if (t.type_category === 'external') return false;
-  if (t.type_category === 'daily') return false;
   if (t.slug === 'work_item') return false;
   return true;
 }
@@ -595,12 +593,19 @@ async function loadTypeRelationships(type) {
       parentList.innerHTML = '';
       childList.innerHTML = '';
 
+      // Pre-check boxes against relationship rules already on this type, so
+      // reopening the editor shows what was actually saved instead of always
+      // starting blank.
+      const relationships = (type?.relationships || []).filter(r => r.relationship_kind === 'hierarchy');
+      const isParent = (t) => relationships.some(r => r.parent_type_id === t.id && r.child_type_id === type.id);
+      const isChild = (t) => relationships.some(r => r.parent_type_id === type.id && r.child_type_id === t.id);
+
       otherTypes.forEach(t => {
         // Parent types
         const parentCheck = document.createElement('div');
         parentCheck.className = 'form-check';
         parentCheck.innerHTML = `
-          <input class="form-check-input parent-type-check" type="checkbox" value="${t.id}" id="parent_${t.id}">
+          <input class="form-check-input parent-type-check" type="checkbox" value="${t.id}" id="parent_${t.id}" ${type && isParent(t) ? 'checked' : ''}>
           <label class="form-check-label" for="parent_${t.id}">${t.label}</label>
         `;
         parentList.appendChild(parentCheck);
@@ -609,7 +614,7 @@ async function loadTypeRelationships(type) {
         const childCheck = document.createElement('div');
         childCheck.className = 'form-check';
         childCheck.innerHTML = `
-          <input class="form-check-input child-type-check" type="checkbox" value="${t.id}" id="child_${t.id}">
+          <input class="form-check-input child-type-check" type="checkbox" value="${t.id}" id="child_${t.id}" ${type && isChild(t) ? 'checked' : ''}>
           <label class="form-check-label" for="child_${t.id}">${t.label}</label>
         `;
         childList.appendChild(childCheck);
@@ -617,6 +622,54 @@ async function loadTypeRelationships(type) {
     }
   } catch (error) {
     console.error('Error loading types:', error);
+  }
+}
+
+// The "Can have parents"/"Can have children" checkboxes are two views onto
+// the same entity_type_relationships table (see loadTypeRelationships), so
+// saving them means diffing against what this type already had and only
+// creating/deleting the difference - not resending the whole set every time.
+async function saveTypeRelationships(typeId) {
+  const desiredParents = new Set(
+    Array.from(document.querySelectorAll('.parent-type-check:checked')).map(cb => Number(cb.value)));
+  const desiredChildren = new Set(
+    Array.from(document.querySelectorAll('.child-type-check:checked')).map(cb => Number(cb.value)));
+
+  const existing = (currentEditingType?.relationships || []).filter(r => r.relationship_kind === 'hierarchy');
+  const existingParents = new Map(existing.filter(r => r.child_type_id === typeId).map(r => [r.parent_type_id, r.id]));
+  const existingChildren = new Map(existing.filter(r => r.parent_type_id === typeId).map(r => [r.child_type_id, r.id]));
+
+  const creates = [];
+  const deletes = [];
+  for (const parentId of desiredParents) {
+    if (!existingParents.has(parentId)) creates.push({ parent_type_id: parentId, child_type_id: typeId, relationship_kind: 'hierarchy' });
+  }
+  for (const [parentId, ruleId] of existingParents) {
+    if (!desiredParents.has(parentId)) deletes.push(ruleId);
+  }
+  for (const childId of desiredChildren) {
+    if (!existingChildren.has(childId)) creates.push({ parent_type_id: typeId, child_type_id: childId, relationship_kind: 'hierarchy' });
+  }
+  for (const [childId, ruleId] of existingChildren) {
+    if (!desiredChildren.has(childId)) deletes.push(ruleId);
+  }
+
+  for (const rule of creates) {
+    try {
+      await app.fetch('/api/entity-types/relationships', { method: 'POST', body: JSON.stringify(rule) });
+    } catch (error) {
+      // The same rule may already exist from the other type's side of it
+      // (e.g. this type's "children" list and the other type's "parents"
+      // list both describe one row) - a conflict here is not a real failure.
+      console.warn('Could not create relationship rule:', error);
+    }
+  }
+  for (const ruleId of deletes) {
+    try {
+      await app.fetch(`/api/entity-types/relationships/${ruleId}`, { method: 'DELETE' });
+    } catch (error) {
+      console.warn('Could not delete relationship rule:', error);
+    }
   }
 }
 
@@ -742,6 +795,7 @@ async function saveEntityType() {
       // Stay open on what was just saved. This used to close the editor and
       // reload the whole page, which threw away your place for every edit.
       const savedId = result.data?.id || currentEditingType?.id;
+      if (savedId) await saveTypeRelationships(savedId);
       await loadEntityTypesUI();
       if (savedId) await openEntityTypeEditor(savedId);
     } else {

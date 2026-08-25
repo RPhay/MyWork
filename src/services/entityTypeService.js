@@ -26,11 +26,9 @@ export const VALID_FIELD_TYPES = [
   'text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio',
   'checkbox', 'status', 'priority', 'recurrence', 'emoji', 'emojis',
   'duration', 'timebox',
-  // The three Dailies carries on every work item, made available to any type:
-  // your own notes, notes written by Claude, and whether Claude was involved at
-  // all. Kept as three distinct types rather than one - notes you wrote and
-  // notes Claude wrote must not overwrite each other.
-  'notes', 'claude_notes', 'worked_with_claude',
+  // Dailies carries these on every work item, made available to any type:
+  // your own notes, and whether AI was used on it at all.
+  'notes', 'worked_with_claude',
 ];
 
 // Get all active (non-deleted) entity types with their fields
@@ -68,12 +66,6 @@ export async function getEditableEntityTypes() {
 // Get all template types
 export async function getTemplateEntityTypes() {
   return getEntityTypesByCategory('template');
-}
-
-// Get the special daily type
-export async function getDailyEntityType() {
-  const rows = await getEntityTypesByCategory('daily');
-  return rows.length > 0 ? rows[0] : null;
 }
 
 // Get a single type by ID or slug
@@ -151,7 +143,7 @@ export async function createEntityType(data) {
   // user-created type was held to a stricter rule than any built-in one, and
   // creating a type from Settings failed outright.
 
-  const validCategories = ['editable', 'template', 'daily', 'external'];
+  const validCategories = ['editable', 'template', 'external'];
   const typeCategory = data.type_category || 'editable';
   if (!validCategories.includes(typeCategory)) {
     throw new ValidationError(`invalid type_category: ${typeCategory}`);

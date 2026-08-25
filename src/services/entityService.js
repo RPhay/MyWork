@@ -12,8 +12,11 @@ import { getNextOccurrenceDate, generateWorkItemsForDate } from './recurrenceSer
  * discriminated by entity_type_id. Field values live in entity_field_values (EAV pattern).
  */
 
-// Batch-load entities with all their field values
-async function attachFieldValues(entityIds) {
+// Batch-load entities with all their field values. Exported for
+// workItemService.js, which needs the same entity_id -> {field: value} shape
+// for queries the generic getAllEntities/getEntitiesByFieldKey don't cover
+// (filtering work_item entities by an exact date or date range).
+export async function attachFieldValues(entityIds) {
   if (entityIds.length === 0) return new Map();
 
   // One placeholder per id, not `IN (?)` with an array: connectionPool.js runs
@@ -70,6 +73,12 @@ const BRIDGE_JUNCTION_COLUMNS = [
   ['template_areas', 'area_id'],
   ['template_goals', 'goal_id'],
   ['work_entity_associations', 'entity_id'],
+  // Since the Phase 10 work_items -> entities migration, work_item_id is ALSO
+  // an entities.id (a "day" is itself a work_item entity) - so purging a
+  // work_item entity has to clear rows where it's on either side, not just
+  // the entity_id side.
+  ['work_entity_associations', 'work_item_id'],
+  ['work_source_associations', 'work_item_id'],
   // A record put straight onto a day. MySQL cascades this one, but MSSQL
   // declares it NO ACTION - entities is already the target of a cascading FK
   // and a second would be "multiple cascade paths" - so on MSSQL the delete
@@ -694,10 +703,14 @@ export async function instantiateTemplate(templateEntityId, date, contextId = nu
   const template = await getEntityById(templateEntityId, contextId);
   const children = await entityRelationshipService.getEntityChildren(templateEntityId, contextId, 'hierarchy');
 
-  const workItemId = await queryPool(
-    'INSERT INTO work_items (date, title, status, order_index, context_id) VALUES (?, ?, ?, ?, ?)',
-    [date, template.title, 'Not Started', 0, contextId]
-  ).then(r => r.insertId);
+  // Inlined rather than calling workItemService.createWorkItem: workItemService
+  // already imports this file, so the reverse import would be circular.
+  const workItem = await createEntity('work_item', {
+    title: template.title,
+    order_index: 0,
+    fields: { date, status: 'Not Started' },
+  }, contextId);
+  const workItemId = workItem.id;
 
   const copied = [];
   let order = 0;

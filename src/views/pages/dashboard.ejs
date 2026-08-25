@@ -12,113 +12,8 @@
   <link rel="stylesheet" href="/css/main.css">
 
   <style>
-  /* Top-centre, above whatever tab is open, and out of the way when empty. */
-  /* In the navbar now, between the brand and the context switcher. It takes the
-     space left over between them and wraps to as many rows as it needs - there
-     is no cap on how many things can be pinned, so it must grow rather than
-     overflow. */
-  .focus-bar {
-    display: none;
-    flex: 1 1 auto;
-    min-width: 0;
-    justify-content: center;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    padding: 2px 8px;
-    margin-left: 12px;
-  }
-
-  .focus-bar.has-items { display: flex; }
-
-  /* An empty bar is invisible, which makes it impossible to drop onto. While a
-     drag is in flight it becomes a visible landing strip.
-     It must NOT take part in the document flow to do that: revealing 40px of
-     bar mid-drag pushed every row down by 40px, so a drag already aimed at a
-     row landed above it. That broke reordering everywhere, not just here. */
-  /* An empty bar is invisible, which makes it impossible to drop onto. While a
-     drag is in flight it becomes a visible landing strip - in place now, since
-     it no longer spans the page. It still must not disturb the document flow,
-     which is why it lives inside the navbar's own row rather than revealing a
-     strip that pushes every row below it down. */
-  .focus-bar.drop-ready:not(.has-items) {
-    display: flex;
-    min-height: 30px;
-    border: 1px dashed rgba(255, 255, 255, 0.45);
-    border-radius: 4px;
-  }
-
-  .focus-bar.drop-ready::after {
-    content: 'Drop here to track it';
-    font-size: 0.78rem;
-    color: rgba(255, 255, 255, 0.75);
-  }
-
-  .focus-bar.has-items.drop-ready::after { content: ''; }
-
-  .focus-bar.drop-target {
-    background: rgba(13, 110, 253, 0.25);
-    border-color: #6ea8fe;
-  }
-
-  /* Denser than when the bar was a strip of its own: there is no cap on how
-     many can be pinned, and they share the navbar's height with the brand and
-     the context switcher. Kept light on the dark bar so the title stays
-     readable at this size. */
-  .focus-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    max-width: 16rem;
-    padding: 2px 8px;
-    background: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 999px;
-    font-size: 0.8rem;
-    line-height: 1.4;
-    /* Default cursor on the chip itself: only the clock is clickable, so a
-       pointer (or the grab hand that came with draggable) over the whole chip
-       promised something the rest of it does not do. */
-    cursor: default;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-
-  /* The one part that IS a control. */
-  .focus-time { cursor: pointer; }
-  .focus-time:hover { text-decoration: underline; }
-
-  .focus-chip:hover { border-color: #adb5bd; }
-
-  /* Reordering: the chip being moved fades, and its landing place is shown as a
-     bar on the LEFT or RIGHT edge of a neighbour - the bar is horizontal, so
-     before/after is a left/right question, not the top/bottom one used in
-     lists. Inset shadows, so nothing shifts as the indicator moves. */
-  .focus-chip.chip-dragging { opacity: 0.45; }
-  .focus-chip.chip-drop-before { box-shadow: inset 3px 0 0 0 #0d6efd; }
-  .focus-chip.chip-drop-after  { box-shadow: inset -3px 0 0 0 #0d6efd; }
-
-  /* The type's own emoji, matching the tab and its rows. */
-  .focus-icon { line-height: 1; }
-
-  /* Colour picker on the chip's own context menu: one row per colour, showing
-     the colour beside the name given to it in Settings > Miscellaneous. */
-  .focus-swatches {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .focus-swatch {
-    width: 16px;
-    height: 16px;
-    border: 1px solid #ced4da;
-    border-radius: 3px;
-    flex: none;
-  }
-
-  .focus-swatch-row { cursor: pointer; }
-  .focus-swatch-label { white-space: nowrap; }
-
-  /* A running clock is the one state worth seeing from across the room. */
+  /* Focus-bar/monitor/chip styling lives in main.css now, shared with every
+     page that includes the navbar - see the "Focus bar" section there. */
   .trash-overlay {
     position: fixed;
     inset: 0;
@@ -257,25 +152,6 @@
     100% { background: transparent; }
   }
 
-  .focus-chip.running {
-    border-color: #198754;
-    box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.14);
-  }
-
-  .focus-chip.running .focus-time { color: #146c43; font-weight: 600; }
-
-  .focus-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .focus-time {
-    font-variant-numeric: tabular-nums;
-    font-size: 0.8rem;
-    color: #6c757d;
-    flex: none;
-  }
   </style>
 </head>
 <body

@@ -377,20 +377,10 @@ export async function createMssqlSchema(pool) {
 
 
 
-  await createTableIfNotExists(
-    pool,
-    "work_source_associations",
-    `
-    CREATE TABLE [MyWork].[work_source_associations] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      source_id INT NOT NULL,
-      CONSTRAINT fk_wsa_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
-      CONSTRAINT fk_wsa_source FOREIGN KEY (source_id) REFERENCES [MyWork].[sources](id) ON DELETE CASCADE,
-      CONSTRAINT unique_work_source UNIQUE (work_item_id, source_id)
-    )
-  `,
-  );
+  // work_source_associations: created further down, alongside
+  // work_entity_associations - see the matching note in mysqlSchema.js. Its
+  // work_item_id column now points at `entities`, which does not exist yet
+  // at this point in the file.
 
 
 
@@ -1075,6 +1065,12 @@ export async function createMssqlSchema(pool) {
     }
   }
 
+  // See the matching note in mysqlSchema.js - 'daily' is dead configuration,
+  // retired the same soft-delete way any other type is removed.
+  await pool.request().query(
+    "UPDATE [MyWork].[entity_types] SET deleted_at = SYSUTCDATETIME() WHERE slug = 'daily' AND deleted_at IS NULL",
+  );
+
   await createTableIfNotExists(
     pool,
     "entity_type_fields",
@@ -1312,21 +1308,24 @@ export async function createMssqlSchema(pool) {
   // ===== Legacy <-> entity association bridge =====
   //
   // Mirrors the block of the same name in mysqlSchema.js - see there for the
-  // full rationale. Short version: areas/goals/ideas are entities, but work
-  // items, projects and templates are still legacy tables, so their edges
-  // cannot live in entity_relationships (whose FKs are entities on both
-  // sides). These junctions bridge the two id spaces and are retired once
-  // work_items and priorities themselves become entities.
+  // full rationale. Short version: areas, goals, ideas and (as of Phase 10)
+  // work items are entities, but priorities and templates are still legacy
+  // tables, so their edges cannot live in entity_relationships (whose FKs are
+  // entities on both sides). These junctions bridge the two id spaces and are
+  // retired once priorities itself becomes entities.
   //
   // BEHAVIORAL DIFFERENCE FROM MYSQL: MySQL cascades the delete on both FKs.
-  // Here the entity side is ON DELETE NO ACTION, because `work_items` and
-  // `entities` both cascade from `contexts`, so two cascading FKs into one
-  // junction give SQL Server "may cause cycles or multiple cascade paths" (the
-  // same restriction that forces NO ACTION on the parent_id self-references
-  // and the to_dos/tickets/areas cross-references elsewhere in this file).
-  // Deleting an entity therefore does NOT clean these rows up automatically on
-  // MSSQL - entityService.js#deleteEntity removes them explicitly, which is
-  // what makes the two engines behave the same from the app's point of view.
+  // Here the entity side is ON DELETE NO ACTION, because both columns of
+  // work_entity_associations/work_source_associations point at `entities` now
+  // (a "day" is itself a work_item entity), and `entities` already cascades
+  // from `contexts`, so a second cascading FK into it gives SQL Server "may
+  // cause cycles or multiple cascade paths" (the same restriction that forces
+  // NO ACTION on the parent_id self-references and the to_dos/tickets/areas
+  // cross-references elsewhere in this file). Deleting an entity therefore
+  // does NOT clean these rows up automatically on MSSQL -
+  // entityService.js#purgeEntity removes them explicitly (BRIDGE_JUNCTION_COLUMNS),
+  // which is what makes the two engines behave the same from the app's point
+  // of view.
   const bridgeJunctions = [
     // [table, legacy column, legacy table, entity column]
     ["priority_areas", "priority_id", "priorities", "area_id"],
@@ -1341,11 +1340,11 @@ export async function createMssqlSchema(pool) {
   ];
 
   // ONE junction for every type, including types invented after this was
-  // written - see the note in mysqlSchema.js. The entity side is NO ACTION
-  // rather than CASCADE: work_items already cascades from one side, and SQL
-  // Server refuses a second cascade path into the same table ("may cause
-  // cycles or multiple cascade paths"). Deleting an entity therefore leaves
-  // its rows here, which the service tolerates by joining through entities.
+  // written - see the note in mysqlSchema.js. work_item_id points at
+  // `entities`, not the legacy `work_items` table - see the note above this
+  // block. Both FKs are NO ACTION for the reason given above; the service
+  // tolerates rows surviving an entity delete by joining through entities and
+  // cleans them up explicitly on purge.
   await createTableIfNotExists(
     pool,
     "work_entity_associations",
@@ -1355,7 +1354,7 @@ export async function createMssqlSchema(pool) {
       work_item_id INT NOT NULL,
       entity_id INT NOT NULL,
       order_index INT DEFAULT 0,
-      CONSTRAINT fk_wea_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[work_items](id) ON DELETE CASCADE,
+      CONSTRAINT fk_wea_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
       CONSTRAINT fk_wea_entity FOREIGN KEY (entity_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
       CONSTRAINT unique_work_entity UNIQUE (work_item_id, entity_id)
     )
@@ -1366,6 +1365,24 @@ export async function createMssqlSchema(pool) {
     "idx_wea_entity",
     "work_entity_associations",
     "CREATE INDEX idx_wea_entity ON [MyWork].[work_entity_associations] (entity_id)",
+  );
+
+  // A source is not an entity, so this one stays a plain junction rather than
+  // joining the bridge above - but work_item_id is the same entities-pointing,
+  // NO-ACTION column as work_entity_associations above, for the same reason.
+  await createTableIfNotExists(
+    pool,
+    "work_source_associations",
+    `
+    CREATE TABLE [MyWork].[work_source_associations] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      source_id INT NOT NULL,
+      CONSTRAINT fk_wsa_work_item FOREIGN KEY (work_item_id) REFERENCES [MyWork].[entities](id) ON DELETE NO ACTION,
+      CONSTRAINT fk_wsa_source FOREIGN KEY (source_id) REFERENCES [MyWork].[sources](id) ON DELETE CASCADE,
+      CONSTRAINT unique_work_source UNIQUE (work_item_id, source_id)
+    )
+  `,
   );
 
   // A record put on a day WITHOUT a work item wrapped round it. See the same

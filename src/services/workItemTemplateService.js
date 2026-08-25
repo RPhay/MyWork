@@ -219,13 +219,20 @@ export async function instantiateTemplate(templateId, date) {
 
   const template = await getTemplateById(templateId);
 
-  const orderResult = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?', [date, template.context_id]);
-  const nextOrder = (orderResult?.maxOrder ?? -1) + 1;
-
-  const workItemId = await db.insert(
-    'INSERT INTO work_items (date, title, description, emoji, status, time_box_minutes, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [date, template.title, template.description, template.emoji, template.status || 'Not Started', template.time_box_minutes, nextOrder, template.context_id]
-  );
+  // Goes through workItemService.createWorkItem rather than a raw INSERT, now
+  // that a work item is an `entities` row - createWorkItem already computes
+  // the per-date order and writes the date/description/emoji/status/time-box
+  // fields.
+  const created = await workItemService.createWorkItem({
+    date,
+    title: template.title,
+    description: template.description,
+    emoji: template.emoji,
+    status: template.status || 'Not Started',
+    time_box_minutes: template.time_box_minutes,
+    source_id: template.source_id,
+  }, template.context_id);
+  const workItemId = created.id;
 
   // areas, goals and priorities are all ENTITIES (getTemplateById joins each
   // bridge junction to `entities`), so all three land in the one junction that
@@ -237,15 +244,6 @@ export async function instantiateTemplate(templateId, date) {
       'INSERT IGNORE INTO work_entity_associations (work_item_id, entity_id, order_index) VALUES (?, ?, ?)',
       [workItemId, row.id, order++]
     );
-  }
-
-  // Sources are the exception, and stay where they were: source_id points at
-  // the legacy `sources` table, not at `entities`, so it cannot go into
-  // work_entity_associations (whose FK is to entities). work_source_associations
-  // was NOT retired with the seven per-type junctions - it is live schema in
-  // both files and workItemService still reads it.
-  if (template.source_id) {
-    await db.insert('INSERT INTO work_source_associations (work_item_id, source_id) VALUES (?, ?)', [workItemId, template.source_id]);
   }
 
   return workItemService.getWorkItemById(workItemId);

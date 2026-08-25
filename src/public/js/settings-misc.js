@@ -155,9 +155,101 @@
     await load();
   }
 
+  // ===== Focus monitors =====
+  //
+  // Definitions only (count, numbering, per-monitor label/layout) - saved
+  // server-side via /api/focus-monitors, following the status digest's
+  // pattern, since these should be the same on every machine, unlike the
+  // colours above. Which items sit on which monitor lives on the items
+  // themselves and is not configured here.
+  async function initMonitors() {
+    const pane = document.querySelector('[data-misc-pane="focus-monitors"]');
+    if (!pane) return;
+
+    const el = (id) => document.getElementById(id);
+    const blankMonitor = () => ({ label: '', layout: 'side-by-side' });
+    let state = { count: 1, showNumbers: false, monitors: Array.from({ length: 6 }, blankMonitor) };
+
+    function rowHtml(n, m) {
+      return `
+        <tr data-monitor-row="${n}">
+          <td>${n}</td>
+          <td><input type="text" class="form-control form-control-sm monitor-label" maxlength="40"
+                     value="${(m.label || '').replace(/"/g, '&quot;')}" placeholder="e.g. Today"></td>
+          <td>
+            <select class="form-select form-select-sm monitor-layout">
+              <option value="side-by-side" ${m.layout !== 'stacked' ? 'selected' : ''}>Side by side</option>
+              <option value="stacked" ${m.layout === 'stacked' ? 'selected' : ''}>Stacked</option>
+            </select>
+          </td>
+        </tr>`;
+    }
+
+    // Whatever is currently typed for rows 1..count, back into state - so
+    // switching the count down and up before saving never drops a label.
+    function collectRows() {
+      document.querySelectorAll('#monitorRows tr[data-monitor-row]').forEach(tr => {
+        const n = Number(tr.dataset.monitorRow);
+        state.monitors[n - 1] = {
+          label: tr.querySelector('.monitor-label').value,
+          layout: tr.querySelector('.monitor-layout').value,
+        };
+      });
+    }
+
+    function renderRows() {
+      const count = Number(el('monitorCount').value) || 1;
+      el('monitorRows').innerHTML = Array.from({ length: count }, (_, i) =>
+        rowHtml(i + 1, state.monitors[i] || blankMonitor())).join('');
+    }
+
+    function paint(data) {
+      state = {
+        count: data.count || 1,
+        showNumbers: !!data.showNumbers,
+        monitors: Array.from({ length: 6 }, (_, i) => data.monitors?.[i] || blankMonitor()),
+      };
+      el('monitorCount').value = String(state.count);
+      el('monitorShowNumbers').checked = state.showNumbers;
+      renderRows();
+    }
+
+    const load = async () => {
+      const res = await app.fetchRaw('/api/focus-monitors', {});
+      const body = await res.json();
+      if (body.success) paint(body.data);
+    };
+
+    el('monitorCount')?.addEventListener('change', () => {
+      collectRows();
+      renderRows();
+    });
+
+    el('saveMonitorsBtn')?.addEventListener('click', async () => {
+      collectRows();
+      state.count = Number(el('monitorCount').value) || 1;
+      state.showNumbers = el('monitorShowNumbers').checked;
+
+      const res = await app.fetchRaw('/api/focus-monitors', { method: 'PUT', body: JSON.stringify(state) });
+      const body = await res.json();
+      if (!body.success) { app.notify(body.message || 'Could not save', 'danger'); return; }
+
+      paint(body.data);
+      app.notify(
+        body.data.reassignedCount
+          ? `Focus monitors saved — ${body.data.reassignedCount} pinned item(s) moved to Monitor 1`
+          : 'Focus monitors saved',
+        body.data.reassignedCount ? 'info' : 'success',
+      );
+      document.dispatchEvent(new CustomEvent('focus-monitors-changed'));
+    });
+
+    await load();
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { init(); initSubTabs(); initDigest(); });
+    document.addEventListener('DOMContentLoaded', () => { init(); initSubTabs(); initDigest(); initMonitors(); });
   } else {
-    init(); initSubTabs(); initDigest();
+    init(); initSubTabs(); initDigest(); initMonitors();
   }
 })();

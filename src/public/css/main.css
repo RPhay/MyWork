@@ -617,6 +617,15 @@ footer {
   background-color: #f8f9fa;
 }
 
+.context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.context-menu-item:disabled:hover {
+  background-color: transparent;
+}
+
 /* Context Menu Submenus */
 .context-menu-submenu-group {
   position: relative;
@@ -731,3 +740,251 @@ footer {
     font-size: 0.875rem;
   }
 }
+
+/* ==========================================================================
+   Focus bar
+
+   Lives in the navbar, between the brand and the context switcher (see
+   navbar.ejs). It always shows its configured monitors - 1 to 6 zones, set in
+   Settings > Miscellaneous > Focus monitors - whether or not anything is
+   pinned to them, so they are persistent targets you can drag onto rather
+   than a strip that only appears once something lands on it.
+   ========================================================================== */
+
+.focus-bar {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 2px 8px;
+  margin-left: 12px;
+}
+
+/* One "monitor": a black square matching the bar's own background (it
+   inherits the navbar's dark background rather than a hardcoded hex, so it
+   stays correct if the navbar's theme ever changes), holding whichever items
+   are pinned to it. */
+.focus-monitor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 3px 8px;
+  /* Same border colour as the context switcher button (#f8f9fa,
+     btn-outline-light) - the two are the navbar's other outlined controls, so
+     they should read as one visual family. */
+  border: 1px solid #f8f9fa;
+  border-radius: 4px;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+/* Only an EMPTY monitor gets a default width - a fixed floor so it reads as
+   a square worth aiming a drag at rather than collapsing to nothing. Once
+   something is pinned, the box is left to size to its own items instead of
+   carrying that floor forward as dead space beside them. */
+.focus-monitor.empty {
+  min-width: 9rem;
+}
+
+.focus-monitor.drop-target {
+  background: rgba(13, 110, 253, 0.25);
+  border-color: #6ea8fe;
+}
+
+/* Dragging over the bar's own empty space (not any existing monitor) makes a
+   new one for whatever gets dropped, so the bar itself gets the same kind of
+   cue rather than looking like nothing is there to land on. */
+.focus-bar.new-monitor-target {
+  outline: 1px dashed #6ea8fe;
+  outline-offset: -1px;
+  border-radius: 4px;
+}
+
+.focus-monitor-number {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  flex: none;
+}
+
+.focus-monitor-label {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+  flex: none;
+}
+
+.focus-monitor-items {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Stacked: only the top item shows, ever taking up no more room than that -
+   no arrow, no click to open. Opening it does NOT resize the box in normal
+   flow - that grows the navbar itself taller, which is unnerving since the
+   whole black bar at the top of the page visibly resizes on every hover.
+   Instead the rest overlays below, out and over whatever is on the page
+   underneath (position: absolute, anchored on the monitor itself, so the
+   monitor's own flow height - and the navbar's - never changes). Same
+   background/border as the monitor box itself, so it reads as that one box
+   extending downward rather than a separate dropdown card appearing next to
+   it. The top item stays in normal flow either way, so its own position
+   never moves - only what's below it appears or disappears over the page. */
+/* Positioned relative to .focus-monitor-items (not .focus-monitor itself),
+   so the overlay lines up with wherever the item column actually starts -
+   which is flush with the monitor's own edge when there's no number/label,
+   but shifted right of it when there is one. Anchoring to the monitor
+   instead used to look fine in the common case and misalign the moment a
+   monitor had a number or label, because the top item shifts right for
+   those but the overlay always started at the monitor's own border. */
+.focus-monitor[data-layout="stacked"] .focus-monitor-items {
+  position: relative;
+}
+
+/* While open, the top item's own box and the overlay below it must read as
+   ONE box that has grown to fit the whole stack, not two boxes glued
+   together - so the monitor's own bottom border and corner rounding are
+   dropped exactly when the overlay picks them back up (its background
+   already matches the navbar's, so the seam disappears rather than just
+   getting thinner). */
+.focus-monitor[data-layout="stacked"].force-open,
+.focus-monitor[data-layout="stacked"].drop-target {
+  border-bottom-color: transparent;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.focus-monitor-stack-rest {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  /* No horizontal padding: every buried chip already carries the same
+     explicit pixel width as the top one (see widestChipWidth in
+     focus-bar.js), so left:0 with no padding is what actually keeps them
+     flush with the top item's own left edge - padding here would offset
+     them from it again. */
+  padding: 4px 0 6px;
+  /* Solid, matching the navbar's own bg-dark - this overlays PAGE content
+     below the navbar, not the navbar itself, so it needs its own opaque
+     background rather than transparently showing whatever is underneath. */
+  background: #212529;
+  border: 1px solid #f8f9fa;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+}
+
+/* Revealed by .force-open, which focus-bar.js's own mouseover/mouseout keep
+   in sync with the pointer (plain CSS :hover does NOT survive a render() -
+   clicking a chip rebuilds the bar's whole innerHTML, and a fresh DOM node
+   does not inherit :hover just for occupying the same screen position the
+   cursor already sat on) - and separately by .drop-target, which a drag onto
+   this monitor already sets via dragover/dragleave listeners. Together, a
+   pinned item inside the stack can be clicked, right-clicked, or dragged to
+   reorder exactly like one that's always visible while it's open. */
+.focus-monitor[data-layout="stacked"].force-open .focus-monitor-stack-rest,
+.focus-monitor[data-layout="stacked"].drop-target .focus-monitor-stack-rest {
+  display: flex;
+}
+
+/* Denser than a strip of its own: there is no cap on how many can be pinned,
+   and they share the navbar's height with the brand and the context switcher.
+   Kept light on the dark bar so the title stays readable at this size. */
+.focus-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 16rem;
+  padding: 2px 8px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  /* Same radius as the monitor it sits in - a pinned item and the zone that
+     holds it read as one shape family instead of a pill inside a square. */
+  border-radius: 4px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  /* Default cursor on the chip itself: only the clock is clickable, so a
+     pointer (or the grab hand that came with draggable) over the whole chip
+     promised something the rest of it does not do. */
+  cursor: default;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.focus-chip:hover { border-color: #adb5bd; }
+
+.focus-chip.running {
+  border-color: #198754;
+  box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.14);
+}
+
+.focus-chip.running .focus-time { color: #146c43; font-weight: 600; }
+
+/* The one part of the chip that IS a control. */
+.focus-time {
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: #6c757d;
+  flex: none;
+}
+
+.focus-time:hover { text-decoration: underline; }
+
+/* Stacked chips are forced to a uniform width (see widestChipWidth in
+   focus-bar.js), which leaves slack space after a shorter title - push the
+   time into that slack instead of letting it trail right behind the title. */
+.focus-monitor[data-layout="stacked"] .focus-time { margin-left: auto; }
+
+/* A buried stack item: the whole chip is a control here (any click on it
+   brings it to the top), not just the clock, so the pointer cursor covers
+   all of it rather than just .focus-time. */
+.focus-chip.buried {
+  cursor: pointer;
+}
+
+.focus-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Reordering: the chip being moved fades, and its landing place is shown as a
+   bar on the leading/trailing edge of a neighbour - left/right in a
+   side-by-side monitor, top/bottom in a stacked one. Inset shadows, so
+   nothing shifts as the indicator moves. */
+.focus-chip.chip-dragging { opacity: 0.45; }
+.focus-chip.chip-drop-before { box-shadow: inset 3px 0 0 0 #0d6efd; }
+.focus-chip.chip-drop-after  { box-shadow: inset -3px 0 0 0 #0d6efd; }
+
+.focus-monitor[data-layout="stacked"] .focus-chip.chip-drop-before { box-shadow: inset 0 3px 0 0 #0d6efd; }
+.focus-monitor[data-layout="stacked"] .focus-chip.chip-drop-after  { box-shadow: inset 0 -3px 0 0 #0d6efd; }
+
+/* The type's own emoji, matching the tab and its rows. */
+.focus-icon { line-height: 1; }
+
+/* Colour picker on the chip's own context menu: one row per colour, showing
+   the colour beside the name given to it in Settings > Miscellaneous. */
+.focus-swatches {
+  display: flex;
+  flex-direction: column;
+}
+
+.focus-swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #ced4da;
+  border-radius: 3px;
+  flex: none;
+}
+
+.focus-swatch-row { cursor: pointer; }
+.focus-swatch-label { white-space: nowrap; }

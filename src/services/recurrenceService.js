@@ -1,5 +1,26 @@
 import * as db from '../database/connectionPool.js';
 import { ValidationError } from '../config/errors.js';
+import * as entityTypeService from './entityTypeService.js';
+
+// Not workItemService.js or entityService.js: both already import this file
+// (directly, or via entityService -> generateWorkItemsForDate), so either
+// reverse import would be circular. Raw queries instead, the same way
+// entityService.instantiateTemplate avoids importing workItemService.
+let workItemTypeIdCache = null;
+async function getWorkItemTypeId() {
+  if (workItemTypeIdCache) return workItemTypeIdCache;
+  const type = await entityTypeService.getEntityType('work_item');
+  workItemTypeIdCache = type.id;
+  return workItemTypeIdCache;
+}
+
+async function setWorkItemFieldValue(entityId, fieldKey, column, value) {
+  await db.query(
+    `INSERT INTO entity_field_values (entity_id, field_key, ${column}) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE ${column} = VALUES(${column})`,
+    [entityId, fieldKey, value]
+  );
+}
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -274,10 +295,7 @@ export async function generateWorkItemsForDate(date, contextId) {
     const recurrence = JSON.parse(todo.recurrence);
 
     // Check if work item already exists for this date
-    const existing = await db.queryOne(
-      'SELECT id FROM work_items WHERE date = ? AND recurring_from_todo_id = ? AND context_id = ?',
-      [date, todo.id, contextId]
-    );
+    const existing = await workItemExistsForRecurrence(date, 'recurring_from_todo_id', todo.id, contextId);
 
     if (!existing && shouldOccurOnDate(date, recurrence)) {
       // Create work item for this recurring todo
@@ -289,10 +307,7 @@ export async function generateWorkItemsForDate(date, contextId) {
     const recurrence = JSON.parse(task.recurrence);
 
     // Check if work item already exists for this date
-    const existing = await db.queryOne(
-      'SELECT id FROM work_items WHERE date = ? AND recurring_from_task_id = ? AND context_id = ?',
-      [date, task.id, contextId]
-    );
+    const existing = await workItemExistsForRecurrence(date, 'recurring_from_task_id', task.id, contextId);
 
     if (!existing && shouldOccurOnDate(date, recurrence)) {
       // Create work item for this recurring task
@@ -388,32 +403,65 @@ export function shouldOccurOnDate(dateStr, recurrence) {
   }
 }
 
-async function createWorkItemFromRecurringTodo(todo, date, contextId) {
-  const nextOrderResult = await db.queryOne(
-    'SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?',
-    [date, contextId]
+// Whether a work_item entity already exists for this date, generated from
+// this particular recurring to-do/task - a join over entity_field_values
+// rather than a WHERE on work_items, now that a work item is an entity.
+async function workItemExistsForRecurrence(date, recurrenceFieldKey, sourceId, contextId) {
+  const typeId = await getWorkItemTypeId();
+  const row = await db.queryOne(
+    `SELECT e.id FROM entities e
+     JOIN entity_field_values vd ON vd.entity_id = e.id AND vd.field_key = 'date'
+     JOIN entity_field_values vr ON vr.entity_id = e.id AND vr.field_key = ?
+     WHERE e.entity_type_id = ? AND e.context_id = ? AND e.deleted_at IS NULL
+       AND vd.value_date = ? AND vr.value_number = ?`,
+    [recurrenceFieldKey, typeId, contextId, date, sourceId]
   );
-  const nextOrder = (nextOrderResult?.maxOrder ?? -1) + 1;
+  return !!row;
+}
 
-  await db.insert(`
-    INSERT INTO work_items
-    (date, title, description, notes, emoji, status, order_index, context_id, recurring_from_todo_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [date, todo.title, null, todo.notes || null, null, 'Not Started', nextOrder, contextId, todo.id]);
+async function nextWorkItemOrderForDate(date, contextId) {
+  const typeId = await getWorkItemTypeId();
+  const result = await db.queryOne(
+    `SELECT MAX(e.order_index) as maxOrder FROM entities e
+     JOIN entity_field_values v ON v.entity_id = e.id AND v.field_key = 'date'
+     WHERE e.entity_type_id = ? AND e.context_id = ? AND e.deleted_at IS NULL AND v.value_date = ?`,
+    [typeId, contextId, date]
+  );
+  return (result?.maxOrder ?? -1) + 1;
+}
+
+async function createWorkItemEntity(fields, date, contextId, order) {
+  const typeId = await getWorkItemTypeId();
+  const result = await db.insert(
+    'INSERT INTO entities (entity_type_id, context_id, title, order_index) VALUES (?, ?, ?, ?)',
+    [typeId, contextId, fields.title, order]
+  );
+  for (const [key, column, value] of [
+    ['date', 'value_date', date],
+    ['status', 'value_text', 'Not Started'],
+    ...(fields.notes ? [['notes', 'value_long', fields.notes]] : []),
+    ...(fields.recurringFromTodoId ? [['recurring_from_todo_id', 'value_number', fields.recurringFromTodoId]] : []),
+    ...(fields.recurringFromTaskId ? [['recurring_from_task_id', 'value_number', fields.recurringFromTaskId]] : []),
+  ]) {
+    await setWorkItemFieldValue(result, key, column, value);
+  }
+  return result;
+}
+
+async function createWorkItemFromRecurringTodo(todo, date, contextId) {
+  const nextOrder = await nextWorkItemOrderForDate(date, contextId);
+  await createWorkItemEntity(
+    { title: todo.title, notes: todo.notes || null, recurringFromTodoId: todo.id },
+    date, contextId, nextOrder
+  );
 }
 
 async function createWorkItemFromRecurringTask(task, date, contextId) {
-  const nextOrderResult = await db.queryOne(
-    'SELECT MAX(order_index) as maxOrder FROM work_items WHERE date = ? AND context_id = ?',
-    [date, contextId]
+  const nextOrder = await nextWorkItemOrderForDate(date, contextId);
+  await createWorkItemEntity(
+    { title: task.title, notes: task.notes || null, recurringFromTaskId: task.id },
+    date, contextId, nextOrder
   );
-  const nextOrder = (nextOrderResult?.maxOrder ?? -1) + 1;
-
-  await db.insert(`
-    INSERT INTO work_items
-    (date, title, description, notes, emoji, status, order_index, context_id, recurring_from_task_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [date, task.title, null, task.notes || null, null, 'Not Started', nextOrder, contextId, task.id]);
 }
 
 export async function generateNextRecurrenceForCompletedItem(workItem) {

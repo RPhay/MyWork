@@ -408,6 +408,22 @@
   color: #0d6efd;
 }
 
+/* Worked Time is a click-to-toggle timer like the pin bar's own chip clock -
+   same tabular-nums treatment, and the same green-while-running cue. */
+.entity-cell .duration-cell {
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.entity-cell .duration-cell:hover {
+  text-decoration: underline;
+}
+
+.entity-cell .duration-cell.running {
+  color: #146c43;
+  font-weight: 600;
+}
+
 /* Each field in the editor carries a drag handle and a column toggle, so the
    same two values (display_order, show_in_row) can be set from here as well as
    from the header. */
@@ -871,7 +887,25 @@
   white-space: nowrap;
 }
 
-.timebox-icon { color: #6c757d; }
+/* Unlike the status badge (already sized to its longest possible value), a
+   time box's label has no fixed vocabulary, so it can be long enough to
+   outgrow its cell. Cap it the same way the badge is capped, but let the
+   label itself truncate rather than spilling past the cell boundary -
+   min-width:0 lets a flex child shrink below its own content size, which
+   is what actually stops the overflow; the max-width alone does not. */
+.entity-cell .timebox-cell {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.timebox-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.timebox-icon { color: #6c757d; flex: none; }
 
 .editor-cycle {
   display: inline-flex;

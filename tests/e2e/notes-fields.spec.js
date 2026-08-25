@@ -1,19 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Notes, Claude Notes and the worked-with-Claude toggle - the three properties
- * Dailies has always carried on a work item, made available to any editable
- * type as field types.
+ * Notes and the AI-used toggle - two properties Dailies has always carried on
+ * a work item, made available to any editable type as field types.
  *
- * What makes them the Dailies pattern is the ROW, not the editor. A note can be
- * a paragraph; fifty rows each showing a paragraph is not a list any more. So
- * the row shows one glyph that is LIT when there is something there and muted
- * when there is not, and the text itself opens in a box. These tests are mostly
- * about that distinction, because it is the part that would be quietly lost by
+ * What makes the notes field the Dailies pattern is the ROW, not the editor. A
+ * note can be a paragraph; fifty rows each showing a paragraph is not a list
+ * any more. So the row shows one glyph that is LIT when there is something
+ * there and muted when there is not, and the text itself opens in a box on
+ * DOUBLE-click - a single click on the glyph does nothing, matching every
+ * other row control that opens the full editor. These tests are mostly about
+ * that distinction, because it is the part that would be quietly lost by
  * anyone "simplifying" the cell renderer into showing the value.
  *
- * Notes and Claude Notes are deliberately two fields, not one: notes you wrote
- * and notes Claude wrote must not overwrite each other.
+ * The AI toggle is stored internally as field_type "worked_with_claude" (and
+ * the same key on Dailies' own work_items table) - that identifier is
+ * unchanged from when it was Claude-specific, only the label and icon a
+ * person sees are "AI" now, since a rename of the stored key would be a
+ * migration, not a relabel.
  */
 
 const TITLE = 'ZZZ notes subject';
@@ -46,7 +50,7 @@ test.afterAll(async ({ browser }) => {
   await page.close();
 });
 
-test('the three fields can be declared, and round-trip their values', async ({ page }) => {
+test('the two fields can be declared, and round-trip their values', async ({ page }) => {
   const errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
@@ -54,8 +58,7 @@ test('the three fields can be declared, and round-trip their values', async ({ p
   const type = (await api(page, `/api/entity-types/${TYPE}`)).body.data;
   for (const [key, label, field_type] of [
     ['zzz_notes', 'ZZZ Notes', 'notes'],
-    ['zzz_claude_notes', 'ZZZ Claude Notes', 'claude_notes'],
-    ['zzz_with_claude', 'ZZZ With Claude', 'worked_with_claude'],
+    ['zzz_with_claude', 'ZZZ AI Used', 'worked_with_claude'],
   ]) {
     const made = await api(page, `/api/entity-types/${type.id}/fields`, {
       method: 'POST',
@@ -71,9 +74,8 @@ test('the three fields can be declared, and round-trip their values', async ({ p
   const back = (await api(page, `/api/entity-types/${TYPE}`)).body.data;
   const declared = (back.fields || []).filter(f => f.field_key.startsWith('zzz_'));
   expect(declared.map(f => f.field_type).sort())
-    .toEqual(['claude_notes', 'notes', 'worked_with_claude']);
+    .toEqual(['notes', 'worked_with_claude']);
 
-  // Values round-trip, and the two notes fields do NOT overwrite each other.
   const made = await api(page, `/api/entities/${TYPE}`, {
     method: 'POST', body: JSON.stringify({ title: TITLE }),
   });
@@ -82,14 +84,12 @@ test('the three fields can be declared, and round-trip their values', async ({ p
     method: 'PUT',
     body: JSON.stringify({ fields: {
       zzz_notes: 'mine, not Claude\'s',
-      zzz_claude_notes: 'Claude\'s, not mine',
       zzz_with_claude: true,
     } }),
   });
 
   const read = (await api(page, `/api/entities/${TYPE}`)).body.data.find(e => e.id === entityId);
   expect(read.fields.zzz_notes, 'my notes survive').toBe('mine, not Claude\'s');
-  expect(read.fields.zzz_claude_notes, 'Claude\'s notes survive, separately').toBe('Claude\'s, not mine');
   expect(read.fields.zzz_with_claude, 'the toggle survives as a boolean').toBe(true);
   expect(errs).toEqual([]);
 });
@@ -125,30 +125,32 @@ test('a row shows a glyph that lights up, never the text itself', async ({ page 
   // The note's text must not be in the row. This is the whole point of the
   // pattern - a list stays a list.
   await expect(row).not.toContainText('mine, not Claude');
-  await expect(row).not.toContainText('Claude\'s, not mine');
 
   const notes = row.locator('[data-action="edit-notes-field"][data-field-type="notes"]');
-  const claude = row.locator('[data-action="edit-notes-field"][data-field-type="claude_notes"]');
-  const sun = row.locator('[data-action="toggle-claude-field"]');
+  const ai = row.locator('[data-action="toggle-claude-field"]');
   await expect(notes, 'a notes glyph').toHaveCount(1);
-  await expect(claude, 'a separate Claude-notes glyph').toHaveCount(1);
-  await expect(sun, 'the worked-with-Claude sun').toHaveCount(1);
+  await expect(ai, 'the AI-used toggle').toHaveCount(1);
 
   // Lit, because this row has notes and the toggle is on.
   const litColour = (loc) => loc.locator('i').evaluate(el => el.style.color);
   expect(await litColour(notes), 'notes glyph is lit').not.toBe('rgb(222, 226, 230)');
-  expect(await litColour(claude), 'Claude notes glyph is lit').not.toBe('rgb(222, 226, 230)');
-  expect(await sun.getAttribute('data-value'), 'the sun reads as on').toBe('1');
+  expect(await ai.getAttribute('data-value'), 'the AI toggle reads as on').toBe('1');
 });
 
-test('the glyph opens a box that writes the note back', async ({ page }) => {
+test('the glyph opens a box that writes the note back, only on double-click', async ({ page }) => {
   await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
 
   const row = page.locator(`#ideaEntityList .entity-row[data-entity-id="${entityId}"]`);
   await expect(row).toBeVisible({ timeout: 8000 });
-  await row.locator('[data-action="edit-notes-field"][data-field-type="notes"]').click();
+  const glyph = row.locator('[data-action="edit-notes-field"][data-field-type="notes"]');
 
+  // A single click must not open it - it must behave like every other row
+  // control that opens an editor, which is two clicks, not one.
+  await glyph.click();
+  await expect(page.locator('#entityNotesEditorText')).not.toBeVisible();
+
+  await glyph.dblclick();
   const box = page.locator('#entityNotesEditorText');
   await expect(box, 'the box opens on the existing note').toBeVisible({ timeout: 5000 });
   await expect(box).toHaveValue('mine, not Claude\'s');
@@ -160,10 +162,9 @@ test('the glyph opens a box that writes the note back', async ({ page }) => {
 
   const read = (await api(page, `/api/entities/${TYPE}`)).body.data.find(e => e.id === entityId);
   expect(read.fields.zzz_notes, 'the box wrote it back').toBe('rewritten by hand');
-  expect(read.fields.zzz_claude_notes, 'and left Claude\'s notes alone').toBe('Claude\'s, not mine');
 });
 
-test('the sun toggles from the row without opening the editor', async ({ page }) => {
+test('the AI toggle flips from the row without opening the editor', async ({ page }) => {
   await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
 
@@ -173,7 +174,7 @@ test('the sun toggles from the row without opening the editor', async ({ page })
   await page.waitForTimeout(1000);
 
   const read = (await api(page, `/api/entities/${TYPE}`)).body.data.find(e => e.id === entityId);
-  expect(read.fields.zzz_with_claude, 'the sun flipped it off').toBe(false);
+  expect(read.fields.zzz_with_claude, 'the toggle flipped it off').toBe(false);
   // A cell control never opens the editor - that would move the cell being
   // clicked out from under the pointer.
   expect(await page.locator('#entity-editor-form').count(),

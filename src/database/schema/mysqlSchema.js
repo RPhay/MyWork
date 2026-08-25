@@ -270,17 +270,10 @@ export async function createMysqlSchema(connection) {
 
 
 
-  // Create work_source_associations junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_source_associations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      work_item_id INT NOT NULL,
-      source_id INT NOT NULL,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
-      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_work_source (work_item_id, source_id)
-    )
-  `);
+  // work_source_associations: created further down, alongside
+  // work_entity_associations, because its work_item_id column now points at
+  // `entities` (see "Legacy <-> entity association bridge") - `entities`
+  // does not exist yet at this point in the file.
 
 
 
@@ -960,13 +953,22 @@ export async function createMysqlSchema(connection) {
     }
   }
 
+  // The 'daily' type used to be seeded above too (SPECIAL_ENTITY_TYPES no
+  // longer lists it - see systemEntityTypes.js). It was dead configuration:
+  // "Dailies" (work_item) already serves the day-grouping role via "+ Daily",
+  // which has always created a work_item row, not a row of this type. Retire
+  // any already-seeded row the same soft-delete way any other type is removed.
+  await connection.query(
+    "UPDATE entity_types SET deleted_at = NOW() WHERE slug = 'daily' AND deleted_at IS NULL",
+  );
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS entity_type_fields (
       id INT AUTO_INCREMENT PRIMARY KEY,
       entity_type_id INT NOT NULL,
       field_key VARCHAR(100) NOT NULL,
       label VARCHAR(255) NOT NULL,
-      field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence','emoji','emojis','duration','timebox','notes','claude_notes','worked_with_claude') NOT NULL,
+      field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence','emoji','emojis','duration','timebox','notes','worked_with_claude') NOT NULL,
       field_options JSON,
       required BOOLEAN DEFAULT FALSE,
       display_order INT DEFAULT 0,
@@ -1014,7 +1016,7 @@ export async function createMysqlSchema(connection) {
   // accepts any value and needs no matching change.
   await connection.query(`
     ALTER TABLE entity_type_fields
-    MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence','emoji','emojis','duration','timebox','notes','claude_notes','worked_with_claude') NOT NULL
+    MODIFY COLUMN field_type ENUM('text','textarea','number','date','url','links','select','radio','status','priority','checkbox','recurrence','emoji','emojis','duration','timebox','notes','worked_with_claude') NOT NULL
   `);
 
   // Seed default fields for system entity types. Array order is display_order.
@@ -1210,21 +1212,24 @@ export async function createMysqlSchema(connection) {
 
   // ===== Legacy <-> entity association bridge =====
   //
-  // Areas, goals and ideas live in `entities` (migrated in Phases 1-3), but
-  // work items, projects and templates are still their own legacy tables. The
-  // edges between them can't live in `entity_relationships`, whose foreign
-  // keys point at `entities` on both sides - so these junctions bridge the two
-  // id spaces: the left column is a legacy row id, the right column is an
-  // `entities.id`.
+  // Areas, goals and ideas live in `entities` (migrated in Phases 1-3), and
+  // work items do too as of Phase 10 (scripts/phase10-migrate-work-items.js) -
+  // but `priorities` and `work_item_templates` are still their own legacy
+  // tables (priorityService.js already reads/writes through entityService,
+  // but the physical `priorities` table itself, and everything still keyed to
+  // its id, has not moved). The edges between a legacy row and an entity can't
+  // live in `entity_relationships`, whose foreign keys point at `entities` on
+  // both sides - so these four junctions bridge the two id spaces: the left
+  // column is a legacy row id, the right column is an `entities.id`.
   //
   // Phases 1-3 dropped these tables outright without updating their consumers
   // (workItemService/priorityService/workItemTemplateService), which is what
   // left Dailies, Projects and Reporting throwing "a required database table is
   // missing" on every load. They are back deliberately and temporarily.
   //
-  // RETIRE THESE when work_items and priorities themselves become entities -
-  // at that point every edge collapses into entity_relationships and these
-  // seven tables can be dropped for good. Until then, do not "re-remove" them.
+  // RETIRE THESE when priorities itself becomes entities - at that point every
+  // remaining edge collapses into entity_relationships and these four tables
+  // can be dropped for good. Until then, do not "re-remove" them.
   //
   // They must be created here, after `entities` exists, rather than beside the
   // legacy tables they also reference, or MySQL raises "Failed to open the
@@ -1247,17 +1252,38 @@ export async function createMysqlSchema(connection) {
   // written. The eight per-type junctions it replaced could not hold a type the
   // user created - no table existed for it and none could be added from the app
   // - and having no order column, they could not order a day's children either.
+  //
+  // work_item_id points at `entities`, not the legacy `work_items` table - a
+  // "day" is itself a work_item entity now (see the work_items -> entities
+  // migration below), so both columns share one id space. A fresh install
+  // never has a legacy work_items row to point at in the first place; an
+  // existing install's already-created FK is repointed by
+  // scripts/phase10-migrate-work-items.js.
   await connection.query(`
     CREATE TABLE IF NOT EXISTS work_entity_associations (
       id INT AUTO_INCREMENT PRIMARY KEY,
       work_item_id INT NOT NULL,
       entity_id INT NOT NULL,
       order_index INT DEFAULT 0,
-      FOREIGN KEY (work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (work_item_id) REFERENCES entities(id) ON DELETE CASCADE,
       FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
       UNIQUE KEY unique_work_entity (work_item_id, entity_id),
       INDEX idx_wea_work (work_item_id),
       INDEX idx_wea_entity (entity_id)
+    )
+  `);
+
+  // A source is not an entity, so this one stays a plain junction rather than
+  // joining the bridge below - but work_item_id is the same entities-pointing
+  // column as work_entity_associations above, for the same reason.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS work_source_associations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      work_item_id INT NOT NULL,
+      source_id INT NOT NULL,
+      FOREIGN KEY (work_item_id) REFERENCES entities(id) ON DELETE CASCADE,
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_work_source (work_item_id, source_id)
     )
   `);
 

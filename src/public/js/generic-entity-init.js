@@ -657,29 +657,29 @@ renderList();
         return;
       }
 
-      // The sun toggles in place, like the one in Dailies. Only this field is
-      // sent, so nothing else on the row is disturbed.
+      // The AI toggle flips in place, like the one in Dailies. Only this
+      // field is sent, so nothing else on the row is disturbed.
       const claudeBtn = e.target.closest('[data-action="toggle-claude-field"]');
       if (claudeBtn) {
         const now = claudeBtn.dataset.value === '1';
         await saveFieldFromCell(claudeBtn.dataset.entityId, claudeBtn.dataset.fieldKey,
-          !now, 'Could not change whether this was worked on with Claude');
+          !now, 'Could not change whether AI was used');
         return;
       }
 
-      // Notes open a box to read and write them in. The glyph in the row says
-      // only WHETHER there are notes - a note can be a paragraph, and fifty
-      // rows of paragraphs is not a list any more.
-      const notesBtn = e.target.closest('[data-action="edit-notes-field"]');
-      if (notesBtn) {
-        const entity = entities.find(x => x.id == notesBtn.dataset.entityId);
-        openNotesEditor({
-          entityId: notesBtn.dataset.entityId,
-          fieldKey: notesBtn.dataset.fieldKey,
-          fieldType: notesBtn.dataset.fieldType,
-          // Field values hang off `fields`, not the entity itself.
-          current: entity?.fields?.[notesBtn.dataset.fieldKey] ?? '',
-        });
+      // Worked Time starts/stops the clock, the same one the pin bar's own
+      // chip uses (they're the same focus_seconds/focus_started_at fields) -
+      // this works whether or not the item happens to be pinned. Goes through
+      // /api/focus, not saveFieldFromCell, because starting one clock also
+      // has to stop whatever else is running.
+      const timerBtn = e.target.closest('[data-action="toggle-timer-field"]');
+      if (timerBtn) {
+        try {
+          await app.fetch(`/api/focus/${timerBtn.dataset.entityId}/toggle`, { method: 'POST' });
+          await refreshEntities();
+        } catch (error) {
+          app.notify(error.message || 'Could not change the clock', 'danger');
+        }
         return;
       }
 
@@ -827,8 +827,24 @@ renderList();
       }
     });
 
-    // Two clicks: the editor.
+    // Two clicks: the editor. Notes are the one exception - like the Dailies
+    // rail, a note opens its own small modal on double-click rather than the
+    // full entity editor, so it's checked before the general [data-action]
+    // bail-out below rather than falling under it.
     listContainer.addEventListener('dblclick', (e) => {
+      const notesBtn = e.target.closest('[data-action="edit-notes-field"]');
+      if (notesBtn) {
+        const entity = entities.find(x => x.id == notesBtn.dataset.entityId);
+        openNotesEditor({
+          entityId: notesBtn.dataset.entityId,
+          fieldKey: notesBtn.dataset.fieldKey,
+          fieldType: notesBtn.dataset.fieldType,
+          // Field values hang off `fields`, not the entity itself.
+          current: entity?.fields?.[notesBtn.dataset.fieldKey] ?? '',
+        });
+        return;
+      }
+
       const row = e.target.closest('.entity-row');
       if (!row || e.target.closest('[data-action]')) return;
       if (e.target.closest('.is-rollup')) return;   // a summary, not a control

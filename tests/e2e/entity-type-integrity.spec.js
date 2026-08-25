@@ -22,10 +22,10 @@ const RENDERED_TYPES = [
   'duration',
   // `emoji` is a free pick; `emojis` cycles through a set declared on the field.
   'emoji', 'emojis',
-  // The three Dailies carries on every work item, available to any type. In a
+  // Dailies carries these on every work item, available to any type. In a
   // row they are a single glyph that lights when there is something there -
   // notes are a paragraph, and fifty rows of paragraphs is not a list.
-  'notes', 'claude_notes', 'worked_with_claude',
+  'notes', 'worked_with_claude',
 ];
 
 test('every field type in use is renderable, editable and valid', async ({ page }) => {
@@ -73,7 +73,7 @@ test('the ENUM, the service allow-list and the editor options agree', async ({ p
   const enumTypes = [
     'text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio',
     'status', 'priority', 'checkbox', 'recurrence', 'emoji', 'emojis',
-    'duration', 'timebox', 'notes', 'claude_notes', 'worked_with_claude',
+    'duration', 'timebox', 'notes', 'worked_with_claude',
   ];
 
   const missingFromEditor = enumTypes.filter(t => !editorJs.includes(`value="${t}"`));
