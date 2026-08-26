@@ -287,11 +287,35 @@ export async function updateEntityType(id, data) {
       });
     }
 
-    for (const field of existing) {
-      if (keptKeys.has(field.field_key)) continue;
+  }
 
-      // Never on absence alone - see ENGINE_OWNED_FIELD_KEYS above.
-      if (ENGINE_OWNED_FIELD_KEYS.has(field.field_key)) continue;
+  // Removals, on their own and not inside the `fields` branch.
+  //
+  // A field is deleted because the caller SAID SO, never because it is missing
+  // from `fields`. Absence has more than one cause - the editor could not
+  // render that field type, the rows had not loaded yet, a caller sent a
+  // partial list - and each of those destroyed real definitions and the values
+  // under them. `removed_field_keys` says delete; nothing else does.
+  //
+  // Out here rather than inside `if (data.fields)` so a caller can remove a
+  // field without also resending every field it is keeping.
+  if (Array.isArray(data.removed_field_keys) && data.removed_field_keys.length) {
+    const sentKeys = new Set(
+      (data.fields || []).map((f) => String(f.field_key || '')
+        .toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, ''))
+    );
+    for (const rawKey of data.removed_field_keys) {
+      const key = String(rawKey || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
+      if (!key) continue;
+      if (sentKeys.has(key)) continue;                 // sent AND removed: keep it
+      // Never, whatever the caller says - see ENGINE_OWNED_FIELD_KEYS.
+      if (ENGINE_OWNED_FIELD_KEYS.has(key)) continue;
+
+      const [field] = await query(
+        'SELECT id FROM entity_type_fields WHERE entity_type_id = ? AND field_key = ?',
+        [id, key]
+      );
+      if (!field) continue;
 
       // The values go with the definition. entity_field_values is keyed by
       // field_key as a STRING with no foreign key, so nothing cascades: the
@@ -301,7 +325,7 @@ export async function updateEntityType(id, data) {
         `DELETE v FROM entity_field_values v
            JOIN entities e ON e.id = v.entity_id
           WHERE e.entity_type_id = ? AND v.field_key = ?`,
-        [id, field.field_key]
+        [id, key]
       );
       await query('DELETE FROM entity_type_fields WHERE id = ?', [field.id]);
     }

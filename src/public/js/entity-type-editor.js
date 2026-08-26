@@ -45,7 +45,20 @@ window.initEntityTypeSplitPane = initEntityTypeSplitPane;
 window.closeEntityTypeEditor = closeEntityTypeEditor;
 let currentEditingType = null;
 
+// Field keys the user REMOVED in this editing session.
+//
+// Deletion used to be signalled by absence: the row was taken out of the DOM,
+// so the field was missing from the array, so the server deleted it. Absence
+// meant two different things - "the user removed this" and "the form could not
+// draw this" - and the server could not tell them apart. That is how fields the
+// editor had no <option> for were destroyed, and how a save that ran before the
+// field rows rendered would have taken everything with it.
+//
+// Now absence means nothing and this set means delete.
+let removedFieldKeys = new Set();
+
 async function openEntityTypeEditor(typeId = null) {
+  removedFieldKeys = new Set();          // a fresh session removes nothing yet
   if (typeId) {
     // Load existing type
     try {
@@ -574,6 +587,8 @@ function addFieldRow(field = null) {
   // Locked fields render a padlock in place of the button, so there is nothing
   // to bind here.
   fieldRow.querySelector('.remove-field-btn')?.addEventListener('click', () => {
+    const key = fieldRow.querySelector('.field-key')?.value;
+    if (key) removedFieldKeys.add(key);        // say so explicitly; see above
     fieldRow.remove();
   });
 
@@ -776,6 +791,9 @@ async function saveEntityType() {
     icon: document.getElementById('typeIcon').value || null,
     supports_hierarchy: document.getElementById('typeHierarchy').checked,
     supports_folders: document.getElementById('typeFolders')?.checked ?? true,
+    // Explicit deletions. The server never removes a field just because it is
+    // missing from `fields` - see updateEntityType.
+    removed_field_keys: [...removedFieldKeys],
     fields: Array.from(document.querySelectorAll('.field-row')).map(row => {
       const fieldType = row.querySelector('.field-type').value;
       // The storage key is derived from the label rather than typed twice.
