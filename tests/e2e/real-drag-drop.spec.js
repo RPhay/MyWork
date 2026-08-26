@@ -105,8 +105,8 @@ test('template with contents -> day, as independent copies', async ({ page }) =>
   const items = (await api(page,`/api/dailies/date/${today()}`)).body.data;
   const wi = items.find(w => w.title === 'ZZZfull template');
   expect(wi, 'work item created from the template').toBeTruthy();
-  const gotIdea = (wi.ideas||[])[0], gotCat = (wi.areas||[])[0];
-  console.log('on the day ->', JSON.stringify({ideas:(wi.ideas||[]).map(i=>i.title), areas:(wi.areas||[]).map(a=>a.name)}));
+  const gotIdea = (wi.ideas||[])[0], gotCat = (wi.categories||[])[0];
+  console.log('on the day ->', JSON.stringify({ideas:(wi.ideas||[]).map(i=>i.title), areas:(wi.categories||[]).map(a=>a.name)}));
 
   expect(gotIdea, 'the template idea came across').toBeTruthy();
   expect(gotCat, 'the template category came across').toBeTruthy();

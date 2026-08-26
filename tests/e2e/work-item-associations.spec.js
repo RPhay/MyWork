@@ -83,7 +83,10 @@ test.describe('Work item associations', () => {
   });
 
   for (const { slug, label, key, labelField } of [
-    { slug: 'category', label: 'areas', key: 'areas', labelField: 'name' },
+    // The route and the response property are both `categories`. This said
+    // `areas` for both, which is what Categories was called before the rename
+    // - so the POST 404'd on a route that does not exist.
+    { slug: 'category', label: 'categories', key: 'categories', labelField: 'name' },
     { slug: 'goal', label: 'goals', key: 'goals', labelField: 'name' },
     { slug: 'idea', label: 'ideas', key: 'ideas', labelField: 'title' },
   ]) {
