@@ -234,50 +234,9 @@ export async function createMssqlSchema(pool) {
 
 
 
-  await createTableIfNotExists(
-    pool,
-    "work_item_templates",
-    `
-    CREATE TABLE [MyWork].[work_item_templates] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      title NVARCHAR(255) NOT NULL,
-      description NVARCHAR(MAX),
-      emoji NVARCHAR(16),
-      source_id INT NULL,
-      status NVARCHAR(50) NOT NULL DEFAULT 'Not Started',
-      time_box_minutes INT NULL,
-      start_time VARCHAR(5) NULL,
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_templates_source FOREIGN KEY (source_id) REFERENCES [MyWork].[sources](id) ON DELETE SET NULL
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "work_item_templates");
-
-  // Backfill for work_item_templates created before these existed - see mysqlSchema.js
-  if (!(await columnExists(pool, "work_item_templates", "time_box_minutes"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_item_templates] ADD time_box_minutes INT NULL
-    `);
-  }
-  if (!(await columnExists(pool, "work_item_templates", "emoji"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_item_templates] ADD emoji NVARCHAR(16)
-    `);
-  }
-  if (!(await columnExists(pool, "work_item_templates", "start_time"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_item_templates] ADD start_time VARCHAR(5) NULL
-    `);
-  }
-  if (!(await columnExists(pool, "work_item_templates", "order_index"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[work_item_templates] ADD order_index INT DEFAULT 0
-    `);
-  }
-
+  // `work_item_templates` is RETIRED - see RETIRED_TABLES. A template is a
+  // `template` entity now; its CREATE, trigger and four backfills stood here.
+  // The twin removal is in mysqlSchema.js.
 
   // template_areas: recreated as a legacy<->entity bridge at the end of this file
 
@@ -534,7 +493,6 @@ export async function createMssqlSchema(pool) {
   const firstContextId = firstContextResult.recordset[0].id;
   const contextTables = [
     "sources",
-    "work_item_templates",
   ];
   // "work_items", "tickets", "priorities" and "tasks" were here until they were
   // retired - see RETIRED_TABLES. Leaving a dropped table in this list makes the
@@ -1262,9 +1220,6 @@ export async function createMssqlSchema(pool) {
     // builds and MSSQL.
     ["priority_areas", "priority_id", "entities", "area_id"],
     ["priority_goals", "priority_id", "entities", "goal_id"],
-    ["template_areas", "template_id", "work_item_templates", "area_id"],
-    ["template_goals", "template_id", "work_item_templates", "goal_id"],
-    ["template_priorities", "template_id", "work_item_templates", "priority_id"],
     // Todos, tasks and tickets are entities now too, so these three join a
     // work item to an `entities` row like the rest. They previously still
     // referenced the legacy to_dos/tasks/tickets tables while those tabs

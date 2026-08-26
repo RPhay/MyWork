@@ -51,14 +51,15 @@ const NEW_GENERIC_TABLES = [
 const REQUIRED_SUPPORT_TABLES = [
   // A day links to a row of any type through this one junction.
   'work_entity_associations',
-  // Legacy <-> entity bridges, live until `priorities` and the templates table
-  // become entities themselves.
-  'priority_areas', 'priority_goals', 'template_areas', 'template_goals',
-  'template_priorities', 'work_source_associations',
-  // The legacy table the bridges hang off. `work_items` was here too until it
-  // was retired on 2026-08-25 - leaving it would make verification report every
-  // healthy database as invalid for missing a table nothing creates any more.
-  'priorities',
+  // What is left of the legacy <-> entity bridge. Both columns of these two
+  // point at `entities` now; they go when Projects' own bridge does.
+  'priority_areas', 'priority_goals', 'work_source_associations',
+  // Retired, and REMOVED from this list with the table: `work_items` (08-25),
+  // `priorities` and `tasks` (08-26), and the three template_* bridges with
+  // `work_item_templates` (08-26). Leaving a retired table here makes
+  // verification report every healthy database as invalid, for missing a table
+  // nothing creates any more - which is what `priorities` was doing between
+  // being dropped this morning and this line being written.
 ];
 
 export async function analyzeAndMigrate() {

@@ -141,54 +141,10 @@ export async function createMysqlSchema(connection) {
 
 
 
-  // Create work_item_templates table (reusable daily presets with pre-associated
-  // categories/goals/priorities)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS work_item_templates (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      description LONGTEXT,
-      emoji VARCHAR(16),
-      source_id INT,
-      status VARCHAR(50) NOT NULL DEFAULT 'Not Started',
-      time_box_minutes INT,
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Backfill time_box_minutes for pre-existing work_item_templates tables
-  if (
-    !(await columnExists(connection, "work_item_templates", "time_box_minutes"))
-  ) {
-    await connection.query(
-      "ALTER TABLE work_item_templates ADD COLUMN time_box_minutes INT",
-    );
-  }
-
-  // Backfill emoji ("Oh!") for pre-existing work_item_templates tables
-  if (!(await columnExists(connection, "work_item_templates", "emoji"))) {
-    await connection.query(
-      "ALTER TABLE work_item_templates ADD COLUMN emoji VARCHAR(16)",
-    );
-  }
-
-  // Backfill start_time for pre-existing work_item_templates tables
-  if (!(await columnExists(connection, "work_item_templates", "start_time"))) {
-    await connection.query(
-      "ALTER TABLE work_item_templates ADD COLUMN start_time VARCHAR(5)",
-    );
-  }
-
-  // Backfill order_index for pre-existing work_item_templates tables
-  if (!(await columnExists(connection, "work_item_templates", "order_index"))) {
-    await connection.query(
-      "ALTER TABLE work_item_templates ADD COLUMN order_index INT DEFAULT 0",
-    );
-  }
-
+  // `work_item_templates` is RETIRED - see RETIRED_TABLES. A template is a
+  // `template` entity now: dailyTemplateService is a shim over entityService,
+  // and what its three junctions held is the template's hierarchy CHILDREN.
+  // Its CREATE and four column backfills stood here.
 
   // template_areas: recreated as a legacy<->entity bridge at the end of this file
 
@@ -474,7 +430,6 @@ export async function createMysqlSchema(connection) {
   );
   const contextTables = [
     "sources",
-    "work_item_templates",
   ];
   // "work_items", "tickets", "priorities" and "tasks" were here until they were
   // retired - see RETIRED_TABLES. Leaving a dropped table in this list makes the
@@ -1132,9 +1087,6 @@ export async function createMysqlSchema(connection) {
     // builds and MSSQL.
     ["priority_areas", "priority_id", "entities", "area_id"],
     ["priority_goals", "priority_id", "entities", "goal_id"],
-    ["template_areas", "template_id", "work_item_templates", "area_id"],
-    ["template_goals", "template_id", "work_item_templates", "goal_id"],
-    ["template_priorities", "template_id", "work_item_templates", "priority_id"],
   ];
 
   // ONE junction for every type, including types invented after this was

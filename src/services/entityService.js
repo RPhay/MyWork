@@ -69,13 +69,8 @@ export async function attachFieldValues(entityIds) {
 const BRIDGE_JUNCTION_COLUMNS = [
   ['priority_areas', 'area_id'],
   ['priority_goals', 'goal_id'],
-  ['template_areas', 'area_id'],
-  ['template_goals', 'goal_id'],
-  // priority_id is an ENTITY id here, not a `priorities` row - the junction
-  // was moved onto the entity bridge with its two neighbours. Without this
-  // line, purging a project would leave its template links behind on MSSQL,
-  // which does not cascade.
-  ['template_priorities', 'priority_id'],
+  // The three template_* bridges went with the Templates migration on
+  // 2026-08-26 - a template's contents are its hierarchy children now.
   ['work_entity_associations', 'entity_id'],
   // Since the Phase 10 work_items -> entities migration, daily_id is ALSO
   // an entities.id (a "day" is itself a work_item entity) - so purging a

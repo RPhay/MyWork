@@ -14,9 +14,6 @@ const INSERT_IGNORE_KEY_COLUMNS = {
   daily_entities: ["context_id", "date", "entity_id"],
   priority_areas: ["priority_id", "area_id"],
   priority_goals: ["priority_id", "goal_id"],
-  template_areas: ["template_id", "area_id"],
-  template_goals: ["template_id", "goal_id"],
-  template_priorities: ["template_id", "priority_id"],
   years: ["year"],
 };
 

@@ -1,250 +1,226 @@
-import * as db from '../database/connectionPool.js';
+// Templates, as `template` ENTITIES.
+//
+// This used to read and write `work_item_templates` and three junction tables
+// while the Templates RAIL rendered from `entities` - two stores for one idea.
+// A template made in the rail was invisible to Dailies' picker, and one made
+// from the picker never appeared in the rail.
+//
+// It is a shim over entityService now, keeping the shape /api/daily-templates
+// has always returned so Dailies' picker, child editor, drag-drop and emoji
+// endpoint keep working unchanged. That is the same move routes/api/toDos.js
+// made, and for the same reason: the callers are fine, it was the store that
+// was wrong.
+//
+// The legacy row's own columns live as FIELDS on the entity now
+// (description, emoji, status, start_time; time_box replaces
+// time_box_minutes), and the three association junctions become the template's
+// HIERARCHY CHILDREN. Both are flattened back to the old top-level shape on the
+// way out - see toLegacyShape.
+//
+// Hierarchy rather than `association`, for two reasons. The type rules already
+// permit template -> category/goal/priority as hierarchy and not as
+// association, and more importantly it is what the legacy junctions MEANT: the
+// rows attached to a template are what that template puts on a day. Making them
+// children means entityService.instantiateTemplate - which clones a template's
+// hierarchy children - stamps them out with no special case.
 import { NotFoundError, ValidationError } from '../config/errors.js';
-import * as dailyService from './dailyService.js';
 import { normalizeTimeBox } from './dailyService.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
 import * as entityService from './entityService.js';
+import * as entityRelationshipService from './entityRelationshipService.js';
+import * as entityTypeService from './entityTypeService.js';
+import { getActiveContextId } from './activeContextService.js';
 
-async function attachAssociations(templates) {
-  if (templates.length === 0) return templates;
+const TYPE = 'template';
 
-  const ids = templates.map(t => t.id);
-  const placeholders = ids.map(() => '?').join(',');
+/** What the template holds, grouped by type - what `categories`/`goals`/`priorities` were. */
+async function associationsFor(templateId, contextId) {
+  const children = await entityRelationshipService.getEntityChildren(templateId, contextId, 'hierarchy');
+  const out = { category: [], goal: [], priority: [] };
 
-  const [categoryRows, goalRows, priorityRows, allCategories, allPriorities] = await Promise.all([
-    // Areas and goals are entities now (Phases 2-3); template_areas /
-    // template_goals bridge the legacy templates table to them.
-    db.query(
-      `SELECT ta.template_id, a.id, a.title AS name
-       FROM template_areas ta
-       JOIN entities a ON ta.area_id = a.id
-       WHERE ta.template_id IN (${placeholders})`,
-      ids
-    ),
-    db.query(
-      `SELECT tg.template_id, g.id, g.title AS name
-       FROM template_goals tg
-       JOIN entities g ON tg.goal_id = g.id
-       WHERE tg.template_id IN (${placeholders})`,
-      ids
-    ),
-    db.query(
-      `SELECT tp.template_id, p.id, p.title
-       FROM template_priorities tp
-       JOIN entities p ON tp.priority_id = p.id
-       WHERE tp.template_id IN (${placeholders})`,
-      ids
-    ),
+  for (const child of children) {
+    const id = child.child_entity_id ?? child.id;
+    let row;
+    try {
+      row = await entityService.getEntityById(id, contextId);
+    } catch {
+      continue;                                   // the other end is gone
+    }
+    const type = await entityTypeService.getEntityType(row.entity_type_id);
+    if (out[type.slug]) out[type.slug].push(row);
+  }
+  return out;
+}
+
+/**
+ * The shape /api/daily-templates has always returned: the legacy row's columns
+ * at the top level, not tucked inside `fields`. Five frontend files read it
+ * that way and none of them needs to know the store changed.
+ */
+async function toLegacyShape(entity, contextId, paths) {
+  const f = entity.fields || {};
+  const assoc = await associationsFor(entity.id, contextId);
+  const name = (e) => ({ id: e.id, name: e.title, path: paths.category.get(e.id) || e.title });
+
+  return {
+    ...entity,
+    description: f.description ?? null,
+    emoji: f.emoji ?? null,
+    status: f.status ?? 'Not Started',
+    start_time: f.start_time ?? null,
+    time_box_minutes: f.time_box ?? null,
+    source_id: null,                              // sources never became entities
+    categories: assoc.category.map(name),
+    goals: assoc.goal.map((e) => ({ id: e.id, name: e.title })),
+    priorities: assoc.priority.map((e) => ({
+      id: e.id, title: e.title, path: paths.priority.get(e.id) || e.title,
+    })),
+  };
+}
+
+async function pathLookups() {
+  const [categories, priorities] = await Promise.all([
     entityService.getEntityPathLookup('category'),
     entityService.getEntityPathLookup('priority'),
   ]);
-
-  const categoryPaths = buildPathMap(allCategories);
-  const priorityPaths = buildPathMap(allPriorities, 'title');
-
-  return templates.map(template => ({
-    ...template,
-    categories: categoryRows.filter(r => r.template_id === template.id).map(r => ({ id: r.id, name: r.name, path: categoryPaths.get(r.id) || r.name })),
-    goals: goalRows.filter(r => r.template_id === template.id).map(r => ({ id: r.id, name: r.name })),
-    priorities: priorityRows.filter(r => r.template_id === template.id).map(r => ({ id: r.id, title: r.title, path: priorityPaths.get(r.id) || r.title })),
-  }));
+  return { category: buildPathMap(categories), priority: buildPathMap(priorities, 'title') };
 }
 
 export async function getAllTemplates(contextId) {
-  const templates = await db.query('SELECT * FROM work_item_templates WHERE context_id = ? ORDER BY order_index ASC, title ASC', [contextId]);
-  return attachAssociations(templates);
+  if (!contextId) contextId = await getActiveContextId();
+  const entities = await entityService.getAllEntities(TYPE, contextId);
+  const paths = await pathLookups();
+  return Promise.all(entities.map((e) => toLegacyShape(e, contextId, paths)));
 }
 
-export async function getTemplateById(id) {
-  const template = await db.queryOne('SELECT * FROM work_item_templates WHERE id = ?', [id]);
-  if (!template) {
-    throw new NotFoundError('Template not found');
+export async function getTemplateById(id, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  const entity = await entityService.getEntityById(id, contextId).catch(() => null);
+  if (!entity) throw new NotFoundError('Template not found');
+  return toLegacyShape(entity, contextId, await pathLookups());
+}
+
+/** Replace one kind of association wholesale, the way setAssociations did. */
+async function setAssociations(templateId, ids, contextId) {
+  const existing = await associationsFor(templateId, contextId);
+  const wanted = new Set((ids || []).map(Number));
+  const all = [...existing.category, ...existing.goal, ...existing.priority];
+
+  for (const row of all) {
+    if (!wanted.has(row.id)) continue;
+    wanted.delete(row.id);                        // already linked
   }
-  const [withAssociations] = await attachAssociations([template]);
-  return withAssociations;
-}
-
-async function setAssociations(table, column, templateId, ids) {
-  await db.query(`DELETE FROM ${table} WHERE template_id = ?`, [templateId]);
-  for (const id of ids) {
-    await db.insert(`INSERT INTO ${table} (template_id, ${column}) VALUES (?, ?)`, [templateId, id]);
+  for (const id of wanted) {
+    await entityRelationshipService.addRelationship(templateId, Number(id), 'hierarchy', contextId);
   }
 }
 
 export async function createTemplate(data, contextId) {
-  const { title, description, emoji, source_id, status, area_ids, goal_ids, priority_ids, time_box_minutes, start_time } = data;
+  const { title, description, emoji, status, area_ids, goal_ids, priority_ids, time_box_minutes, start_time } = data;
+  if (!title) throw new ValidationError('Template title is required');
+  if (!contextId) contextId = await getActiveContextId();
 
-  if (!title) {
+  const entity = await entityService.createEntity(TYPE, {
+    title,
+    fields: {
+      description: description ?? null,
+      emoji: emoji ?? null,
+      status: status || 'Not Started',
+      start_time: start_time || null,
+      time_box: normalizeTimeBox(time_box_minutes),
+    },
+  }, contextId);
+
+  for (const ids of [area_ids, goal_ids, priority_ids]) {
+    if (Array.isArray(ids) && ids.length) await setAssociations(entity.id, ids, contextId);
+  }
+  return getTemplateById(entity.id, contextId);
+}
+
+export async function updateTemplate(id, data, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  if (data.title !== undefined && !data.title) {
     throw new ValidationError('Template title is required');
   }
 
-  const orderResult = await db.queryOne('SELECT MAX(order_index) as maxOrder FROM work_item_templates WHERE context_id = ?', [contextId]);
-  const nextOrder = (orderResult?.maxOrder ?? -1) + 1;
+  const fields = {};
+  if (data.description !== undefined) fields.description = data.description ?? null;
+  if (data.emoji !== undefined) fields.emoji = data.emoji || null;
+  if (data.status !== undefined) fields.status = data.status || 'Not Started';
+  if (data.start_time !== undefined) fields.start_time = data.start_time || null;
+  if (data.time_box_minutes !== undefined) fields.time_box = normalizeTimeBox(data.time_box_minutes);
 
-  const templateId = await db.insert(
-    'INSERT INTO work_item_templates (title, description, emoji, source_id, status, time_box_minutes, start_time, order_index, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [title, description ?? null, emoji ?? null, source_id || null, status || 'Not Started', normalizeTimeBox(time_box_minutes), start_time || null, nextOrder, contextId]
-  );
+  const patch = {};
+  if (data.title !== undefined) patch.title = data.title;
+  if (Object.keys(fields).length) patch.fields = fields;
+  if (Object.keys(patch).length) await entityService.updateEntity(id, patch, contextId);
 
-  if (Array.isArray(area_ids) && area_ids.length > 0) {
-    await setAssociations('template_areas', 'area_id', templateId, area_ids);
+  for (const ids of [data.area_ids, data.goal_ids, data.priority_ids]) {
+    if (ids !== undefined) await setAssociations(id, Array.isArray(ids) ? ids : [], contextId);
   }
-  if (Array.isArray(goal_ids) && goal_ids.length > 0) {
-    await setAssociations('template_goals', 'goal_id', templateId, goal_ids);
-  }
-  if (Array.isArray(priority_ids) && priority_ids.length > 0) {
-    await setAssociations('template_priorities', 'priority_id', templateId, priority_ids);
-  }
-
-  return getTemplateById(templateId);
+  return getTemplateById(id, contextId);
 }
 
-export async function updateTemplate(id, data) {
-  const setClauses = [];
-  const values = [];
-
-  if (data.title !== undefined) {
-    if (!data.title) {
-      throw new ValidationError('Template title is required');
-    }
-    setClauses.push('title = ?');
-    values.push(data.title);
-  }
-  if (data.description !== undefined) {
-    setClauses.push('description = ?');
-    values.push(data.description ?? null);
-  }
-  if (data.emoji !== undefined) {
-    setClauses.push('emoji = ?');
-    values.push(data.emoji || null);
-  }
-  if (data.source_id !== undefined) {
-    setClauses.push('source_id = ?');
-    values.push(data.source_id || null);
-  }
-  if (data.status !== undefined) {
-    setClauses.push('status = ?');
-    values.push(data.status || 'Not Started');
-  }
-  if (data.time_box_minutes !== undefined) {
-    setClauses.push('time_box_minutes = ?');
-    values.push(normalizeTimeBox(data.time_box_minutes));
-  }
-  if (data.start_time !== undefined) {
-    setClauses.push('start_time = ?');
-    values.push(data.start_time || null);
-  }
-
-  if (setClauses.length > 0) {
-    values.push(id);
-    await db.update(`UPDATE work_item_templates SET ${setClauses.join(', ')} WHERE id = ?`, values);
-  }
-
-  if (data.area_ids !== undefined) {
-    await setAssociations('template_areas', 'area_id', id, Array.isArray(data.area_ids) ? data.area_ids : []);
-  }
-  if (data.goal_ids !== undefined) {
-    await setAssociations('template_goals', 'goal_id', id, Array.isArray(data.goal_ids) ? data.goal_ids : []);
-  }
-  if (data.priority_ids !== undefined) {
-    await setAssociations('template_priorities', 'priority_id', id, Array.isArray(data.priority_ids) ? data.priority_ids : []);
-  }
-
-  return getTemplateById(id);
-}
-
-export async function deleteTemplate(id) {
-  const affectedRows = await db.deleteRecord('DELETE FROM work_item_templates WHERE id = ?', [id]);
-  return affectedRows > 0;
+export async function deleteTemplate(id, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  await entityService.deleteEntity(id, contextId);
+  return true;
 }
 
 const VALID_STATUSES = ['Not Started', 'In Progress', 'Complete'];
 
-export async function updateTemplateStatus(id, status) {
-  if (!VALID_STATUSES.includes(status)) {
-    throw new ValidationError('Invalid status value');
-  }
-
-  await db.update('UPDATE work_item_templates SET status = ? WHERE id = ?', [status, id]);
-  return getTemplateById(id);
+export async function updateTemplateStatus(id, status, contextId = null) {
+  if (!VALID_STATUSES.includes(status)) throw new ValidationError('Invalid status value');
+  return updateTemplate(id, { status }, contextId);
 }
 
-export async function reorderTemplates(orderedIds) {
-  for (let i = 0; i < orderedIds.length; i++) {
-    await db.update('UPDATE work_item_templates SET order_index = ? WHERE id = ?', [i, orderedIds[i]]);
-  }
+export async function reorderTemplates(orderedIds, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+  await entityService.reorderEntitiesBySiblings(orderedIds.map(Number), contextId);
 }
 
-export async function updateTemplateEmoji(id, emoji) {
-  await db.update('UPDATE work_item_templates SET emoji = ? WHERE id = ?', [emoji || null, id]);
-  return getTemplateById(id);
+export async function updateTemplateEmoji(id, emoji, contextId = null) {
+  return updateTemplate(id, { emoji }, contextId);
 }
 
-export async function updateTemplateTimeBox(id, timeBoxMinutes) {
-  await db.update('UPDATE work_item_templates SET time_box_minutes = ? WHERE id = ?', [normalizeTimeBox(timeBoxMinutes), id]);
-  return getTemplateById(id);
+export async function updateTemplateTimeBox(id, timeBoxMinutes, contextId = null) {
+  return updateTemplate(id, { time_box_minutes: timeBoxMinutes }, contextId);
 }
 
-export async function addCategoryAssociation(templateId, categoryId) {
-  await db.query('INSERT IGNORE INTO template_areas (template_id, area_id) VALUES (?, ?)', [templateId, categoryId]);
-  return getTemplateById(templateId);
+async function link(templateId, otherId, contextId) {
+  if (!contextId) contextId = await getActiveContextId();
+  await entityRelationshipService.addRelationship(templateId, Number(otherId), 'hierarchy', contextId);
+  return getTemplateById(templateId, contextId);
 }
 
-export async function removeCategoryAssociation(templateId, categoryId) {
-  await db.deleteRecord('DELETE FROM template_areas WHERE template_id = ? AND area_id = ?', [templateId, categoryId]);
+async function unlink(templateId, otherId, contextId) {
+  if (!contextId) contextId = await getActiveContextId();
+  await entityRelationshipService.removeRelationship(templateId, Number(otherId), 'hierarchy', contextId);
 }
 
-export async function addGoalAssociation(templateId, goalId) {
-  await db.query('INSERT IGNORE INTO template_goals (template_id, goal_id) VALUES (?, ?)', [templateId, goalId]);
-  return getTemplateById(templateId);
-}
+export const addCategoryAssociation = (t, id, c) => link(t, id, c);
+export const removeCategoryAssociation = (t, id, c) => unlink(t, id, c);
+export const addGoalAssociation = (t, id, c) => link(t, id, c);
+export const removeGoalAssociation = (t, id, c) => unlink(t, id, c);
+export const addPriorityAssociation = (t, id, c) => link(t, id, c);
+export const removePriorityAssociation = (t, id, c) => unlink(t, id, c);
 
-export async function removeGoalAssociation(templateId, goalId) {
-  await db.deleteRecord('DELETE FROM template_goals WHERE template_id = ? AND goal_id = ?', [templateId, goalId]);
-}
+/**
+ * Stamp the template out onto a day.
+ *
+ * entityService.instantiateTemplate already does this entity-natively: it makes
+ * the daily and CLONES the template's hierarchy children onto it. Since the
+ * legacy associations are those children now, everything a template holds is
+ * stamped out with no special case.
+ */
+export async function instantiateTemplate(templateId, date, contextId = null) {
+  if (!date) throw new ValidationError('A date is required to create a work item from a template');
+  if (!contextId) contextId = await getActiveContextId();
 
-export async function addPriorityAssociation(templateId, priorityId) {
-  await db.query('INSERT IGNORE INTO template_priorities (template_id, priority_id) VALUES (?, ?)', [templateId, priorityId]);
-  return getTemplateById(templateId);
-}
-
-export async function removePriorityAssociation(templateId, priorityId) {
-  await db.deleteRecord('DELETE FROM template_priorities WHERE template_id = ? AND priority_id = ?', [templateId, priorityId]);
-}
-
-export async function instantiateTemplate(templateId, date) {
-  if (!date) {
-    throw new ValidationError('A date is required to create a work item from a template');
-  }
-
-  const template = await getTemplateById(templateId);
-
-  // Goes through dailyService.createWorkItem rather than a raw INSERT, now
-  // that a work item is an `entities` row - createWorkItem already computes
-  // the per-date order and writes the date/description/emoji/status/time-box
-  // fields.
-  const created = await dailyService.createWorkItem({
-    date,
-    title: template.title,
-    description: template.description,
-    emoji: template.emoji,
-    status: template.status || 'Not Started',
-    time_box_minutes: template.time_box_minutes,
-    source_id: template.source_id,
-  }, template.context_id);
-  const dailyId = created.id;
-
-  // categories, goals and priorities are all ENTITIES (getTemplateById joins each
-  // bridge junction to `entities`), so all three land in the one junction that
-  // links a day to a row of any type. This replaces three per-type inserts into
-  // tables that no longer exist in either schema file.
-  let order = 0;
-  for (const row of [...template.categories, ...template.goals, ...template.priorities]) {
-    await db.query(
-      'INSERT IGNORE INTO work_entity_associations (daily_id, entity_id, order_index) VALUES (?, ?, ?)',
-      [dailyId, row.id, order++]
-    );
-  }
-
-  return dailyService.getWorkItemById(dailyId);
+  // No special case for the template's categories/goals/priorities: they ARE
+  // its hierarchy children now, and instantiateTemplate clones those onto the
+  // day already. The legacy version had to copy them separately because a
+  // legacy template had no children of its own.
+  const result = await entityService.instantiateTemplate(templateId, date, contextId);
+  return entityService.getEntityById(result.dailyId, contextId);
 }

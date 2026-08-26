@@ -18,6 +18,13 @@ export const RETIRED_TABLES = [
   // Child before parent: to_do_items references to_dos.
   'to_do_items',
   'to_dos',
+  // The legacy Templates stack, retired 2026-08-26. A template is a `template`
+  // entity now: dailyTemplateService is a shim over entityService, and what
+  // these three junctions held is the template's hierarchy CHILDREN.
+  'template_areas',
+  'template_goals',
+  'template_priorities',
+  'work_item_templates',
 ];
 
 /**

@@ -432,6 +432,18 @@ export const SYSTEM_ENTITY_TYPES = [
     primary_date_field: null,
     fields: [
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
+      // What a template row used to hold in `work_item_templates`. A template
+      // is a `template` entity now and nothing else, so the entity has to be
+      // able to carry everything the legacy row did - otherwise instantiating
+      // one loses its description, its emoji and its start time.
+      //
+      // `status` is here because a template row has always had one, and the
+      // Templates rail renders it. `time_box` is NOT - a template has no
+      // duration of its own, which is the same reason it is absent below.
+      { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false },
+      { field_key: 'emoji', label: 'Emoji', field_type: 'emoji', required: false, show_in_row: true },
+      { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
+      { field_key: 'start_time', label: 'Start Time', field_type: 'text', required: false, show_in_row: false },
       // Templates carry the engine block like every other type - a template can
       // be pinned to the focus bar and placed on the priorities board.
       //
