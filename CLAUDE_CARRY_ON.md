@@ -44,6 +44,16 @@ the second half of that rule is only affordable because the suite is green.
 
 ### Open
 
+- **The MSSQL install has UNMIGRATED legacy rows.** Every
+  `scripts/phaseN-migrate-*.js` is MySQL-only and says so, so that machine's
+  `work_items` (29 rows), `tasks`, `priorities` and `to_dos` never became
+  entities - and every service reads `entities` now, so those records are in the
+  database and invisible in the app. "Drop Retired Tables" REFUSES them, which
+  is how it was found and exactly what that guard is for. Do not force it.
+  `scripts/migrate-legacy-to-entities.js` runs on either engine and moves them;
+  dry-run first, and back up before `--apply`.
+
+
 - **Nothing of the legacy kind is left.** Every one of the 18 remaining tables
   is read by code, and none is a bridge or a pre-entity store. If a table ever
   looks dead again, `inspectRetiredTables()` and the "Drop Retired Tables"
