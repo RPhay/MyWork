@@ -136,11 +136,17 @@ function createTypeListItem(type, isReadonly) {
       }
     });
 
-    item.addEventListener('click', (e) => {
-      if (e.target.closest('.type-visible-toggle, .type-drag-handle, .type-revert-btn')) return;
-      window.openEntityTypeEditor(type.id);
-    });
   }
+
+  // Outside the block above on purpose: a read-only type opens the editor too.
+  // Being unable to CHANGE a type is not a reason to be unable to LOOK at it -
+  // its fields, its icon and its labels are worth reading, and until now the
+  // only way to see them was the API. The editor disables itself for these; see
+  // applyReadOnly in entity-type-editor.js.
+  item.addEventListener('click', (e) => {
+    if (e.target.closest('.type-visible-toggle, .type-drag-handle, .type-revert-btn')) return;
+    window.openEntityTypeEditor(type.id);
+  });
 
   // Outside the block above on purpose: read-only types get this too.
   item.querySelector('.type-revert-btn')?.addEventListener('click', async (e) => {

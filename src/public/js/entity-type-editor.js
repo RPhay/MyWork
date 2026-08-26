@@ -195,6 +195,11 @@ function showEntityTypeEditorModal(type) {
       addFieldRow(field);
     });
   }
+
+  // LAST, after the field rows exist. Called before them it disabled the seven
+  // controls in the form's header and left the ninety-odd inside the fields
+  // untouched, which looks locked and is not.
+  applyReadOnly(type);
 }
 
 // Which roll-up modes make sense per field type. A type absent from this table
@@ -652,6 +657,13 @@ async function loadTypeRelationships(type) {
         childList.appendChild(childCheck);
       });
     }
+
+    // These checkboxes arrive from their own fetch, LONG after the form was
+    // built, so a read-only pass done at render time never sees them. Re-apply
+    // here or a read-only type shows eighteen live checkboxes in an otherwise
+    // locked editor - which is worse than not locking it at all, because it
+    // looks safe.
+    applyReadOnly(type);
   } catch (error) {
     console.error('Error loading types:', error);
   }
@@ -836,6 +848,53 @@ async function saveEntityType() {
   } catch (error) {
     console.error('Error saving entity type:', error);
     app.notify('Error saving entity type', 'danger');
+  }
+}
+
+/**
+ * A read-only type opens for LOOKING, not for changing.
+ *
+ * The split is the same one the Settings lists use: `type_category` other than
+ * `editable` - Templates and the external integrations. They can be read, and
+ * nothing in the form can be touched.
+ *
+ * Disabled rather than hidden. Hiding the controls would hide the VALUES with
+ * them, and the values are the reason to open it: which fields a Template has,
+ * what its icon is, whether it nests. A disabled input still shows what it
+ * holds.
+ *
+ * Save and Delete go, because neither can do anything here. Cancel stays - it
+ * is the way out.
+ */
+function applyReadOnly(type) {
+  const readOnly = Boolean(type?.type_category) && type.type_category !== 'editable';
+  const pane = document.getElementById('entityType-editor-pane');
+  const actions = document.getElementById('entityTypeEditorActions');
+  if (!pane || !actions) return;
+
+  pane.classList.toggle('type-editor-readonly', readOnly);
+  if (!readOnly) return;
+
+  for (const el of pane.querySelectorAll('input, select, textarea, button')) {
+    el.disabled = true;
+  }
+  // Field rows are drag-sortable; a read-only type must not be reordered either.
+  for (const row of pane.querySelectorAll('.field-row')) {
+    row.draggable = false;
+  }
+  for (const id of ['entityTypeSaveBtn', 'entityTypeDeleteBtn']) {
+    const btn = document.getElementById(id);
+    if (btn) btn.style.display = 'none';
+  }
+  // Idempotent: this runs once after the fields render and again after the
+  // relationship checkboxes arrive from their own fetch, and a banner that
+  // appears twice is its own small bug.
+  if (!pane.querySelector('.type-editor-readonly-note')) {
+    const note = document.createElement('div');
+    note.className = 'alert alert-secondary py-2 px-3 mb-3 type-editor-readonly-note';
+    note.innerHTML = '<i class="bi bi-lock"></i> This type is read-only. '
+      + 'You can see how it is set up, but not change it here.';
+    pane.prepend(note);
   }
 }
 

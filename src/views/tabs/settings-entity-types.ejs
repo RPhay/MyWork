@@ -115,13 +115,22 @@
     opacity: 0.55;
   }
 
-  .type-list-item.readonly {
-    cursor: default;
-    opacity: 0.8;
+  /* A locked editor should LOOK locked. Bootstrap's switches stay fully
+     coloured when disabled, so a read-only type's toggles read as live
+     controls even though nothing happens when they are clicked. */
+  .type-editor-readonly .form-check-input,
+  .type-editor-readonly .form-select,
+  .type-editor-readonly .form-control,
+  .type-editor-readonly button {
+    opacity: 0.6;
   }
 
-  .type-list-item.readonly:hover {
-    background-color: #fff;
+  /* Clickable: a read-only type opens the editor to be READ. The dimming stays
+     to say it cannot be changed, but `cursor: default` and the killed hover
+     said "nothing happens here", which is no longer true. */
+  .type-list-item.readonly {
+    cursor: pointer;
+    opacity: 0.8;
   }
 
   .type-list-item-left {
