@@ -95,6 +95,9 @@ function showSystemDbConfigured(dbType, config) {
           <button type="button" class="btn btn-sm btn-primary me-2" id="analyzeAndMigrateBtn" title="Analyze database and perform safe migrations">
             <i class="bi bi-magic"></i> Analyze & Migrate
           </button>
+          <button type="button" class="btn btn-sm btn-outline-danger me-2" id="dropRetiredTablesBtn" title="Drop the legacy tables the app no longer reads. You are shown exactly which tables and how many rows before anything happens, and any table still holding rows that never became entities is refused.">
+            <i class="bi bi-eraser"></i> Drop Retired Tables
+          </button>
           <button type="button" class="btn btn-sm btn-danger" id="removeSystemDbBtn">
             <i class="bi bi-trash"></i> Remove
           </button>
@@ -108,6 +111,7 @@ function showSystemDbConfigured(dbType, config) {
     showSystemDbEditForm(dbType, config);
   });
   document.getElementById("analyzeAndMigrateBtn").addEventListener("click", analyzeAndMigrate);
+  document.getElementById("dropRetiredTablesBtn").addEventListener("click", dropRetiredTables);
   document.getElementById("removeSystemDbBtn").addEventListener("click", removeSystemDbConfig);
 }
 
@@ -445,4 +449,71 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initSystemDatabase);
 } else {
   initSystemDatabase();
+}
+
+// Drop the legacy tables nothing reads any more.
+//
+// Destructive and irreversible, so it asks twice over: it LOOKS first and
+// shows exactly which tables are there and how many rows each holds, then
+// requires an explicit yes. A confirmation that cannot name what it is about
+// to destroy is not really a confirmation.
+//
+// The server refuses independently of anything answered here - a table holding
+// rows that never became entities is never dropped, whatever the user clicks.
+async function dropRetiredTables() {
+  const btn = document.getElementById("dropRetiredTablesBtn");
+  const statusEl = document.getElementById("systemDbSchemaStatus");
+  const original = btn.innerHTML;
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Checking...';
+  try {
+    const look = await (await app.fetchRaw('/api/system-database/retired-tables')).json();
+    if (!look.success) {
+      app.notify('Could not check: ' + look.message, 'danger');
+      return;
+    }
+    const report = look.data;
+
+    if (report.presentCount === 0) {
+      statusEl.innerHTML = '<div class="alert alert-success py-2 px-3"><i class="bi bi-check-circle"></i> No retired tables are present - nothing to drop.</div>';
+      return;
+    }
+
+    const lines = report.tables
+      .filter(t => t.present)
+      .map(t => `  ${t.table} - ${t.rows} row${t.rows === 1 ? '' : 's'}${t.safe ? '' : `  (REFUSED: ${t.reason})`}`);
+
+    const blocked = report.blocked.length
+      ? `\n\n${report.blocked.length} table(s) will NOT be dropped, because they still hold rows that never became entities.`
+      : '';
+
+    const ok = await app.confirm(
+      `This permanently drops ${report.droppable.length} table(s) and the ${report.totalRows} row(s) in them. It cannot be undone.\n\n`
+      + `${lines.join('\n')}${blocked}\n\nAre you sure you really want to do this?`,
+      'Drop retired tables?'
+    );
+    if (!ok) return;
+
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Dropping...';
+    const res = await (await app.fetchRaw('/api/system-database/retired-tables/drop', { method: 'POST' })).json();
+    const d = res.data || {};
+
+    const parts = [];
+    if (d.dropped?.length) parts.push(`Dropped: ${d.dropped.map(x => x.table).join(', ')}`);
+    if (d.refused?.length) parts.push(`Refused: ${d.refused.map(x => `${x.table} (${x.reason})`).join('; ')}`);
+    if (d.failed?.length) parts.push(`Failed: ${d.failed.map(x => `${x.table} (${x.message})`).join('; ')}`);
+
+    statusEl.innerHTML = `<div class="alert alert-${res.success ? 'success' : 'warning'} py-2 px-3">`
+      + `<i class="bi bi-${res.success ? 'check-circle' : 'exclamation-triangle'}"></i> ${res.message}`
+      + (parts.length ? `<div class="small mt-2">${parts.join('<br>')}</div>` : '')
+      + '</div>';
+    app.notify(res.message, res.success ? 'success' : 'warning');
+  } catch (error) {
+    console.error('Error dropping retired tables:', error);
+    app.notify('Error dropping retired tables', 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
 }

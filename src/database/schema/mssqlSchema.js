@@ -20,6 +20,7 @@
 // The entity types, their fields and their relationship rules come from
 // ../systemEntityTypes.js, shared with mysqlSchema.js and phase 0. This file
 // used to carry its own copies, which had drifted to pre-convergence values.
+import { RETIRED_TABLES, LEGACY_TABLE_TYPE } from '../retiredTables.js';
 import {
   SYSTEM_ENTITY_TYPES,
   SPECIAL_ENTITY_TYPES,
@@ -62,24 +63,8 @@ async function columnExists(pool, tableName, columnName) {
   return result.recordset[0].cnt > 0;
 }
 
-// A column can't be dropped while a FOREIGN KEY still references it, so drop
-// any such constraint(s) first - mirrors mysqlSchema.js's dropForeignKeysOnColumn.
-async function dropForeignKeysOnColumn(pool, tableName, columnName) {
-  const result = await pool.request().query(`
-    SELECT fk.name AS fkName
-    FROM sys.foreign_key_columns fkc
-    JOIN sys.foreign_keys fk ON fk.object_id = fkc.constraint_object_id
-    JOIN sys.columns c ON c.object_id = fkc.parent_object_id AND c.column_id = fkc.parent_column_id
-    WHERE fkc.parent_object_id = OBJECT_ID('[MyWork].[${tableName}]') AND c.name = '${columnName}'
-  `);
-  for (const row of result.recordset) {
-    await pool
-      .request()
-      .query(
-        `ALTER TABLE [MyWork].[${tableName}] DROP CONSTRAINT [${row.fkName}]`,
-      );
-  }
-}
+// dropForeignKeysOnColumn lived here. Its callers were the column-level
+// migrations on `priorities` and `tasks`, which went with those tables.
 
 async function createTriggerIfNotExists(pool, triggerName, ddl) {
   const result = await pool
@@ -1470,7 +1455,9 @@ async function renameLegacyColumns(pool) {
 // `tasks` and `priorities` join the list: both are fully migrated to entities
 // and nothing in src/ reads either. See the fuller note in mysqlSchema.js.
 // `to_do_items` before `to_dos`: the child references the parent.
-const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorities", "to_do_items", "to_dos"];
+// RETIRED_TABLES and LEGACY_TABLE_TYPE are imported from
+// ../retiredTables.js - one list, shared with the service behind the
+// "Drop Retired Tables" button so a third copy cannot drift.
 
 // See the matching note in mysqlSchema.js. This matters MORE on SQL Server:
 // phase10-migrate-work-items.js is MySQL-only, so an MSSQL install has to have
@@ -1489,7 +1476,7 @@ async function workItemsSafeToDrop(pool) {
 // Rows of a legacy table that never made it into `entities`. The twin of the
 // guard in mysqlSchema.js: matched on TITLE, because only Dailies left a legacy
 // id column behind, so it is used only for tables no code reads at all.
-const LEGACY_TABLE_TYPE = { tasks: "task", priorities: "priority", to_dos: "to_do" };
+
 
 async function legacyTableSafeToDrop(pool, table) {
   const typeSlug = LEGACY_TABLE_TYPE[table];

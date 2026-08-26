@@ -71,4 +71,37 @@ router.post('/schema/analyze-and-migrate', async (req, res) => {
   }
 });
 
+// Retired tables: what is still there, and dropping it.
+//
+// Two endpoints on purpose. The GET is what the confirmation is built from -
+// the user is shown the table names and their row counts BEFORE agreeing to
+// anything, which a schema run cannot offer because by the time it reports,
+// the tables are already gone.
+router.get('/retired-tables', async (req, res) => {
+  try {
+    const retiredTablesService = await import('../../services/retiredTablesService.js');
+    const report = await retiredTablesService.inspectRetiredTables();
+    res.json({ success: true, data: report });
+  } catch (error) {
+    logger.error('Error inspecting retired tables:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/retired-tables/drop', async (req, res) => {
+  try {
+    const retiredTablesService = await import('../../services/retiredTablesService.js');
+    const report = await retiredTablesService.dropRetiredTables();
+    const n = report.dropped.length;
+    res.json({
+      success: report.failed.length === 0,
+      data: report,
+      message: n === 0 ? 'Nothing to drop' : `Dropped ${n} retired table${n === 1 ? '' : 's'}`,
+    });
+  } catch (error) {
+    logger.error('Error dropping retired tables:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

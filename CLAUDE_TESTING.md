@@ -58,6 +58,7 @@ npx playwright test \
   tests/e2e/generic-entity-engine.spec.js \
   tests/e2e/entity-type-integrity.spec.js \
   tests/e2e/type-editor-roundtrip.spec.js \
+  tests/e2e/retired-tables-drop.spec.js \
   tests/e2e/entity-field-types.spec.js \
   tests/e2e/entity-editor-behaviour.spec.js \
   tests/e2e/editable-types-comprehensive.spec.js \
@@ -121,6 +122,7 @@ them before every push.
 | `generic-entity-engine` | The entity API itself: create, read, update, delete, relationships |
 | `entity-type-integrity` | Every field type in use has a renderer, an editor option, a label and an ENUM entry |
 | `type-editor-roundtrip` | Opening a type and pressing Save changes NOTHING that was already set |
+| `retired-tables-drop` | "Drop Retired Tables" asks first, and REFUSES a table holding unmigrated rows |
 | `entity-field-types` | `url` / `links` / `status` / `recurrence` behaviour |
 | `entity-editor-behaviour` | Editor opens/stays open, save/revert enablement, legend alignment |
 | `editable-types-comprehensive` | Every editable type through create, edit and expand/collapse (30 tests) |

@@ -10,6 +10,7 @@
 // fresh install actually got. They had drifted to pre-convergence values
 // (goal/task/ticket flat, template hierarchical, folder-like icons), which is
 // why those settings kept reverting after a schema run.
+import { RETIRED_TABLES, LEGACY_TABLE_TYPE } from '../retiredTables.js';
 import {
   SYSTEM_ENTITY_TYPES,
   resolveTypeRelationships,
@@ -24,18 +25,8 @@ async function columnExists(connection, table, column) {
   return rows[0].cnt > 0;
 }
 
-async function dropForeignKeysOnColumn(connection, table, column) {
-  const [rows] = await connection.query(
-    `SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL`,
-    [table, column],
-  );
-  for (const row of rows) {
-    await connection.query(
-      `ALTER TABLE \`${table}\` DROP FOREIGN KEY \`${row.CONSTRAINT_NAME}\``,
-    );
-  }
-}
+// dropForeignKeysOnColumn lived here. Its callers were the column-level
+// migrations on `priorities` and `tasks`, which went with those tables.
 
 async function indexExists(connection, table, indexName) {
   const [rows] = await connection.query(
@@ -1281,7 +1272,9 @@ async function renameLegacyColumns(connection) {
 //     which reportingService used to build the "Todos & Ideas" report - so
 //     that report returned every Idea and not one Todo. It reads to_do
 //     ENTITIES now and toDoService is deleted.
-const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorities", "to_do_items", "to_dos"];
+// RETIRED_TABLES and LEGACY_TABLE_TYPE are imported from
+// ../retiredTables.js - one list, shared with the service behind the
+// "Drop Retired Tables" button so a third copy cannot drift.
 
 // Rows of a legacy table that never made it into `entities`.
 //
@@ -1290,7 +1283,7 @@ const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorit
 // (`legacy_daily_id`). Weaker evidence, so it is used only for tables that no
 // code reads at all - a stale row nobody queries costs nothing, and dropping
 // one that was never migrated cannot be undone.
-const LEGACY_TABLE_TYPE = { tasks: "task", priorities: "priority", to_dos: "to_do" };
+
 
 async function legacyTableSafeToDrop(connection, table) {
   const typeSlug = LEGACY_TABLE_TYPE[table];
