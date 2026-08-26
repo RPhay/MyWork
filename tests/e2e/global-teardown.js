@@ -27,6 +27,8 @@ export default async function globalTeardown() {
     return;
   }
 
+  await sweepTestFields();
+
   if (!rows.length) return;
 
   const ids = rows.map((r) => r.id).join(',');
@@ -41,5 +43,39 @@ export default async function globalTeardown() {
     console.log(`[teardown] swept ${rows.length} leftover ZZZ row(s)`);
   } catch (err) {
     console.warn(`[teardown] sweep failed: ${err.message}`);
+  }
+}
+
+/**
+ * Field DEFINITIONS a spec added to an existing type and never removed.
+ *
+ * field-sync-matrix adds one field per interactive type and deletes them in a
+ * `finally`, which is correct and still not enough: the delete runs through
+ * `page.evaluate`, and when that test hits its 180s timeout the page goes away
+ * before the finally can finish. Six of them - zzz_status, zzz_priority,
+ * zzz_check, zzz_select, zzz_radio, zzz_emojis - were left on the Ideas type.
+ *
+ * That is worse than a leftover row. A stray field definition changes what
+ * every Ideas row RENDERS: `zzz_priority` gave every row a second priority
+ * cell, so priority-field.spec asked for one and found two, and the failure
+ * read as a duplicate-rendering bug in the engine.
+ *
+ * Matched on the `zzz` key prefix, the same convention as the titles.
+ */
+async function sweepTestFields() {
+  try {
+    const fields = await query(
+      "SELECT id, field_key FROM entity_type_fields WHERE field_key LIKE 'zzz%'",
+    );
+    if (!fields.length) return;
+    const keys = fields.map((f) => f.field_key);
+    const placeholders = keys.map(() => '?').join(',');
+    await query(`DELETE FROM entity_field_values WHERE field_key IN (${placeholders})`, keys);
+    await query(
+      `DELETE FROM entity_type_fields WHERE id IN (${fields.map((f) => f.id).join(',')})`,
+    );
+    console.log(`[teardown] swept ${fields.length} leftover test field definition(s)`);
+  } catch (err) {
+    console.warn(`[teardown] field sweep failed: ${err.message}`);
   }
 }
