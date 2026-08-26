@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { purgeByTitlePrefix } from './helpers/cleanup.js';
 
 /**
  * Global search and the command palette.
@@ -34,6 +35,18 @@ test.beforeEach(async ({ page }) => {
       if ((e.title || '').startsWith('ZZZ')) await j(`/api/entities/idea/${e.id}`, { method: 'DELETE' });
     }
   }, await page.evaluate(() => document.body.dataset.csrfToken));
+});
+
+// Teardown in a hook, and a HARD delete.
+//
+// Every test here used to end with `DELETE /api/entities/idea/:id`, which is a
+// SOFT delete - it stamps deleted_at and the row stays in the trash. So this
+// spec leaked its fixtures on a fully GREEN run, not on failure: the 159/159
+// guard run of 2026-08-25 left exactly the four ideas these tests create.
+// purgeByTitlePrefix makes both calls, and the hook means an early assertion
+// failure no longer skips it.
+test.afterEach(async ({ page }) => {
+  await purgeByTitlePrefix(page, 'idea', 'ZZZ');
 });
 
 const openPalette = async (page) => {

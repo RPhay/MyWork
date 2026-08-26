@@ -22,9 +22,24 @@ export async function purgeByTitlePrefix(page, typeSlug, prefix) {
 
     // Everything matching in the trash, including rows soft-deleted just above
     // and any left by an earlier run that died before its cleanup.
-    const trash = ((await (await fetch('/api/trash?limit=500')).json().catch(() => ({}))).data) || [];
-    for (const e of trash.filter(x => String(x.title || '').startsWith(prefix))) {
-      await fetch(`/api/trash/${e.id}`, { method: 'DELETE', headers });
+    //
+    // GET /api/trash returns BATCHES, not entities - `{ batch, deletedAt,
+    // items, lead, alsoRemoved }` - so a folder and its contents read as one
+    // undoable action. The titles are on `items`, one level down. This used to
+    // filter the batches themselves on `x.title`, a key they do not have, so it
+    // matched nothing and the hard delete never ran ONCE. Every spec relying on
+    // this helper soft-deleted its fixtures and left them in the user's trash;
+    // that is where the 83 rows of the 2026-08-25 baseline run came from.
+    //
+    // limit is capped server-side at 200 (getDeletedEntities), so asking for
+    // more than that achieves nothing.
+    const trash = ((await (await fetch('/api/trash?limit=200')).json().catch(() => ({}))).data) || [];
+    for (const batch of trash) {
+      for (const item of (batch.items || [])) {
+        if (String(item.title || '').startsWith(prefix)) {
+          await fetch(`/api/trash/${item.id}`, { method: 'DELETE', headers });
+        }
+      }
     }
     return purged.length;
   }, { typeSlug, prefix });

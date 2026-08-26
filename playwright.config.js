@@ -3,6 +3,25 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
 
+  // `retired/` is out of the suite, and this line is what puts it there.
+  //
+  // Its README says retirement works because the config "matches
+  // tests/e2e/*.spec.js, and this directory is one level down". That was never
+  // true - there is no testMatch here, so Playwright's default recurses, and
+  // every retired spec was still being collected. Five of them import a
+  // `./setup-test-data.js` that moved out from under them, so collection threw
+  // before a single test ran: `npx playwright test` could not run AT ALL.
+  //
+  // Nobody saw it because the guard set names its specs explicitly and never
+  // collects the rest. Only a full run reaches this, and a full run was the one
+  // thing that could not happen.
+  testIgnore: '**/retired/**',
+
+  // Sweeps leftover ZZZ rows once the suite ends. Specs still clean up after
+  // themselves; this catches what their hooks cannot, because a hook that
+  // cleans up through `page.evaluate` dies with the page a timeout tore down.
+  globalTeardown: './tests/e2e/global-teardown.js',
+
   // Serial, on purpose, and this is not a performance oversight.
   //
   // Every worker talks to the SAME database - there is one, and it holds the

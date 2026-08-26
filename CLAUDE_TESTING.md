@@ -124,7 +124,7 @@ Times are wall-clock on this machine. **Measured** = observed in a real run;
 | 5 | Drag | `drag-protocol`, `real-drag-drop`, `template-drops`, `dailies-drop`, `dailies-any-type`, `priorities-rail` | **~1.2m** | Anything touching drag sources, drop targets or `dragDropUtils.js` |
 | 6 | Guard set | The 15 specs above + `npm run test:unit` | **~13m** | Before a commit or push |
 | 7 | Guard + headed | Tier 6 + `editable-types --headed` | ~8m (est.) | Editable type pages or their engine — see "Editable types" |
-| 8 | Full suite | `npx playwright test` | **~12.3m** | Rarely. Mostly stale specs; the number needs a baseline to mean anything |
+| 8 | Full suite | `npx playwright test` | **~1.8h** | Rarely. Mostly stale specs; see the baseline below for what the number means |
 
 Tiers 4 and 5 deliberately overlap — a generic-engine change is usually both.
 
@@ -186,3 +186,46 @@ config error: `CLAUDE_TESTING_REFERENCE.md`.
 
 The guard set above is the list to trust; everything else is triage against a
 large stale baseline. Snapshot: `CLAUDE_TESTING_REFERENCE.md`.
+
+### Baseline, measured 2026-08-25
+
+**453 tests in 101 files, 1.8h, exit 1: 271 passed, 168 failed, 2 skipped,
+12 did not run.** The number to compare against is not the total - it is this:
+
+| | passed | failed |
+|---|---|---|
+| Guard set (17 files) | **178** | **0** |
+| Everything else (84 files) | 93 | 168 |
+
+**The guard set is green inside a full run.** Every failure in the suite is
+outside it. That is what makes the guard set worth trusting and the total
+worth ignoring.
+
+Before this, `npx playwright test` **could not run at all** - see the note on
+`testIgnore` in `playwright.config.js`. The "~12.3m" this table used to claim
+for tier 8 was not measurable against the tree it described.
+
+Three causes account for nearly every failure, and only the third is a defect:
+
+1. **Stale selectors** - the app changed, the spec did not. `dailies.spec.js`
+   (12), `comprehensive-test.spec.js` (10) and `editable-types-comprehensive.spec.js`
+   (48, a third of all failures) are the bulk of it. Retirement candidates.
+2. **A missing fixture type.** `dailies-any-type`, `reference-sync` and
+   `template-drops` POST to `/api/entities/tests`, a user-created type with
+   slug `tests` that DOES NOT EXIST in the database. The create returns no
+   `data`, so the spec throws `Cannot read properties of undefined (reading
+   'id')` - 12 failures across 5 files, all from one absent row. They cannot
+   create it themselves and delete it after, because deleting a TYPE is a soft
+   delete that reserves the slug permanently.
+3. **Genuine assertion failures worth reading** - `rollup-depth` ("a failed
+   grandchild must surface on the folder"), `time-box` ("all types carry one"),
+   `work-item-associations` ("associating a category should succeed"). These
+   state app behaviour, not selectors.
+
+**The run leaked 83 rows** (49 `ZZZ`, 34 named by stale specs that predate the
+convention). Six of the leakers - `template-drops`, `row-context-behaviour`,
+`rollup-depth`, `board-time`, `worked-time`, `time-box` - have a correct
+`afterEach` AND a hard delete, and leaked anyway: their cleanup runs through
+`page.evaluate`, so a test that times out takes the page and the teardown with
+it. That is why `global-teardown.js` exists, and why it talks to the database
+rather than the browser.

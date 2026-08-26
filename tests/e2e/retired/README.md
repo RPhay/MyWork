@@ -1,8 +1,17 @@
 # Retired specs
 
-These are not run. `playwright.config.js` matches `tests/e2e/*.spec.js`, and
-this directory is one level down, so moving a file here takes it out of the
-suite without deleting the record of what it once checked.
+These are not run, because `playwright.config.js` sets
+`testIgnore: '**/retired/**'`. Moving a file here takes it out of the suite
+without deleting the record of what it once checked.
+
+That line was added on 2026-08-25. Until then this file claimed retirement
+worked because "the config matches `tests/e2e/*.spec.js`, and this directory is
+one level down" - which was never true. There was no `testMatch`, only
+`testDir`, whose default pattern recurses, so every spec in here was still
+being collected. Five of them import a `./setup-test-data.js` that stayed
+behind in `tests/e2e/` when they moved, so collection threw and `npx playwright
+test` could not run AT ALL. Nobody noticed for as long as they did because the
+guard set names its specs explicitly and never collects this directory.
 
 ## Why each is here
 
