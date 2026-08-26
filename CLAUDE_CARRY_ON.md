@@ -44,17 +44,34 @@ the second half of that rule is only affordable because the suite is green.
 
 ### Open
 
-- **Column-fit reachability is an open QUESTION for the user.** At 1280 with the
-  editor open the list pane is about 560px, and controls like the AI toggle and
-  the priority cycler drop out - unreachable in the app, not only in tests. Five
-  specs needed a wider viewport because of it. That follows correctly from the
-  rule above; whether the editor pane should count against the fit budget the
-  same way has not been decided.
-- **The type editor's save path is still unaudited** - see the risk below. This
-  is the largest piece of unclaimed work.
-- **Still carrying old names:** `priority_areas`, `template_areas`,
-  `work_item_templates`. They belong to the legacy Templates stack, which is the
-  next thing that would become entities.
+- **The legacy Templates stack is the last migration left.**
+  `work_item_templates` and its junctions (`template_areas`, `template_goals`,
+  `template_priorities`) plus `dailyTemplateService.js` are what remain of the
+  pre-entity world. The Templates RAIL already renders from `entities`, so the
+  two halves coexist: Dailies' template picker, child editor, drag-drop and
+  emoji endpoint are on the legacy side. The three junctions were repointed at
+  `entities` on 2026-08-26, so only the template row itself is still legacy.
+  The old names (`priority_areas`, `template_areas`, `work_item_templates`) go
+  with it - renaming them before that is work done twice.
+- **A small unexplained thing, if anyone wants it.** Setting
+  `messageEl.style.whiteSpace` from `app._dialog` did not take effect, although
+  the assignment was in the served file and `app._dialog.toString()` contained
+  it. Worked around in `modals.css`, which is the better place for it anyway.
+  Nothing depends on the answer.
+
+### Closed on 2026-08-26 (was open)
+
+- **Column-fit reachability - NOT a defect.** Measured rather than argued:
+  editor CLOSED, nothing drops at 1280/1440/1920; editor OPEN at 1280, only
+  `priority` drops, and its control is in the editor pane taking that width. At
+  1440+ nothing drops at all. This file previously called it "unreachable in
+  the app", which was an overstatement - the specs needed wider viewports
+  because they click the CELL, which is a test constraint.
+- **The type editor save path is audited, and clean.** All eight seeded types
+  round-trip a save unchanged, as does a type carrying one field of every
+  renderable type. `type-editor-roundtrip.spec.js` guards it, and encodes the
+  one real behaviour found: an under-specified status field gets its roll-up
+  and doneValues FILLED IN, never overwritten.
 
 ### Risks worth carrying forward
 
