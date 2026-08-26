@@ -47,54 +47,100 @@ delete order needed to clean up by hand: `CLAUDE_TESTING_REFERENCE.md`.
 
 ## The guard set
 
-**This is the list. Run it to check a clean checkout, and after any change you
-intend to commit.** Lives here and nowhere else — `CLAUDE.md` imports this
-file, `CLAUDE_CARRY_ON.md` points at it rather than restating it.
+**Run this after any change you intend to commit, and the FULL SUITE before you
+push.** Lives here and nowhere else - `CLAUDE.md` imports this file, and
+`CLAUDE_CARRY_ON.md` points at it rather than restating it.
 
 ```bash
 npm run test:unit          # the MSSQL translation layer
 npx playwright test \
-  tests/e2e/generic-entity-crud.spec.js \
-  tests/e2e/entity-editor-behaviour.spec.js \
+  tests/e2e/schema-fix.spec.js \
+  tests/e2e/generic-entity-engine.spec.js \
   tests/e2e/entity-type-integrity.spec.js \
   tests/e2e/entity-field-types.spec.js \
-  tests/e2e/focus-bar.spec.js \
-  tests/e2e/search-palette.spec.js \
+  tests/e2e/entity-editor-behaviour.spec.js \
+  tests/e2e/editable-types-comprehensive.spec.js \
+  tests/e2e/rollup-depth.spec.js \
+  tests/e2e/time-box.spec.js \
+  tests/e2e/worked-time.spec.js \
+  tests/e2e/priority-field.spec.js \
+  tests/e2e/reporting.spec.js \
+  tests/e2e/dailies-root.spec.js \
   tests/e2e/recently-deleted.spec.js \
+  tests/e2e/search-palette.spec.js \
   tests/e2e/priorities-rail.spec.js \
+  tests/e2e/rail-selection.spec.js \
+  tests/e2e/column-fit.spec.js \
+  tests/e2e/column-reorder-editor-sync.spec.js \
   tests/e2e/row-icon-sizing.spec.js \
   tests/e2e/drag-protocol.spec.js \
-  tests/e2e/column-reorder-editor-sync.spec.js \
+  tests/e2e/context-folder-drag.spec.js \
+  tests/e2e/hover-help.spec.js \
   tests/e2e/debug.spec.js \
-  tests/e2e/ui-check.spec.js \
-  tests/e2e/rail-selection.spec.js \
-  tests/e2e/column-fit.spec.js
+  tests/e2e/ui-check.spec.js
 ```
 
-Plus, **headed**, whenever an editable type page or its engine is touched —
-see "Editable types" below for the command and file list.
+**~7 minutes.** The full suite is 26 and green, so this tier exists to be fast
+enough to run without thinking about it - not to be a substitute for the suite.
+
+### Why this list and not the old one
+
+The old set was chosen when everything outside it was noise, and it was never
+re-examined after that stopped being true. Measured on 2026-08-26, it cost 13.8
+of the suite's 26.1 minutes - 53% of the time for 50% of the tests, which is
+close to no saving at all - and, more to the point, it did not catch things.
+
+Nine specs found a REAL defect in the app on 2026-08-26. Eight of them were not
+in the guard set:
+
+| spec | was in the set? | what it found |
+|---|---|---|
+| `schema-fix` | no | four retired tables reported as MISSING |
+| `rollup-depth` | no | all 130 fields had `rollup = NULL`; folders rolled up nothing |
+| `dailies-root` | no | `dataset.dailyId` undefined across 14 call sites |
+| `time-box` | no | a user-created type got none of the engine's fields |
+| `worked-time` | no | Templates carrying a focus block they must not have |
+| `hover-help` | no | a control shipped with no hover help |
+| `priority-field` | no | a leaked test field gave every Ideas row two priority cells |
+| `reporting` | no | (added after: the report was missing half its rows and passed) |
+| `entity-type-integrity` | **yes** | field/type consistency |
+
+They are cheap. All ten promotions together cost **2.9 minutes** - `schema-fix`
+is one second, `generic-entity-engine` is three for eighteen tests.
+
+**`generic-entity-crud` (5.1m) and `focus-bar` (4.3m) are deliberately NOT
+here.** Between them they were 567 of the old set's 828 seconds - 89% of its
+cost. They are good specs and they stay in the suite; they are simply too slow
+to sit in a tier whose whole purpose is being run often. The full suite covers
+them before every push.
 
 | Spec | Guards |
 |---|---|
-| `generic-entity-crud.spec.js` | All typed pages through the one code path |
-| `entity-editor-behaviour.spec.js` | Editor opens/stays open, save/revert enablement, legend aligns with its switches |
-| `entity-type-integrity.spec.js` | Every field type in use has a renderer, an editor option, a display label and an ENUM entry |
-| `entity-field-types.spec.js` | `url` / `links` / `status` / `recurrence` behaviour |
-| `focus-bar.spec.js` | Pinning, the three-item cap, the timer |
-| `search-palette.spec.js` | ⌘K search over titles and field values |
-| `recently-deleted.spec.js` | Soft delete, restore, purge |
-| `priorities-rail.spec.js` | Board membership, placement, ordering |
-| `row-icon-sizing.spec.js` | Row control sizing against the delete button reference |
-| `drag-protocol.spec.js` | `dragDropUtils.js`'s globals resolve on every page that drags |
-| `column-reorder-editor-sync.spec.js` | Column order and editor field order stay one value |
-| `debug.spec.js` | CSP and console errors |
-| `ui-check.spec.js` | Tab structure |
-| `rail-selection.spec.js` | Which panes may share the screen, and the click-to-toggle rule |
-| `column-fit.spec.js` | Columns drop rather than collapse when the pane is narrow |
-| `editable-types.spec.js` | Per-type UI elements and folders (headed) |
-
-Why it's a merged list, and the traps it's caught in itself (read before
-writing a new spec, or when a result looks surprising): `CLAUDE_TESTING_REFERENCE.md`.
+| `schema-fix` | The three schema paths, and that no retired table is still expected |
+| `generic-entity-engine` | The entity API itself: create, read, update, delete, relationships |
+| `entity-type-integrity` | Every field type in use has a renderer, an editor option, a label and an ENUM entry |
+| `entity-field-types` | `url` / `links` / `status` / `recurrence` behaviour |
+| `entity-editor-behaviour` | Editor opens/stays open, save/revert enablement, legend alignment |
+| `editable-types-comprehensive` | Every editable type through create, edit and expand/collapse (30 tests) |
+| `rollup-depth` | A folder reflects its DESCENDANTS, and Failed dominates |
+| `time-box` | Every type carries a Time Box, one ladder of six |
+| `worked-time` | Worked Time on every type except Templates, and unremovable |
+| `priority-field` | Every type has one priority control, and it cycles |
+| `reporting` | The status report, and that Todos & Ideas contains both |
+| `dailies-root` | Records on the day itself, and dropping onto a daily |
+| `recently-deleted` | Soft delete, restore, purge |
+| `search-palette` | ⌘K search over titles and field values |
+| `priorities-rail` | Board membership, placement, ordering |
+| `rail-selection` | Which panes may share the screen, and the click-to-collapse rule |
+| `column-fit` | Columns drop rather than collapse when the pane is narrow |
+| `column-reorder-editor-sync` | Column order and editor field order stay one value |
+| `row-icon-sizing` | Row control sizing against the delete button reference |
+| `drag-protocol` | `dragDropUtils.js`'s globals resolve on every page that drags |
+| `context-folder-drag` | Context folders accept a drop |
+| `hover-help` | Every control that needs an explanation has one |
+| `debug` | CSP and console errors |
+| `ui-check` | Tab structure |
+| `editable-types.spec.js` | Per-type UI elements and folders (headed - see below) |
 
 ---
 
