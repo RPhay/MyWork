@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
 
+// The cell controls this spec clicks live in columns that DROP rather than
+// collapse when the pane is too narrow (genericEntity.fitColumns), and the
+// editor takes half of it. At 1280 the priority cell was present but not
+// visible, so the click timed out.
+test.use({ viewport: { width: 1900, height: 900 } });
+
 // Status and priority render as a hidden input PLUS a visible control (a badge,
 // a signal-bars meter). The row->editor direction used to set only the hidden
 // input, so changing a priority from the row's CELL left the editor's meter
