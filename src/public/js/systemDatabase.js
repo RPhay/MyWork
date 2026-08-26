@@ -480,33 +480,39 @@ async function dropRetiredTables() {
       return;
     }
 
-    const lines = report.tables
-      .filter(t => t.present)
-      .map(t => `  ${t.table} - ${t.rows} row${t.rows === 1 ? '' : 's'}${t.safe ? '' : `  (REFUSED: ${t.reason})`}`);
+    // One table per line, named in full - schema and table - because "tickets"
+    // alone does not say WHICH database is about to lose it, and this is the
+    // last thing shown before something irreversible.
+    const bullet = (t) => `  \u2022 ${t.qualified} \u2014 ${t.rows} row${t.rows === 1 ? '' : 's'}`
+      + (t.safe ? '' : `\n      REFUSED: ${t.reason}`);
 
-    const blocked = report.blocked.length
-      ? `\n\n${report.blocked.length} table(s) will NOT be dropped, because they still hold rows that never became entities.`
-      : '';
+    const willDrop = report.tables.filter(t => t.present && t.safe).map(bullet);
+    const willRefuse = report.tables.filter(t => t.present && !t.safe).map(bullet);
 
-    const ok = await app.confirm(
-      `This permanently drops ${report.droppable.length} table(s) and the ${report.totalRows} row(s) in them. It cannot be undone.\n\n`
-      + `${lines.join('\n')}${blocked}\n\nAre you sure you really want to do this?`,
-      'Drop retired tables?'
-    );
+    const parts = [
+      `This permanently drops ${report.droppable.length} table(s) and the ${report.totalRows} row(s) in them. It cannot be undone.`,
+    ];
+    if (willDrop.length) parts.push(`Will be dropped:\n${willDrop.join('\n')}`);
+    if (willRefuse.length) {
+      parts.push(`Will NOT be dropped - they still hold rows that never became entities:\n${willRefuse.join('\n')}`);
+    }
+    parts.push('Are you sure you really want to do this?');
+
+    const ok = await app.confirm(parts.join('\n\n'), 'Drop retired tables?');
     if (!ok) return;
 
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Dropping...';
     const res = await (await app.fetchRaw('/api/system-database/retired-tables/drop', { method: 'POST' })).json();
     const d = res.data || {};
 
-    const parts = [];
-    if (d.dropped?.length) parts.push(`Dropped: ${d.dropped.map(x => x.table).join(', ')}`);
-    if (d.refused?.length) parts.push(`Refused: ${d.refused.map(x => `${x.table} (${x.reason})`).join('; ')}`);
-    if (d.failed?.length) parts.push(`Failed: ${d.failed.map(x => `${x.table} (${x.message})`).join('; ')}`);
+    const summary = [];
+    if (d.dropped?.length) summary.push(`Dropped: ${d.dropped.map(x => x.qualified || x.table).join(', ')}`);
+    if (d.refused?.length) summary.push(`Refused: ${d.refused.map(x => `${x.qualified || x.table} (${x.reason})`).join('; ')}`);
+    if (d.failed?.length) summary.push(`Failed: ${d.failed.map(x => `${x.qualified || x.table} (${x.message})`).join('; ')}`);
 
     statusEl.innerHTML = `<div class="alert alert-${res.success ? 'success' : 'warning'} py-2 px-3">`
       + `<i class="bi bi-${res.success ? 'check-circle' : 'exclamation-triangle'}"></i> ${res.message}`
-      + (parts.length ? `<div class="small mt-2">${parts.join('<br>')}</div>` : '')
+      + (summary.length ? `<div class="small mt-2">${summary.join('<br>')}</div>` : '')
       + '</div>';
     app.notify(res.message, res.success ? 'success' : 'warning');
   } catch (error) {

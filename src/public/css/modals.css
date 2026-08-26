@@ -177,3 +177,16 @@
 .field-drag-handle:active {
   cursor: grabbing;
 }
+
+/* The shared confirm/prompt/alert dialog keeps the newlines it is given.
+ *
+ * `app.alert()` documents itself as keeping them "unlike notify()", and the
+ * retired-tables confirmation lists one table per line - but the message is
+ * applied with textContent, and HTML collapses whitespace, so every multi-line
+ * dialog in the app arrived as one run-on paragraph.
+ *
+ * Done in CSS rather than by setting the style from _dialog: the rule then
+ * holds however the modal came to be on the page. */
+#confirmModalMessage {
+  white-space: pre-line;
+}

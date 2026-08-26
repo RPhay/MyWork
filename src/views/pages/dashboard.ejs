@@ -10,6 +10,10 @@
     integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
+  <!-- The shared confirm/prompt/alert dialog is built by main.js on whichever
+       page calls it, so its stylesheet belongs on every page that can - it was
+       only on settings.ejs, which is why a multi-line dialog here collapsed. -->
+  <link rel="stylesheet" href="/css/modals.css">
 
   <style>
   /* Focus-bar/monitor/chip styling lives in main.css now, shared with every

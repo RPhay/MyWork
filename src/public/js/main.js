@@ -288,6 +288,11 @@ const app = {
     const cancelBtn = modalElement.querySelector('#confirmModalCancel');
 
     titleEl.textContent = title;
+    // Newlines in a message are meant: `alert()` says it keeps them, and the
+    // retired-tables confirmation lists one table per line. textContent alone
+    // does not render them - HTML collapses whitespace - so every multi-line
+    // dialog in the app was arriving as one run-on paragraph.
+    messageEl.style.whiteSpace = 'pre-line';
     messageEl.textContent = message;
     messageEl.classList.toggle('d-none', !message);
     inputEl.classList.toggle('d-none', !input);

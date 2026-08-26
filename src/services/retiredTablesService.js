@@ -13,6 +13,17 @@ import logger from '../utils/logger.js';
 
 const isMssql = () => getCurrentConfig().type === 'mssql';
 
+/**
+ * The schema a table actually lives in, so the confirmation can name it in
+ * full. On SQL Server everything of ours is in [MyWork] (never dbo); on MySQL
+ * the schema IS the database, so it is whatever the pool is connected to.
+ */
+async function schemaName() {
+  if (isMssql()) return 'MyWork';
+  const rows = await query('SELECT DATABASE() AS db');
+  return rows[0]?.db || 'mywork';
+}
+
 /** `[MyWork].[x]` on SQL Server, `` `x` `` on MySQL. */
 const qualify = (table) => (isMssql() ? `[MyWork].[${table}]` : `\`${table}\``);
 
@@ -59,10 +70,12 @@ async function orphanCount(table) {
  * Read-only: this is what the confirmation is built from.
  */
 export async function inspectRetiredTables() {
+  const schema = await schemaName();
   const tables = [];
   for (const table of RETIRED_TABLES) {
+    const qualified = `${schema}.${table}`;
     if (!(await tableExists(table))) {
-      tables.push({ table, present: false, rows: 0, orphans: 0, safe: true });
+      tables.push({ table, qualified, present: false, rows: 0, orphans: 0, safe: true });
       continue;
     }
     const rows = await rowCount(table);
@@ -73,13 +86,14 @@ export async function inspectRetiredTables() {
       // No evidence is not the same as evidence of safety.
       logger.warn(`[retired-tables] could not check ${table} for orphans: ${err.message}`);
       tables.push({
-        table, present: true, rows, orphans: null, safe: false,
+        table, qualified, present: true, rows, orphans: null, safe: false,
         reason: `could not verify its rows: ${err.message}`,
       });
       continue;
     }
     tables.push({
       table,
+      qualified,
       present: true,
       rows,
       orphans,
@@ -93,8 +107,10 @@ export async function inspectRetiredTables() {
   return {
     tables,
     presentCount: present.length,
+    schema,
     droppable: present.filter((t) => t.safe).map((t) => t.table),
-    blocked: present.filter((t) => !t.safe).map((t) => ({ table: t.table, reason: t.reason })),
+    blocked: present.filter((t) => !t.safe)
+      .map((t) => ({ table: t.table, qualified: t.qualified, reason: t.reason })),
     totalRows: present.reduce((n, t) => n + t.rows, 0),
   };
 }
@@ -138,10 +154,11 @@ export async function dropRetiredTables() {
   const failed = [];
 
   for (const table of report.droppable) {
+    const qualified = report.tables.find((t) => t.table === table)?.qualified || table;
     try {
       const fks = await dropReferencingForeignKeys(table);
       await query(`DROP TABLE ${qualify(table)}`);
-      dropped.push({ table, foreignKeysRemoved: fks });
+      dropped.push({ table, qualified, foreignKeysRemoved: fks });
       logger.info(`[retired-tables] dropped ${table} (${fks} referencing FK(s) removed first)`);
     } catch (err) {
       logger.error(`[retired-tables] could not drop ${table}: ${err.message}`);
