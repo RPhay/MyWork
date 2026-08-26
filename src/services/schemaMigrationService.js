@@ -53,7 +53,7 @@ const REQUIRED_SUPPORT_TABLES = [
   'work_entity_associations',
   // What is left of the legacy <-> entity bridge. Both columns of these two
   // point at `entities` now; they go when Projects' own bridge does.
-  'priority_areas', 'priority_goals', 'work_source_associations',
+  'work_source_associations',
   // Retired, and REMOVED from this list with the table: `work_items` (08-25),
   // `priorities` and `tasks` (08-26), and the three template_* bridges with
   // `work_item_templates` (08-26). Leaving a retired table here makes

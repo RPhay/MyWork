@@ -45,7 +45,8 @@ export const ALL_SYSTEM_TABLES = [
   // `ticket` in entity_types. See RETIRED_TABLES in mysqlSchema.js.
   // The legacy <-> entity association bridge (right-hand column points at
   // `entities`); see the block of that name in mysqlSchema.js.
-  'priority_areas', 'priority_goals',
+  // 'priority_areas' and 'priority_goals' went on 2026-08-26 - a project's
+  // categories and goals are its hierarchy children now.
   // The eight per-type work_* junctions went on 2026-08-20: every link a day
   // holds is a row in work_entity_associations, which needs no entry per type.
   'work_source_associations', 'work_entity_associations',

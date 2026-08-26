@@ -11,26 +11,27 @@ async function attachAssociations(priorities) {
   const ids = priorities.map(p => p.id);
   const placeholders = ids.map(() => '?').join(',');
 
-  const [categoryRows, goalRows, allCategories] = await Promise.all([
-    // Areas and goals are entities now (Phases 2-3); priority_areas /
-    // priority_goals bridge the legacy priorities table to them. `title` is
-    // aliased to `name` to keep the response shape the frontend expects.
+  // What a project holds is its hierarchy CHILDREN of those types, the same
+  // way a template holds its contents. This used to join `priority_areas` and
+  // `priority_goals` - two tables whose only job was to say "this project
+  // relates to that category", which entity_relationships already says for
+  // everything else. `title` is aliased to `name` to keep the response shape
+  // the frontend expects.
+  const [childRows, allCategories] = await Promise.all([
     db.query(
-      `SELECT pa.priority_id, a.id, a.title AS name
-       FROM priority_areas pa
-       JOIN entities a ON pa.area_id = a.id
-       WHERE pa.priority_id IN (${placeholders})`,
-      ids
-    ),
-    db.query(
-      `SELECT pg.priority_id, g.id, g.title AS name
-       FROM priority_goals pg
-       JOIN entities g ON pg.goal_id = g.id
-       WHERE pg.priority_id IN (${placeholders})`,
+      `SELECT r.parent_entity_id AS priority_id, e.id, e.title AS name, t.slug AS type_slug
+         FROM entity_relationships r
+         JOIN entities e ON e.id = r.child_entity_id
+         JOIN entity_types t ON t.id = e.entity_type_id
+        WHERE r.relationship_kind = 'hierarchy'
+          AND t.slug IN ('category', 'goal')
+          AND r.parent_entity_id IN (${placeholders})`,
       ids
     ),
     entityService.getEntityPathLookup('category'),
   ]);
+  const categoryRows = childRows.filter(r => r.type_slug === 'category');
+  const goalRows = childRows.filter(r => r.type_slug === 'goal');
 
   const categoryPaths = buildPathMap(allCategories);
 
@@ -104,19 +105,38 @@ async function getDescendantIds(id) {
   return entityService.getDescendantIds(Number(id), contextId);
 }
 
-async function setAreaAssociations(priorityId, categoryIds) {
-  await db.query('DELETE FROM priority_areas WHERE priority_id = ?', [priorityId]);
-  for (const categoryId of categoryIds) {
-    await db.insert('INSERT INTO priority_areas (priority_id, area_id) VALUES (?, ?)', [priorityId, categoryId]);
+// Replace the whole set of one type, which is what the edit form sends.
+// Scoped BY TYPE: a project's children include its sub-projects, and saving
+// the categories must not remove those.
+async function setChildrenOfType(priorityId, typeSlug, wantedIds) {
+  const contextId = await getActiveContextId();
+  const existing = await db.query(
+    `SELECT r.child_entity_id AS id
+       FROM entity_relationships r
+       JOIN entities e ON e.id = r.child_entity_id
+       JOIN entity_types t ON t.id = e.entity_type_id
+      WHERE r.parent_entity_id = ? AND r.relationship_kind = 'hierarchy' AND t.slug = ?`,
+    [priorityId, typeSlug]
+  );
+  const have = new Set(existing.map(r => Number(r.id)));
+  const want = new Set((wantedIds || []).map(Number));
+
+  for (const id of have) {
+    if (!want.has(id)) {
+      await entityRelationshipService.removeRelationship(Number(priorityId), id, 'hierarchy', contextId);
+    }
+  }
+  for (const id of want) {
+    if (!have.has(id)) {
+      await entityRelationshipService.addRelationship(Number(priorityId), id, 'hierarchy', contextId);
+    }
   }
 }
 
-async function setGoalAssociations(priorityId, goalIds) {
-  await db.query('DELETE FROM priority_goals WHERE priority_id = ?', [priorityId]);
-  for (const goalId of goalIds) {
-    await db.insert('INSERT INTO priority_goals (priority_id, goal_id) VALUES (?, ?)', [priorityId, goalId]);
-  }
-}
+const setAreaAssociations = (priorityId, categoryIds) =>
+  setChildrenOfType(priorityId, 'category', categoryIds);
+const setGoalAssociations = (priorityId, goalIds) =>
+  setChildrenOfType(priorityId, 'goal', goalIds);
 
 export async function createPriority(data, contextId) {
   const { title, source_id, parent_id, notes, area_ids, goal_ids, status } = data;
@@ -270,35 +290,21 @@ export async function reorderPrioritiesAmongSiblings(orderedIds, draggedId, upda
 // chip from the Projects page's right panel onto a project/sub-project - unlike
 // setAreaAssociations/setGoalAssociations (full replace, used by the edit form),
 // these only add or remove the one association being dragged.
-export async function addCategoryAssociation(priorityId, categoryId) {
-  await db.query(
-    'INSERT IGNORE INTO priority_areas (priority_id, area_id) VALUES (?, ?)',
-    [priorityId, categoryId]
-  );
+async function linkChild(priorityId, childId) {
+  const contextId = await getActiveContextId();
+  await entityRelationshipService.addRelationship(Number(priorityId), Number(childId), 'hierarchy', contextId);
   return getPriorityById(priorityId);
 }
 
-export async function removeCategoryAssociation(priorityId, categoryId) {
-  await db.deleteRecord(
-    'DELETE FROM priority_areas WHERE priority_id = ? AND area_id = ?',
-    [priorityId, categoryId]
-  );
+async function unlinkChild(priorityId, childId) {
+  const contextId = await getActiveContextId();
+  await entityRelationshipService.removeRelationship(Number(priorityId), Number(childId), 'hierarchy', contextId);
 }
 
-export async function addGoalAssociation(priorityId, goalId) {
-  await db.query(
-    'INSERT IGNORE INTO priority_goals (priority_id, goal_id) VALUES (?, ?)',
-    [priorityId, goalId]
-  );
-  return getPriorityById(priorityId);
-}
-
-export async function removeGoalAssociation(priorityId, goalId) {
-  await db.deleteRecord(
-    'DELETE FROM priority_goals WHERE priority_id = ? AND goal_id = ?',
-    [priorityId, goalId]
-  );
-}
+export const addCategoryAssociation = (p, id) => linkChild(p, id);
+export const removeCategoryAssociation = (p, id) => unlinkChild(p, id);
+export const addGoalAssociation = (p, id) => linkChild(p, id);
+export const removeGoalAssociation = (p, id) => unlinkChild(p, id);
 
 // getLinksForPriority / addLinkToPriority removed: Projects carries links as a
 // generic `links` field on the type now (see UI_STANDARDS.md), so the

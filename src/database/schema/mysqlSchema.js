@@ -1085,8 +1085,6 @@ export async function createMysqlSchema(connection) {
     // machine's database had been repointed by hand, which is exactly why it
     // went unseen: the fault existed only where nobody was looking - fresh
     // builds and MSSQL.
-    ["priority_areas", "priority_id", "entities", "area_id"],
-    ["priority_goals", "priority_id", "entities", "goal_id"],
   ];
 
   // ONE junction for every type, including types invented after this was

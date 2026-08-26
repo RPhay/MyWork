@@ -67,8 +67,6 @@ export async function attachFieldValues(entityIds) {
 // thrown "table doesn't exist" on any database where that removal had actually
 // been applied - which is the only reason it never fired on MySQL.
 const BRIDGE_JUNCTION_COLUMNS = [
-  ['priority_areas', 'area_id'],
-  ['priority_goals', 'goal_id'],
   // The three template_* bridges went with the Templates migration on
   // 2026-08-26 - a template's contents are its hierarchy children now.
   ['work_entity_associations', 'entity_id'],

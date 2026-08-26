@@ -44,12 +44,10 @@ the second half of that rule is only affordable because the suite is green.
 
 ### Open
 
-- **`priority_areas` / `priority_goals` are the last pair of their kind.** Both
-  columns point at `entities`, both hold 0 rows, and priorityService reads them
-  to build a project's `categories` and `goals`. They are the Projects
-  equivalent of what the Templates migration just removed, and the same move
-  works: make them `hierarchy` children in `entity_relationships` and retire the
-  two tables. That also retires the last table still named "area".
+- **Nothing of the legacy kind is left.** Every one of the 18 remaining tables
+  is read by code, and none is a bridge or a pre-entity store. If a table ever
+  looks dead again, `inspectRetiredTables()` and the "Drop Retired Tables"
+  button in Settings are the way to check and clear it.
 - **A small unexplained thing, if anyone wants it.** Setting
   `messageEl.style.whiteSpace` from `app._dialog` did not take effect, although
   the assignment was in the served file and `app._dialog.toString()` contained
@@ -57,6 +55,12 @@ the second half of that rule is only affordable because the suite is green.
   depends on the answer.
 
 ### Closed on 2026-08-26 (was open)
+
+- **Projects' bridge pair is gone.** `priority_areas` / `priority_goals` are
+  retired: the categories and goals a project belongs to are its hierarchy
+  CHILDREN now, like a template's contents. `setChildrenOfType` replaces one
+  type's set at a time - scoped BY TYPE, because a project's children include
+  its sub-projects and saving the categories must not remove those.
 
 - **Templates are entities.** dailyTemplateService is a shim over entityService
   keeping the `/api/daily-templates` shape, so the five frontend callers did not

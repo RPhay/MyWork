@@ -485,6 +485,13 @@ export const SYSTEM_TYPE_RELATIONSHIPS = [
   // from any other typed row - everything else about it is the generic engine.
   { type_slugs_parent: 'template', type_slugs_child: ['priority', 'category', 'goal', 'to_do', 'task', 'ticket', 'idea', 'template'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
+  // A project holds the categories and goals it belongs to. These were the
+  // `priority_areas` / `priority_goals` junctions - two tables whose only job
+  // was to say "this project relates to that category", which is what
+  // entity_relationships already says for everything else. Hierarchy rather
+  // than association, matching how a template holds its contents.
+  { type_slugs_parent: 'priority', type_slugs_child: ['category', 'goal'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+
   // Templates instantiate to work items
   { type_slugs_parent: 'template', type_slugs_child: 'daily', relationship_kind: 'instantiated_from', max_children_per_parent: null, max_parents_per_child: 1 },
 ];

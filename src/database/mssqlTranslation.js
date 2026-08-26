@@ -12,8 +12,6 @@ const INSERT_IGNORE_KEY_COLUMNS = {
   entity_relationships: ["parent_entity_id", "child_entity_id", "relationship_kind"],
   work_entity_associations: ["daily_id", "entity_id"],
   daily_entities: ["context_id", "date", "entity_id"],
-  priority_areas: ["priority_id", "area_id"],
-  priority_goals: ["priority_id", "goal_id"],
   years: ["year"],
 };
 

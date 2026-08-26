@@ -1218,8 +1218,6 @@ export async function createMssqlSchema(pool) {
     // machine's database had been repointed by hand, which is exactly why it
     // went unseen: the fault existed only where nobody was looking - fresh
     // builds and MSSQL.
-    ["priority_areas", "priority_id", "entities", "area_id"],
-    ["priority_goals", "priority_id", "entities", "goal_id"],
     // Todos, tasks and tickets are entities now too, so these three join a
     // work item to an `entities` row like the rest. They previously still
     // referenced the legacy to_dos/tasks/tickets tables while those tabs

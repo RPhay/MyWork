@@ -25,6 +25,11 @@ export const RETIRED_TABLES = [
   'template_goals',
   'template_priorities',
   'work_item_templates',
+  // The last pair of their kind, retired 2026-08-26. What they held - the
+  // categories and goals a project belongs to - is the project's hierarchy
+  // children in entity_relationships now, the same as a template's contents.
+  'priority_areas',
+  'priority_goals',
 ];
 
 /**
