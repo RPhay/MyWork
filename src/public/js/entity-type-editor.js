@@ -243,6 +243,14 @@ const ROLLUP_MODES = {
     { value: 'max', label: 'Roll up: maximum' },
     { value: 'avg', label: 'Roll up: average' },
   ],
+  // A time box is minutes, so a folder can total what is planned inside it -
+  // which is what `time_box_minutes` used to do before Dailies converged on
+  // this field. Without an entry here the mode ships but cannot be seen or
+  // changed.
+  timebox: [
+    { value: '', label: 'No roll-up' },
+    { value: 'sum', label: 'Roll up: total time boxed' },
+  ],
   date: [
     { value: '', label: 'No roll-up' },
     { value: 'min', label: 'Roll up: earliest' },
@@ -919,8 +927,18 @@ function applyReadOnly(type) {
   if (!pane.querySelector('.type-editor-readonly-note')) {
     const note = document.createElement('div');
     note.className = 'alert alert-secondary py-2 px-3 mb-3 type-editor-readonly-note';
-    note.innerHTML = '<i class="bi bi-lock"></i> This type is read-only. '
-      + 'You can see how it is set up, but not change it here.';
+    // Templates gets the reason, not just the rule. Its shape is not an
+    // independent choice - a template dropped on a day becomes a DAILY carrying
+    // what it held, so anything Dailies has that Templates lacks is lost in the
+    // handover. That is why it follows Dailies, and why it cannot be edited
+    // here (entityTypeService.syncTemplateFieldsFromDaily).
+    note.innerHTML = type.slug === 'template'
+      ? '<i class="bi bi-lock"></i> <strong>Templates follows Dailies.</strong> '
+        + 'Any property you add to the Dailies type is added here automatically, '
+        + 'so a template can carry it onto the day it is dropped on. That is why '
+        + 'this type is read-only - edit <strong>Dailies</strong> instead.'
+      : '<i class="bi bi-lock"></i> This type is read-only. '
+        + 'You can see how it is set up, but not change it here.';
     pane.prepend(note);
   }
 }

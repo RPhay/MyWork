@@ -891,6 +891,31 @@ export async function createMssqlSchema(pool) {
      WHERE slug = 'template' AND type_category = 'editable'
   `);
 
+  // `daily.time_box_minutes` was a second time box only Dailies had - the twin
+  // of the block in mysqlSchema.js. Values move to `time_box` first, then the
+  // definition goes.
+  await pool.request().query(`
+    UPDATE v SET v.field_key = 'time_box'
+      FROM [MyWork].[entity_field_values] v
+      JOIN [MyWork].[entities] e ON e.id = v.entity_id
+      JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
+     WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
+       AND NOT EXISTS (
+         SELECT 1 FROM [MyWork].[entity_field_values] x
+          WHERE x.entity_id = v.entity_id AND x.field_key = 'time_box')
+  `);
+  await pool.request().query(`
+    DELETE v FROM [MyWork].[entity_field_values] v
+      JOIN [MyWork].[entities] e ON e.id = v.entity_id
+      JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
+     WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
+  `);
+  await pool.request().query(`
+    DELETE f FROM [MyWork].[entity_type_fields] f
+      JOIN [MyWork].[entity_types] t ON t.id = f.entity_type_id
+     WHERE t.slug = 'daily' AND f.field_key = 'time_box_minutes'
+  `);
+
   // Remove the orphaned `recurrence` field definitions - the twin of the block
   // in mysqlSchema.js. Guarded on having no stored values, so it can only ever
   // remove an EMPTY definition.

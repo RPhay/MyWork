@@ -806,6 +806,32 @@ export async function createMysqlSchema(connection) {
       WHERE slug = 'template' AND type_category = 'editable'`
   );
 
+  // `daily.time_box_minutes` was a second time box only Dailies had - see the
+  // note where it was declared. Its values move to `time_box` first (there were
+  // none on this machine, but an install that used it must not lose them), then
+  // the definition goes.
+  await connection.query(
+    `UPDATE entity_field_values v
+       JOIN entities e ON e.id = v.entity_id
+       JOIN entity_types t ON t.id = e.entity_type_id
+        SET v.field_key = 'time_box'
+      WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
+        AND NOT EXISTS (
+          SELECT 1 FROM (SELECT * FROM entity_field_values) x
+           WHERE x.entity_id = v.entity_id AND x.field_key = 'time_box')`
+  );
+  await connection.query(
+    `DELETE v FROM entity_field_values v
+       JOIN entities e ON e.id = v.entity_id
+       JOIN entity_types t ON t.id = e.entity_type_id
+      WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'`
+  );
+  await connection.query(
+    `DELETE f FROM entity_type_fields f
+       JOIN entity_types t ON t.id = f.entity_type_id
+      WHERE t.slug = 'daily' AND f.field_key = 'time_box_minutes'`
+  );
+
   // Remove the orphaned `recurrence` field definitions.
   //
   // Recurrence was withdrawn on 2026-08-19 (a9e720a took its <option> out of the

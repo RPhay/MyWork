@@ -72,7 +72,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Which focus-bar monitor this row is pinned to, and its chip colour.
       // Both are written by focusService (see FOCUS_FIELDS there) and were
@@ -86,7 +86,12 @@ export const SYSTEM_ENTITY_TYPES = [
       { field_key: 'description', label: 'Description', field_type: 'textarea', required: false, show_in_row: false },
       { field_key: 'emoji', label: 'Emoji', field_type: 'text', required: false, show_in_row: true },
       { field_key: 'status', label: 'Status', field_type: 'status', field_options: DONE_STATUS, required: false, show_in_row: true, is_completion_signal: true, rollup: 'status' },
-      { field_key: 'time_box_minutes', label: 'Time Box (minutes)', field_type: 'number', required: false, show_in_row: false, rollup: 'sum' },
+      // `time_box_minutes` stood here: a SECOND time box, number-typed, that
+      // only Dailies had. dailyService wrote it while the generic row and
+      // editor showed `time_box`, so a time box set in Dailies and one set
+      // from the column were two different values on one record. Dailies uses
+      // `time_box` like every other type now; the API property is still called
+      // time_box_minutes, because six frontend files read that name.
       { field_key: 'start_time', label: 'Start Time', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
       { field_key: 'worked_with_claude', label: 'AI', field_type: 'worked_with_claude', required: false, show_in_row: true },
@@ -121,7 +126,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Which focus-bar monitor this row is pinned to, and its chip colour.
       // Both are written by focusService (see FOCUS_FIELDS there) and were
@@ -167,7 +172,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Which focus-bar monitor this row is pinned to, and its chip colour.
       // Both are written by focusService (see FOCUS_FIELDS there) and were
@@ -210,7 +215,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Which focus-bar monitor this row is pinned to, and its chip colour.
       // Both are written by focusService (see FOCUS_FIELDS there) and were
@@ -262,7 +267,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Which focus-bar monitor this row is pinned to, and its chip colour.
       // Both are written by focusService (see FOCUS_FIELDS there) and were
@@ -310,7 +315,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Which focus-bar monitor this row is pinned to, and its chip colour.
       // Both are written by focusService (see FOCUS_FIELDS there) and were
@@ -353,7 +358,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Which focus-bar monitor this row is pinned to, and its chip colour.
       // Both are written by focusService (see FOCUS_FIELDS there) and were
@@ -397,7 +402,7 @@ export const SYSTEM_ENTITY_TYPES = [
       // (Worked Time above). A fixed ladder rather than free text so the two
       // can be compared and summed. Off as a column by default - turn it on per
       // type from the column chooser.
-      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+      { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
       { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
       // Which focus-bar monitor this row is pinned to, and its chip colour.
       // Both are written by focusService (see FOCUS_FIELDS there) and were

@@ -43,7 +43,14 @@ function toLegacyShape(entity, fields) {
     notes: fields.notes ?? null,
     emoji: fields.emoji ?? null,
     status: fields.status ?? 'Not Started',
-    time_box_minutes: fields.time_box_minutes ?? null,
+    // The API property keeps its name - the Dailies frontend reads
+    // `time_box_minutes` in six files - but the FIELD behind it is `time_box`,
+    // the same one every other type uses. Dailies used to have a second,
+    // number-typed `time_box_minutes` field of its own, so a time box set here
+    // and one set from the generic column were two different values on one
+    // record. `?? fields.time_box_minutes` reads a value written before the
+    // convergence; nothing writes that key any more.
+    time_box_minutes: fields.time_box ?? fields.time_box_minutes ?? null,
     order_index: entity.order_index,
     worked_with_claude: !!fields.worked_with_claude,
     start_time: fields.start_time ?? null,
@@ -212,7 +219,7 @@ export async function createWorkItem(data, contextId) {
       notes: notes ?? null,
       emoji: emoji ?? null,
       status: status || 'Not Started',
-      time_box_minutes: normalizeTimeBox(time_box_minutes),
+      time_box: normalizeTimeBox(time_box_minutes),
       start_time: start_time || null,
     },
   }, contextId);
@@ -249,7 +256,7 @@ export async function updateWorkItem(id, data) {
   if (notes !== undefined) fields.notes = notes ?? null;
   if (emoji !== undefined) fields.emoji = emoji || null;
   if (status !== undefined) fields.status = status;
-  if (time_box_minutes !== undefined) fields.time_box_minutes = normalizeTimeBox(time_box_minutes);
+  if (time_box_minutes !== undefined) fields.time_box = normalizeTimeBox(time_box_minutes);
   if (start_time !== undefined) fields.start_time = start_time || null;
   if (Object.keys(fields).length > 0) update.fields = fields;
 
@@ -326,7 +333,7 @@ export async function updateWorkItemEmoji(id, emoji) {
 }
 
 export async function updateWorkItemTimeBox(id, timeBoxMinutes) {
-  await entityService.updateEntity(id, { fields: { time_box_minutes: normalizeTimeBox(timeBoxMinutes) } });
+  await entityService.updateEntity(id, { fields: { time_box: normalizeTimeBox(timeBoxMinutes) } });
   return getWorkItemById(id);
 }
 
@@ -369,7 +376,7 @@ export async function cloneWorkItem(id, date) {
       notes: original.notes,
       emoji: original.emoji,
       status: 'Not Started',
-      time_box_minutes: original.time_box_minutes,
+      time_box: original.time_box_minutes,
     },
   }, original.context_id);
 

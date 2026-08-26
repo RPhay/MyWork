@@ -3,6 +3,7 @@ import { ValidationError, NotFoundError, ConflictError } from '../config/errors.
 import { UNPINNABLE_TYPE_SLUGS } from '../config/constants.js';
 // A captured snapshot of a working configuration - see revertSystemType.
 import typeDefaults from '../database/typeDefaults.json' with { type: 'json' };
+import logger from '../utils/logger.js';
 
 /**
  * Entity type service: CRUD for type definitions (home DB, global, structural).
@@ -234,6 +235,12 @@ export async function updateEntityType(id, data) {
 
   if (data.supports_hierarchy) await ensureSelfNestingRule(id);
 
+  // Templates follow Dailies - see syncTemplateFieldsFromDaily. Done here so it
+  // happens whenever Dailies is saved, which is the moment the two would
+  // otherwise drift.
+  const saved = await getEntityType(id).catch(() => null);
+  if (saved?.slug === 'daily') await syncTemplateFieldsFromDaily();
+
   // Handle fields if provided.
   //
   // Reconciled by field_key rather than dropped and recreated. The wipe-then-
@@ -318,6 +325,64 @@ export const ENGINE_OWNED_FIELD_KEYS = new Set([
   'focus_seconds', 'focus_slot', 'focus_started_at', 'focus_color',
   'focus_monitor', 'board_bay', 'board_order',
 ]);
+
+/**
+ * Properties a TEMPLATE never carries, however Dailies is set up.
+ *
+ * `date` comes from the day a template is dropped on. The focus and board
+ * fields describe where one RECORD sits on the focus bar or the priorities
+ * board, which a pattern has no business holding - and focusService refuses to
+ * pin a template at all. `worked_with_claude` is a fact about work done, and a
+ * template is not work done.
+ */
+const TEMPLATE_EXCLUDED_KEYS = new Set([
+  'date', 'worked_with_claude',
+  'focus_seconds', 'focus_slot', 'focus_started_at', 'focus_color', 'focus_monitor',
+]);
+
+/**
+ * Templates follow Dailies.
+ *
+ * Dropping a template on a day produces a DAILY carrying whatever the template
+ * held, so a property Dailies gains and Templates does not is a property lost
+ * in that handover. Templates is read-only in Settings for exactly this reason:
+ * its shape is not an independent choice, it is Dailies' shape minus the things
+ * that belong to a single record.
+ *
+ * Adds what is missing and never removes: a field Templates has that Dailies
+ * does not is the user's, and this is not the place to decide it should go.
+ */
+export async function syncTemplateFieldsFromDaily() {
+  const daily = await getEntityType('daily').catch(() => null);
+  const template = await getEntityType('template').catch(() => null);
+  if (!daily || !template) return { added: [] };
+
+  const dailyFields = await getEntityTypeFields(daily.id);
+  const templateKeys = new Set((await getEntityTypeFields(template.id)).map((f) => f.field_key));
+
+  const added = [];
+  for (const field of dailyFields) {
+    if (TEMPLATE_EXCLUDED_KEYS.has(field.field_key)) continue;
+    if (templateKeys.has(field.field_key)) continue;
+    await createEntityTypeField(template.id, {
+      field_key: field.field_key,
+      label: field.label,
+      field_type: field.field_type,
+      field_options: typeof field.field_options === 'string'
+        ? JSON.parse(field.field_options) : field.field_options,
+      required: field.required,
+      show_in_row: field.show_in_row,
+      show_column_label: field.show_column_label,
+      is_completion_signal: field.is_completion_signal,
+      rollup: field.rollup,
+    });
+    added.push(field.field_key);
+  }
+  if (added.length) {
+    logger.info(`[types] Templates followed Dailies: added ${added.join(', ')}`);
+  }
+  return { added };
+}
 
 /**
  * The block every editable type carries so the ENGINE can work on it: the
