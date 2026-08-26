@@ -333,20 +333,11 @@ export async function createMssqlSchema(pool) {
 
   // template_goals: recreated as a legacy<->entity bridge at the end of this file
 
-  await createTableIfNotExists(
-    pool,
-    "template_priorities",
-    `
-    CREATE TABLE [MyWork].[template_priorities] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      template_id INT NOT NULL,
-      priority_id INT NOT NULL,
-      CONSTRAINT fk_template_priorities_template FOREIGN KEY (template_id) REFERENCES [MyWork].[work_item_templates](id) ON DELETE CASCADE,
-      CONSTRAINT fk_template_priorities_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE CASCADE,
-      CONSTRAINT unique_template_priority UNIQUE (template_id, priority_id)
-    )
-  `,
-  );
+  // template_priorities: recreated as a legacy<->entity bridge at the end of
+  // this file, for the same reason as its two neighbours above. It was created
+  // here with `priority_id` referencing [priorities] - the table projects left
+  // when they became entities - while dailyTemplateService reads that same
+  // column as an entity id. See the fuller note in mysqlSchema.js.
 
   await createTableIfNotExists(
     pool,
@@ -1440,10 +1431,23 @@ export async function createMssqlSchema(pool) {
   // of view.
   const bridgeJunctions = [
     // [table, legacy column, legacy table, entity column]
-    ["priority_areas", "priority_id", "priorities", "area_id"],
-    ["priority_goals", "priority_id", "priorities", "goal_id"],
+    // Both columns are ENTITY ids. A project is an entity now, so this is no
+    // longer a bridge from a legacy row to an entity - it is entity-to-entity,
+    // and `priorities` is not one of its endpoints.
+    //
+    // It said `priorities` here until 2026-08-25, which emitted
+    // `FOREIGN KEY (priority_id) REFERENCES priorities(id)` on every fresh
+    // build, while priorityService joins that column against project ENTITY
+    // ids. The constraint wanted an id from a table projects had left, so
+    // associating a category or a goal with a project could only fail. This
+    // machine's database had been repointed by hand, which is exactly why it
+    // went unseen: the fault existed only where nobody was looking - fresh
+    // builds and MSSQL.
+    ["priority_areas", "priority_id", "entities", "area_id"],
+    ["priority_goals", "priority_id", "entities", "goal_id"],
     ["template_areas", "template_id", "work_item_templates", "area_id"],
     ["template_goals", "template_id", "work_item_templates", "goal_id"],
+    ["template_priorities", "template_id", "work_item_templates", "priority_id"],
     // Todos, tasks and tickets are entities now too, so these three join a
     // work item to an `entities` row like the rest. They previously still
     // referenced the legacy to_dos/tasks/tickets tables while those tabs

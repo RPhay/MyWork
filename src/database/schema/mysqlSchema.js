@@ -249,17 +249,18 @@ export async function createMysqlSchema(connection) {
 
   // template_goals: recreated as a legacy<->entity bridge at the end of this file
 
-  // Create template_priorities junction table
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS template_priorities (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      template_id INT NOT NULL,
-      priority_id INT NOT NULL,
-      FOREIGN KEY (template_id) REFERENCES work_item_templates(id) ON DELETE CASCADE,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_template_priority (template_id, priority_id)
-    )
-  `);
+  // template_priorities: recreated as a legacy<->entity bridge at the end of
+  // this file, for the same reason as its two neighbours above.
+  //
+  // It used to be created HERE, with `priority_id` referencing `priorities`.
+  // Projects stopped living in that table when they became entities, so the
+  // constraint demanded an id from a table holding nothing but stale rows,
+  // while dailyTemplateService READS the same column with
+  // `JOIN entities p ON tp.priority_id = p.id`. Read and write disagreed about
+  // what the id meant, and associating a project with a template could only
+  // fail. It survived because this machine's database was repointed by hand -
+  // so the fault was invisible locally and shipped to every fresh build and
+  // every MSSQL install.
 
   // Create to_dos table (supports nesting via parent_id, recurring via recurrence JSON)
   await connection.query(`
@@ -1297,10 +1298,23 @@ export async function createMysqlSchema(connection) {
   // entities themselves.
   const bridgeJunctions = [
     // [table, legacy column, legacy table, entity column]
-    ["priority_areas", "priority_id", "priorities", "area_id"],
-    ["priority_goals", "priority_id", "priorities", "goal_id"],
+    // Both columns are ENTITY ids. A project is an entity now, so this is no
+    // longer a bridge from a legacy row to an entity - it is entity-to-entity,
+    // and `priorities` is not one of its endpoints.
+    //
+    // It said `priorities` here until 2026-08-25, which emitted
+    // `FOREIGN KEY (priority_id) REFERENCES priorities(id)` on every fresh
+    // build, while priorityService joins that column against project ENTITY
+    // ids. The constraint wanted an id from a table projects had left, so
+    // associating a category or a goal with a project could only fail. This
+    // machine's database had been repointed by hand, which is exactly why it
+    // went unseen: the fault existed only where nobody was looking - fresh
+    // builds and MSSQL.
+    ["priority_areas", "priority_id", "entities", "area_id"],
+    ["priority_goals", "priority_id", "entities", "goal_id"],
     ["template_areas", "template_id", "work_item_templates", "area_id"],
     ["template_goals", "template_id", "work_item_templates", "goal_id"],
+    ["template_priorities", "template_id", "work_item_templates", "priority_id"],
   ];
 
   // ONE junction for every type, including types invented after this was
