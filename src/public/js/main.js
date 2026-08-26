@@ -288,11 +288,6 @@ const app = {
     const cancelBtn = modalElement.querySelector('#confirmModalCancel');
 
     titleEl.textContent = title;
-    // Newlines in a message are meant: `alert()` says it keeps them, and the
-    // retired-tables confirmation lists one table per line. textContent alone
-    // does not render them - HTML collapses whitespace - so every multi-line
-    // dialog in the app was arriving as one run-on paragraph.
-    messageEl.style.whiteSpace = 'pre-line';
     messageEl.textContent = message;
     messageEl.classList.toggle('d-none', !message);
     inputEl.classList.toggle('d-none', !input);
@@ -366,8 +361,14 @@ const app = {
   },
 
   // Resolves true/false. Replaces window.confirm everywhere.
-  confirm(message, title = 'Confirm Action') {
-    return this._dialog({ title, message });
+  // `preserveWhitespace` for a confirmation that lists things one per line.
+  // Without it _dialog CLEARS white-space (see the assignment there), which is
+  // right for the usual one-line confirm and wrong for a list - the newlines
+  // survive in the text and HTML collapses them, so the whole message arrives
+  // as one run-on paragraph. `alert()` has always passed it; `confirm()` could
+  // not until now.
+  confirm(message, title = 'Confirm Action', { preserveWhitespace = false } = {}) {
+    return this._dialog({ title, message, preserveWhitespace });
   },
 
   // A message with one button, for reporting what an action did. Keeps its

@@ -498,7 +498,10 @@ async function dropRetiredTables() {
     }
     parts.push('Are you sure you really want to do this?');
 
-    const ok = await app.confirm(parts.join('\n\n'), 'Drop retired tables?');
+    // preserveWhitespace: this lists one table per line, and a confirmation
+    // that runs its bullets together cannot be read before agreeing to
+    // something irreversible.
+    const ok = await app.confirm(parts.join('\n\n'), 'Drop retired tables?', { preserveWhitespace: true });
     if (!ok) return;
 
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Dropping...';

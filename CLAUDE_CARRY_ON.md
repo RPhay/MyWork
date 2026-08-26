@@ -48,13 +48,15 @@ the second half of that rule is only affordable because the suite is green.
   is read by code, and none is a bridge or a pre-entity store. If a table ever
   looks dead again, `inspectRetiredTables()` and the "Drop Retired Tables"
   button in Settings are the way to check and clear it.
-- **A small unexplained thing, if anyone wants it.** Setting
-  `messageEl.style.whiteSpace` from `app._dialog` did not take effect, although
-  the assignment was in the served file and `app._dialog.toString()` contained
-  it. Worked around in `modals.css`, which is the better place anyway. Nothing
-  depends on the answer.
-
 ### Closed on 2026-08-26 (was open)
+
+- **The dialog newline mystery is solved, and it was not a mystery.** `_dialog`
+  sets `messageEl.style.whiteSpace` from `options.preserveWhitespace` about
+  twenty lines AFTER the message is applied, clearing it to '' when the option
+  is absent. Anything set earlier is overwritten. `alert()` has always passed
+  the option - my note that it "documents itself as keeping newlines while doing
+  no such thing" was wrong. `confirm()` now accepts it too, for a confirmation
+  that lists things one per line.
 
 - **Projects' bridge pair is gone.** `priority_areas` / `priority_goals` are
   retired: the categories and goals a project belongs to are its hierarchy
