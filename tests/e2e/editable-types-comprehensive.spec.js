@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { purgeByTitlePrefix } from './helpers/cleanup.js';
 
 // dashboard.ejs renders EVERY tab's rows into the DOM at once, so a bare
 // .entity-row matches rows in hidden panes - 342 of them against 36 on
@@ -6,18 +7,37 @@ import { test, expect } from '@playwright/test';
 // clicks something the user cannot see.
 test.describe('Editable Types - Comprehensive Functionality', () => {
   // Test all editable types: areas, goals, todos, tasks, tickets, ideas
+  // Slugs, exactly as the database spells them. `todo` was wrong - the type is
+  // `to_do`, so [data-tab="todo"] matched nothing and every Todo case here
+  // failed before it began. The `buttonId` column was dropped: it held
+  // 'addareaBtnote' and friends, which is a find/replace accident on ids that
+  // nothing read anyway - the tests build the id themselves below.
   const editableTypes = [
-    { slug: 'category', label: 'Area', buttonId: 'addareaBtnote' },
-    { slug: 'goal', label: 'Goal', buttonId: 'addgoalBtnote' },
-    { slug: 'todo', label: 'Todo', buttonId: 'addtodoBtnote' },
-    { slug: 'task', label: 'Task', buttonId: 'addtaskBtnote' },
-    { slug: 'ticket', label: 'Ticket', buttonId: 'addticketBtnote' },
-    { slug: 'idea', label: 'Idea', buttonId: 'addideaBtnote' }
+    { slug: 'category', label: 'Category' },
+    { slug: 'goal', label: 'Goal' },
+    { slug: 'to_do', label: 'Todo' },
+    { slug: 'task', label: 'Task' },
+    { slug: 'ticket', label: 'Ticket' },
+    { slug: 'idea', label: 'Idea' }
   ];
+
+  // The template renders `add<%= typeSlug %>Btn` - the slug verbatim, NOT
+  // capitalised. Every test below built `#addCategoryBtn` and waited 30
+  // seconds for a button the app has never produced, which is where 48 of the
+  // baseline's 168 failures came from. ui-check.spec.js carries a note about
+  // making this same mistake.
+  const addBtnFor = (slug) => `#add${slug}Btn`;
 
   editableTypes.forEach(type => {
     test.describe(`${type.label} Type`, () => {
       let page;
+
+      // Its fixtures are ZZZ-prefixed, so the global sweep CAN see them - but
+      // relying on that is relying on a backstop. 18 rows a run were reaching
+      // it before this hook existed.
+      test.afterEach(async ({ page: p }) => {
+        await purgeByTitlePrefix(p, type.slug, 'ZZZ');
+      });
 
       test.beforeEach(async ({ page: p }) => {
         page = p;
@@ -29,7 +49,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
 
       test(`[${type.label}] Can create a new item`, async () => {
         // Click add button
-        const addBtn = page.locator(`#add${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
+        const addBtn = page.locator(addBtnFor(type.slug));
         await addBtn.click();
 
         // Wait for editor form
@@ -38,7 +58,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
 
         // Fill title
         const titleInput = form.locator('input[name="title"]');
-        await titleInput.fill(`Test ${type.label}`);
+        await titleInput.fill(`ZZZ New ${type.label}`);
 
         // Save
         const saveBtn = page.locator(`#${type.slug}SaveBtn`);
@@ -46,25 +66,34 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
 
         // Wait for page reload and verify item appears
         await page.waitForLoadState('networkidle');
-        const itemRow = page.locator(`[data-entity-type="${type.slug}"][data-entity-id="1"]`);
-        await expect(itemRow).toBeDefined();
+        // `expect(locator).toBeDefined()` is true of every locator ever built,
+        // so this asserted nothing. Look for the row actually created, and do
+        // it by title - a hardcoded data-entity-id="1" belongs to whatever row
+        // happens to hold that id.
+        const itemRow = page.locator(`#tab-${type.slug} .entity-row`, { hasText: `ZZZ New ${type.label}` });
+        await expect(itemRow.first()).toBeVisible();
       });
 
       test(`[${type.label}] Can edit an existing item`, async () => {
         // Create an item first
-        const addBtn = page.locator(`#add${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
+        const addBtn = page.locator(addBtnFor(type.slug));
         await addBtn.click();
         const form = page.locator('#entity-editor-form');
         await expect(form).toBeVisible();
         const titleInput = form.locator('input[name="title"]');
-        await titleInput.fill(`Edit Test ${type.label}`);
+        await titleInput.fill(`ZZZ Edit ${type.label}`);
         const saveBtn = page.locator(`#${type.slug}SaveBtn`);
         await saveBtn.click();
         await page.waitForLoadState('networkidle');
 
-        // Now click on the item to edit it
-        const itemRow = page.locator(`#tab-${type.slug} .entity-row:visible`).first();
-        await itemRow.click();
+        // The editor is ALREADY open on what was just saved - "the editor stays
+        // open on it so you can keep filling it in" (the add button's own
+        // tooltip). So edit in place.
+        //
+        // This used to click the row to "open" the editor, which is wrong twice
+        // over: one click expands a row and TWO open the editor (CLAUDE.md), and
+        // double-clicking the row the editor is already on closes it - which is
+        // why #entity-editor-form came back "not found" straight after a save.
         const editForm = page.locator('#entity-editor-form');
         await expect(editForm).toBeVisible();
 
@@ -78,103 +107,50 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await saveBtnEdit.click();
         await page.waitForLoadState('networkidle');
 
-        // Verify title changed
-        const updatedItemRow = page.locator(`#tab-${type.slug} .entity-row:visible`).first();
-        await expect(updatedItemRow).toContainText('(edited)');
+        // ...and check the row we edited, not whichever one sorts first.
+        const updatedItemRow = page.locator(`#tab-${type.slug} .entity-row`, { hasText: '(edited)' }).first();
+        await expect(updatedItemRow).toBeVisible();
       });
 
-      test(`[${type.label}] Toggle close works - click same row again closes editor`, async () => {
-        // Create item
-        const addBtn = page.locator(`#add${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
-        await addBtn.click();
-        const form = page.locator('#entity-editor-form');
-        await expect(form).toBeVisible();
-        const titleInput = form.locator('input[name="title"]');
-        await titleInput.fill(`Toggle Test ${type.label}`);
-        const saveBtn = page.locator(`#${type.slug}SaveBtn`);
-        await saveBtn.click();
-        await page.waitForLoadState('networkidle');
+      // REMOVED: "Toggle close works - click same row again closes editor".
+      //
+      // It asserted that ONE click opens the editor and a second closes it.
+      // The rule is the opposite and deliberate - one click expands a row, TWO
+      // open the editor (CLAUDE.md; the handler is bound to dblclick). The test
+      // encoded behaviour that was taken out on purpose, so it could not pass
+      // and should not.
 
-        // Click row to open editor
-        const itemRow = page.locator(`#tab-${type.slug} .entity-row:visible`).first();
-        await itemRow.click();
-        const editForm = page.locator('#entity-editor-form');
-        await expect(editForm).toBeVisible();
-
-        // Click same row again (should close)
-        await itemRow.click();
-        await expect(editForm).not.toBeVisible({ timeout: 2000 });
-
-        // Click row again (should reopen)
-        await itemRow.click();
-        await expect(editForm).toBeVisible({ timeout: 2000 });
-      });
-
-      test(`[${type.label}] Can delete an item`, async () => {
-        // Create item
-        const addBtn = page.locator(`#add${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
-        await addBtn.click();
-        const form = page.locator('#entity-editor-form');
-        await expect(form).toBeVisible();
-        const titleInput = form.locator('input[name="title"]');
-        await titleInput.fill(`Delete Test ${type.label}`);
-        const saveBtn = page.locator(`#${type.slug}SaveBtn`);
-        await saveBtn.click();
-        await page.waitForLoadState('networkidle');
-
-        // Get initial count
-        const initialRows = await page.locator(`#tab-${type.slug} .entity-row:visible`).count();
-
-        // Click delete button
-        const deleteBtn = page.locator('[data-action="delete"]').first();
-        page.once('dialog', async dialog => {
-          await dialog.accept();
-        });
-        await deleteBtn.click();
-        await page.waitForLoadState('networkidle');
-
-        // Verify count decreased
-        const finalRows = await page.locator(`#tab-${type.slug} .entity-row:visible`).count();
-        expect(finalRows).toBeLessThan(initialRows);
-      });
-
-      test(`[${type.label}] Can create a folder`, async () => {
-        // Click + Folder button
-        const folderBtn = page.locator(`#add${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}FolderBtn`);
-        page.once('dialog', async dialog => {
-          await dialog.type('Test Folder');
-          await dialog.accept();
-        });
-        await folderBtn.click();
-        await page.waitForLoadState('networkidle');
-
-        // Verify folder appears
-        const folderRow = page.locator(`#tab-${type.slug} .entity-row:visible`).first();
-        await expect(folderRow).toContainText('Test Folder');
-      });
+      // REMOVED: "Can delete an item", and below it "Can create a folder".
+      //
+      // Both drive `page.once('dialog', ...)` - a native confirm() for the
+      // delete and a prompt() for the folder name. This app uses custom modals
+      // (see the UX standards), so no dialog event ever fires and both sat
+      // waiting out the full timeout. Deletion is covered by
+      // recently-deleted.spec.js and folders by generic-entity-crud.spec.js,
+      // both against the modals that actually exist.
 
       test(`[${type.label}] Expand/Collapse buttons work`, async () => {
         // Create a parent item first
-        const addBtn = page.locator(`#add${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
+        const addBtn = page.locator(addBtnFor(type.slug));
         await addBtn.click();
         const form = page.locator('#entity-editor-form');
         await expect(form).toBeVisible();
         const titleInput = form.locator('input[name="title"]');
-        await titleInput.fill('Parent Item');
+        await titleInput.fill('ZZZ Parent Item');
         const saveBtn = page.locator(`#${type.slug}SaveBtn`);
         await saveBtn.click();
         await page.waitForLoadState('networkidle');
 
         // Check that expand/collapse buttons exist
-        const expandBtn = page.locator(`#expandAll${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
-        const collapseBtn = page.locator(`#collapseAll${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
+        const expandBtn = page.locator(`#expandAll${type.slug}Btn`);
+        const collapseBtn = page.locator(`#collapseAll${type.slug}Btn`);
         await expect(expandBtn).toBeVisible();
         await expect(collapseBtn).toBeVisible();
       });
 
       test(`[${type.label}] Form has title field`, async () => {
         // Click add button
-        const addBtn = page.locator(`#add${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
+        const addBtn = page.locator(addBtnFor(type.slug));
         await addBtn.click();
 
         // Wait for form
@@ -192,7 +168,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
 
       test(`[${type.label}] Save button is disabled until changes made`, async () => {
         // Click add button
-        const addBtn = page.locator(`#add${type.slug.charAt(0).toUpperCase()}${type.slug.slice(1)}Btn`);
+        const addBtn = page.locator(addBtnFor(type.slug));
         await addBtn.click();
 
         // Wait for form
@@ -205,7 +181,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
 
         // Make a change
         const titleInput = form.locator('input[name="title"]');
-        await titleInput.fill('New Item');
+        await titleInput.fill('ZZZ New Item');
 
         // Check save button is now enabled
         await expect(saveBtn).toBeEnabled();
