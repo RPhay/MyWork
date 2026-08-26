@@ -108,7 +108,7 @@ test.describe('Dropping onto Dailies', () => {
     await page.waitForTimeout(1500);
 
     const payload = await page.evaluate(() => {
-      const row = [...document.querySelectorAll('#areaEntityList .entity-row')]
+      const row = [...document.querySelectorAll('#categoryEntityList .entity-row')]
         .find(r => r.textContent.includes('ZZZ payload'));
       const dt = new DataTransfer();
       row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));

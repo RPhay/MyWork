@@ -13,7 +13,7 @@ test('Categories: Full workflow - create, edit, delete', async ({ page }) => {
   console.log('✓ Navigated to Categories tab');
   
   // Click add button
-  const addBtn = page.locator('button#addareaBtn');
+  const addBtn = page.locator('button#addcategoryBtn');
   const count = await addBtn.count();
   console.log(`Add button found: ${count > 0 ? 'YES' : 'NO'}`);
   
@@ -22,7 +22,7 @@ test('Categories: Full workflow - create, edit, delete', async ({ page }) => {
     await page.waitForTimeout(500);
     
     // Check if editor opened
-    const editorPane = page.locator('#areaEditorPane');
+    const editorPane = page.locator('#categoryEditorPane');
     const isHidden = await editorPane.evaluate(el => el.classList.contains('hidden'));
     console.log(`Editor pane opened: ${!isHidden ? 'YES' : 'NO'}`);
     
@@ -37,7 +37,7 @@ test('Categories: Full workflow - create, edit, delete', async ({ page }) => {
         console.log('✓ Title filled in');
         
         // Save
-        const saveBtn = page.locator('#areaSaveBtn');
+        const saveBtn = page.locator('#categorySaveBtn');
         const saveBtnCount = await saveBtn.count();
         console.log(`Save button found: ${saveBtnCount > 0 ? 'YES' : 'NO'}`);
         

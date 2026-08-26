@@ -15,7 +15,7 @@ test('hover help is present where it is needed', async ({ page }) => {
     return {
       tabButtons: [withTitle('#mainTabs button'), total('#mainTabs button')],
       dailiesHeaders: [withTitle('.work-item-tree-header span'), total('.work-item-tree-header span')],
-      typePageButtons: [withTitle('#areaListPane button'), total('#areaListPane button')],
+      typePageButtons: [withTitle('#categoryListPane button'), total('#categoryListPane button')],
     };
   });
   console.log(JSON.stringify(counts));

@@ -83,7 +83,7 @@ test.describe('Generic entity context menu', () => {
     await expect(title).toBeVisible();
     await title.fill(`${PREFIX} nested folder`);
     await title.dispatchEvent('input');
-    await page.click('#areaSaveBtn');
+    await page.click('#categorySaveBtn');
     await page.waitForTimeout(1200);
 
     const rels = (await api(page, '/api/entities/category/relationships?kind=hierarchy')).body.data;
