@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
  * added to one of these surfaces fails until it explains itself.
  */
 test('hover help is present where it is needed', async ({ page }) => {
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
+  await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
 
   const counts = await page.evaluate(() => {
     const withTitle = (sel) => [...document.querySelectorAll(sel)].filter(e => (e.getAttribute('title')||'').trim().length > 0).length;

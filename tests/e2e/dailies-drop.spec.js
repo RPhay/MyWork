@@ -100,10 +100,10 @@ test.describe('Dropping onto Dailies', () => {
   }
 
   test('the generic row drag publishes what Dailies reads', async ({ page }) => {
-    await page.goto('/?tab=area');
+    await page.goto('/?tab=category');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
-    await api(page, '/api/entities/area', { method: 'POST', body: JSON.stringify({ title: 'ZZZ payload' }) });
+    await api(page, '/api/entities/category', { method: 'POST', body: JSON.stringify({ title: 'ZZZ payload' }) });
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
@@ -145,10 +145,10 @@ test.describe('Copy vs reference', () => {
 
 for (const mode of ['reference','copy']) {
   test(`dropping as a ${mode}`, async ({ page }) => {
-    await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
-    const parent = (await api(page,'/api/entities/area',{method:'POST',body:JSON.stringify({title:`ZZZcr ${mode} src`})})).body.data;
-    const child  = (await api(page,'/api/entities/area',{method:'POST',body:JSON.stringify({title:`ZZZcr ${mode} kid`})})).body.data;
-    await api(page,`/api/entities/area/${child.id}/relationships`,{method:'POST',
+    await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
+    const parent = (await api(page,'/api/entities/category',{method:'POST',body:JSON.stringify({title:`ZZZcr ${mode} src`})})).body.data;
+    const child  = (await api(page,'/api/entities/category',{method:'POST',body:JSON.stringify({title:`ZZZcr ${mode} kid`})})).body.data;
+    await api(page,`/api/entities/category/${child.id}/relationships`,{method:'POST',
       body:JSON.stringify({parentEntityId:parent.id, childEntityId:child.id, relationshipKind:'hierarchy'})});
     await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1600);
 
@@ -170,7 +170,7 @@ for (const mode of ['reference','copy']) {
     const linked = roots.find(r => r.depth === 0 && r.title === `ZZZcr ${mode} src`);
     expect(linked, 'the record is on the day').toBeTruthy();
 
-    const areas = (await api(page,'/api/entities/area')).body.data;
+    const areas = (await api(page,'/api/entities/category')).body.data;
     if (mode === 'reference') {
       expect(linked.id).toBe(parent.id);
       expect(linked.isCopy).toBe(false);
@@ -196,7 +196,7 @@ for (const mode of ['reference','copy']) {
     expect(nested, 'nothing below the root repeats it').toBe(0);
 
     for (const w of items.filter(x=>(x.title||'').startsWith('ZZZcr'))) await api(page,`/api/dailies/${w.id}`,{method:'DELETE'});
-    for (const a of areas.filter(x=>(x.title||'').startsWith('ZZZcr'))) await api(page,`/api/entities/area/${a.id}`,{method:'DELETE'});
+    for (const a of areas.filter(x=>(x.title||'').startsWith('ZZZcr'))) await api(page,`/api/entities/category/${a.id}`,{method:'DELETE'});
   });
 }
 });

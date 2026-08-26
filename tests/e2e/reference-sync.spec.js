@@ -1,6 +1,20 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
 import { dblclick } from './dblclick.js';
+import { ensureTestsType } from './helpers/fixtures.js';
+
+// The `tests` type is a fixture, not something the app seeds - see
+// helpers/fixtures.js. Without it every POST below returns no data and the
+// spec dies reading `.id` of undefined.
+test.beforeAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  try {
+    await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
+    await ensureTestsType(page);
+  } finally {
+    await page.close();
+  }
+});
 
 // A reference IS the record. Editing it anywhere edits it everywhere, and every
 // view showing it has to say so without a reload - including when the change is

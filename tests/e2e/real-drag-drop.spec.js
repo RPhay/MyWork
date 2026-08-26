@@ -90,7 +90,7 @@ test('template with contents -> day, as independent copies', async ({ page }) =>
   await page.goto('/?tab=idea'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1800);
   const tpl  = (await api(page,'/api/entities/template',{method:'POST',body:JSON.stringify({title:'ZZZfull template'})})).body.data;
   const idea = (await api(page,'/api/entities/idea',{method:'POST',body:JSON.stringify({title:'ZZZfull idea'})})).body.data;
-  const cat  = (await api(page,'/api/entities/area',{method:'POST',body:JSON.stringify({title:'ZZZfull category'})})).body.data;
+  const cat  = (await api(page,'/api/entities/category',{method:'POST',body:JSON.stringify({title:'ZZZfull category'})})).body.data;
   for (const c of [idea, cat]) {
     await api(page,`/api/entities/template/${tpl.id}/relationships`,{method:'POST',
       body:JSON.stringify({parentEntityId:tpl.id, childEntityId:c.id, relationshipKind:'hierarchy'})});

@@ -1,5 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
+import { ensureTestsType } from './helpers/fixtures.js';
+
+// The `tests` type is a fixture, not something the app seeds - see
+// helpers/fixtures.js. Without it every POST below returns no data and the
+// spec dies reading `.id` of undefined.
+test.beforeAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  try {
+    await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
+    await ensureTestsType(page);
+  } finally {
+    await page.close();
+  }
+});
 
 /**
  * Templates are containers you make deliberately with "+ Template", the way a

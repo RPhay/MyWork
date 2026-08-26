@@ -24,7 +24,7 @@ async function state(page) {
 }
 test('the three valid two-pane combinations', async ({ page }) => {
   const errs=[]; page.on('pageerror',e=>errs.push(e.message));
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
+  await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
 
   const D = page.locator('button[data-rail-toggle="daily"]');
   const T = page.locator('button[data-rail-toggle="template"]');
@@ -60,7 +60,7 @@ test('the three valid two-pane combinations', async ({ page }) => {
 });
 
 test('rail choices survive a reload', async ({ page }) => {
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
+  await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
   // Leave it on Templates + type
   await page.locator('button[data-rail-toggle="daily"]').click();
   await page.locator('button[data-rail-toggle="template"]').click();
@@ -73,7 +73,7 @@ test('rail choices survive a reload', async ({ page }) => {
 });
 test('Dailies shows no column headers until the day has work', async ({ page }) => {
   const errs=[]; page.on('pageerror',e=>errs.push(e.message));
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1800);
+  await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1800);
 
   const header = page.locator('.work-item-tree-header');
   await expect(header).toBeHidden();
@@ -103,7 +103,7 @@ test('Dailies shows no column headers until the day has work', async ({ page }) 
 });
 
 test('no type tab is selected while both rails are up', async ({ page }) => {
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
+  await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
   const activeTypeTabs = () => page.locator('#mainTabs button[data-tab].active').count();
 
   expect(await activeTypeTabs()).toBe(1);

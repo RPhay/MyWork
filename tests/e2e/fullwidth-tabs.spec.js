@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
  */
 test('Reporting takes the whole screen, and the rails come back after', async ({ page }) => {
   const errs=[]; page.on('pageerror',e=>errs.push(e.message));
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
+  await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1600);
 
   // start with both rails up
   if (!(await page.locator('#rail-daily').isVisible())) { await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(600); }

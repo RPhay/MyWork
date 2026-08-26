@@ -42,7 +42,7 @@ async function drop(page, id, title, onto = '#workItemsList') {
 }
 
 async function openDailies(page) {
-  await page.goto('/?tab=area', { waitUntil: 'networkidle' });
+  await page.goto('/?tab=category', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1600);
   if (!(await page.locator('#rail-daily').isVisible())) {
     await page.locator('button[data-rail-toggle="daily"]').click();
@@ -57,19 +57,19 @@ test.describe('Records on the day itself', () => {
     // afterAll, not the end of a test body: a spec that tidies up on its last
     // line leaks every time an assertion fails earlier.
     const page = await browser.newPage();
-    await page.goto('/?tab=area', { waitUntil: 'networkidle' });
+    await page.goto('/?tab=category', { waitUntil: 'networkidle' });
     const items = (await api(page, `/api/dailies/date/${today()}`)).body?.data || [];
     for (const w of items.filter(x => (x.title || '').startsWith('ZZZroot') || x.title === 'New daily'))
       await api(page, `/api/dailies/${w.id}`, { method: 'DELETE' });
-    const areas = (await api(page, '/api/entities/area')).body?.data || [];
+    const areas = (await api(page, '/api/entities/category')).body?.data || [];
     for (const a of areas.filter(x => (x.title || '').startsWith('ZZZroot')))
-      await api(page, `/api/entities/area/${a.id}`, { method: 'DELETE' });
+      await api(page, `/api/entities/category/${a.id}`, { method: 'DELETE' });
     await page.close();
   });
 
   test('a record dropped on empty space sits on the day, with no daily invented', async ({ page }) => {
     await openDailies(page);
-    const rec = (await api(page, '/api/entities/area', {
+    const rec = (await api(page, '/api/entities/category', {
       method: 'POST', body: JSON.stringify({ title: 'ZZZroot loose' }),
     })).body.data;
     await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(1600);
@@ -107,7 +107,7 @@ test.describe('Records on the day itself', () => {
     const after = (await api(page, `/api/dailies/date/${today()}/roots`)).body.data;
     expect(after.some(r => r.id === target.id), 'off the day').toBe(false);
 
-    const areas = (await api(page, '/api/entities/area')).body.data;
+    const areas = (await api(page, '/api/entities/category')).body.data;
     expect(areas.some(a => a.id === target.id), 'the record itself is untouched').toBe(true);
   });
 
@@ -132,7 +132,7 @@ test.describe('Records on the day itself', () => {
     const daily = (await api(page, '/api/dailies', {
       method: 'POST', body: JSON.stringify({ date: today(), title: 'ZZZroot holder' }),
     })).body.data;
-    const rec = (await api(page, '/api/entities/area', {
+    const rec = (await api(page, '/api/entities/category', {
       method: 'POST', body: JSON.stringify({ title: 'ZZZroot inside' }),
     })).body.data;
     await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(1800);

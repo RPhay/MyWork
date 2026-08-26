@@ -34,7 +34,7 @@ test('a template holds rows of other types, rendered with their own icons', asyn
 
   const tpl  = (await api(page,'/api/entities/template',{method:'POST',body:JSON.stringify({title:'ZZZtm template'})})).body.data;
   const idea = (await api(page,'/api/entities/idea',{method:'POST',body:JSON.stringify({title:'ZZZtm idea'})})).body.data;
-  const cat  = (await api(page,'/api/entities/area',{method:'POST',body:JSON.stringify({title:'ZZZtm category'})})).body.data;
+  const cat  = (await api(page,'/api/entities/category',{method:'POST',body:JSON.stringify({title:'ZZZtm category'})})).body.data;
   for (const child of [idea, cat]) {
     const r = await api(page,`/api/entities/template/${tpl.id}/relationships`,{method:'POST',
       body:JSON.stringify({parentEntityId:tpl.id, childEntityId:child.id, relationshipKind:'hierarchy'})});
@@ -58,7 +58,7 @@ test('a template holds rows of other types, rendered with their own icons', asyn
   expect(errs).toEqual([]);
 
   for (const id of [idea.id, cat.id]) await api(page,`/api/entities/idea/${id}`,{method:'DELETE'}).catch(()=>{});
-  await api(page,`/api/entities/area/${cat.id}`,{method:'DELETE'}).catch(()=>{});
+  await api(page,`/api/entities/category/${cat.id}`,{method:'DELETE'}).catch(()=>{});
   await api(page,`/api/entities/template/${tpl.id}`,{method:'DELETE'});
 });
 

@@ -38,7 +38,7 @@ test('disabling a type removes its dashboard tab', async ({ page }) => {
   await row.locator('.type-visible-toggle').click();
   await page.waitForTimeout(900);
 
-  await page.goto('/?tab=area'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1000);
+  await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1000);
   expect(await page.locator('button[data-tab="ticket"]').count()).toBe(0);
 
   // turn it back on

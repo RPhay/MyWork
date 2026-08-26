@@ -1,4 +1,18 @@
 import { test, expect } from '@playwright/test';
+import { ensureTestsType } from './helpers/fixtures.js';
+
+// The `tests` type is a fixture, not something the app seeds - see
+// helpers/fixtures.js. Without it every POST below returns no data and the
+// spec dies reading `.id` of undefined.
+test.beforeAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  try {
+    await page.goto('/?tab=idea', { waitUntil: 'networkidle' });
+    await ensureTestsType(page);
+  } finally {
+    await page.close();
+  }
+});
 
 /**
  * A day can hold a row of ANY type, including one the user created, and the row

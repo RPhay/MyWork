@@ -41,19 +41,19 @@ test.describe('Generic entity context menu', () => {
 
   test.afterEach(async ({ page }) => {
     await page.goto('/');
-    const { body } = await api(page, '/api/entities/area');
+    const { body } = await api(page, '/api/entities/category');
     for (const e of (body?.data || []).filter(x => (x.title || '').startsWith(PREFIX))) {
-      await api(page, `/api/entities/area/${e.id}`, { method: 'DELETE' });
+      await api(page, `/api/entities/category/${e.id}`, { method: 'DELETE' });
     }
   });
 
   test('a hierarchical type offers nesting, folders, edit and delete', async ({ page }) => {
     const errs = []; page.on('pageerror', e => errs.push(e.message));
-    await page.goto('/?tab=area');
+    await page.goto('/?tab=category');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
 
-    await api(page, '/api/entities/area', { method: 'POST', body: JSON.stringify({ title: `${PREFIX} parent` }) });
+    await api(page, '/api/entities/category', { method: 'POST', body: JSON.stringify({ title: `${PREFIX} parent` }) });
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(1400);
 
@@ -68,11 +68,11 @@ test.describe('Generic entity context menu', () => {
   });
 
   test('"New Folder inside" nests the folder under the row it was opened on', async ({ page }) => {
-    await page.goto('/?tab=area');
+    await page.goto('/?tab=category');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
 
-    const parent = (await api(page, '/api/entities/area', { method: 'POST', body: JSON.stringify({ title: `${PREFIX} host` }) })).body.data;
+    const parent = (await api(page, '/api/entities/category', { method: 'POST', body: JSON.stringify({ title: `${PREFIX} host` }) })).body.data;
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(1400);
 
@@ -86,8 +86,8 @@ test.describe('Generic entity context menu', () => {
     await page.click('#areaSaveBtn');
     await page.waitForTimeout(1200);
 
-    const rels = (await api(page, '/api/entities/area/relationships?kind=hierarchy')).body.data;
-    const all = (await api(page, '/api/entities/area')).body.data;
+    const rels = (await api(page, '/api/entities/category/relationships?kind=hierarchy')).body.data;
+    const all = (await api(page, '/api/entities/category')).body.data;
     const folder = all.find(e => e.title === `${PREFIX} nested folder`);
     expect(folder).toBeTruthy();
     expect(Boolean(folder.is_folder)).toBe(true);
@@ -95,7 +95,7 @@ test.describe('Generic entity context menu', () => {
   });
 
   test('right-clicking empty space offers top-level creation only', async ({ page }) => {
-    await page.goto('/?tab=area');
+    await page.goto('/?tab=category');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
 
