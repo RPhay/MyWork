@@ -149,6 +149,18 @@
   overflow-wrap: anywhere;
 }
 
+/* Dropped by the width fit in genericEntity.js - see fittedColumnKeys().
+   Columns never scroll sideways and values are never truncated, so when there
+   is not room for every column the lowest-priority ones are removed instead of
+   being squeezed to the four pixels this pane used to produce. Title and the
+   completion signal are never dropped. The grid template is rewritten to match,
+   so the remaining cells stay under their own headers. Nothing is lost - the
+   values are still in the row editor, and widening the pane brings the columns
+   straight back. */
+.entity-cell.col-dropped {
+  display: none;
+}
+
 .entity-cell .row-field,
 .entity-cell .entity-row-link {
   white-space: normal;

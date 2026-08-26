@@ -67,7 +67,8 @@ npx playwright test \
   tests/e2e/column-reorder-editor-sync.spec.js \
   tests/e2e/debug.spec.js \
   tests/e2e/ui-check.spec.js \
-  tests/e2e/rail-selection.spec.js
+  tests/e2e/rail-selection.spec.js \
+  tests/e2e/column-fit.spec.js
 ```
 
 Plus, **headed**, whenever an editable type page or its engine is touched —
@@ -89,6 +90,7 @@ see "Editable types" below for the command and file list.
 | `debug.spec.js` | CSP and console errors |
 | `ui-check.spec.js` | Tab structure |
 | `rail-selection.spec.js` | Which panes may share the screen, and the click-to-toggle rule |
+| `column-fit.spec.js` | Columns drop rather than collapse when the pane is narrow |
 | `editable-types.spec.js` | Per-type UI elements and folders (headed) |
 
 Why it's a merged list, and the traps it's caught in itself (read before
@@ -120,7 +122,7 @@ Times are wall-clock on this machine. **Measured** = observed in a real run;
 | 3 | Targeted | The 1-3 specs covering the change | 5-30s | **The default while working.** `column-reorder-editor-sync` alone is 7s |
 | 4 | Editor / engine | `entity-editor-behaviour`, `entity-type-integrity`, `entity-field-types`, `column-reorder-editor-sync`, `row-icon-sizing` | ~1m (est.) | Editor, field types, row rendering, the generic engine |
 | 5 | Drag | `drag-protocol`, `real-drag-drop`, `template-drops`, `dailies-drop`, `dailies-any-type`, `priorities-rail` | **~1.2m** | Anything touching drag sources, drop targets or `dragDropUtils.js` |
-| 6 | Guard set | The 14 specs above + `npm run test:unit` | **6.2m** | Before a commit or push |
+| 6 | Guard set | The 15 specs above + `npm run test:unit` | **~13m** | Before a commit or push |
 | 7 | Guard + headed | Tier 6 + `editable-types --headed` | ~8m (est.) | Editable type pages or their engine — see "Editable types" |
 | 8 | Full suite | `npx playwright test` | **~12.3m** | Rarely. Mostly stale specs; the number needs a baseline to mean anything |
 

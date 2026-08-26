@@ -557,27 +557,120 @@ const GenericEntity = (() => {
     date: 120,
   };
 
-  function gridTemplate(typeSchema) {
-    const tracks = orderedColumns(typeSchema).map(c => {
+  // A flexible column still needs room to be readable. Below this it is not a
+  // narrow column, it is an unreadable stub - which is what the pane used to
+  // produce: `90px 4.39px 90px 88px 4.4px ...`, several columns collapsed to
+  // about four pixels with their content wrapping.
+  const FLEX_MIN_PX = 70;
+
+  // One pass over the columns, giving both the CSS track and the width below
+  // which that column stops being worth showing. Shared so the grid and the
+  // fit decision can never disagree about how wide a column is.
+  function columnTracks(typeSchema) {
+    return orderedColumns(typeSchema).map(c => {
       // A floor, not zero: with many columns in a narrow pane the title track
       // collapsed to nothing and the row's name disappeared - which is exactly
       // what the earlier `minmax(0, 1fr)` did before, and it came back when the
       // Dailies rail took half the width.
-      if (c.isTitle) return `minmax(${TITLE_MIN_PX}px, ${TITLE_SHARE}fr)`;
+      if (c.isTitle) {
+        return { col: c, track: `minmax(${TITLE_MIN_PX}px, ${TITLE_SHARE}fr)`, minPx: TITLE_MIN_PX };
+      }
       const type = c.field?.field_type;
 
       // Measured from the real control, so it fits the longest value exactly.
       if (type === 'status' || type === 'select' || type === 'radio') {
         const px = choiceColumnPx(c.field);
-        if (px) return `${px}px`;
+        if (px) return { col: c, track: `${px}px`, minPx: px };
       }
 
       const fixed = FIXED_COLUMN_PX[type];
-      if (fixed) return `${fixed}px`;
+      if (fixed) return { col: c, track: `${fixed}px`, minPx: fixed };
 
-      return 'minmax(0, 1fr)';
+      return { col: c, track: 'minmax(0, 1fr)', minPx: FLEX_MIN_PX };
     });
+  }
+
+  function gridTemplate(typeSchema, keepKeys = null) {
+    const tracks = columnTracks(typeSchema)
+      .filter(t => !keepKeys || keepKeys.has(t.col.key))
+      .map(t => t.track);
     return `${tracks.join(' ')} ${ACTIONS_PX}px`;
+  }
+
+  // Which columns survive at this width.
+  //
+  // Two rules were each right on their own and could not both hold: columns
+  // never scroll horizontally, and text is never truncated. With more columns
+  // than width they met, and the loser was legibility. The rule that bends is
+  // now "every column is always shown" - below the width they need, the
+  // lowest-priority ones are dropped rather than squeezed to nothing.
+  //
+  // Three tiers, dropped in order:
+  //
+  //   2  everything else   - goes first, from the RIGHT, so dropping follows
+  //                          the column order already arranged rather than a
+  //                          separate priority nobody set
+  //   1  status            - goes only if tier 2 was not enough. It is the one
+  //                          value shared by every type's vocabulary and the
+  //                          thing folder roll-ups are read from
+  //   0  title             - never goes; a row with no name is not a row
+  //
+  // Status is tier 1 rather than untouchable on purpose: a rail dragged very
+  // narrow can leave less room than title and status together need, and a
+  // column that cannot be dropped would overflow - reintroducing exactly the
+  // sideways scroll this exists to avoid.
+  //
+  // Keyed on field_type === 'status', NOT on is_completion_signal: only 3 of
+  // the 7 status fields carry that flag (daily, task, to_do), so protecting on
+  // it silently did nothing for Goals, Ideas, Projects and Tickets.
+  function fittedColumnKeys(typeSchema, availablePx) {
+    const tracks = columnTracks(typeSchema);
+    const budget = availablePx - ACTIONS_PX;
+    if (!(budget > 0)) return new Set(tracks.map(t => t.col.key));
+
+    const keep = tracks.map(t => t.col.key);
+    const minOf = new Map(tracks.map(t => [t.col.key, t.minPx]));
+    const tierOf = (key) => {
+      if (key === 'title') return 0;
+      const t = tracks.find(x => x.col.key === key);
+      return t?.col.field?.field_type === 'status' ? 1 : 2;
+    };
+
+    const width = () => keep.reduce((sum, k) => sum + (minOf.get(k) || 0), 0);
+
+    for (const tier of [2, 1]) {
+      for (let i = keep.length - 1; i >= 0 && width() > budget; i -= 1) {
+        if (tierOf(keep[i]) !== tier) continue;
+        keep.splice(i, 1);
+      }
+    }
+    return new Set(keep);
+  }
+
+  /**
+   * Re-fit an already-rendered list to its current width.
+   *
+   * Runs on the real DOM rather than at render time because the width that
+   * matters is the container's, and the markup is built as a string before it
+   * has one. It is also what makes this respond to the Dailies rail being
+   * dragged - the case that produced the four-pixel columns in the first place.
+   */
+  function fitColumns(listEl, typeSchema) {
+    if (!listEl) return;
+    const list = listEl.querySelector('.entity-list') || listEl;
+    const available = list.clientWidth;
+    if (!available) return;                       // hidden pane - nothing to fit
+
+    const keep = fittedColumnKeys(typeSchema, available);
+    list.style.setProperty('--entity-grid', gridTemplate(typeSchema, keep));
+
+    // Header cells carry data-col-key, body cells data-col.
+    for (const cell of list.querySelectorAll('[data-col-key], [data-col]')) {
+      const key = cell.dataset.colKey ?? cell.dataset.col;
+      if (key === undefined) continue;
+      cell.classList.toggle('col-dropped', !keep.has(key));
+    }
+    list.classList.toggle('has-dropped-columns', keep.size < columnTracks(typeSchema).length);
   }
 
   // ========== FOLDER ROLL-UPS ==========
@@ -1815,6 +1908,7 @@ const GenericEntity = (() => {
     renderRow: renderEntityRow,
     renderFlatList,
     orderedColumns,
+    fitColumns,
     syncEditorFromRow,
     cellChoices,
     choiceLabel,

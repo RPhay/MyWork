@@ -246,6 +246,35 @@ async function deleteFolder(folderId) {
   }
 }
 
+/**
+ * Nest one folder inside another, or move it out to the root.
+ *
+ * The server already had this: contextFolderService.updateFolder accepts
+ * parent_id and refuses both a folder as its own parent and a sub-folder as the
+ * parent of its own ancestor. Only the drop handler was missing, so a folder
+ * could be picked up and then did nothing wherever it was let go.
+ */
+async function moveFolderToFolder(folderId, parentId) {
+  if (String(folderId) === String(parentId)) return;   // dropped on itself
+  try {
+    const response = await app.fetchRaw(`/api/context-folders/${folderId}`, {
+      method: "PUT",
+      body: JSON.stringify({ parent_id: parentId || null }) });
+    const result = await response.json();
+    if (result.success) {
+      if (parentId) expandedFolders.add(String(parentId));
+      loadContexts();
+    } else {
+      // The ancestor/self-parent refusals arrive here, and they are worth
+      // showing: from the user's side the drag simply had no effect otherwise.
+      app.notify(result.message || "Could not move folder", "danger");
+    }
+  } catch (error) {
+    console.error("Error moving folder:", error);
+    app.notify("Error moving folder", "danger");
+  }
+}
+
 async function moveContextToFolder(contextId, folderId) {
   try {
     const response = await app.fetchRaw(`/api/contexts/${contextId}`, {
@@ -1102,36 +1131,51 @@ function initContextsEventListeners() {
     } else if (folderHeader) {
       e.dataTransfer.effectAllowed = DRAG_EFFECT_ALLOWED;
       e.dataTransfer.setData("folder-id", folderHeader.dataset.folderId);
+      folderHeader.classList.add("dragging-folder");
     }
   });
 
   list.addEventListener("dragend", (e) => {
     e.target.closest(".context-row")?.classList.remove("dragging-item");
     list
+      .querySelectorAll(".context-folder-header.dragging-folder")
+      .forEach((el) => el.classList.remove("dragging-folder"));
+    list
       .querySelectorAll(".context-folder-header.drag-over")
       .forEach((el) => el.classList.remove("drag-over"));
   });
 
   list.addEventListener("dragover", (e) => {
+    const clearHighlights = () => list
+      .querySelectorAll(".context-folder-header.drag-over")
+      .forEach((el) => el.classList.remove("drag-over"));
+
+    // Contexts and folders are both draggable, and both may be dropped on a
+    // folder header or on the background.
+    const draggingFolder = e.dataTransfer.types.includes("folder-id");
+    const draggingContext = e.dataTransfer.types.includes("context-id");
+
     const folderHeader = e.target.closest(".context-folder-header");
     if (folderHeader) {
+      // A folder is not a drop target for itself - highlighting it would
+      // promise a move that moveFolderToFolder then declines to make.
+      if (draggingFolder && folderHeader.classList.contains("dragging-folder")) {
+        clearHighlights();
+        return;
+      }
       e.preventDefault();
-      list
-        .querySelectorAll(".context-folder-header.drag-over")
-        .forEach((el) => el.classList.remove("drag-over"));
+      clearHighlights();
       folderHeader.classList.add("drag-over");
     } else if (e.target.closest(".context-row")) {
+      // A context row reorders contexts; a folder has nothing to do here.
+      if (draggingFolder) { clearHighlights(); return; }
       e.preventDefault();
-      list
-        .querySelectorAll(".context-folder-header.drag-over")
-        .forEach((el) => el.classList.remove("drag-over"));
+      clearHighlights();
     } else {
-      // Hovering over list background = drop to root
-      if (e.dataTransfer.types.includes("context-id")) {
+      // Hovering over list background = drop to root, for either kind.
+      if (draggingContext || draggingFolder) {
         e.preventDefault();
-        list
-          .querySelectorAll(".context-folder-header.drag-over")
-          .forEach((el) => el.classList.remove("drag-over"));
+        clearHighlights();
       }
     }
   });
@@ -1150,11 +1194,7 @@ function initContextsEventListeners() {
       .forEach((el) => el.classList.remove("drag-over"));
 
     const draggedContextId = e.dataTransfer.getData("context-id");
-    // NOTE: dragging a FOLDER is only half-built. The dragstart above sets a
-    // "folder-id", but nothing here ever acted on it - a folder picks up and
-    // then silently does nothing wherever you drop it. Reading it back into a
-    // variable that went unused was all that remained of the other half.
-    // context_folders.parent_id can model nesting whenever it is finished.
+    const draggedFolderId = e.dataTransfer.getData("folder-id");
 
     const targetFolderHeader = e.target.closest(".context-folder-header");
     const targetContextRow = e.target.closest(".context-row");
@@ -1176,6 +1216,17 @@ function initContextsEventListeners() {
       } else {
         // Drop onto list background = move to root
         moveContextToFolder(draggedContextId, null);
+      }
+    } else if (draggedFolderId) {
+      // A FOLDER was dragged. Same two gestures as a context: onto a folder
+      // header nests it there, onto the list background takes it back to the
+      // root. Dropping onto a context row does nothing - a context is not a
+      // container, and there is no ordering among folders to reorder into.
+      e.preventDefault();
+      if (targetFolderHeader) {
+        moveFolderToFolder(draggedFolderId, targetFolderHeader.dataset.folderId);
+      } else if (!targetContextRow) {
+        moveFolderToFolder(draggedFolderId, null);
       }
     }
   });

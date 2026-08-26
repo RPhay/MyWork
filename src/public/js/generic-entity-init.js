@@ -188,7 +188,24 @@ async function initGenericEntityTab(typeSlug, typeName) {
       } else {
         listContainer.innerHTML = GenericEntity.renderFlatList(entities, typeSchema);
       }
+      // Width-dependent, so it can only run once the markup is in the document.
+      GenericEntity.fitColumns(listContainer, mergedColumnSchema());
       afterRender();
+    }
+
+    // The pane's width is not fixed - the Dailies rail is draggable, and that
+    // is the case that produced four-pixel columns before any of this existed.
+    // Re-fit on resize rather than only on render.
+    if (typeof ResizeObserver !== 'undefined') {
+      let fitPending = false;
+      new ResizeObserver(() => {
+        if (fitPending) return;                    // coalesce a drag's many ticks
+        fitPending = true;
+        requestAnimationFrame(() => {
+          fitPending = false;
+          GenericEntity.fitColumns(listContainer, mergedColumnSchema());
+        });
+      }).observe(listContainer);
     }
 
     // Re-fetch and re-render in place after a create/edit/delete/move, instead

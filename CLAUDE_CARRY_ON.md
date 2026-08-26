@@ -411,7 +411,11 @@ a dependency plus credentials - the user's call, not an oversight.
   record and also leaves it open. Both buttons stay disabled until something
   changes. An editor is closed by clicking its row again.
 - Columns never scroll horizontally and text is never truncated — long values
-  wrap and the row grows taller.
+  wrap and the row grows taller. **Amended 2026-08-25:** those two could not
+  both hold once a pane held more columns than width, and what broke instead was
+  legibility (Goals rendered several columns at about four pixels). Both rules
+  still stand; what bends is "every column is always shown" — see "Columns drop
+  when the pane is too narrow" in `CLAUDE_REFERENCE.md`.
 - One value, many views: `show_in_row`, `show_column_label` and `display_order`
   are edited from both the header and the row editor and always write the same
   field record.

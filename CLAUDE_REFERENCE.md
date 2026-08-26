@@ -213,6 +213,25 @@ the focus bar — each rule below came from a specific regression.
   focus clock accumulates AND a property you can correct by hand, stored in
   seconds and typed as "1h 30m". The type editor locks it, along with the other
   fields the engine writes.
+- **Columns drop when the pane is too narrow** rather than collapsing. Two
+  rules were each right alone and could not both hold with more columns than
+  width — never scroll horizontally, never truncate — so the pane produced
+  `90px 4.39px 90px 88px 4.4px ...`, several columns about four pixels wide with
+  their content wrapping. Both rules still stand; the one that bends is "every
+  column is always shown". `fittedColumnKeys()` in `genericEntity.js` drops in
+  three tiers: ordinary columns first and **from the right**, so dropping
+  follows the arranged column order rather than a separate priority nobody set;
+  then **status**; and **never the title**. Status is droppable rather than
+  untouchable on purpose — a rail dragged very narrow can leave less room than
+  title and status together need, and an undroppable column would overflow,
+  bringing back the sideways scroll this avoids. Measured on the real DOM after
+  render (the width belongs to the container, and the markup is a string before
+  it has one) and re-fitted by a `ResizeObserver`, because the Dailies rail is
+  draggable and that is the case that caused it. Nothing is lost: values stay in
+  the row editor and widening brings the columns straight back.
+  **Key on `field_type === 'status'`, not `is_completion_signal`** — only 3 of
+  the 7 status fields carry that flag, so protecting on it silently did nothing
+  for Goals, Ideas, Projects and Tickets.
 - **The focus bar lives in the navbar** and holds as many items as you pin.
   Only the clock starts and stops the clock. Its redraws are suspended while a
   chip is being dragged, or the timer's refresh deletes the element under the
