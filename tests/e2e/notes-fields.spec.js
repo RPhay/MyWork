@@ -23,6 +23,13 @@ import { test, expect } from '@playwright/test';
 const TITLE = 'ZZZ notes subject';
 const TYPE = 'idea';
 
+// This spec adds TWO columns to Ideas, and columns drop rather than collapse
+// when the pane cannot fit them (genericEntity.fitColumns). At the default
+// 1280 the AI toggle's column was dropped, so the cell was in the DOM - which
+// is why `toHaveCount(1)` passed two tests earlier - and not visible, so
+// clicking it timed out. Give it a pane wide enough to hold what it declares.
+test.use({ viewport: { width: 1900, height: 900 } });
+
 async function api(page, url, opts = {}) {
   return page.evaluate(async ([u, o]) => {
     const r = await fetch(u, {
