@@ -42,6 +42,69 @@ the second half of that rule is only affordable because the suite is green.
 - **`toDoService.js` is deleted.** Its last caller was the Todos & Ideas report,
   which had been returning every Idea and not one Todo.
 
+## Choose what's next
+
+Open questions, as a list to pick from. Each says what it is, what it costs, and
+what happens if it is left alone. Tick one and it becomes the task; nothing here
+is urgent unless marked so.
+
+**Kept in this file on purpose.** A list of "things someone might do" scattered
+across a chat is a list nobody reads again; the point of this file is that it is
+read first.
+
+### Yours to do (this machine cannot)
+
+- [ ] **Migrate the MSSQL install's legacy rows.** ← *the only one with data at
+      stake.* `work_items` (29 rows), `tasks`, `priorities` and `to_dos` on that
+      machine never became entities, because every `scripts/phaseN-migrate-*.js`
+      is MySQL-only. Every service reads `entities` now, so those records exist
+      and the app cannot see them. "Drop Retired Tables" REFUSES them - do not
+      force it. Run `node scripts/migrate-legacy-to-entities.js` (dry run),
+      then `--apply` after a backup.
+- [ ] **Pull and restart on the MSSQL machine.** Templates only moves to
+      Read-Only when the schema build runs, which happens at startup.
+- [ ] **Run the MSSQL schema.** Both dialect files changed a great deal on
+      2026-08-26 and only the MySQL half has been run. This project's own rule
+      is that a T-SQL translation is verified by running it.
+
+### Verification
+
+- [ ] **Run the full suite.** 15 commits since the last green run (353 passed /
+      0 failed, 12:42). Three attempts since were abandoned - twice because
+      `src/` was edited underneath them, once to take new work. ~26 minutes, and
+      nothing may edit `src/` while it runs.
+
+### Worth doing, in rough order of value
+
+- [ ] **Make the type editor send a PATCH instead of rebuilding a type.** This
+      is the one screen with a track record: it destroyed the status roles, left
+      `supports_hierarchy = 0` on Templates, silently retyped fields the form
+      could not draw, and deleted every type's self-nesting rule. All four are
+      fixed and guarded, but each was a separate symptom of the same design -
+      it sends what is on screen and the server trusts it. Sending only what
+      changed ends the class rather than the instances.
+- [ ] **Decide what a USER is, and finish or delete SSO.** The subsystem is
+      wired and cannot work: `findOrCreateSsoUser` reads `users.username` and
+      `users.email`, and this project's `users` table is `(id, name,
+      created_at)`. Deliberately left failing, because fixing it means making
+      that decision. `sso_identities` holds 0 rows.
+- [ ] **Audit the seven empty-but-referenced tables.** `daily_entities`,
+      `quotes`, `source_auth`, `sso_identities`, `context_folders`,
+      `day_highlights` and `work_source_associations` all hold 0 rows while
+      code reads them. That is the same shape the Todos & Ideas report had -
+      wired, and answering with nothing. Each is either an unused feature or a
+      broken one, and telling those apart needs a look per table.
+- [ ] **Check the new `time_box` roll-up on screen.** Every type's Time Box now
+      carries `rollup: 'sum'`, so a folder totals what is planned inside it.
+      That is new behaviour, verified in the data but not looked at in the app.
+
+### Deliberately not doing
+
+- **Retiring more tables.** All 18 that remain are read by code. If one ever
+  looks dead, Settings -> Drop Retired Tables is the way to check it safely.
+- **Reviving recurrence.** Withdrawn on the user's instruction 2026-08-19. The
+  ENUM keeps the value; nothing uses it. Do not rebuild it from these docs.
+
 ### Open
 
 - **The MSSQL install has UNMIGRATED legacy rows.** Every
