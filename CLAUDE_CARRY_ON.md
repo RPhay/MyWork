@@ -44,22 +44,30 @@ the second half of that rule is only affordable because the suite is green.
 
 ### Open
 
-- **The legacy Templates stack is the last migration left.**
-  `work_item_templates` and its junctions (`template_areas`, `template_goals`,
-  `template_priorities`) plus `dailyTemplateService.js` are what remain of the
-  pre-entity world. The Templates RAIL already renders from `entities`, so the
-  two halves coexist: Dailies' template picker, child editor, drag-drop and
-  emoji endpoint are on the legacy side. The three junctions were repointed at
-  `entities` on 2026-08-26, so only the template row itself is still legacy.
-  The old names (`priority_areas`, `template_areas`, `work_item_templates`) go
-  with it - renaming them before that is work done twice.
+- **`priority_areas` / `priority_goals` are the last pair of their kind.** Both
+  columns point at `entities`, both hold 0 rows, and priorityService reads them
+  to build a project's `categories` and `goals`. They are the Projects
+  equivalent of what the Templates migration just removed, and the same move
+  works: make them `hierarchy` children in `entity_relationships` and retire the
+  two tables. That also retires the last table still named "area".
 - **A small unexplained thing, if anyone wants it.** Setting
   `messageEl.style.whiteSpace` from `app._dialog` did not take effect, although
   the assignment was in the served file and `app._dialog.toString()` contained
-  it. Worked around in `modals.css`, which is the better place for it anyway.
-  Nothing depends on the answer.
+  it. Worked around in `modals.css`, which is the better place anyway. Nothing
+  depends on the answer.
 
 ### Closed on 2026-08-26 (was open)
+
+- **Templates are entities.** dailyTemplateService is a shim over entityService
+  keeping the `/api/daily-templates` shape, so the five frontend callers did not
+  change. `work_item_templates` and its three junctions are retired; a
+  template's contents are its hierarchy CHILDREN, which is why
+  instantiateTemplate needs no special case for them.
+- **Nothing in the database is dead-but-wired any more.** All 20 remaining
+  tables are read by code. The pre-entity world is gone: `work_items`,
+  `tickets`, `categories`, `tasks`, `priorities`, `to_dos`, `to_do_items`,
+  `work_item_templates` and the three template_* bridges were all retired on
+  2026-08-25/26.
 
 - **Column-fit reachability - NOT a defect.** Measured rather than argued:
   editor CLOSED, nothing drops at 1280/1440/1920; editor OPEN at 1280, only
