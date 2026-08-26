@@ -46,3 +46,48 @@ Fixtures are prefixed `ZZZ` so leftovers are identifiable and sort to the
 bottom, and every spec that creates rows removes them again (see
 `helpers/cleanup.js` — the API delete is a SOFT delete, so real cleanup is two
 calls). A spec that cannot clean up after itself belongs here, not in the suite.
+
+## Retired 2026-08-25 (the baseline triage)
+
+The first full-suite run that could actually execute put 168 failures on the
+board. These 22 files are the part of that number which was never a signal.
+
+**Assert nothing at all.** Zero `expect(` in the file - they navigate, they
+`console.log`, they end. They cannot pass and cannot fail; they only cost the
+30 seconds each takes to time out:
+
+`debug-clicks`, `manual-nesting-test`, `real-dailies-test`, `test-editor`,
+`test-editor-data`, `test-editor-debug`, `test-form-debug`, `test-debug-form`,
+`test-save-debug`, `test-render-check`, `test-pane-state`, `folder-creation`
+(which also drives a browser `prompt`, and the app uses custom modals now),
+plus `final-test` and `test-settings-entity-types`, which manage one assertion
+between sixteen and seven log lines.
+
+**Target UI that is gone.** `test-settings-edit-types` drives
+`#editSystemTypeModal`; the type editor is a split pane. `test-create-item`
+used `#addareaBtn` - the type is `category`, and `add<typeSlug>Btn` never
+produced that id.
+
+**Cannot pass where they run.** `test-backup-feature` waits on a `download`
+event and logs "Could not verify download (expected in headless)" itself.
+
+**Broken as code.** `editor-toggle-test` calls
+`expect(x).toBeTruthy('message')` - toBeTruthy takes no argument, so Playwright
+raises "this matcher must not have an expected argument" whatever the app does.
+
+**Superseded, and leaking.** The `test-editor-*` / `editor-*-test` family
+covers the editor, which is `entity-editor-behaviour`'s job in the guard set.
+Every one of them creates rows with no teardown and no `ZZZ` prefix, so the
+global sweep cannot see them either - they were 24 of the rows left behind by
+one triage run.
+
+### What was NOT retired, and why
+
+`test-create-item` failed on assertions, not on the app: the row it created was
+in the database each time. It assumed a new row sorts first and that a visible
+count rises. That is worth knowing before reading any other failure here as a
+defect.
+
+`copy-vs-reference` and `field-sync-matrix` stay in the suite. They assert real
+behaviour nothing else covers, and they are failing - which makes them worth
+reading, not moving.
