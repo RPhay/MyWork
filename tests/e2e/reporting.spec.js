@@ -88,6 +88,45 @@ test('the report reflects real activity', async ({ page }) => {
   expect(r.upcoming.some(u=>u.title==='ZZZrep due soon'), 'a dated todo is upcoming').toBe(true);
   expect(r.needsAttention.some(n=>n.title==='ZZZrep overdue'), 'an overdue todo needs attention').toBe(true);
 
-  await api(page,`/api/dailies/${wi.id}`,{method:'DELETE'});
-  for (const id of [soon.id, late.id]) await api(page,`/api/entities/to_do/${id}`,{method:'DELETE'});
+  // BOTH calls: the first is a SOFT delete, and only /api/trash/:id removes
+  // the row - otherwise these three sit in the user's trash after every run.
+  for (const id of [wi.id, soon.id, late.id]) {
+    await api(page, `/api/dailies/${id}`, { method: 'DELETE' }).catch(() => {});
+    await api(page, `/api/entities/to_do/${id}`, { method: 'DELETE' }).catch(() => {});
+    await api(page, `/api/trash/${id}`, { method: 'DELETE' });
+  }
+});
+
+// The Todos & Ideas report returned every Idea and NOT ONE TODO for as long as
+// reportingService read the legacy `to_dos` table - which has been empty since
+// the todos migration. Nothing here noticed: the tests above cover the STATUS
+// report, and a report that is half empty still renders, still exports, and
+// still passes every assertion about the half that works.
+//
+// So this asserts what the report's name promises: both kinds in it.
+test('the Todos & Ideas report contains both kinds', async ({ page }) => {
+  await page.goto('/'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1200);
+
+  const todo = (await api(page, '/api/entities/to_do', {
+    method: 'POST', body: JSON.stringify({ title: 'ZZZrep todo half' }),
+  })).body.data;
+  const idea = (await api(page, '/api/entities/idea', {
+    method: 'POST', body: JSON.stringify({ title: 'ZZZrep idea half' }),
+  })).body.data;
+
+  try {
+    const rows = (await api(page, '/api/reporting/todos-ideas?startDate=2020-01-01&endDate=2030-01-01')).body.data || [];
+    const types = new Set(rows.map(r => r.type));
+    console.log(JSON.stringify({ rows: rows.length, types: [...types] }));
+
+    expect(types.has('To Do'), 'the report includes Todos').toBe(true);
+    expect(types.has('Idea'), 'the report includes Ideas').toBe(true);
+    expect(rows.some(r => r.title === 'ZZZrep todo half'), 'the todo just made is in it').toBe(true);
+    expect(rows.some(r => r.title === 'ZZZrep idea half'), 'the idea just made is in it').toBe(true);
+  } finally {
+    for (const [slug, id] of [['to_do', todo.id], ['idea', idea.id]]) {
+      await api(page, `/api/entities/${slug}/${id}`, { method: 'DELETE' });
+      await api(page, `/api/trash/${id}`, { method: 'DELETE' });
+    }
+  }
 });
