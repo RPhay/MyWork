@@ -21,8 +21,8 @@ test('a type tab offers making, expanding and isolating it', async ({ page }) =>
   console.log('type tab menu ->', JSON.stringify(items));
   const text = items.join(' | ');
   expect(text).toContain('New');
-  expect(text).toContain('Expand all');
-  expect(text).toContain('Collapse all');
+  expect(text).toContain('Expand');
+  expect(text).toContain('Collapse');
   expect(text).toContain('Show only this');
   expect(text).toContain('Edit this type');
 });

@@ -29,7 +29,7 @@ test('Check form field rendering for Categories', async ({ page }) => {
   await page.waitForTimeout(500);
   
   // Click add
-  await page.locator('button#addareaBtn').click();
+  await page.locator('button#addcategoryBtn').click();
   await page.waitForTimeout(500);
   
   // Get all form fields with labels

@@ -28,7 +28,16 @@ test('type editor opens and shows all fields with correct types', async ({ page 
   // board and focus bar add their own, and asserting a total count made this
   // fail every time a feature added one. `is_weekly` used to be in this list
   // and is gone with Weekly Priorities. Only the user-facing fields are checked.
-  const INTERNAL = new Set(['board_bay', 'board_order', 'focus_slot', 'focus_seconds', 'focus_started_at']);
+  // Keep this in step with ENGINE_FIELD_DEFS in entityTypeService.js - every
+  // key it seeds EXCEPT `priority`, which the engine provides but the user
+  // owns. It had drifted three behind: time_box, focus_monitor and focus_color
+  // were all added to every type afterwards, and this failed on the app doing
+  // exactly what it should. That is the same trap the comment above describes
+  // for asserting a total count.
+  const INTERNAL = new Set([
+    'board_bay', 'board_order', 'focus_slot', 'focus_seconds', 'focus_started_at',
+    'focus_monitor', 'focus_color', 'time_box',
+  ]);
   const userKeys = keys.filter(k => !INTERNAL.has(k));
   // Compared as a set: field order is user-editable (fields are drag-sortable
   // in this very editor), so asserting a sequence makes the test fail on a
