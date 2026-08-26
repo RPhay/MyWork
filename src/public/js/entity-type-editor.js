@@ -200,6 +200,32 @@ function showEntityTypeEditorModal(type) {
 // Which roll-up modes make sense per field type. A type absent from this table
 // is never offered a roll-up at all - that is how "only where it makes sense"
 // is enforced structurally rather than by asking the user to be careful.
+// A field whose type this list does not offer still has to come back UNCHANGED.
+//
+// Without an <option> for it nothing is selected, so the browser falls back to
+// the first one - Text - and saving the type silently retypes the field. That
+// is not hypothetical: it is how `status` and `recurrence` fields were rewritten
+// to `text` once already, taking their options with them.
+//
+// The field_type ENUM is the authority on what may exist, and it is wider than
+// this list on purpose: `recurrence` is a permitted value with no editor of its
+// own because the feature was withdrawn. Anything in that position now gets a
+// selected option naming itself, so a save is a no-op for it rather than a
+// silent coercion.
+function UNLISTED_TYPE_OPTION(field) {
+  const type = field?.field_type;
+  if (!type || KNOWN_FIELD_TYPES.includes(type)) return '';
+  return `<option value="${app.escapeHtml(type)}" selected>${app.escapeHtml(type)} (kept as-is)</option>`;
+}
+
+// Exactly the values offered by the <select> above - kept beside it so the two
+// cannot drift apart without the drift being obvious.
+const KNOWN_FIELD_TYPES = [
+  'text', 'textarea', 'number', 'duration', 'timebox', 'date', 'url', 'links',
+  'select', 'radio', 'checkbox', 'status', 'priority', 'emoji', 'emojis',
+  'notes', 'worked_with_claude',
+];
+
 const ROLLUP_MODES = {
   status: [
     { value: '', label: 'No roll-up' },
@@ -364,6 +390,7 @@ function addFieldRow(field = null) {
           <option value="emojis" ${field?.field_type === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
           <option value="notes" ${field?.field_type === 'notes' ? 'selected' : ''}>Notes (your own)</option>
           <option value="worked_with_claude" ${field?.field_type === 'worked_with_claude' ? 'selected' : ''}>AI (yes/no toggle)</option>
+          ${UNLISTED_TYPE_OPTION(field)}
         </select>
       </div>
       <div class="col-auto field-emoji-col" style="display: ${['emoji', 'emojis'].includes(field?.field_type) ? 'block' : 'none'};">

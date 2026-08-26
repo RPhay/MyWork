@@ -89,6 +89,14 @@ the second half of that rule is only affordable because the suite is green.
 
 ### Risks worth carrying forward
 
+- **The type editor's known corruption route is CLOSED (2026-08-26).** A field
+  whose type the editor does not offer used to fall back to the first option -
+  Text - because nothing was selected, so saving the type silently retyped it.
+  The <select> now emits a selected "kept as-is" option for any type it does not
+  list, and a `recurrence` field (the one such type) was proven to survive a
+  save untouched. What follows is the history, and the reason the save path is
+  still worth treating carefully.
+
 - **The type editor has corrupted data twice.** It rebuilt `field_options` from
   its visible inputs and destroyed the status roles (`doneValues` became
   `['Ignored']`, so every folder roll-up was wrong); and `supports_hierarchy`
