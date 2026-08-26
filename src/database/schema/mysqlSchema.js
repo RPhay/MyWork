@@ -216,119 +216,8 @@ export async function createMysqlSchema(connection) {
   // so the fault was invisible locally and shipped to every fresh build and
   // every MSSQL install.
 
-  // Create to_dos table (supports nesting via parent_id, recurring via recurrence JSON)
-  //
-  // priority_id carries NO foreign key: `priorities` is retired (see
-  // RETIRED_TABLES) and there is nothing left for it to reference. The table
-  // holds no rows either - Todos are entities - but toDoService still reads it,
-  // so the column stays.
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS to_dos (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      notes LONGTEXT,
-      parent_id INT,
-      priority_id INT,
-      status VARCHAR(20) NOT NULL DEFAULT 'incomplete',
-      recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (parent_id) REFERENCES to_dos(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Backfill recurrence for pre-existing to_dos tables
-  if (!(await columnExists(connection, "to_dos", "recurrence"))) {
-    await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}'"
-    );
-  }
-
-  // Backfill parent_id for pre-existing to_dos tables (migrate from folder_id if it exists)
-  if (!(await columnExists(connection, "to_dos", "parent_id"))) {
-    await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES to_dos(id) ON DELETE CASCADE",
-    );
-
-    // If old folder_id column exists, convert folder rows to parent-child relationships
-    if (await columnExists(connection, "to_dos", "folder_id")) {
-      // For each to_do with a folder_id that matches a folder's id, create parent relationship
-      // This assumes if a to_do references folder_id X, there might be a folder with id X
-      // We'll set parent_id to null (unfiled) for now to be safe during migration
-      await connection.query("UPDATE to_dos SET parent_id = NULL WHERE folder_id IS NOT NULL");
-
-      // Drop the old folder_id column
-      await dropForeignKeysOnColumn(connection, "to_dos", "folder_id");
-      await connection.query("ALTER TABLE to_dos DROP COLUMN folder_id");
-    }
-  }
-
-  // Backfill priority_id for pre-existing to_dos tables. This is a separate column
-  // from folder_id (Todos-tab folder) so that a to-do's Projects-tab association is
-  // fully independent of its Todos-tab organization - they used to share folder_id,
-  // which conflated the two and could violate folder_id's FK to to_do_folders
-  // whenever a priority id didn't coincidentally also match a to_do_folders id.
-  if (!(await columnExists(connection, "to_dos", "priority_id"))) {
-    await connection.query(
-      // No FK: `priorities` is retired - see the note on the CREATE above.
-      "ALTER TABLE to_dos ADD COLUMN priority_id INT",
-    );
-  }
-
-  // Backfill status for pre-existing to_dos tables
-  if (!(await columnExists(connection, "to_dos", "status"))) {
-    await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'incomplete'",
-    );
-  }
-
-  // The boolean `completed` column was superseded by the 4-state `status` column
-  // above before it shipped; migrate any data and drop it on installs that already
-  // picked it up.
-  if (await columnExists(connection, "to_dos", "completed")) {
-    await connection.query("UPDATE to_dos SET status = 'complete' WHERE completed = TRUE");
-    await connection.query("ALTER TABLE to_dos DROP COLUMN completed");
-  }
-
-  // Create to_do_items table (a to-do's checklist of 1-n sub-items)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS to_do_items (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      to_do_id INT NOT NULL,
-      text VARCHAR(500) NOT NULL,
-      is_done BOOLEAN DEFAULT FALSE,
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (to_do_id) REFERENCES to_dos(id) ON DELETE CASCADE
-    )
-  `);
-
-  // idea_folders table removed in Phase 1 (ideas migrated to generic entities)
-
-  // ideas table removed in Phase 1 (ideas migrated to generic entities)
-
-  // idea_items table removed in Phase 1 (ideas migrated to generic entities)
-
-
-
-  // Backfill target_date for pre-existing to_dos tables
-  if (!(await columnExists(connection, "to_dos", "target_date"))) {
-    await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN target_date DATE"
-    );
-  }
-
-  // Backfill importance for pre-existing to_dos tables
-  if (!(await columnExists(connection, "to_dos", "importance"))) {
-    await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN importance VARCHAR(20) DEFAULT NULL COMMENT 'low, medium, high, critical'"
-    );
-  }
-
-  // idea_links table removed in Phase 1 (ideas migrated to generic entities)
-
-  // ALTER TABLE ideas removed in Phase 1 (ideas migrated to generic entities)
-
+  // `to_dos` and `to_do_items` are RETIRED - see RETIRED_TABLES. Their CREATEs
+  // and backfills stood here.
 
   // `tasks` is RETIRED - see RETIRED_TABLES. Tasks are entities, every one of
   // its rows has a matching `task` entity, and nothing in src/ reads the table.
@@ -595,7 +484,6 @@ export async function createMysqlSchema(connection) {
   const contextTables = [
     "sources",
     "work_item_templates",
-    "to_dos",
   ];
   // "work_items", "tickets", "priorities" and "tasks" were here until they were
   // retired - see RETIRED_TABLES. Leaving a dropped table in this list makes the
@@ -1388,7 +1276,12 @@ async function renameLegacyColumns(connection) {
 //     entities. Both are fully migrated - every row has a matching entity -
 //     and NOTHING in src/ reads either table any more; `priorities` was the
 //     last thing keeping three junctions pointed at a dead endpoint.
-const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorities"];
+//   `to_dos` / `to_do_items` held Todos and their checklists. Both have been
+//     EMPTY since the todos migration; their last reader was toDoService,
+//     which reportingService used to build the "Todos & Ideas" report - so
+//     that report returned every Idea and not one Todo. It reads to_do
+//     ENTITIES now and toDoService is deleted.
+const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorities", "to_do_items", "to_dos"];
 
 // Rows of a legacy table that never made it into `entities`.
 //
@@ -1397,7 +1290,7 @@ const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorit
 // (`legacy_daily_id`). Weaker evidence, so it is used only for tables that no
 // code reads at all - a stale row nobody queries costs nothing, and dropping
 // one that was never migrated cannot be undone.
-const LEGACY_TABLE_TYPE = { tasks: "task", priorities: "priority" };
+const LEGACY_TABLE_TYPE = { tasks: "task", priorities: "priority", to_dos: "to_do" };
 
 async function legacyTableSafeToDrop(connection, table) {
   const typeSlug = LEGACY_TABLE_TYPE[table];

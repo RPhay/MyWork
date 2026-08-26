@@ -1,5 +1,4 @@
 import * as dailyService from './dailyService.js';
-import * as toDoService from './toDoService.js';
 import * as entityService from './entityService.js';
 import * as entityRelationshipService from './entityRelationshipService.js';
 import { ValidationError } from '../config/errors.js';
@@ -111,8 +110,19 @@ export async function getToDosIdeasReport(contextId, { startDate, endDate } = {}
   // is_folder = 1 rather than a row in a separate idea_folders table. An
   // idea's folder is therefore its hierarchy parent, which lives in
   // entity_relationships, not a folder_id column.
-  const [toDos, ideas, ideaHierarchy] = await Promise.all([
-    toDoService.getAllToDos(contextId),
+  // Todos are entities, exactly like the ideas beside them.
+  //
+  // This read the legacy `to_dos` table through toDoService. That table has
+  // held ZERO rows since the todos migration, so this report returned every
+  // Idea and not one Todo - half of what "Todos & Ideas" promises, silently
+  // missing. Measured before the change: 129 Idea rows, 0 To Do rows, against
+  // 16 to_do entities.
+  //
+  // A todo's "folder" is its hierarchy PARENT in entity_relationships, not a
+  // parent_id column - the same shape the ideas below already use.
+  const [toDos, toDoHierarchy, ideas, ideaHierarchy] = await Promise.all([
+    entityService.getAllEntities('to_do', contextId),
+    entityRelationshipService.getRelationshipsForType('to_do', contextId, 'hierarchy'),
     entityService.getAllEntities('idea', contextId),
     entityRelationshipService.getRelationshipsForType('idea', contextId, 'hierarchy'),
   ]);
@@ -120,11 +130,10 @@ export async function getToDosIdeasReport(contextId, { startDate, endDate } = {}
   const ideaById = new Map(ideas.map(i => [i.id, i]));
   const ideaParentId = new Map(ideaHierarchy.map(r => [r.child_entity_id, r.parent_entity_id]));
   const toDoById = new Map(toDos.map(t => [t.id, t]));
+  const toDoParentId = new Map(toDoHierarchy.map(r => [r.child_entity_id, r.parent_entity_id]));
 
-  // For todos with a parent, get the parent's title to display as a "folder"
   function getToDoParentName(todo) {
-    if (!todo.parent_id) return null;
-    const parent = toDoById.get(todo.parent_id);
+    const parent = toDoById.get(toDoParentId.get(todo.id));
     return parent ? parent.title : null;
   }
 
@@ -138,15 +147,20 @@ export async function getToDosIdeasReport(contextId, { startDate, endDate } = {}
   };
 
   const toDoRows = toDos
-    .filter(t => inRange(t.created_at))
+    // Folders organize the report's rows; they aren't rows themselves - the
+    // same rule the ideas below follow.
+    .filter(t => !t.is_folder && inRange(t.created_at))
     .map(t => ({
       type: 'To Do',
       id: t.id,
       title: t.title,
       folder: getToDoParentName(t),
       createdAt: t.created_at,
-      doneCount: (t.items || []).filter(i => i.is_done).length,
-      totalCount: (t.items || []).length,
+      // Todo checklists ("items") were a column-level feature of the old
+      // to_do_items table and have no equivalent on the entity yet - the same
+      // position ideas are in.
+      doneCount: 0,
+      totalCount: 0,
     }));
 
   const ideaRows = ideas

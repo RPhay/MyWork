@@ -304,103 +304,9 @@ export async function createMssqlSchema(pool) {
   // when they became entities - while dailyTemplateService reads that same
   // column as an entity id. See the fuller note in mysqlSchema.js.
 
-  await createTableIfNotExists(
-    pool,
-    "to_dos",
-    `
-    CREATE TABLE [MyWork].[to_dos] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      title NVARCHAR(255) NOT NULL,
-      notes NVARCHAR(MAX),
-      parent_id INT NULL,
-      priority_id INT NULL,
-      status NVARCHAR(20) NOT NULL DEFAULT 'incomplete',
-      recurrence NVARCHAR(MAX),
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      -- NO ACTION, not CASCADE - see the matching note on fk_areas_parent above.
-      CONSTRAINT fk_to_dos_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "to_dos");
-
-  // Backfill parent_id for pre-existing to_dos tables (migrate from folder_id if it exists)
-  if (!(await columnExists(pool, "to_dos", "parent_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_dos] ADD parent_id INT NULL
-        CONSTRAINT fk_to_dos_parent FOREIGN KEY REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION
-    `);
-    // Set all folder_id references to NULL during migration for safety
-    if (await columnExists(pool, "to_dos", "folder_id")) {
-      await pool.request().query(`UPDATE [MyWork].[to_dos] SET parent_id = NULL WHERE folder_id IS NOT NULL`);
-    }
-  }
-
-  // Backfill for to_dos created before status existed.
-  if (!(await columnExists(pool, "to_dos", "status"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_dos] ADD status NVARCHAR(20) NOT NULL DEFAULT 'incomplete'
-    `);
-  }
-
-  // Backfill priority_id for pre-existing to_dos tables
-  if (!(await columnExists(pool, "to_dos", "priority_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_dos] ADD priority_id INT NULL
-    `);
-  }
-
-  // The boolean `completed` column was superseded by the 4-state `status` column
-  // above before it shipped; migrate any data and drop it on installs that already
-  // picked it up.
-  if (await columnExists(pool, "to_dos", "completed")) {
-    await pool.request().query(`UPDATE [MyWork].[to_dos] SET status = 'complete' WHERE completed = 1`);
-    await pool.request().query(`ALTER TABLE [MyWork].[to_dos] DROP COLUMN completed`);
-  }
-
-  // Drop old folder_id column if it still exists on to_dos
-  if (await columnExists(pool, "to_dos", "folder_id")) {
-    await dropForeignKeysOnColumn(pool, "to_dos", "folder_id");
-    await pool.request().query(`ALTER TABLE [MyWork].[to_dos] DROP COLUMN folder_id`);
-  }
-
-  // Backfill recurrence for pre-existing to_dos tables
-  if (!(await columnExists(pool, "to_dos", "recurrence"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_dos] ADD recurrence NVARCHAR(MAX)
-    `);
-  }
-
-  // Backfill target_date for pre-existing to_dos tables
-  if (!(await columnExists(pool, "to_dos", "target_date"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_dos] ADD target_date DATE NULL
-    `);
-  }
-
-  // Backfill importance for pre-existing to_dos tables
-  if (!(await columnExists(pool, "to_dos", "importance"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[to_dos] ADD importance NVARCHAR(20) NULL
-    `);
-  }
-
-  await createTableIfNotExists(
-    pool,
-    "to_do_items",
-    `
-    CREATE TABLE [MyWork].[to_do_items] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      to_do_id INT NOT NULL,
-      text NVARCHAR(500) NOT NULL,
-      is_done BIT DEFAULT 0,
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_to_do_items_to_do FOREIGN KEY (to_do_id) REFERENCES [MyWork].[to_dos](id) ON DELETE CASCADE
-    )
-  `,
-  );
+  // `to_dos` and `to_do_items` are RETIRED - see RETIRED_TABLES. Both have been
+  // empty since the todos migration; their CREATEs and the to_dos backfills
+  // stood here. The twin removal is in mysqlSchema.js.
 
   // idea_folders table removed in Phase 1 (ideas migrated to generic entities)
 
@@ -644,7 +550,6 @@ export async function createMssqlSchema(pool) {
   const contextTables = [
     "sources",
     "work_item_templates",
-    "to_dos",
   ];
   // "work_items", "tickets", "priorities" and "tasks" were here until they were
   // retired - see RETIRED_TABLES. Leaving a dropped table in this list makes the
@@ -1564,7 +1469,8 @@ async function renameLegacyColumns(pool) {
 // database is cleaned by the same "Fix Schema" that builds a new one.
 // `tasks` and `priorities` join the list: both are fully migrated to entities
 // and nothing in src/ reads either. See the fuller note in mysqlSchema.js.
-const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorities"];
+// `to_do_items` before `to_dos`: the child references the parent.
+const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorities", "to_do_items", "to_dos"];
 
 // See the matching note in mysqlSchema.js. This matters MORE on SQL Server:
 // phase10-migrate-work-items.js is MySQL-only, so an MSSQL install has to have
@@ -1583,7 +1489,7 @@ async function workItemsSafeToDrop(pool) {
 // Rows of a legacy table that never made it into `entities`. The twin of the
 // guard in mysqlSchema.js: matched on TITLE, because only Dailies left a legacy
 // id column behind, so it is used only for tables no code reads at all.
-const LEGACY_TABLE_TYPE = { tasks: "task", priorities: "priority" };
+const LEGACY_TABLE_TYPE = { tasks: "task", priorities: "priority", to_dos: "to_do" };
 
 async function legacyTableSafeToDrop(pool, table) {
   const typeSlug = LEGACY_TABLE_TYPE[table];
