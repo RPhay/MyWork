@@ -497,7 +497,15 @@ export const SYSTEM_TYPE_RELATIONSHIPS = [
   // wants, and is then dropped onto a day to produce that work. This
   // cross-type hierarchy rule is the ONLY thing that distinguishes a template
   // from any other typed row - everything else about it is the generic engine.
-  { type_slugs_parent: 'template', type_slugs_child: ['priority', 'category', 'goal', 'to_do', 'task', 'ticket', 'idea', 'template'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+  // NOTE the absence of 'template'. Nothing may contain a template, not even
+  // another template: the only thing you do with one is drag it onto the
+  // Dailies page, which produces a NEW DAILY built from it. A template nested
+  // inside something would be a pattern that never gets stamped out.
+  { type_slugs_parent: 'template', type_slugs_child: ['priority', 'category', 'goal', 'to_do', 'task', 'ticket', 'idea'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+
+  // The Outlook Calendar holds anything - a meeting is a place to gather work
+  // of any kind - with the same single exception.
+  { type_slugs_parent: 'outlook_calendar', type_slugs_child: ['priority', 'category', 'goal', 'to_do', 'task', 'ticket', 'idea', 'daily'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
   // A project holds the categories and goals it belongs to. These were the
   // `priority_areas` / `priority_goals` junctions - two tables whose only job
@@ -505,6 +513,12 @@ export const SYSTEM_TYPE_RELATIONSHIPS = [
   // entity_relationships already says for everything else. Hierarchy rather
   // than association, matching how a template holds its contents.
   { type_slugs_parent: 'priority', type_slugs_child: ['category', 'goal'], relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+
+  // An ADO work item drops onto ANY type. Written as every type naming it as a
+  // child rather than as a self-nesting rule, because the direction matters:
+  // things contain ADO items, an ADO item contains nothing. `template` is
+  // absent for the usual reason - a template is stamped out, not filled in.
+  { type_slugs_parent: ['daily', 'priority', 'category', 'goal', 'to_do', 'task', 'ticket', 'idea', 'outlook_calendar'], type_slugs_child: 'ado_work_item', relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
   // Templates instantiate to work items
   { type_slugs_parent: 'template', type_slugs_child: 'daily', relationship_kind: 'instantiated_from', max_children_per_parent: null, max_parents_per_child: 1 },
@@ -526,12 +540,31 @@ export const SPECIAL_ENTITY_TYPES = [
     type_category: 'external',
     external_source: 'outlook',
   },
+  {
+    // A work item dragged in from an Azure DevOps backlog. External, so
+    // read-only in Settings like its neighbour: its shape follows what ADO
+    // sends, and editing it here would only let the two disagree.
+    //
+    // It goes UNDER anything - see the rule in SYSTEM_TYPE_RELATIONSHIPS -
+    // because the point of dropping one is to say "this ADO item belongs to
+    // that goal / project / day", and every type is a plausible home.
+    slug: 'ado_work_item',
+    label: 'Azure DevOps Work Items',
+    label_singular: 'Azure DevOps Work Item',
+    icon: '🔷',
+    type_category: 'external',
+    external_source: 'azure_devops',
+  },
 ];
 
 // The types that nest inside themselves. Derived, never restated, so it cannot
 // drift from supports_hierarchy.
+//
+// `template` is excluded even though it supports hierarchy: it holds OTHER
+// types, but nothing holds a template - see the rule above. Without this it
+// would get a template->template rule from here and quietly undo that.
 export const SELF_NESTING_SLUGS = SYSTEM_ENTITY_TYPES
-  .filter((t) => t.supports_hierarchy)
+  .filter((t) => t.supports_hierarchy && t.slug !== 'template')
   .map((t) => t.slug);
 
 // The self-nesting rule row in SYSTEM_TYPE_RELATIONSHIPS carries `type_slugs:

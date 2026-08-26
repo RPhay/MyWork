@@ -21,10 +21,7 @@ import backupRouter from "./api/backup.js";
 import setupRouter from "./api/setup.js";
 import reportingRouter from "./api/reporting.js";
 import dayHighlightsRouter from "./api/dayHighlights.js";
-import ssoRouter from "./api/sso.js";
-import contextSsoRouter from "./api/contextSso.js";
 import dataSourceAuthRouter from "./api/dataSourceAuth.js";
-import quotesRouter from "./api/quotes.js";
 import entityTypesRouter from "./api/entityTypes.js";
 import contextSyncRouter from "./api/contextSync.js";
 import linkTitleRouter from "./api/linkTitle.js";
@@ -52,7 +49,6 @@ router.use("/api/", async (req, res, next) => {
     "/api/context-database-config",
     "/api/system-database",
     "/api/setup",
-    "/api/sso",
     "/api/backup",  // Read-only export
     "/api/entity-types",  // System types, not context-specific data
     "/api/context-sync",  // Names both contexts itself; opens their DBs directly
@@ -110,10 +106,7 @@ router.use("/api/backup", backupRouter);
 router.use("/api/setup", setupRouter);
 router.use("/api/reporting", reportingRouter);
 router.use("/api/day-highlights", dayHighlightsRouter);
-router.use("/api/sso", ssoRouter);
-router.use("/api", contextSsoRouter);
 router.use("/api", dataSourceAuthRouter);
-router.use("/api/quotes", quotesRouter);
 router.use("/api/entity-types", entityTypesRouter);
 // Compares two contexts and ports type structure between them. Not
 // context-specific: it names both contexts explicitly and opens their

@@ -351,23 +351,8 @@ export async function createMssqlSchema(pool) {
   `,
   );
 
-  await createTableIfNotExists(
-    pool,
-    "sso_identities",
-    `
-    CREATE TABLE [MyWork].[sso_identities] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      user_id INT NOT NULL,
-      provider NVARCHAR(50) NOT NULL,
-      provider_id NVARCHAR(500) NOT NULL,
-      provider_email NVARCHAR(255) NULL,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_sso_identities_user FOREIGN KEY (user_id) REFERENCES [MyWork].[users](id) ON DELETE CASCADE,
-      CONSTRAINT unique_provider_identity UNIQUE (provider, provider_id)
-    )
-  `,
-  );
+  // `sso_identities` is RETIRED - the login subsystem that read it is gone.
+
   await createUpdatedAtTrigger(pool, "sso_identities");
 
   // Contexts table moved to before tickets table (see below, tickets references contexts)
@@ -434,18 +419,18 @@ export async function createMssqlSchema(pool) {
     `);
   }
 
-  // SSO configuration per context (Microsoft Entra ID, etc.) - see mysqlSchema.js
-  if (!(await columnExists(pool, "contexts", "sso_enabled"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[contexts] ADD
-        sso_enabled BIT DEFAULT 0,
-        sso_provider NVARCHAR(50) NULL,
-        sso_tenant_id_enc NVARCHAR(MAX) NULL,
-        sso_client_id_enc NVARCHAR(MAX) NULL,
-        sso_client_secret_enc NVARCHAR(MAX) NULL,
-        sso_redirect_uri NVARCHAR(500) NULL,
-        sso_configured_at DATETIME2 NULL
-    `);
+  // The seven per-context sso_* columns stood here - the twin of the block in
+  // mysqlSchema.js. Dropped rather than left: an encrypted-credential column
+  // nothing reads is a place for secrets to sit unnoticed.
+  //
+  // One statement each, because SQL Server takes a single DROP COLUMN list but
+  // fails the whole batch if any one of them is already gone.
+  for (const col of ['sso_enabled', 'sso_provider', 'sso_tenant_id_enc',
+    'sso_client_id_enc', 'sso_client_secret_enc', 'sso_redirect_uri',
+    'sso_configured_at']) {
+    if (await columnExists(pool, 'contexts', col)) {
+      await pool.request().query(`ALTER TABLE [MyWork].[contexts] DROP COLUMN [${col}]`);
+    }
   }
 
 
@@ -528,21 +513,8 @@ export async function createMssqlSchema(pool) {
   // entity_relationships now.
 
   // Create quotes table (person + quote attribution for any object type)
-  await createTableIfNotExists(
-    pool,
-    "quotes",
-    `
-    CREATE TABLE [MyWork].[quotes] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      object_type NVARCHAR(50) NOT NULL,
-      object_id INT NOT NULL,
-      person NVARCHAR(255) NOT NULL,
-      quote NVARCHAR(MAX) NOT NULL,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME()
-    )
-  `,
-  );
+  // `quotes` is RETIRED - a full CRUD router and service with no callers.
+
   await createUpdatedAtTrigger(pool, "quotes");
 
   // Generic Entity Type System — structural tables
@@ -891,6 +863,13 @@ export async function createMssqlSchema(pool) {
      WHERE slug = 'template' AND type_category = 'editable'
   `);
 
+  // Nothing may CONTAIN a template - the twin of the block in mysqlSchema.js.
+  await pool.request().query(`
+    DELETE r FROM [MyWork].[entity_type_relationships] r
+      JOIN [MyWork].[entity_types] c ON c.id = r.child_type_id
+     WHERE c.slug = 'template' AND r.relationship_kind = 'hierarchy'
+  `);
+
   // `daily.time_box_minutes` was a second time box only Dailies had - the twin
   // of the block in mysqlSchema.js. Values move to `time_box` first, then the
   // definition goes.
@@ -1007,8 +986,15 @@ export async function createMssqlSchema(pool) {
       if (rel.type_slugs) {
         for (const slug of rel.type_slugs) await insertRule(slug, slug, rel);
       } else {
+        // Both ends may be a list. The child side always could; the parent side
+        // gained it when ADO work items needed "every type may contain one",
+        // which is nine parents to one child and reads far better that way than
+        // as nine near-identical rules.
+        const parents = Array.isArray(rel.type_slugs_parent) ? rel.type_slugs_parent : [rel.type_slugs_parent];
         const children = Array.isArray(rel.type_slugs_child) ? rel.type_slugs_child : [rel.type_slugs_child];
-        for (const childSlug of children) await insertRule(rel.type_slugs_parent, childSlug, rel);
+        for (const parentSlug of parents) {
+          for (const childSlug of children) await insertRule(parentSlug, childSlug, rel);
+        }
       }
     }
   }

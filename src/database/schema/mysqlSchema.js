@@ -13,6 +13,7 @@
 import { RETIRED_TABLES, LEGACY_TABLE_TYPE } from '../retiredTables.js';
 import {
   SYSTEM_ENTITY_TYPES,
+  SPECIAL_ENTITY_TYPES,
   resolveTypeRelationships,
   upgradedStatusOptions,
 } from '../systemEntityTypes.js';
@@ -306,22 +307,16 @@ export async function createMysqlSchema(connection) {
     `);
   }
 
-  // SSO configuration per context (Microsoft Entra ID, etc.)
-  // sso_enabled: whether SSO is required for this context
-  // sso_provider: 'entra-id', 'google', etc.
-  // sso_*_enc: encrypted credentials
-  // sso_redirect_uri: OAuth redirect URI (not secret)
-  if (!(await columnExists(connection, "contexts", "sso_enabled"))) {
-    await connection.query(`
-      ALTER TABLE contexts
-        ADD COLUMN sso_enabled BOOLEAN DEFAULT FALSE,
-        ADD COLUMN sso_provider VARCHAR(50),
-        ADD COLUMN sso_tenant_id_enc TEXT,
-        ADD COLUMN sso_client_id_enc TEXT,
-        ADD COLUMN sso_client_secret_enc TEXT,
-        ADD COLUMN sso_redirect_uri VARCHAR(500),
-        ADD COLUMN sso_configured_at TIMESTAMP NULL
-    `);
+  // The seven per-context sso_* columns stood here. They were read only by the
+  // SSO subsystem, which is gone - see RETIRED_TABLES and the deletion commit.
+  // Dropped rather than left: an encrypted-credential column nothing reads is a
+  // place for secrets to sit unnoticed.
+  for (const col of ['sso_enabled', 'sso_provider', 'sso_tenant_id_enc',
+    'sso_client_id_enc', 'sso_client_secret_enc', 'sso_redirect_uri',
+    'sso_configured_at']) {
+    if (await columnExists(connection, 'contexts', col)) {
+      await connection.query(`ALTER TABLE contexts DROP COLUMN \`${col}\``);
+    }
   }
 
   // Unified database configuration: stores only the ACTIVE connection (mysql or mssql)
@@ -373,26 +368,8 @@ export async function createMysqlSchema(connection) {
     `);
   }
 
-  // Per-context visibility/order for the main app's tabs. Dailies is always
-  // shown first and can't be hidden, so it's deliberately not represented here
-  // - the dashboard nav always pins it, then lays out whatever this table says
-  // for the rest.
-  
-  // SSO user identities: maps Entra ID (or other SSO provider) users to MyWork users
-  // One row per user per provider, allows same person to be identified across contexts
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS sso_identities (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      provider VARCHAR(50) NOT NULL,
-      provider_id VARCHAR(500) NOT NULL,
-      provider_email VARCHAR(255),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_provider_identity (provider, provider_id)
-    )
-  `);
+  // `sso_identities` is RETIRED - the login subsystem that read it is gone.
+
 
   // Dailies calendar cell background/text color, set via the calendar day's
   // right-click "Highlight Day" / "Text Color" submenus. One row per date per
@@ -457,18 +434,8 @@ export async function createMysqlSchema(connection) {
   // sides were FKs into a table nothing read; cross-entity relationships live in
   // entity_relationships now.
 
-  // Create quotes table (person + quote attribution for any object type)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS quotes (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      object_type VARCHAR(50) NOT NULL COMMENT 'todo, task, ticket, goal, area, project, idea',
-      object_id INT NOT NULL,
-      person VARCHAR(255) NOT NULL COMMENT 'Name of person being quoted (freeform for now)',
-      quote LONGTEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )
-  `);
+  // `quotes` is RETIRED - a full CRUD router and service with no callers.
+
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS entity_types (
@@ -595,6 +562,27 @@ export async function createMysqlSchema(connection) {
       await connection.query(
         'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [type.slug, type.label, type.label_singular, type.icon, 'editable', type.supports_hierarchy ? 1 : 0, 1, type.primary_date_field, SYSTEM_ENTITY_TYPES.indexOf(type)]
+      );
+    }
+  }
+
+  // The EXTERNAL types - Outlook Calendar, Azure DevOps work items. Read-only:
+  // their shape follows what the source sends.
+  //
+  // This block did not exist here. SPECIAL_ENTITY_TYPES was seeded in
+  // mssqlSchema.js and nowhere else, so on MySQL these types only existed if
+  // something historical had created them - `outlook_calendar` was present on
+  // this machine and would NOT appear on a fresh install. A whole category of
+  // type, seeded on one engine and not the other.
+  for (const type of SPECIAL_ENTITY_TYPES) {
+    const [existing] = await connection.query(
+      'SELECT id FROM entity_types WHERE slug = ?',
+      [type.slug]
+    );
+    if (existing.length === 0) {
+      await connection.query(
+        'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index) VALUES (?, ?, ?, ?, ?, ?, 0, 1, 0)',
+        [type.slug, type.label, type.label_singular, type.icon, type.type_category, type.external_source ?? null]
       );
     }
   }
@@ -806,6 +794,15 @@ export async function createMysqlSchema(connection) {
       WHERE slug = 'template' AND type_category = 'editable'`
   );
 
+  // Nothing may CONTAIN a template - see SYSTEM_TYPE_RELATIONSHIPS. The seeder
+  // only ever adds rules, so a template->template rule created before that
+  // decision would survive it. Removed by hand, once.
+  await connection.query(
+    `DELETE r FROM entity_type_relationships r
+       JOIN entity_types c ON c.id = r.child_type_id
+      WHERE c.slug = 'template' AND r.relationship_kind = 'hierarchy'`
+  );
+
   // `daily.time_box_minutes` was a second time box only Dailies had - see the
   // note where it was declared. Its values move to `time_box` first (there were
   // none on this machine, but an install that used it must not lose them), then
@@ -922,8 +919,15 @@ export async function createMysqlSchema(connection) {
       if (rel.type_slugs) {
         for (const slug of rel.type_slugs) await insertRule(slug, slug, rel);
       } else {
+        // Both ends may be a list. The child side always could; the parent side
+        // gained it when ADO work items needed "every type may contain one",
+        // which is nine parents to one child and reads far better that way than
+        // as nine near-identical rules.
+        const parents = Array.isArray(rel.type_slugs_parent) ? rel.type_slugs_parent : [rel.type_slugs_parent];
         const children = Array.isArray(rel.type_slugs_child) ? rel.type_slugs_child : [rel.type_slugs_child];
-        for (const childSlug of children) await insertRule(rel.type_slugs_parent, childSlug, rel);
+        for (const parentSlug of parents) {
+          for (const childSlug of children) await insertRule(parentSlug, childSlug, rel);
+        }
       }
     }
   }

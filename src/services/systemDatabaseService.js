@@ -29,8 +29,9 @@ const VALID_TYPES = ['mysql', 'mssql'];
 // entity replaced them, and nothing had read them for some time.
 export const ALL_SYSTEM_TABLES = [
   // Still first-class tables of their own.
-  'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
+  'users', 'contexts', 'context_folders', 'day_highlights',
   'sources', 'source_auth', 'years',
+  // 'sso_identities' and 'quotes' went on 2026-08-26 with the code that read them.
   // 'work_item_templates', 'template_areas', 'template_goals' and
   // 'template_priorities' went on 2026-08-26 with the Templates migration.
   // 'priorities', 'tasks', 'to_dos' and 'to_do_items' went on 2026-08-26.

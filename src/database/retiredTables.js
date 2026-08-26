@@ -30,6 +30,15 @@ export const RETIRED_TABLES = [
   // children in entity_relationships now, the same as a template's contents.
   'priority_areas',
   'priority_goals',
+  // Retired 2026-08-26 with the code that read them.
+  //
+  // `sso_identities` belonged to a login subsystem that could never work - see
+  // the deletion commit - and held 0 rows. `quotes` had a full CRUD router and
+  // service and ZERO callers anywhere in the app: nothing could create, read or
+  // delete a quote. Code that looks like a feature and cannot be reached is
+  // worse than no code, because the next person assumes it works.
+  'sso_identities',
+  'quotes',
 ];
 
 /**
