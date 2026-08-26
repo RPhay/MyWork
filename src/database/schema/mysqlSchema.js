@@ -113,70 +113,23 @@ export async function createMysqlSchema(connection) {
     new Date().getFullYear(),
   ]);
 
-  // Create priorities table (supports sub-projects via parent_id; categories/goals
-  // are many-to-many through the bridge junctions at the end of this file;
-  // status + order_index drive the Priority Board's per-bay drag ordering)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS priorities (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      title VARCHAR(255) NOT NULL UNIQUE,
-      source_id INT,
-      parent_id INT,
-      notes LONGTEXT,
-      status VARCHAR(50) NOT NULL DEFAULT 'Not Started',
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL,
-      FOREIGN KEY (parent_id) REFERENCES priorities(id) ON DELETE CASCADE,
-      INDEX idx_order (order_index)
-    )
-  `);
-
-  // The `entities` soft-delete backfill used to sit HERE, roughly 950 lines
-  // before `entities` is created. It has moved to directly after that CREATE.
-  // On any database where the table did not already exist, the ALTER ran first
-  // and the whole schema build died - on MySQL with "Table 'entities' doesn't
-  // exist", on SQL Server with "Cannot find the object 'MyWork.entities'".
-  // A backfill can only ever run after the thing it backfills.
-
-  // Backfill status for pre-existing priorities tables
-  if (!(await columnExists(connection, "priorities", "status"))) {
-    await connection.query(
-      "ALTER TABLE priorities ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Not Started'",
-    );
-  }
-
-  // Backfill parent_id for pre-existing priorities tables
-  if (!(await columnExists(connection, "priorities", "parent_id"))) {
-    await connection.query(
-      "ALTER TABLE priorities ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES priorities(id) ON DELETE CASCADE",
-    );
-  }
-
-  // A prior revision linked priorities to the old static `categories` table via
-  // category_id. Both that table and this column are gone; priorities link to
-  // Category ENTITIES through priority_areas now.
-  if (await columnExists(connection, "priorities", "category_id")) {
-    await dropForeignKeysOnColumn(connection, "priorities", "category_id");
-    await connection.query("ALTER TABLE priorities DROP COLUMN category_id");
-  }
+  // `priorities` is RETIRED - see RETIRED_TABLES. Projects are entities, all
+  // of its rows are migrated, and nothing in src/ reads it. Its CREATE and its
+  // three backfills lived here; recreating a table the same run then drops is
+  // pure churn. dropRetiredTables removes the foreign keys pointing AT it
+  // first, which is what `to_dos.priority_id` needed.
+  //
+  // The block that moved the `entities` soft-delete backfill out of here still
+  // applies to anything added in its place: a backfill can only run after the
+  // thing it backfills is created.
 
   // priority_areas: recreated as a legacy<->entity bridge at the end of this
   // file, after `entities` exists (see "Legacy <-> entity association bridge")
 
   // priority_goals: recreated as a legacy<->entity bridge at the end of this file
 
-  // A prior revision linked a priority to a single area via area_id. Migrate any
-  // existing values into the new many-to-many priority_areas table, then drop it.
-  if (await columnExists(connection, "priorities", "area_id")) {
-    await connection.query(`
-      INSERT IGNORE INTO priority_areas (priority_id, area_id)
-      SELECT id, area_id FROM priorities WHERE area_id IS NOT NULL
-    `);
-    await dropForeignKeysOnColumn(connection, "priorities", "area_id");
-    await connection.query("ALTER TABLE priorities DROP COLUMN area_id");
-  }
+  // The priorities.area_id -> priority_areas migration stood here. It is gone
+  // with the `priorities` table itself (RETIRED_TABLES).
 
   // The `work_items` table is gone - see RETIRED_TABLES at the end of this
   // file. Dailies are entities of type `daily` now; scripts/phase10-migrate-
@@ -264,6 +217,11 @@ export async function createMysqlSchema(connection) {
   // every MSSQL install.
 
   // Create to_dos table (supports nesting via parent_id, recurring via recurrence JSON)
+  //
+  // priority_id carries NO foreign key: `priorities` is retired (see
+  // RETIRED_TABLES) and there is nothing left for it to reference. The table
+  // holds no rows either - Todos are entities - but toDoService still reads it,
+  // so the column stays.
   await connection.query(`
     CREATE TABLE IF NOT EXISTS to_dos (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -275,8 +233,7 @@ export async function createMysqlSchema(connection) {
       recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (parent_id) REFERENCES to_dos(id) ON DELETE CASCADE,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
+      FOREIGN KEY (parent_id) REFERENCES to_dos(id) ON DELETE CASCADE
     )
   `);
 
@@ -313,7 +270,8 @@ export async function createMysqlSchema(connection) {
   // whenever a priority id didn't coincidentally also match a to_do_folders id.
   if (!(await columnExists(connection, "to_dos", "priority_id"))) {
     await connection.query(
-      "ALTER TABLE to_dos ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL",
+      // No FK: `priorities` is retired - see the note on the CREATE above.
+      "ALTER TABLE to_dos ADD COLUMN priority_id INT",
     );
   }
 
@@ -372,53 +330,12 @@ export async function createMysqlSchema(connection) {
   // ALTER TABLE ideas removed in Phase 1 (ideas migrated to generic entities)
 
 
-  // Create tasks table (supports nesting via parent_id, recurring via recurrence JSON)
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      notes LONGTEXT,
-      parent_id INT,
-      priority_id INT,
-      status VARCHAR(20) NOT NULL DEFAULT 'incomplete',
-      recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE CASCADE,
-      FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Backfill recurrence for pre-existing tasks tables
-  if (!(await columnExists(connection, "tasks", "recurrence"))) {
-    await connection.query(
-      "ALTER TABLE tasks ADD COLUMN recurrence JSON COMMENT 'Recurrence pattern: {enabled:bool, type:string, ...}'"
-    );
-  }
-
-  // Backfill parent_id/priority_id/status for pre-existing tasks tables
-  if (!(await columnExists(connection, "tasks", "parent_id"))) {
-    await connection.query(
-      "ALTER TABLE tasks ADD COLUMN parent_id INT, ADD FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE CASCADE",
-    );
-
-    // If old folder_id column exists, drop it after migrating to parent_id
-    if (await columnExists(connection, "tasks", "folder_id")) {
-      await connection.query("UPDATE tasks SET parent_id = NULL WHERE folder_id IS NOT NULL");
-      await dropForeignKeysOnColumn(connection, "tasks", "folder_id");
-      await connection.query("ALTER TABLE tasks DROP COLUMN folder_id");
-    }
-  }
-  if (!(await columnExists(connection, "tasks", "priority_id"))) {
-    await connection.query(
-      "ALTER TABLE tasks ADD COLUMN priority_id INT, ADD FOREIGN KEY (priority_id) REFERENCES priorities(id) ON DELETE SET NULL",
-    );
-  }
-  if (!(await columnExists(connection, "tasks", "status"))) {
-    await connection.query(
-      "ALTER TABLE tasks ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'incomplete'",
-    );
-  }
+  // `tasks` is RETIRED - see RETIRED_TABLES. Tasks are entities, every one of
+  // its rows has a matching `task` entity, and nothing in src/ reads the table.
+  // Its CREATE and its four backfills stood here. One of those backfills is
+  // why it had to go at the same time as `priorities`: it added
+  // `tasks.priority_id` REFERENCES priorities(id), so the dead table could not
+  // be dropped while this one was still being created.
 
   // Drop folder tables if they exist (replaced by parent_id nesting on to_dos and tasks)
   if (await indexExists(connection, "to_do_folders", "PRIMARY")) {
@@ -677,14 +594,13 @@ export async function createMysqlSchema(connection) {
   );
   const contextTables = [
     "sources",
-    "priorities",
     "work_item_templates",
     "to_dos",
-    "tasks",
   ];
-  // "work_items" and "tickets" were here until they were retired - see
-  // RETIRED_TABLES. Leaving a dropped table in this list makes the ALTER below
-  // throw on every schema run.
+  // "work_items", "tickets", "priorities" and "tasks" were here until they were
+  // retired - see RETIRED_TABLES. Leaving a dropped table in this list makes the
+  // ALTER below throw on every schema run, which is exactly what "priorities"
+  // and "tasks" did the first time they were dropped.
   for (const table of contextTables) {
     if (!(await columnExists(connection, table, "context_id"))) {
       await connection.query(
@@ -701,12 +617,7 @@ export async function createMysqlSchema(connection) {
   // (e.g. only one priority could ever be named "Project A" across the whole app).
   // Widen them to be per-context so the same name can exist in different
   // contexts without colliding.
-  if (await indexExists(connection, "priorities", "title")) {
-    await connection.query("ALTER TABLE priorities DROP INDEX `title`");
-    await connection.query(
-      "ALTER TABLE priorities ADD UNIQUE KEY unique_context_title (context_id, title)",
-    );
-  }
+  // The priorities.title widening stood here, and went with that table.
 
   // The to_dos <-> tickets cross-links are gone with the `tickets` table. Both
   // sides were FKs into a table nothing read; cross-entity relationships live in
@@ -1473,7 +1384,36 @@ async function renameLegacyColumns(connection) {
 //   `work_items` held Dailies before they became entities of type `daily`.
 //     scripts/phase10-migrate-work-items.js moves those rows; run it BEFORE
 //     this drop reaches a database that still has unmigrated ones.
-const RETIRED_TABLES = ["work_items", "tickets", "categories"];
+//   `tasks` and `priorities` held Tasks and Projects before those became
+//     entities. Both are fully migrated - every row has a matching entity -
+//     and NOTHING in src/ reads either table any more; `priorities` was the
+//     last thing keeping three junctions pointed at a dead endpoint.
+const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorities"];
+
+// Rows of a legacy table that never made it into `entities`.
+//
+// The same shape of guard as workItemsSafeToDrop below, but matched on TITLE
+// rather than on a legacy id column, because only Dailies left one behind
+// (`legacy_daily_id`). Weaker evidence, so it is used only for tables that no
+// code reads at all - a stale row nobody queries costs nothing, and dropping
+// one that was never migrated cannot be undone.
+const LEGACY_TABLE_TYPE = { tasks: "task", priorities: "priority" };
+
+async function legacyTableSafeToDrop(connection, table) {
+  const typeSlug = LEGACY_TABLE_TYPE[table];
+  if (!typeSlug) return true;
+  const [[{ n: rows }]] = await connection.query(`SELECT COUNT(*) AS n FROM \`${table}\``);
+  if (rows === 0) return true;
+  const [[{ n: orphans }]] = await connection.query(
+    `SELECT COUNT(*) AS n FROM \`${table}\` l
+      WHERE NOT EXISTS (
+        SELECT 1 FROM entities e
+          JOIN entity_types t ON t.id = e.entity_type_id
+         WHERE t.slug = ? AND e.title = l.title)`,
+    [typeSlug],
+  );
+  return orphans === 0;
+}
 
 // Would dropping `work_items` destroy Dailies that were never migrated?
 //
@@ -1498,6 +1438,21 @@ async function dropRetiredTables(connection) {
     // The one table that can still hold data worth keeping - see above. Left in
     // place, loudly, rather than dropped: a table nobody reads is harmless, and
     // a lost day of work is not.
+    if (LEGACY_TABLE_TYPE[table]) {
+      const [exists] = await connection.query(
+        `SELECT COUNT(*) AS n FROM information_schema.TABLES
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+        [table],
+      );
+      if (!exists[0].n) continue;
+      if (!(await legacyTableSafeToDrop(connection, table))) {
+        console.warn(
+          `[schema] ${table} still holds rows with no matching entity - NOT dropping it.`,
+        );
+        continue;
+      }
+    }
+
     if (table === 'work_items') {
       const [exists] = await connection.query(
         `SELECT COUNT(*) AS n FROM information_schema.TABLES

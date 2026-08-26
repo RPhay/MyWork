@@ -222,52 +222,16 @@ export async function createMssqlSchema(pool) {
 
   // goal_categories table removed in Phase 3 (goals migrated to generic entities)
 
-  await createTableIfNotExists(
-    pool,
-    "priorities",
-    `
-    CREATE TABLE [MyWork].[priorities] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      title NVARCHAR(255) NOT NULL,
-      source_id INT NULL,
-      parent_id INT NULL,
-      notes NVARCHAR(MAX),
-      status NVARCHAR(50) NOT NULL DEFAULT 'Not Started',
-      order_index INT DEFAULT 0,
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      CONSTRAINT fk_priorities_source FOREIGN KEY (source_id) REFERENCES [MyWork].[sources](id) ON DELETE SET NULL,
-      -- NO ACTION, not CASCADE - see the matching note on fk_areas_parent above.
-      CONSTRAINT fk_priorities_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[priorities](id) ON DELETE NO ACTION
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "priorities");
-  await createIndexIfNotExists(
-    pool,
-    "idx_priorities_order",
-    "priorities",
-    "CREATE INDEX idx_priorities_order ON [MyWork].[priorities](order_index)",
-  );
+  // `priorities` is RETIRED - see RETIRED_TABLES. Projects are entities, every
+  // row is migrated and nothing in src/ reads the table. Its CREATE, its
+  // updated_at trigger, its order index and its two backfills stood here. The
+  // twin removal is in mysqlSchema.js.
 
   // The `entities` soft-delete backfill used to sit HERE, roughly 950 lines
   // before [MyWork].[entities] is created, and it is what produced "Cannot find
-  // the object 'MyWork.entities' because it does not exist or you do not have
-  // permissions" on every attempt to build this schema from nothing. It has
-  // moved to directly after that CREATE TABLE; see the matching move in
-  // mysqlSchema.js, which had the identical fault.
-
-  if (!(await columnExists(pool, "priorities", "status"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[priorities] ADD status NVARCHAR(50) NOT NULL DEFAULT 'Not Started'
-    `);
-  }
-  if (!(await columnExists(pool, "priorities", "parent_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[priorities] ADD
-        parent_id INT NULL CONSTRAINT fk_priorities_parent FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE NO ACTION
-    `);
-  }
+  // the object 'MyWork.entities'" on every attempt to build this schema from
+  // nothing. It moved to directly after that CREATE TABLE; the same rule
+  // applies to anything added in its place.
 
   // priority_areas: recreated as a legacy<->entity bridge at the end of this file
 
@@ -355,8 +319,7 @@ export async function createMssqlSchema(pool) {
       created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
       -- NO ACTION, not CASCADE - see the matching note on fk_areas_parent above.
-      CONSTRAINT fk_to_dos_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION,
-      CONSTRAINT fk_to_dos_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
+      CONSTRAINT fk_to_dos_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[to_dos](id) ON DELETE NO ACTION
     )
   `,
   );
@@ -385,7 +348,6 @@ export async function createMssqlSchema(pool) {
   if (!(await columnExists(pool, "to_dos", "priority_id"))) {
     await pool.request().query(`
       ALTER TABLE [MyWork].[to_dos] ADD priority_id INT NULL
-        CONSTRAINT fk_to_dos_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
     `);
   }
 
@@ -451,63 +413,12 @@ export async function createMssqlSchema(pool) {
   // idea_links table removed in Phase 1 (ideas migrated to generic entities)
 
 
-  await createTableIfNotExists(
-    pool,
-    "tasks",
-    `
-    CREATE TABLE [MyWork].[tasks] (
-      id INT IDENTITY(1,1) PRIMARY KEY,
-      title NVARCHAR(255) NOT NULL,
-      notes NVARCHAR(MAX),
-      parent_id INT NULL,
-      priority_id INT NULL,
-      status NVARCHAR(20) NOT NULL DEFAULT 'incomplete',
-      recurrence NVARCHAR(MAX),
-      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
-      -- NO ACTION, not CASCADE - see the matching note on fk_areas_parent above.
-      CONSTRAINT fk_tasks_parent FOREIGN KEY (parent_id) REFERENCES [MyWork].[tasks](id) ON DELETE NO ACTION,
-      CONSTRAINT fk_tasks_priority FOREIGN KEY (priority_id) REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
-    )
-  `,
-  );
-  await createUpdatedAtTrigger(pool, "tasks");
-
-  // Backfill parent_id/priority_id/status for pre-existing tasks tables
-  if (!(await columnExists(pool, "tasks", "parent_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[tasks] ADD parent_id INT NULL
-        CONSTRAINT fk_tasks_parent FOREIGN KEY REFERENCES [MyWork].[tasks](id) ON DELETE NO ACTION
-    `);
-    // Set all folder_id references to NULL during migration for safety
-    if (await columnExists(pool, "tasks", "folder_id")) {
-      await pool.request().query(`UPDATE [MyWork].[tasks] SET parent_id = NULL WHERE folder_id IS NOT NULL`);
-    }
-  }
-  if (!(await columnExists(pool, "tasks", "priority_id"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[tasks] ADD priority_id INT NULL
-        CONSTRAINT fk_tasks_priority FOREIGN KEY REFERENCES [MyWork].[priorities](id) ON DELETE SET NULL
-    `);
-  }
-  if (!(await columnExists(pool, "tasks", "status"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[tasks] ADD status NVARCHAR(20) NOT NULL DEFAULT 'incomplete'
-    `);
-  }
-
-  // Drop old folder_id column if it still exists on tasks
-  if (await columnExists(pool, "tasks", "folder_id")) {
-    await dropForeignKeysOnColumn(pool, "tasks", "folder_id");
-    await pool.request().query(`ALTER TABLE [MyWork].[tasks] DROP COLUMN folder_id`);
-  }
-
-  // Backfill recurrence for pre-existing tasks tables
-  if (!(await columnExists(pool, "tasks", "recurrence"))) {
-    await pool.request().query(`
-      ALTER TABLE [MyWork].[tasks] ADD recurrence NVARCHAR(MAX)
-    `);
-  }
+  // `tasks` is RETIRED - see RETIRED_TABLES. Tasks are entities and every row
+  // is migrated. Its CREATE, its trigger and its five backfills stood here. One
+  // of those backfills is why it had to go at the same time as `priorities`: it
+  // added fk_tasks_priority REFERENCES [MyWork].[priorities](id), so the dead
+  // table could not be dropped while this one was still being created. The twin
+  // removal is in mysqlSchema.js.
 
   // The work_items -> to_dos/tasks recurrence FKs went with the table.
 
@@ -732,14 +643,13 @@ export async function createMssqlSchema(pool) {
   const firstContextId = firstContextResult.recordset[0].id;
   const contextTables = [
     "sources",
-    "priorities",
     "work_item_templates",
     "to_dos",
-    "tasks",
   ];
-  // "work_items" and "tickets" were here until they were retired - see
-  // RETIRED_TABLES. Leaving a dropped table in this list makes the ALTER below
-  // throw on every schema run.
+  // "work_items", "tickets", "priorities" and "tasks" were here until they were
+  // retired - see RETIRED_TABLES. Leaving a dropped table in this list makes the
+  // ALTER below throw on every schema run, which is exactly what "priorities"
+  // and "tasks" did on MySQL the first time they were dropped.
   for (const table of contextTables) {
     if (!(await columnExists(pool, table, "context_id"))) {
       await pool
@@ -756,15 +666,8 @@ export async function createMssqlSchema(pool) {
     }
   }
 
-  // Priorities used to be uniquely constrained globally (only one project ever
-  // named "Meetings" in the whole app); widened to per-context now that
-  // context_id exists, so the same name can exist in different contexts.
-  await createIndexIfNotExists(
-    pool,
-    "unique_context_title",
-    "priorities",
-    "CREATE UNIQUE INDEX unique_context_title ON [MyWork].[priorities](context_id, title)",
-  );
+  // The per-context uniqueness widening for `priorities` stood here, and went
+  // with that table - see RETIRED_TABLES.
 
   // The cross-entity FK columns this section used to add are all gone with the
   // tables they joined (areas, goals, tickets). Cross-entity relationships live
@@ -1659,7 +1562,9 @@ async function renameLegacyColumns(pool) {
 // each one was and, in particular, why `categories` and `tickets` are NOT the
 // Categories and Tickets types. Dropped on every schema run so an existing
 // database is cleaned by the same "Fix Schema" that builds a new one.
-const RETIRED_TABLES = ["work_items", "tickets", "categories"];
+// `tasks` and `priorities` join the list: both are fully migrated to entities
+// and nothing in src/ reads either. See the fuller note in mysqlSchema.js.
+const RETIRED_TABLES = ["work_items", "tickets", "categories", "tasks", "priorities"];
 
 // See the matching note in mysqlSchema.js. This matters MORE on SQL Server:
 // phase10-migrate-work-items.js is MySQL-only, so an MSSQL install has to have
@@ -1675,8 +1580,39 @@ async function workItemsSafeToDrop(pool) {
   return migrated >= rows;
 }
 
+// Rows of a legacy table that never made it into `entities`. The twin of the
+// guard in mysqlSchema.js: matched on TITLE, because only Dailies left a legacy
+// id column behind, so it is used only for tables no code reads at all.
+const LEGACY_TABLE_TYPE = { tasks: "task", priorities: "priority" };
+
+async function legacyTableSafeToDrop(pool, table) {
+  const typeSlug = LEGACY_TABLE_TYPE[table];
+  if (!typeSlug) return true;
+  const rows = (await pool.request()
+    .query(`SELECT COUNT(*) AS n FROM [MyWork].[${table}]`)).recordset[0].n;
+  if (rows === 0) return true;
+  const orphans = (await pool.request()
+    .input("typeSlug", typeSlug)
+    .query(`SELECT COUNT(*) AS n FROM [MyWork].[${table}] l
+             WHERE NOT EXISTS (
+               SELECT 1 FROM [MyWork].[entities] e
+                 JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
+                WHERE t.slug = @typeSlug AND e.title = l.title)`)).recordset[0].n;
+  return orphans === 0;
+}
+
 async function dropRetiredTables(pool) {
   for (const table of RETIRED_TABLES) {
+    if (LEGACY_TABLE_TYPE[table]) {
+      if (!(await tableExists(pool, table))) continue;
+      if (!(await legacyTableSafeToDrop(pool, table))) {
+        console.warn(
+          `[schema] ${table} still holds rows with no matching entity - NOT dropping it.`,
+        );
+        continue;
+      }
+    }
+
     if (table === "work_items") {
       if (!(await tableExists(pool, "work_items"))) continue;
       if (!(await workItemsSafeToDrop(pool))) {
