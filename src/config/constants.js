@@ -32,3 +32,12 @@ export const TABS = {
 export const DEFAULT_TAB = TABS.DAILIES;
 
 export const PAGES_PER_PAGE = 10;
+
+// Types that are never "what I am working on". A template is a pattern you
+// stamp out rather than work you do: it accumulates no time, so pinning one to
+// a clock would be meaningless, and it carries no focus fields at all.
+//
+// Lives here rather than in focusService because entityTypeService needs it
+// too (to decide which types get the focus block) and focusService already
+// imports entityTypeService - putting it in either one makes a cycle.
+export const UNPINNABLE_TYPE_SLUGS = new Set(['template']);

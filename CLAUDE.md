@@ -136,7 +136,7 @@ routes → error handler. Full order: `CLAUDE_REFERENCE.md`.
 Behaviour that is easy to undo by accident, because each rule came from a
 specific failure — **one click expands a row, two open the editor**; **a
 folder's cells are roll-ups**, not controls; **status is one vocabulary for
-every type**; **Worked Time is on every type and cannot be removed**. Full
+every type**; **Worked Time is on every type except Templates, and cannot be removed**. Full
 list before touching row rendering, the editor, or the focus bar:
 `CLAUDE_REFERENCE.md`.
 

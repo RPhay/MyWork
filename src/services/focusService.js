@@ -2,6 +2,7 @@ import { getActiveContextId } from './activeContextService.js';
 import * as entityTypeService from './entityTypeService.js';
 import * as entityService from './entityService.js';
 import { ValidationError } from '../config/errors.js';
+import { UNPINNABLE_TYPE_SLUGS } from '../config/constants.js';
 
 /**
  * The focus bar: what you are actually working on right now, pinned to the top
@@ -123,10 +124,9 @@ export async function getFocusItems(contextId = null) {
   return items.sort((a, b) => a.monitor - b.monitor || a.slot - b.slot);
 }
 
-// Types that are never "what I am working on". A template is a pattern you
-// stamp out rather than work you do: it accumulates no time, so pinning one to
-// a clock would be meaningless.
-const UNPINNABLE_TYPE_SLUGS = new Set(['template']);
+// UNPINNABLE_TYPE_SLUGS lives in config/constants.js - entityTypeService needs
+// the same list and this file already imports it, so declaring it here made a
+// cycle.
 
 /** Pin a record to a monitor (1 by default). Pin as many as you like; slots
  * are handed out in order, scoped to that monitor. */

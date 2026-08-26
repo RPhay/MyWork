@@ -1,5 +1,6 @@
 import { query } from '../database/connectionPool.js';
 import { ValidationError, NotFoundError, ConflictError } from '../config/errors.js';
+import { UNPINNABLE_TYPE_SLUGS } from '../config/constants.js';
 // A captured snapshot of a working configuration - see revertSystemType.
 import typeDefaults from '../database/typeDefaults.json' with { type: 'json' };
 
@@ -171,6 +172,13 @@ export async function createEntityType(data) {
       }
     }
 
+    // EVERY type carries the engine block - see ENGINE_FIELD_DEFS. Without
+    // this a user-created type has no Worked Time and cannot be pinned or
+    // timed, while the nine seeded ones all can. No category is exempt:
+    // CLAUDE.md states Worked Time is on every type and cannot be removed,
+    // and the fields are inert on a type that never uses them.
+    await ensureEngineFields(typeId);
+
     if (data.supports_hierarchy) await ensureSelfNestingRule(typeId);
     // ...and it can be put inside a template, like every other editable type.
     await ensureContainerRules(typeId, data.type_category);
@@ -218,6 +226,12 @@ export async function updateEntityType(id, data) {
   // promise the engine will refuse to keep. Turning it off deliberately leaves
   // the rule in place: it may have been created by hand, and an unused rule is
   // harmless while a deleted one is not recoverable.
+  // Reconcile the engine block on the way past. A type created before
+  // ENGINE_FIELD_DEFS existed is missing fields the app treats as mandatory,
+  // and this repairs it the next time the type is touched rather than
+  // requiring a hand-edit.
+  await ensureEngineFields(id);
+
   if (data.supports_hierarchy) await ensureSelfNestingRule(id);
 
   // Handle fields if provided.
@@ -304,6 +318,69 @@ export const ENGINE_OWNED_FIELD_KEYS = new Set([
   'focus_seconds', 'focus_slot', 'focus_started_at', 'focus_color',
   'focus_monitor', 'board_bay', 'board_order',
 ]);
+
+/**
+ * The block every editable type carries so the ENGINE can work on it: the
+ * focus bar's clock and pin, the priorities board's placement, and the Time
+ * Box ladder.
+ *
+ * The nine seeded types each declare these in systemEntityTypes.js. A type the
+ * USER created got none of them - createEntityType wrote only the fields it was
+ * handed - so a user's own type could not be pinned to the focus bar, could not
+ * be timed, and had no Worked Time, which CLAUDE.md states every type carries
+ * and the type editor refuses to remove. It was invisible because until a
+ * fixture type existed there was nothing in the database that had gone through
+ * this path.
+ *
+ * Kept here rather than imported from systemEntityTypes.js because that file
+ * is the SEED - it describes the nine, one entry each, and is rewritten by the
+ * type editor's revert. This is the contract for anything created later.
+ */
+/** The focus bar's own fields - the subset an unpinnable type does not get. */
+export const FOCUS_FIELD_KEYS = new Set([
+  'focus_slot', 'focus_seconds', 'focus_started_at', 'focus_monitor', 'focus_color',
+]);
+
+export const ENGINE_FIELD_DEFS = [
+  { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
+  { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+  { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+  { field_key: 'focus_seconds', label: 'Worked Time', field_type: 'duration', required: false, show_in_row: false },
+  { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
+  { field_key: 'focus_monitor', label: 'Focus bar monitor', field_type: 'number', required: false, show_in_row: false },
+  { field_key: 'focus_color', label: 'Focus chip colour', field_type: 'text', required: false, show_in_row: false },
+  { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+];
+
+/**
+ * Add any engine field the type does not already have. Idempotent: it reads
+ * what is there first, so it is safe on a type that has some of them.
+ */
+export async function ensureEngineFields(typeId) {
+  // A type that can never be pinned accumulates no time, so the focus block
+  // is not just unused on it - worked-time.spec asserts a template does NOT
+  // carry Worked Time, and focusService refuses to pin one. One list, in
+  // focusService, rather than a second copy here that could drift from it.
+  const type = await getEntityType(typeId);
+  const unpinnable = UNPINNABLE_TYPE_SLUGS.has(type.slug);
+
+  const existing = await query(
+    'SELECT field_key FROM entity_type_fields WHERE entity_type_id = ?',
+    [typeId]
+  );
+  const have = new Set(existing.map((f) => f.field_key));
+  const [{ next } = { next: 0 }] = await query(
+    'SELECT COALESCE(MAX(display_order), -1) + 1 AS next FROM entity_type_fields WHERE entity_type_id = ?',
+    [typeId]
+  );
+  let order = Number(next) || 0;
+  for (const def of ENGINE_FIELD_DEFS) {
+    if (have.has(def.field_key)) continue;
+    if (unpinnable && FOCUS_FIELD_KEYS.has(def.field_key)) continue;
+    await createEntityTypeField(typeId, { ...def, display_order: order });
+    order += 1;
+  }
+}
 
 // Soft-delete an entity type
 export async function softDeleteEntityType(id) {

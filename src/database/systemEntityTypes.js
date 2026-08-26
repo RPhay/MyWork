@@ -443,11 +443,13 @@ export const SYSTEM_ENTITY_TYPES = [
       { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: false },
       { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
       { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
-      { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
-      { field_key: 'focus_seconds', label: 'Worked Time', field_type: 'duration', required: false, show_in_row: false },
-      { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
-      { field_key: 'focus_monitor', label: 'Focus bar monitor', field_type: 'number', required: false, show_in_row: false },
-      { field_key: 'focus_color', label: 'Focus chip colour', field_type: 'text', required: false, show_in_row: false },
+      // NO focus block. A template is a pattern you stamp out rather than
+      // work you do, so it accumulates no time - focusService refuses to pin
+      // one (UNPINNABLE_TYPE_SLUGS) and worked-time.spec asserts it carries no
+      // Worked Time. The five focus fields were added here earlier in the same
+      // session that wrote this note, on the reasoning that every type gets
+      // the engine block; that is true of every type EXCEPT this one, and it
+      // broke both of worked-time.spec's template tests.
     ],
   },
 ];
