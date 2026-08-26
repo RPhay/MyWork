@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MyWork">
+  <!-- MyWork: a day's list, with the top line done.
+       Chosen over a letter mark because the app is one idea - typed rows
+       gathered onto a day - and a checked list says that at 16px, which is the
+       size that actually has to work in a browser tab. -->
+  <defs>
+    <linearGradient id="mw-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#mw-bg)"/>
+
+  <!-- The done line: a tick, then its rule struck through. -->
+  <path d="M16 22.5 L21 27.5 L30 17.5"
+        fill="none" stroke="#a7f3d0" stroke-width="5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="34" y="20" width="14" height="4.5" rx="2.25" fill="#a7f3d0" opacity="0.85"/>
+
+  <!-- Two still to do. Shorter each time, so the shape reads as a list even
+       when the strokes blur together at tab size. -->
+  <rect x="16" y="33.5" width="32" height="4.5" rx="2.25" fill="#ffffff" opacity="0.92"/>
+  <rect x="16" y="44" width="22" height="4.5" rx="2.25" fill="#ffffff" opacity="0.62"/>
+</svg>
