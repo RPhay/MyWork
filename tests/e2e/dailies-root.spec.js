@@ -59,11 +59,19 @@ test.describe('Records on the day itself', () => {
     const page = await browser.newPage();
     await page.goto('/?tab=category', { waitUntil: 'networkidle' });
     const items = (await api(page, `/api/dailies/date/${today()}`)).body?.data || [];
-    for (const w of items.filter(x => (x.title || '').startsWith('ZZZroot') || x.title === 'New daily'))
+    // BOTH calls: /api/dailies/:id is a SOFT delete, and only /api/trash/:id
+    // removes the row. Soft-deleting alone left "New daily" in the user's trash
+    // after every run - and it cannot be ZZZ-prefixed, because the app names it
+    // when "+ Daily" is clicked, so the global sweep cannot reach it either.
+    for (const w of items.filter(x => (x.title || '').startsWith('ZZZroot') || x.title === 'New daily')) {
       await api(page, `/api/dailies/${w.id}`, { method: 'DELETE' });
+      await api(page, `/api/trash/${w.id}`, { method: 'DELETE' });
+    }
     const areas = (await api(page, '/api/entities/category')).body?.data || [];
-    for (const a of areas.filter(x => (x.title || '').startsWith('ZZZroot')))
+    for (const a of areas.filter(x => (x.title || '').startsWith('ZZZroot'))) {
       await api(page, `/api/entities/category/${a.id}`, { method: 'DELETE' });
+      await api(page, `/api/trash/${a.id}`, { method: 'DELETE' });
+    }
     await page.close();
   });
 

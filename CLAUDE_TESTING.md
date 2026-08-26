@@ -124,7 +124,7 @@ Times are wall-clock on this machine. **Measured** = observed in a real run;
 | 5 | Drag | `drag-protocol`, `real-drag-drop`, `template-drops`, `dailies-drop`, `dailies-any-type`, `priorities-rail` | **~1.2m** | Anything touching drag sources, drop targets or `dragDropUtils.js` |
 | 6 | Guard set | The 15 specs above + `npm run test:unit` | **~13m** | Before a commit or push |
 | 7 | Guard + headed | Tier 6 + `editable-types --headed` | ~8m (est.) | Editable type pages or their engine — see "Editable types" |
-| 8 | Full suite | `npx playwright test` | **~1.8h** | Rarely. Mostly stale specs; see the baseline below for what the number means |
+| 8 | Full suite | `npx playwright test` | **~27m** | It is GREEN and it is worth running. See the baseline below |
 
 Tiers 4 and 5 deliberately overlap — a generic-engine change is usually both.
 
@@ -187,45 +187,56 @@ config error: `CLAUDE_TESTING_REFERENCE.md`.
 The guard set above is the list to trust; everything else is triage against a
 large stale baseline. Snapshot: `CLAUDE_TESTING_REFERENCE.md`.
 
-### Baseline, measured 2026-08-25
+### Baseline, measured 2026-08-26
 
-**453 tests in 101 files, 1.8h, exit 1: 271 passed, 168 failed, 2 skipped,
-12 did not run.** The number to compare against is not the total - it is this:
+**354 tests in 71 files, 26.5 minutes, exit 0: 353 passed, 0 failed, 1 skipped.**
 
-| | passed | failed |
+The full suite is green. That is new, and it is the number to defend: any
+failure now is something the change in hand did, which is exactly what the
+count could never mean before.
+
+How it got here, from the first full run that could execute at all
+(2026-08-25: 453 tests in 101 files, 1.8h, exit 1, 271 passed / 168 failed):
+
+| | 2026-08-25 | 2026-08-26 |
 |---|---|---|
-| Guard set (17 files) | **178** | **0** |
-| Everything else (84 files) | 93 | 168 |
+| passed | 271 | **353** |
+| failed | **168** | **0** |
+| duration | 1.8h | **26.5m** |
+| files | 101 | 71 (+48 retired) |
 
-**The guard set is green inside a full run.** Every failure in the suite is
-outside it. That is what makes the guard set worth trusting and the total
-worth ignoring.
+Most of the 1.8h was failures waiting out a 30-second timeout, so fixing them
+took two thirds off the clock. `editable-types-comprehensive` alone went 8.8m
+to 57s, `field-sync-matrix` 180s to 19s.
 
-Before this, `npx playwright test` **could not run at all** - see the note on
-`testIgnore` in `playwright.config.js`. The "~12.3m" this table used to claim
-for tier 8 was not measurable against the tree it described.
+Almost none of the 168 was a defect in the app. The recurring shapes, worth
+recognising before reading any new failure as a bug:
 
-Three causes account for nearly every failure, and only the third is a defect:
+1. **A rename that stopped at the suite's door.** Areas became Categories in
+   the app and left 42 `/api/entities/area` call sites, five element ids and a
+   `data-tab` behind. Separately, 48 failures - a third of the total - were
+   `#addCategoryBtn` where the template renders `add<typeSlug>Btn`
+   uncapitalised.
+2. **Specs asserting behaviour that was deliberately removed** - one click
+   opening the editor, native `confirm()`/`prompt()` dialogs, a type-editor
+   modal that is a pane now, a bespoke Priorities page.
+3. **Files that assert nothing.** 17 of the retired specs contain zero
+   `expect(`; one has 34 log lines and no assertion. They could not pass or
+   fail, and each cost 30 seconds to time out.
+4. **The app being right and the spec being old** - the type editor's blank
+   title is deliberate, and the checkbox cell's attribute is `data-value`, not
+   the `data-checked` a spec read.
 
-1. **Stale selectors** - the app changed, the spec did not. `dailies.spec.js`
-   (12), `comprehensive-test.spec.js` (10) and `editable-types-comprehensive.spec.js`
-   (48, a third of all failures) are the bulk of it. Retirement candidates.
-2. **A missing fixture type.** `dailies-any-type`, `reference-sync` and
-   `template-drops` POST to `/api/entities/tests`, a user-created type with
-   slug `tests` that DOES NOT EXIST in the database. The create returns no
-   `data`, so the spec throws `Cannot read properties of undefined (reading
-   'id')` - 12 failures across 5 files, all from one absent row. They cannot
-   create it themselves and delete it after, because deleting a TYPE is a soft
-   delete that reserves the slug permanently.
-3. **Genuine assertion failures worth reading** - `rollup-depth` ("a failed
-   grandchild must surface on the folder"), `time-box` ("all types carry one"),
-   `work-item-associations` ("associating a category should succeed"). These
-   state app behaviour, not selectors.
+What WAS real, and is fixed: three junctions foreign-keyed to a dead table;
+user-created types getting no engine block; roll-ups declared everywhere and
+stored nowhere (all 130 fields had `rollup = NULL`); a leaked test field giving
+every Ideas row two priority cells; `dataset.dailyId` reading undefined across
+14 call sites; the Todos & Ideas report returning no Todos; and the schema check
+reporting four retired tables as missing.
 
-**The run leaked 83 rows** (49 `ZZZ`, 34 named by stale specs that predate the
-convention). Six of the leakers - `template-drops`, `row-context-behaviour`,
-`rollup-depth`, `board-time`, `worked-time`, `time-box` - have a correct
-`afterEach` AND a hard delete, and leaked anyway: their cleanup runs through
-`page.evaluate`, so a test that times out takes the page and the teardown with
-it. That is why `global-teardown.js` exists, and why it talks to the database
-rather than the browser.
+**Leaks are the maintenance cost to watch.** A spec that creates rows must
+prefix them `ZZZ` and delete them with BOTH calls - `/api/entities/:type/:id`
+is a soft delete and only `/api/trash/:id` removes the row. `global-teardown.js`
+is the backstop for what a torn-down page cannot finish, and it sweeps leftover
+field DEFINITIONS as well as rows, because those change what every row of a type
+renders.
