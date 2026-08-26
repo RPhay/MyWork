@@ -331,7 +331,7 @@ function updateCalendarDayTotal(dateStr) {
 function toggleWorkItem(workItemEl) {
   // CSS-only expand/collapse (children already in the DOM, see
   // renderWorkItemsList) - no re-render; just the .expanded class is toggled.
-  const id = String(workItemEl.dataset.dailyId);
+  const id = String(workItemEl.dataset.workId);
   if (expandedWorkItems.has(id)) {
     expandedWorkItems.delete(id);
     workItemEl.classList.remove("expanded");

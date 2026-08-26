@@ -10,7 +10,7 @@ function initWorkItemsListEventListeners() {
     container,
     ".work-item-title",
     async (newTitle, titleEl) => {
-      const dailyId = titleEl.closest(".work-item").dataset.dailyId;
+      const dailyId = titleEl.closest(".work-item").dataset.workId;
       try {
         const response = await app.fetchRaw(`/api/dailies/${dailyId}`, {
           method: "PUT",
@@ -153,9 +153,9 @@ function initWorkItemsListEventListeners() {
 
     const workItemEl = header.closest(".work-item");
     if (workItemEl.classList.contains("child-item-row")) {
-      editChildItem(workItemEl.dataset.itemType, workItemEl.dataset.dailyId);
+      editChildItem(workItemEl.dataset.itemType, workItemEl.dataset.workId);
     } else {
-      editWorkItem(workItemEl.dataset.dailyId);
+      editWorkItem(workItemEl.dataset.workId);
     }
   });
 
@@ -166,7 +166,7 @@ function initWorkItemsListEventListeners() {
     const childItem = e.target.closest(".child-item-row");
     if (childItem) {
       const itemType = childItem.dataset.itemType;
-      const itemId = childItem.dataset.dailyId;
+      const itemId = childItem.dataset.workId;
       showChildItemContextMenu(e.clientX, e.clientY, itemType, itemId);
       return;
     }
@@ -174,7 +174,7 @@ function initWorkItemsListEventListeners() {
     // Otherwise check for work item (which is not a child item)
     const workItemEl = e.target.closest(".work-item");
     if (workItemEl && !workItemEl.classList.contains("child-item-row")) {
-      showWorkItemContextMenu(e.clientX, e.clientY, workItemEl.dataset.dailyId);
+      showWorkItemContextMenu(e.clientX, e.clientY, workItemEl.dataset.workId);
     }
   });
 
@@ -198,7 +198,7 @@ function initWorkItemsListEventListeners() {
     } else {
       currentDragType = "work-item";
       e.dataTransfer.setData("type", "work-item");
-      e.dataTransfer.setData("id", workItemEl.dataset.dailyId);
+      e.dataTransfer.setData("id", workItemEl.dataset.workId);
     }
     header.classList.add("dragging-item");
   });
@@ -300,8 +300,8 @@ function initWorkItemsListEventListeners() {
 
     if (type === "work-item") {
       const targetId =
-        workItemEl && workItemEl.dataset.dailyId !== id
-          ? workItemEl.dataset.dailyId
+        workItemEl && workItemEl.dataset.workId !== id
+          ? workItemEl.dataset.workId
           : null;
       const position = workItemEl
         ? dropZone(e, workItemEl)
@@ -324,13 +324,13 @@ function initWorkItemsListEventListeners() {
           "drop-indicator-after",
         );
         if (type === "template") {
-          linkChild(workItemEl.dataset.dailyId, type, id);
+          linkChild(workItemEl.dataset.workId, type, id);
           return;
         }
         const choice = await app.askCopyOrReference(e.dataTransfer.getData("name"));
         if (!choice) return;
         const linkId = choice === "copy" ? await cloneForDrop(type, id) : id;
-        if (linkId) linkChild(workItemEl.dataset.dailyId, type, linkId);
+        if (linkId) linkChild(workItemEl.dataset.workId, type, linkId);
         return;
       }
 

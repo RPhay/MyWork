@@ -327,12 +327,12 @@ let dailiesClickTimer = null;
 function dailiesRowIds() {
   return [...document.querySelectorAll('#workItemsList .work-item:not(.child-item-row)')]
     .filter(el => el.offsetParent !== null)
-    .map(el => el.dataset.dailyId);
+    .map(el => el.dataset.workId);
 }
 
 function paintDailiesSelection() {
   document.querySelectorAll('#workItemsList .work-item:not(.child-item-row)').forEach(el => {
-    el.classList.toggle('multi-selected', dailiesSelected.has(el.dataset.dailyId));
+    el.classList.toggle('multi-selected', dailiesSelected.has(el.dataset.workId));
   });
   const bar = document.getElementById('dailiesSelectionBar');
   if (bar) {
@@ -351,7 +351,7 @@ function clearDailiesSelection() {
 // Returns true when the click was purely about selection and nothing else
 // should happen - the same contract the typed pages use.
 function handleDailiesSelectionClick(e, el) {
-  const id = el.dataset.dailyId;
+  const id = el.dataset.workId;
 
   if (e.shiftKey && dailiesAnchor) {
     const ids = dailiesRowIds();
