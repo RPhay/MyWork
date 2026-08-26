@@ -112,15 +112,29 @@ test('the type editor opens in a right-hand pane, not a modal', async ({ page })
   await page.waitForTimeout(1000);
 
   await expect(page.locator('#entityTypeEditorPane')).toBeVisible();
-  await expect(page.locator('#entityTypeEditorTitle')).toContainText('Projects');
+  // The pane header is deliberately EMPTY when editing - the type is selected
+  // in the list beside it, so a title repeated it (entity-type-editor.js#75).
+  // What identifies the type being edited is the selection, so check that.
+  await expect(
+    page.locator('#editableTypesList .type-list-item').filter({ hasText: 'Projects' }).first(),
+  ).toHaveClass(/selected|active/);
   await expect(page.locator('#entityTypeForm')).toBeVisible();
   // Save/Cancel/Delete live in the pane header, like the typed pages
   await expect(page.locator('#entityTypeEditorActions #entityTypeSaveBtn')).toBeVisible();
   // no floating modal
   expect(await page.locator('.draggable-modal, .modal.show').count()).toBe(0);
-  const fields = await page.locator('#fieldsList .field-row').count();
-  console.log(JSON.stringify({fieldRows: fields, errs}));
-  expect(fields).toBe(4);
+  // Count the USER-facing fields, not every row.
+  //
+  // This asserted `toBe(4)` on the total and read 12, because the editor lists
+  // the engine's own fields too (focus, board, time_box) and every feature that
+  // adds one moves the number. entity-type-editor.spec.js carries a note about
+  // making exactly this mistake and dropping the total for a set.
+  const fieldKeys = await page.locator('#fieldsList .field-row input.field-key')
+    .evaluateAll((els) => els.map((e) => e.value));
+  console.log(JSON.stringify({ fieldRows: fieldKeys.length, fieldKeys, errs }));
+  for (const key of ['priority', 'status', 'notes', 'links']) {
+    expect(fieldKeys, `Projects declares ${key}`).toContain(key);
+  }
 
   await page.locator('#entityTypeCancelBtn').click();
   await page.waitForTimeout(500);

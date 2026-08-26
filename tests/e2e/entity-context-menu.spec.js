@@ -104,7 +104,7 @@ test.describe('Generic entity context menu', () => {
     // branch under test is precisely "the target was not a row". The row path
     // is covered with real mouse input in the tests above.
     await page.evaluate(() => {
-      document.getElementById('areaEntityList')
+      document.getElementById('categoryEntityList')
         .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 300 }));
     });
     await page.waitForTimeout(250);
