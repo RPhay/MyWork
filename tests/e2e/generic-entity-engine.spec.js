@@ -5,31 +5,50 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
   let csrfToken = '';
 
   // Helper to create a unique ID for test isolation
+  // ZZZ-prefixed so the fixtures are identifiable and the global sweep can
+  // reach them. Without it this spec's rows accumulated in the user's database
+  // under names like "With Fields-1787..." - and then poisoned the LIST test
+  // below, which matched the OLDEST such row rather than its own.
   function uniqueId(prefix) {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `ZZZ ${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  // Fetch CSRF token from home page before running tests
-  test.beforeAll(async ({ browser }) => {
-    const page = await browser.newPage();
-    try {
-      await page.goto('/', { waitUntil: 'networkidle' });
-      const content = await page.content();
+  // The token has to be minted from the SAME context that will spend it.
+  //
+  // This used to open a browser page in beforeAll, scrape data-csrf-token out
+  // of the HTML, and then send it from the `request` fixture - a different
+  // cookie jar, and so a different session. csurf keeps its secret in the
+  // session (cookie: false), so the token never matched and every POST here
+  // came back "403 CSRF validation failed". The failures then read as engine
+  // bugs: `expect(response.ok()).toBeTruthy()` on a 403, and
+  // `SyntaxError: Unexpected token '<'` from parsing the error PAGE as JSON.
+  //
+  // `request` is per-test, so beforeEach gets the token from the context the
+  // test itself will use.
+  test.beforeEach(async ({ request }) => {
+    const html = await (await request.get('/')).text();
+    const match = html.match(/data-csrf-token="([^"]+)"/);
+    csrfToken = match ? match[1] : '';
+  });
 
-      // Try to find CSRF token in data attributes
-      let match = content.match(/data-csrf-token="([^"]+)"/);
-      if (match) {
-        csrfToken = match[1];
-      } else {
-        // Fallback: look in script
-        match = content.match(/csrfToken['"]\s*:\s*['"]([^'"]+)['"]/);
-        if (match) {
-          csrfToken = match[1];
+  // Clean up through the same context, both calls: DELETE /api/entities is a
+  // SOFT delete, and only DELETE /api/trash/:id actually removes the row.
+  // Relying on the global sweep instead left 11 rows a run reaching it.
+  test.afterEach(async ({ request }) => {
+    const headers = { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' };
+    for (const slug of ['priority', 'idea']) {
+      const listed = await (await request.get(`/api/entities/${slug}`)).json().catch(() => ({}));
+      for (const e of (listed.data || []).filter((x) => String(x.title || '').startsWith('ZZZ'))) {
+        await request.delete(`/api/entities/${slug}/${e.id}`, { headers });
+      }
+    }
+    const trash = await (await request.get('/api/trash?limit=200')).json().catch(() => ({}));
+    for (const batch of (trash.data || [])) {
+      for (const item of (batch.items || [])) {
+        if (String(item.title || '').startsWith('ZZZ')) {
+          await request.delete(`/api/trash/${item.id}`, { headers });
         }
       }
-      console.log(`CSRF Token obtained: ${csrfToken.substring(0, 20)}...`);
-    } finally {
-      await page.close();
     }
   });
 
@@ -97,10 +116,15 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
     expect(data.data.title).toBe(payload.title);
   });
 
+  // Field values go under `fields`, not at the top level: createEntity reads
+  // `data.fields?.[field_key]`. These payloads put `status` beside `title`, so
+  // it was silently ignored - the entity was created, came back with
+  // `fields: {}`, and the assertions read like the engine had dropped the
+  // value it had never been given.
   test('CREATE entity with custom fields', async ({ request }) => {
     const payload = {
       title: uniqueId('Priority with Status'),
-      status: 'In Progress',
+      fields: { status: 'In Progress' },
     };
 
     const response = await request.post('/api/entities/priority', {
@@ -132,7 +156,7 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
       },
       data: {
         title: uniqueId('Test Entity'),
-        status: 'In Progress',
+        fields: { status: 'In Progress' },
       },
     });
 
@@ -192,7 +216,7 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
       },
       data: {
         title: uniqueId('Test Entity'),
-        status: 'Not Started',
+        fields: { status: 'Not Started' },
       },
     });
 
@@ -207,7 +231,7 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
       },
       data: {
         title: uniqueId('Test Entity'),
-        status: 'Complete',
+        fields: { status: 'Complete' },
       },
     });
     expect(updateResp.ok()).toBeTruthy();
@@ -257,14 +281,15 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
 
   test('LIST entities includes field values', async ({ request }) => {
     // Create one with fields
+    const listTitle = uniqueId('With Fields');
     await request.post('/api/entities/priority', {
       headers: {
         'X-CSRF-Token': csrfToken,
         'Content-Type': 'application/json',
       },
       data: {
-        title: uniqueId('With Fields'),
-        status: 'In Progress',
+        title: listTitle,
+        fields: { status: 'In Progress' },
       },
     });
 
@@ -272,7 +297,10 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
     const listResp = await request.get('/api/entities/priority');
     const listData = await listResp.json();
 
-    const created = listData.data.find(e => e.title.includes('With Fields'));
+    // Match the EXACT title. `includes('With Fields')` found the first row of
+    // any run, which on a database holding rows from before the payload fix
+    // was one that genuinely had no status.
+    const created = listData.data.find(e => e.title === listTitle);
     expect(created).toBeDefined();
     if (created) {
       expect(created.fields).toBeDefined();
@@ -316,8 +344,12 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
         'Content-Type': 'application/json',
       },
       data: {
-        child_entity_id: childId,
-        relationship_kind: 'hierarchy',
+        // The route destructures { parentEntityId, childEntityId,
+        // relationshipKind }. snake_case arrived as undefined on all three, so
+        // the POST 400'd and the failure read as "relationships are broken".
+        parentEntityId: parentId,
+        childEntityId: childId,
+        relationshipKind: 'hierarchy',
       },
     });
     expect(relResp.ok()).toBeTruthy();
@@ -359,8 +391,12 @@ test.describe('Generic Entity Engine - Full Integration Tests', () => {
         'Content-Type': 'application/json',
       },
       data: {
-        child_entity_id: childId,
-        relationship_kind: 'hierarchy',
+        // The route destructures { parentEntityId, childEntityId,
+        // relationshipKind }. snake_case arrived as undefined on all three, so
+        // the POST 400'd and the failure read as "relationships are broken".
+        parentEntityId: parentId,
+        childEntityId: childId,
+        relationshipKind: 'hierarchy',
       },
     });
 
