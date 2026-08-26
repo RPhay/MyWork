@@ -30,8 +30,14 @@ const VALID_TYPES = ['mysql', 'mssql'];
 export const ALL_SYSTEM_TABLES = [
   // Still first-class tables of their own.
   'users', 'sso_identities', 'contexts', 'context_folders', 'day_highlights',
-  'sources', 'source_auth', 'years', 'priorities',
-  'work_item_templates', 'to_dos', 'to_do_items', 'tasks',
+  'sources', 'source_auth', 'years',
+  'work_item_templates',
+  // 'priorities', 'tasks', 'to_dos' and 'to_do_items' went on 2026-08-26.
+  // Projects, Tasks and Todos are entities; all four tables were fully
+  // migrated and unread. Leaving them here made checkSystemDbSchema report
+  // four MISSING tables on a correct schema, so Settings offered to "fix" a
+  // database that was already right - which is precisely what the note at the
+  // top of this list is for.
   // 'work_items', 'tickets' and 'categories' went on 2026-08-25. Dailies are
   // entities of type `daily` now, and the other two were pre-migration tables
   // nothing read - NOT the Categories/Tickets types, which are `category` and
