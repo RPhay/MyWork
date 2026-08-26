@@ -42,15 +42,26 @@ test('the three valid two-pane combinations', async ({ page }) => {
   expect(s.dailies && s.templates && !s.content).toBe(true);
   expect(s.xd).toBeLessThan(s.xt);
 
-  // Templates + type -> Templates left
-  await D.click(); await page.waitForTimeout(600);
+  // Templates + type -> Templates left.
+  //
+  // Reached by collapsing ONTO Templates and then asking for the type back,
+  // not by "turning Dailies off": there is no off. One click on half of a pair
+  // gives the screen to the half you clicked (tabs.js#showPane), so clicking
+  // Dailies here collapses to Dailies - which is what this used to do, and why
+  // it then found Dailies still up and the type gone.
+  await T.click(); await page.waitForTimeout(600);      // [daily, template] -> [template]
+  await page.locator('[data-tab="category"]').first().click();
+  await page.waitForTimeout(600);                        // -> [template, TYPE]
   s = await state(page);
   console.log('tpl+type      ', JSON.stringify(s));
   expect(s.templates && s.content && !s.dailies).toBe(true);
   expect(s.xt).toBeLessThan(s.xc);
 
-  // Neither -> type takes the whole width
-  await T.click(); await page.waitForTimeout(600);
+  // Neither rail -> the type takes the whole width. Click the TYPE tab, for
+  // the same reason as above: clicking Templates would give the screen to
+  // Templates, not take it away.
+  await page.locator('[data-tab="category"]').first().click();
+  await page.waitForTimeout(600);
   s = await state(page);
   console.log('type only     ', JSON.stringify(s));
   expect(s.content && !s.dailies && !s.templates).toBe(true);
@@ -61,10 +72,15 @@ test('the three valid two-pane combinations', async ({ page }) => {
 
 test('rail choices survive a reload', async ({ page }) => {
   await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
-  // Leave it on Templates + type
-  await page.locator('button[data-rail-toggle="daily"]').click();
+  // Leave it on Templates + type - see the note in the test above for why this
+  // is two clicks on Templates and then the type tab, rather than "off" for
+  // Dailies.
   await page.locator('button[data-rail-toggle="template"]').click();
   await page.waitForTimeout(500);
+  await page.locator('button[data-rail-toggle="template"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('[data-tab="category"]').first().click();
+  await page.waitForTimeout(600);
 
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1500);
   await expect(page.locator('#rail-template')).toBeVisible();
