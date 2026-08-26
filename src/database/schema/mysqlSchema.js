@@ -13,6 +13,7 @@
 import {
   SYSTEM_ENTITY_TYPES,
   resolveTypeRelationships,
+  upgradedStatusOptions,
 } from '../systemEntityTypes.js';
 
 async function columnExists(connection, table, column) {
@@ -960,7 +961,7 @@ export async function createMysqlSchema(connection) {
     for (let i = 0; i < type.fields.length; i++) {
       const field = type.fields[i];
       const [existing] = await connection.query(
-        'SELECT id FROM entity_type_fields WHERE entity_type_id = ? AND field_key = ?',
+        'SELECT id, field_options FROM entity_type_fields WHERE entity_type_id = ? AND field_key = ?',
         [typeId, field.field_key]
       );
       if (existing.length === 0) {
@@ -1000,6 +1001,35 @@ export async function createMysqlSchema(connection) {
           'UPDATE entity_type_fields SET is_completion_signal = ? WHERE id = ?',
           [field.is_completion_signal ? 1 : 0, existing[0].id]
         );
+
+        // ...and `rollup`, but ONLY where the stored value is NULL.
+        //
+        // `rollup` IS user-editable - the type editor offers a roll-up mode per
+        // field - so this must not overwrite a choice the way display_order
+        // once did. It does not have to: "No roll-up" stores the empty string,
+        // never NULL, so NULL means the column was added after the field was
+        // and nothing has ever written it. Every one of the 130 fields in this
+        // database was NULL, which is to say roll-ups were declared in the seed
+        // and dead everywhere - a folder's cells came back blank, and
+        // rollup-depth.spec failed on a folder that showed "" where its failed
+        // grandchild should have surfaced.
+        if (field.rollup) {
+          await connection.query(
+            'UPDATE entity_type_fields SET rollup = ? WHERE id = ? AND rollup IS NULL',
+            [field.rollup, existing[0].id]
+          );
+        }
+
+        // ...and the status vocabulary, where it is safe to - see
+        // upgradedStatusOptions. Without `Failed` in the list, a failed child
+        // was not classified as a failure and could not surface on its folder.
+        const upgraded = upgradedStatusOptions(existing[0].field_options, field.field_options);
+        if (upgraded) {
+          await connection.query(
+            'UPDATE entity_type_fields SET field_options = ? WHERE id = ?',
+            [JSON.stringify(upgraded), existing[0].id]
+          );
+        }
       }
     }
   }

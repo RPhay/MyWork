@@ -511,3 +511,38 @@ export function resolveTypeRelationships() {
       : rel
   );
 }
+
+/**
+ * The status vocabulary grew - `Failed` and `Ignored` were added to DONE_STATUS
+ * - but `field_options` is user-editable and so is never reconciled by the
+ * seeder. Every database created before that change kept the old three values,
+ * which meant `Failed` was not a status the app knew: a failed child could not
+ * make its folder show failed, because nothing classified it as a failure at
+ * all. rollup-depth.spec had been failing on exactly that.
+ *
+ * Upgrades ONLY when nothing would be lost: the stored vocabulary has to be a
+ * subset of the seeded one, so a type whose values a user has edited or
+ * extended is left alone. Ideas keep Raw/Developing/Ready for the same reason -
+ * their seed declares no failure state, so there is nothing to add.
+ *
+ * @returns the options to store, or null to leave the field as it is.
+ */
+export function upgradedStatusOptions(storedRaw, seeded) {
+  if (!seeded || !Array.isArray(seeded.failedValues) || seeded.failedValues.length === 0) return null;
+
+  let stored;
+  try {
+    stored = typeof storedRaw === 'string' ? JSON.parse(storedRaw) : storedRaw;
+  } catch {
+    return null;
+  }
+  if (!stored || !Array.isArray(stored.values)) return null;
+
+  // Already upgraded.
+  if (Array.isArray(stored.failedValues) && stored.failedValues.length > 0) return null;
+
+  const seededValues = new Set(seeded.values || []);
+  if (!stored.values.every((v) => seededValues.has(v))) return null;
+
+  return seeded;
+}

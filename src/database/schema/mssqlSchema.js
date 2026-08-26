@@ -24,6 +24,7 @@ import {
   SYSTEM_ENTITY_TYPES,
   SPECIAL_ENTITY_TYPES,
   resolveTypeRelationships,
+  upgradedStatusOptions,
 } from '../systemEntityTypes.js';
 
 async function tableExists(pool, tableName) {
@@ -1060,7 +1061,7 @@ export async function createMssqlSchema(pool) {
       const checkResult = await pool.request()
         .input('typeId', typeId)
         .input('fieldKey', field.field_key)
-        .query('SELECT id FROM [MyWork].[entity_type_fields] WHERE entity_type_id = @typeId AND field_key = @fieldKey');
+        .query('SELECT id, field_options FROM [MyWork].[entity_type_fields] WHERE entity_type_id = @typeId AND field_key = @fieldKey');
 
       if (checkResult.recordset.length === 0) {
         // A NEW field goes on the END, not at its index in this array - the
@@ -1096,6 +1097,29 @@ export async function createMssqlSchema(pool) {
           .input('isCompletionSignal', field.is_completion_signal ? 1 : 0)
           .input('id', checkResult.recordset[0].id)
           .query('UPDATE [MyWork].[entity_type_fields] SET is_completion_signal = @isCompletionSignal WHERE id = @id');
+
+        // ...and `rollup`, but ONLY where the stored value is NULL - the twin
+        // of the block in mysqlSchema.js, which carries the full reasoning.
+        // Short version: rollup IS user-editable, but "No roll-up" stores the
+        // empty string, so NULL means nothing has ever written it.
+        if (field.rollup) {
+          await pool.request()
+            .input('rollup', field.rollup)
+            .input('id', checkResult.recordset[0].id)
+            .query('UPDATE [MyWork].[entity_type_fields] SET rollup = @rollup WHERE id = @id AND rollup IS NULL');
+        }
+
+        // ...and the status vocabulary - the twin of the block in
+        // mysqlSchema.js. upgradedStatusOptions refuses unless the stored
+        // values are a subset of the seeded ones, so nothing user-added is
+        // lost.
+        const upgraded = upgradedStatusOptions(checkResult.recordset[0].field_options, field.field_options);
+        if (upgraded) {
+          await pool.request()
+            .input('fieldOptions', JSON.stringify(upgraded))
+            .input('id', checkResult.recordset[0].id)
+            .query('UPDATE [MyWork].[entity_type_fields] SET field_options = @fieldOptions WHERE id = @id');
+        }
       }
     }
   }
