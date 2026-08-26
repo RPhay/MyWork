@@ -1048,7 +1048,8 @@ const GenericEntity = (() => {
             <div class="entity-columns-menu-title">Saved views</div>
             <div class="entity-views-list"></div>
             <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-1"
-                    data-action="save-view">Save this view…</button>
+                    data-action="save-view"
+                    title="Save the current filters, sort and columns under a name, so this arrangement can be brought back in one click.">Save this view…</button>
           </div>
           <div class="entity-columns-menu" hidden>
             <div class="entity-columns-menu-title">Columns</div>

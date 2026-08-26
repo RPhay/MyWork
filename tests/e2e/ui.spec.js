@@ -32,17 +32,12 @@ test.describe('UI Elements', () => {
     expect(calendarText).toMatch(/\d/);
   });
 
-  test('Add button should open modal form', async ({ page }) => {
-    await page.goto('http://localhost:3000/?tab=my-priorities');
-    await page.waitForLoadState('networkidle');
-
-    const addButton = page.locator('button:has-text("+ Add Priority")');
-    await addButton.click();
-
-    const modal = page.locator('#priorityModal');
-    await expect(modal).toBeVisible();
-
-    const title = page.locator('#priorityTitle');
-    await expect(title).toBeVisible();
-  });
+  // REMOVED: "Add button should open modal form".
+  //
+  // It drove `?tab=my-priorities`, a "+ Add Priority" button and a
+  // #priorityModal. None of those three strings exists anywhere in src/ - that
+  // is the bespoke Priorities page, replaced by the `priority` type on the
+  // generic engine, where adding a row opens the editor PANE and not a modal.
+  // Creating a row is covered by generic-entity-crud and
+  // editable-types-comprehensive against the UI that exists.
 });
