@@ -424,6 +424,15 @@ export const SYSTEM_ENTITY_TYPES = [
     label: 'Templates',
     label_singular: 'Template',
     icon: '📋',
+    // READ-ONLY in Settings. A template is a pattern the app stamps out, and
+    // its shape has to stay in step with Dailies - dropping one on a day
+    // produces a DAILY, carrying whatever the template held, so a property
+    // added to one and not the other is a property lost in the transfer.
+    // Editing it freely is how the two drift apart.
+    //
+    // Read-only describes editing the TYPE here. Template rows are created,
+    // edited and deleted as normal on the Templates rail.
+    type_category: 'template',
     supports_hierarchy: true,
     // A template row IS the container - a folder inside one would be a
     // pointless second layer.

@@ -66,6 +66,14 @@ export async function attachFieldValues(entityIds) {
 // after the tables were removed from both schema files, so a purge would have
 // thrown "table doesn't exist" on any database where that removal had actually
 // been applied - which is the only reason it never fired on MySQL.
+// Written by the engine for one RECORD - where it sits on the focus bar or the
+// priorities board. Stamping a template out must not copy them: the new daily
+// is not pinned or placed just because the template it came from was.
+const FOCUS_AND_BOARD_KEYS = new Set([
+  'focus_seconds', 'focus_slot', 'focus_started_at', 'focus_color',
+  'focus_monitor', 'board_bay', 'board_order',
+]);
+
 const BRIDGE_JUNCTION_COLUMNS = [
   // The three template_* bridges went with the Templates migration on
   // 2026-08-26 - a template's contents are its hierarchy children now.
@@ -627,12 +635,38 @@ export async function instantiateTemplate(templateEntityId, date, contextId = nu
   const template = await getEntityById(templateEntityId, contextId);
   const children = await entityRelationshipService.getEntityChildren(templateEntityId, contextId, 'hierarchy');
 
+  // Everything the template holds that a daily can hold goes with it. A
+  // template dropped on a day BECOMES a daily, so anything not carried across
+  // here is simply lost - which is what happened when this replaced the legacy
+  // path: that one passed description, emoji, status and the time box, and this
+  // one created a daily with a title and a date and nothing else.
+  //
+  // Driven off the daily type's OWN fields rather than a hand-written list, so
+  // a property added to both types later is carried without anyone remembering
+  // to come back here. `date` is excluded because it comes from where the
+  // template was dropped. `status` IS carried: the legacy path passed it
+  // through, and quietly changing that during a migration is a behaviour change
+  // nobody asked for. A template's status defaults to Not Started anyway, so
+  // the usual case looks identical either way.
+  const dailyType = await entityTypeService.getEntityType('daily');
+  const dailyFieldKeys = new Set(
+    (await entityTypeService.getEntityTypeFields(dailyType.id)).map(f => f.field_key)
+  );
+  const carried = {};
+  for (const [key, value] of Object.entries(template.fields || {})) {
+    if (key === 'date') continue;
+    if (FOCUS_AND_BOARD_KEYS.has(key)) continue;   // per-record, not per-template
+    if (!dailyFieldKeys.has(key)) continue;        // the daily cannot hold it
+    if (value === null || value === undefined || value === '') continue;
+    carried[key] = value;
+  }
+
   // Inlined rather than calling dailyService.createWorkItem: dailyService
   // already imports this file, so the reverse import would be circular.
   const workItem = await createEntity('daily', {
     title: template.title,
     order_index: 0,
-    fields: { date, status: 'Not Started' },
+    fields: { status: 'Not Started', ...carried, date },
   }, contextId);
   const dailyId = workItem.id;
 

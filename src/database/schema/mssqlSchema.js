@@ -883,6 +883,14 @@ export async function createMssqlSchema(pool) {
         AND field_type = 'number' AND label = 'Focus time (seconds)'`,
   );
 
+  // Templates are READ-ONLY in Settings - the twin of the repair in
+  // mysqlSchema.js. type_category is not user-editable, so reconciling it is
+  // safe; matched on the exact stale value all the same.
+  await pool.request().query(`
+    UPDATE [MyWork].[entity_types] SET type_category = 'template'
+     WHERE slug = 'template' AND type_category = 'editable'
+  `);
+
   // Remove the orphaned `recurrence` field definitions - the twin of the block
   // in mysqlSchema.js. Guarded on having no stored values, so it can only ever
   // remove an EMPTY definition.

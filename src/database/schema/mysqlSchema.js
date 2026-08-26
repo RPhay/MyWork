@@ -794,6 +794,18 @@ export async function createMysqlSchema(connection) {
         AND field_type = 'number' AND label = 'Focus time (seconds)'`
   );
 
+  // Templates are READ-ONLY in Settings, and the seeder does not reconcile
+  // `type_category` on a type that already exists (it is not user-editable, so
+  // there is nothing to protect). Without this the seed says `template` and
+  // every existing database keeps saying `editable`, which is the same
+  // seed-vs-reality split that let the Templates type drift before.
+  //
+  // Matched on the exact stale value, so a deliberate change is left alone.
+  await connection.query(
+    `UPDATE entity_types SET type_category = 'template'
+      WHERE slug = 'template' AND type_category = 'editable'`
+  );
+
   // Remove the orphaned `recurrence` field definitions.
   //
   // Recurrence was withdrawn on 2026-08-19 (a9e720a took its <option> out of the

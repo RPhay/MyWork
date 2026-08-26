@@ -674,12 +674,39 @@ async function loadTypeRelationships(type) {
 // saving them means diffing against what this type already had and only
 // creating/deleting the difference - not resending the whole set every time.
 async function saveTypeRelationships(typeId) {
+  // The checkboxes are the ONLY record of what is wanted, and they arrive from
+  // their own fetch after the form is built. Saving before they land means
+  // reading "nothing is checked" and deleting every hierarchy rule the type
+  // had - which is exactly what happened: six types lost their self-nesting
+  // rule, and `priority` could no longer contain a sub-project.
+  //
+  // No checkboxes rendered at all means the section never loaded, which is not
+  // the same as the user clearing it. Leave the rules alone.
+  const rendered = document.querySelectorAll('.parent-type-check, .child-type-check').length;
+  if (rendered === 0) {
+    console.warn('[EntityTypeEditor] relationship checkboxes not loaded - leaving rules unchanged');
+    return;
+  }
+
   const desiredParents = new Set(
     Array.from(document.querySelectorAll('.parent-type-check:checked')).map(cb => Number(cb.value)));
   const desiredChildren = new Set(
     Array.from(document.querySelectorAll('.child-type-check:checked')).map(cb => Number(cb.value)));
 
-  const existing = (currentEditingType?.relationships || []).filter(r => r.relationship_kind === 'hierarchy');
+  // SELF-nesting rules are excluded from the diff, and that is the whole bug
+  // this guards against.
+  //
+  // The checkbox lists exclude the type itself (`otherTypes`), so a rule where
+  // parent and child are both this type can never be "desired" - it has no box
+  // to tick. It IS in `existing`, so every save saw a rule nobody asked for and
+  // deleted it. Pressing Save on a type therefore removed its ability to
+  // contain its own kind: no sub-projects, no nested categories. Six types had
+  // lost it before this was noticed.
+  //
+  // That rule belongs to `supports_hierarchy` and is maintained by
+  // ensureSelfNestingRule on the server. This screen does not own it.
+  const existing = (currentEditingType?.relationships || [])
+    .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id !== r.child_type_id);
   const existingParents = new Map(existing.filter(r => r.child_type_id === typeId).map(r => [r.parent_type_id, r.id]));
   const existingChildren = new Map(existing.filter(r => r.parent_type_id === typeId).map(r => [r.child_type_id, r.id]));
 
