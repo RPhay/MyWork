@@ -4,7 +4,7 @@ What is in flight and what is planned next. **Not** a place for specification,
 standards, or architecture — those belong in `CLAUDE.md`, `UI_STANDARDS.md`,
 `CLAUDE_TESTING.md`, and code comments next to the thing they describe.
 
-Last updated: 2026-08-25.
+Last updated: 2026-08-26.
 
 ## Read this first if you are picking the work up
 
@@ -13,88 +13,75 @@ http://localhost:3000, after copying `.env.example` to `.env.local`.
 
 **Testing rules are in `CLAUDE_TESTING.md`.** The one that matters most: e2e
 runs write to the user's REAL database, so they leave rows in the app the user
-is looking at. Sweep after every run.
+is looking at. The baseline is **340 entities** - anything above that after a
+run is residue. `global-teardown.js` sweeps leftover `ZZZ` rows AND leftover
+`zzz_` field DEFINITIONS, but it is a backstop, not a licence.
 
-### Where the work stands
+### Where the work stands (2026-08-26)
 
-The audit (§6) is **12 of 14 findings closed** and **5 of 6 features built**.
-Both decisions that used to block work are settled; what is left is two pieces
-of open work and two risks.
+**The full suite is green: 353 tests in 69 files, 26 minutes, exit 0.** That is
+new. It could not run AT ALL the previous morning, and the first run that could
+reported 168 failures. `CLAUDE_TESTING.md` carries the baseline and, more
+usefully, the four shapes those 168 turned out to be.
 
-### Both blocking decisions are now settled (2026-08-25)
+The guard set was rebuilt around what actually catches defects: 24 specs, 121
+tests, **7.1 minutes**. Guard set before a commit, **full suite before a push** -
+the second half of that rule is only affordable because the suite is green.
 
-1. **Dailies-as-a-type (finding 06) - DONE.** Dailies is an editable type like
-   any other. `scripts/phase10-migrate-work-items.js` moved the rows into
-   `entities`, the slug was renamed `work_item` -> `daily`, and the legacy
-   `work_items` table has been DROPPED. §1 below is kept only as the record of
-   how it was planned; do not work from it as a to-do list.
-2. **Recurrence - REMOVED, as instructed.** The user's 2026-08-19 instruction
-   stands: the property is gone, and the two orphaned `recurrence` field
-   definitions left on Todos and Tasks were deleted on 2026-08-25 (they held
-   zero values). The audit's suggestion to EXTEND recurrence was not followed
-   and should not be revived from the artifact alone.
+### Closed since the last update
 
-### Open, not blocked
+- **The narrow-pane column problem is decided and shipped.** The rule that bends
+  is: columns DROP rather than collapse, lowest-value first, title last
+  (`genericEntity.fitColumns`). `column-fit.spec.js` guards it.
+- **A clean full-suite run is no longer owed.** It has been run, and it is green.
+- **`priorities` is gone**, and so are `tasks`, `to_dos` and `to_do_items`. All
+  four were fully migrated and unread; see `RETIRED_TABLES` in both schema
+  files. The bridge junctions that survive - `priority_areas`, `priority_goals`,
+  `template_areas`, `template_goals`, `template_priorities` - now point at
+  `entities` on BOTH columns, which is what they always meant.
+- **`toDoService.js` is deleted.** Its last caller was the Todos & Ideas report,
+  which had been returning every Idea and not one Todo.
 
-- **Rows grow past 500px on a narrow pane.** Goals renders
-  `90px 4.39px 90px 88px 4.4px 120px 4.4px 4.4px 4.4px 78px` - several columns
-  collapsed to about four pixels, their content wrapping. It follows from two
-  rules that are each right on their own (never scroll horizontally, never
-  truncate) meeting more columns than the width can hold. Needs a decision on
-  which rule bends: drop columns when the pane is narrow, allow horizontal
-  scroll, or truncate. **This is why `Time Box` ships hidden as a column.**
-- **A clean full-suite run is still owed.** The last one is void - files were
-  being edited throughout it, so early and late specs tested different code.
-  Worth running now: 18 noise specs are retired and the number would mean
-  something. (The GUARD SET is clean as of 2026-08-25 - 152 passed, 0 failed -
-  so this is about the stale remainder, not about the guard.) The reason runs
-  kept coming out void is now fixed at the source: `nodemon.json` pins `watch`
-  to `["server.js", "src"]`, so editing `tests/` no longer restarts the server
-  under a run. Editing `src/` still does. Do not.
-- **`priorities` is now the LAST legacy table**, with its bridge junctions
-  (`priority_areas`, `priority_goals`, `template_areas`, `template_goals`) and
-  `work_item_templates`, which all go when it becomes entities. `work_items`,
-  `tickets` and `categories` were dropped on 2026-08-25 - see `RETIRED_TABLES`
-  in both schema files.
-- **Naming: a slug is the SINGULAR of the label.** `work_item` -> `daily`,
-  `area` -> `category`, and the routes/services followed (`/api/dailies`,
-  `/api/categories`, `/api/daily-templates`, `dailyService.js`). The column
-  renames followed too (2026-08-25): `work_item_id` -> `daily_id` in both
-  junctions, and `legacy_work_item_id` -> `legacy_daily_id` on `entities`,
-  verified on BOTH engines through a fresh build -> revert -> re-run cycle.
-  `INSERT_IGNORE_KEY_COLUMNS` in `mssqlTranslation.js` is a THIRD place that
-  key is written down and had to move with them. Still carrying old names:
-  `priority_areas`, `template_areas`, `work_item_templates` - they disappear
-  when `priorities` becomes an entity type, so renaming them now would be work
-  done twice.
+### Open
+
+- **Column-fit reachability is an open QUESTION for the user.** At 1280 with the
+  editor open the list pane is about 560px, and controls like the AI toggle and
+  the priority cycler drop out - unreachable in the app, not only in tests. Five
+  specs needed a wider viewport because of it. That follows correctly from the
+  rule above; whether the editor pane should count against the fit budget the
+  same way has not been decided.
+- **The type editor's save path is still unaudited** - see the risk below. This
+  is the largest piece of unclaimed work.
+- **Still carrying old names:** `priority_areas`, `template_areas`,
+  `work_item_templates`. They belong to the legacy Templates stack, which is the
+  next thing that would become entities.
 
 ### Risks worth carrying forward
 
-- **The type editor has corrupted data twice.** It rebuilt `field_options`
-  from its visible inputs and destroyed the status roles (`doneValues` became
+- **The type editor has corrupted data twice.** It rebuilt `field_options` from
+  its visible inputs and destroyed the status roles (`doneValues` became
   `['Ignored']`, so every folder roll-up was wrong); and `supports_hierarchy`
-  was `0` on the template type in the database while the seed said `true`, so
-  templates silently never nested. Both are fixed and guarded, but the save
-  path rebuilds a type from what is on screen - other flags may be drifting the
-  same way. **An audit of that save path is unclaimed work.**
-- **Tests run against the user's live database, by their choice.** `ZZZ` rows
-  appear and vanish in the app while a run is in progress, and a run that dies
-  before its teardown leaves residue. Sweep after every run; the helper is
-  `tests/e2e/helpers/cleanup.js`, and the API delete is a SOFT delete, so real
-  cleanup is two calls. The real baseline is **340 entities** - anything above
-  that after a sweep is residue.
+  was `0` on the template type while the seed said `true`, so templates silently
+  never nested. Both fixed and guarded, but the save path still rebuilds a type
+  from what is on screen. **An audit of that path is unclaimed.**
+- **A leaked test FIELD is worse than a leaked row, and looks like an app bug.**
+  Six `zzz_` field definitions sat on the Ideas type for weeks; one of them was
+  a `priority` field, so every Ideas row rendered TWO priority cells - in the
+  app, not just under test - and `priority-field.spec` reported it as the engine
+  duplicating a cell. Cleanup that runs through `page.evaluate` dies with the
+  page when a test times out, which is how they survived a correct `finally`.
+- **A soft delete is not a delete.** `DELETE /api/entities/:type/:id` stamps
+  `deleted_at`; only `DELETE /api/trash/:id` removes the row. Several specs
+  "cleaned up" with the first call alone and quietly filled the user's trash.
 - **SSO login cannot work, by design of the `users` table.** See "The SSO code
-  is scaffolding, and does not run" in `CLAUDE.md`. The config and identity
-  halves were repaired on 2026-08-25; `findOrCreateSsoUser` was deliberately
-  left failing because fixing it means deciding what a user IS here. Do not
-  "fix" it without that decision.
-- **The type editor save path is still unaudited** (below), and
-  `typeDefaults.json` is what "Revert to defaults" restores. It was re-captured
-  on 2026-08-25 after sitting five days stale, which is what produced the
-  "left alone because the defaults do not list them" error on MSSQL for
-  `worked_with_claude`, `recurring_from_todo_id` and `recurring_from_task_id`.
-  **Re-capture it whenever type configuration changes**, and sweep test rows
-  FIRST so a snapshot never carries `ZZZ` data.
+  is scaffolding, and does not run" in `CLAUDE.md`. `findOrCreateSsoUser` is
+  deliberately left failing, because fixing it means deciding what a user IS
+  here. Do not "fix" it without that decision.
+- **`typeDefaults.json` is what "Revert to defaults" restores.** Re-capture it
+  whenever type configuration changes, and sweep test rows FIRST so a snapshot
+  never carries `ZZZ` data. Note that types now receive an engine block on
+  create AND on update (`ensureEngineFields`), so the defaults move when that
+  list does.
 
 ## 1. Dailies-as-a-type refactor — DONE (2026-08-25), kept as the record
 
