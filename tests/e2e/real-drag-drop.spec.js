@@ -1,5 +1,22 @@
 import { test, expect } from '@playwright/test';
 
+// Put the Templates rail beside the type pane.
+//
+// There is no "off" for a rail: one click on half of a pair gives the screen to
+// the half you CLICKED (tabs.js#showPane). Clicking Dailies to "hide" it
+// collapsed to Dailies ALONE and took the type pane - the drag source - off
+// screen, so the drag waited out its timeout on a row that was in the DOM and
+// not visible. Pair Templates, collapse onto it, then ask for the type back.
+async function showTemplatesBesideType(page, typeSlug) {
+  const T = page.locator('button[data-rail-toggle="template"]');
+  if (!(await page.locator('#rail-template').isVisible())) {
+    await T.click(); await page.waitForTimeout(700);
+  }
+  await T.click(); await page.waitForTimeout(700);
+  await page.locator(`[data-tab="${typeSlug}"]`).first().click();
+  await page.waitForTimeout(900);
+}
+
 /**
  * REAL drag and drop, driven with locator.dragTo() so the browser's own HTML5
  * drag machinery runs - synthetic DragEvents bypass it entirely and will happily
@@ -26,12 +43,7 @@ test('REAL drag: idea -> template actually nests', async ({ page }) => {
   const idea = (await api(page,'/api/entities/idea',{method:'POST',body:JSON.stringify({title:'ZZZrd idea'})})).body.data;
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
 
-  if (await page.locator('#rail-daily').isVisible()) {
-    await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(700);
-  }
-  if (!(await page.locator('#rail-template').isVisible())) {
-    await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(900);
-  }
+  await showTemplatesBesideType(page, 'idea');
 
   const src = page.locator('#ideaEntityList .entity-row', {hasText:'ZZZrd idea'}).first();
   const dst = page.locator('#templateEntityList .entity-row', {hasText:'ZZZrd template'}).first();
@@ -65,7 +77,9 @@ test('REAL drag: template -> a day', async ({ page }) => {
   const tpl = (await api(page,'/api/entities/template',{method:'POST',body:JSON.stringify({title:'ZZZt2d template'})})).body.data;
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
 
-  // Dailies AND Templates both up: that is the combination where you drag one into the other.
+  // Dailies AND Templates both up: that is the combination where you drag one
+  // into the other, and unlike Templates+type it is reached by simply asking
+  // for each - neither click has to take the screen from the other here.
   if (!(await page.locator('#rail-daily').isVisible())) {
     await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(700);
   }

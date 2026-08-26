@@ -1,6 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix, deleteFields } from './helpers/cleanup.js';
 
+// This spec declares SIX extra columns on the type, and columns drop rather
+// than collapse when the pane cannot fit them (genericEntity.fitColumns), with
+// the editor taking half of it. At the default 1280 the cells it clicks were
+// present and not visible, so it waited out its 180s timeout - and the page
+// was torn down before its `finally` could delete the fields it had added,
+// which is how six zzz_ field definitions came to be left on the Ideas type.
+test.use({ viewport: { width: 3000, height: 1100 } });
+
 // Every field type with an interactive CELL must stay in step with its EDITOR
 // control, both ways. The two sides render differently per type - a hidden
 // input plus a badge, a group of radios, a button showing a glyph - and the
@@ -61,7 +69,11 @@ async function cellShows(page, row, key, type) {
   const cell = row.locator(`.entity-cell[data-col="${key}"]`);
   if (type === 'status')   return (await cell.locator('[data-action="cycle-status"]').textContent() || '').trim();
   if (type === 'priority') return (await cell.locator('[data-action="cycle-priority"]').getAttribute('data-priority')) || '';
-  if (type === 'checkbox') return (await cell.locator('[data-action="toggle-checkbox"]').getAttribute('data-checked')) === '1' ? 'on' : 'off';
+  // The cell carries `data-value`, not `data-checked` (genericEntity.js#1168),
+  // and the toggle handler reads dataset.value too. Reading data-checked got
+  // null every time, so the cell always looked "off" and the mismatch was
+  // reported as a cell<->editor sync bug that was not there.
+  if (type === 'checkbox') return (await cell.locator('[data-action="toggle-checkbox"]').getAttribute('data-value')) === '1' ? 'on' : 'off';
   if (type === 'select' || type === 'radio') return await cell.locator('select[data-action="set-choice"]').inputValue();
   if (type === 'emojis')   return (await cell.locator('[data-action="cycle-emoji"]').textContent() || '').trim();
   return (await cell.textContent() || '').trim();

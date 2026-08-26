@@ -20,9 +20,28 @@ async function api(page, path, options={}) {
     return {status:r.status, body: await r.json().catch(()=>null)};
   }, {path,options,t: await page.evaluate(()=>document.body.dataset.csrfToken)});
 }
+// Put the Templates rail beside the type pane.
+//
+// There is no "off" for a rail: one click on half of a pair gives the screen to
+// the half you CLICKED (tabs.js#showPane). Clicking Dailies to "hide" it
+// therefore collapsed to Dailies ALONE and took the type pane - the drag source
+// - off screen, which is why the drag waited out its timeout on a row that was
+// in the DOM and not visible.
+//
+// The way to Templates+type is: pair Templates, collapse onto it, then ask for
+// the type back.
+async function showTemplatesBesideType(page, typeSlug) {
+  const T = page.locator('button[data-rail-toggle="template"]');
+  if (!(await page.locator('#rail-template').isVisible())) {
+    await T.click(); await page.waitForTimeout(700);
+  }
+  await T.click(); await page.waitForTimeout(700);                 // -> [template]
+  await page.locator(`[data-tab="${typeSlug}"]`).first().click();
+  await page.waitForTimeout(900);                                   // -> [template, TYPE]
+}
+
 async function showPanes(page) {
-  if (await page.locator('#rail-daily').isVisible()) { await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(600); }
-  if (!(await page.locator('#rail-template').isVisible())) { await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(800); }
+  await showTemplatesBesideType(page, 'idea');
 }
 
 for (const mode of ['reference','copy']) {

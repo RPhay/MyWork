@@ -65,9 +65,17 @@ test('editing a referenced idea updates it inside the template on screen', async
   await page.evaluate((id)=>localStorage.setItem(`entity-expanded-${id}`,'true'), tpl.id);
   await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(2000);
 
-  // Templates beside Ideas, so both views of the same record are on screen
-  if (await page.locator('#rail-daily').isVisible()) { await page.locator('button[data-rail-toggle="daily"]').click(); await page.waitForTimeout(600); }
-  if (!(await page.locator('#rail-template').isVisible())) { await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(900); }
+  // Templates beside Ideas, so both views of the same record are on screen.
+  //
+  // There is no "off" for a rail: one click on half of a pair gives the screen
+  // to the half you CLICKED (tabs.js#showPane). Clicking Dailies to "hide" it
+  // collapsed to Dailies alone and took the Ideas pane with it, so the
+  // double-click below had no row to open. Pair Templates, collapse onto it,
+  // then ask for Ideas back.
+  const T = page.locator('button[data-rail-toggle="template"]');
+  if (!(await page.locator('#rail-template').isVisible())) { await T.click(); await page.waitForTimeout(700); }
+  await T.click(); await page.waitForTimeout(700);
+  await page.locator('[data-tab="idea"]').first().click(); await page.waitForTimeout(900);
 
   await expect(page.locator('#templateEntityList .entity-row', {hasText:'ZZZmir before'})).toHaveCount(1);
 
