@@ -66,7 +66,13 @@ test('status outlives the ordinary columns', async ({ page }) => {
   expect(kept.length, 'but not everything survived').toBeLessThan(5);
 });
 
-test('no column is ever squeezed to a stub, and the list never scrolls sideways', async ({ page }) => {
+// The threshold here matters. An earlier version of this test asserted only
+// `> 20px` and passed while a real browser was rendering the priority column at
+// 51px with titles wrapped over three lines - because `minmax(0, 1fr)` let the
+// grid shrink a track below the minimum the fit pass believed it had. A stub
+// test hides a stub column, so this asserts the REAL floor (FLEX_MIN_PX, 90)
+// and, more tellingly, that rows stay one line high.
+test('no column is squeezed below its floor, rows do not wrap, and nothing scrolls sideways', async ({ page }) => {
   for (const width of [1600, 900, 700, 520]) {
     await openAt(page, width);
 
@@ -74,7 +80,26 @@ test('no column is ever squeezed to a stub, and the list never scrolls sideways'
       .locator(`#tab-${TYPE} .entity-header-cell:not(.col-dropped)`)
       .evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().width)));
 
-    expect(Math.min(...widths), `no four-pixel columns at ${width}px`).toBeGreaterThan(20);
+    // 88px is the narrowest legitimate track (a measured status control); the
+    // flexible floor is 90. Anything under 80 is a squeezed column.
+    expect(Math.min(...widths), `no squeezed columns at ${width}px`).toBeGreaterThanOrEqual(80);
+
+    // A wrapped title is the symptom the four-pixel columns produced. One line
+    // is about 24px, so two lines is unmistakable.
+    //
+    // Asserted only while MORE THAN THE TITLE survives. Once the title is the
+    // last column standing there is nothing left to drop, and wrapping is the
+    // documented fallback - "long values wrap and the row grows taller" is the
+    // original rule, and it still holds when the pane is genuinely too narrow
+    // for one column. The bug this guards was wrapping while FIVE columns were
+    // on screen, which is a fit failure, not a lack of room.
+    const titleHeight = await page.evaluate((type) => {
+      const cell = document.querySelector(`#tab-${type} .entity-tree .entity-cell-title`);
+      return cell ? Math.round(cell.getBoundingClientRect().height) : null;
+    }, TYPE);
+    if (titleHeight !== null && widths.length > 1) {
+      expect(titleHeight, `title stays on one line at ${width}px`).toBeLessThan(40);
+    }
 
     const overflow = await page.evaluate((type) => {
       const el = document.querySelector(`#tab-${type} .entity-list`);

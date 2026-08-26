@@ -13,14 +13,28 @@ import { dblclick } from './dblclick.js';
 
 const TYPE = 'priority';
 
+// This spec needs at least two field columns visible AT THE SAME TIME as the
+// open editor, and the editor takes half the pane. At the default 1280px only
+// `status` survives the width fit, which made the test skip itself - and a
+// skipped test guards nothing, which is worse than a failing one. Wide enough
+// that the columns being dragged are really on screen.
+test.use({ viewport: { width: 1900, height: 900 } });
+
 async function fieldOrder(page) {
   return page.locator(`#${TYPE}EditorPane .editor-field`).evaluateAll(
     els => els.map(e => e.dataset.fieldKey)
   );
 }
 
+// Only the columns actually on screen. A narrow pane DROPS columns rather than
+// collapsing them (see column-fit.spec.js), and opening the editor halves the
+// list pane - so with the editor open most field columns are `display: none`.
+// Including them made this spec drag a hidden cell, and a zero-width cell sends
+// dropZoneHorizontal() down its `after` branch every time
+// (`clientX < left + width / 2` cannot hold when width is 0), so the column
+// landed one place short of where the drag asked for.
 async function columnOrder(page) {
-  return page.locator(`#tab-${TYPE} .entity-header-cell`).evaluateAll(
+  return page.locator(`#tab-${TYPE} .entity-header-cell:not(.col-dropped)`).evaluateAll(
     els => els.map(e => e.dataset.colKey)
   );
 }
@@ -63,7 +77,7 @@ test('dragging a column header reorders the open editor immediately', async ({ p
   const cols = await columnOrder(page);
   // Move the last field-backed column to the front of the field columns.
   const movable = cols.filter(k => k !== 'title' && before.includes(k));
-  test.skip(movable.length < 2, 'needs at least two field columns');
+  test.skip(movable.length < 2, 'needs at least two VISIBLE field columns');
   const [firstCol] = movable;
   const lastCol = movable[movable.length - 1];
 

@@ -561,7 +561,19 @@ const GenericEntity = (() => {
   // narrow column, it is an unreadable stub - which is what the pane used to
   // produce: `90px 4.39px 90px 88px 4.4px ...`, several columns collapsed to
   // about four pixels with their content wrapping.
-  const FLEX_MIN_PX = 70;
+  //
+  // This is also the track's own minimum, NOT just an input to the fit
+  // decision. It was `minmax(0, 1fr)`, which let the browser shrink a track to
+  // anything at all - so the fit pass could believe a column had 70px while the
+  // grid handed it 51. A minimum the CSS does not enforce is not a minimum.
+  const FLEX_MIN_PX = 90;
+
+  // The title needs more room to fit before wrapping than the 90px floor its
+  // track is allowed to shrink to. The floor keeps the name from vanishing
+  // entirely; this is the width below which the column is not worth keeping at
+  // the expense of another. Used ONLY for the fit decision - raising the CSS
+  // floor instead would overflow the grid rather than drop a column.
+  const TITLE_FIT_MIN_PX = 165;
 
   // One pass over the columns, giving both the CSS track and the width below
   // which that column stops being worth showing. Shared so the grid and the
@@ -573,7 +585,11 @@ const GenericEntity = (() => {
       // what the earlier `minmax(0, 1fr)` did before, and it came back when the
       // Dailies rail took half the width.
       if (c.isTitle) {
-        return { col: c, track: `minmax(${TITLE_MIN_PX}px, ${TITLE_SHARE}fr)`, minPx: TITLE_MIN_PX };
+        return {
+          col: c,
+          track: `minmax(${TITLE_MIN_PX}px, ${TITLE_SHARE}fr)`,
+          minPx: TITLE_FIT_MIN_PX,
+        };
       }
       const type = c.field?.field_type;
 
@@ -586,7 +602,7 @@ const GenericEntity = (() => {
       const fixed = FIXED_COLUMN_PX[type];
       if (fixed) return { col: c, track: `${fixed}px`, minPx: fixed };
 
-      return { col: c, track: 'minmax(0, 1fr)', minPx: FLEX_MIN_PX };
+      return { col: c, track: `minmax(${FLEX_MIN_PX}px, 1fr)`, minPx: FLEX_MIN_PX };
     });
   }
 
