@@ -57,6 +57,7 @@ npx playwright test \
   tests/e2e/schema-fix.spec.js \
   tests/e2e/generic-entity-engine.spec.js \
   tests/e2e/entity-type-integrity.spec.js \
+  tests/e2e/type-editor-roundtrip.spec.js \
   tests/e2e/entity-field-types.spec.js \
   tests/e2e/entity-editor-behaviour.spec.js \
   tests/e2e/editable-types-comprehensive.spec.js \
@@ -80,7 +81,7 @@ npx playwright test \
   tests/e2e/ui-check.spec.js
 ```
 
-**~7 minutes.** The full suite is 26 and green, so this tier exists to be fast
+**~8 minutes.** The full suite is 26 and green, so this tier exists to be fast
 enough to run without thinking about it - not to be a substitute for the suite.
 
 ### Why this list and not the old one
@@ -119,6 +120,7 @@ them before every push.
 | `schema-fix` | The three schema paths, and that no retired table is still expected |
 | `generic-entity-engine` | The entity API itself: create, read, update, delete, relationships |
 | `entity-type-integrity` | Every field type in use has a renderer, an editor option, a label and an ENUM entry |
+| `type-editor-roundtrip` | Opening a type and pressing Save changes NOTHING that was already set |
 | `entity-field-types` | `url` / `links` / `status` / `recurrence` behaviour |
 | `entity-editor-behaviour` | Editor opens/stays open, save/revert enablement, legend alignment |
 | `editable-types-comprehensive` | Every editable type through create, edit and expand/collapse (30 tests) |
