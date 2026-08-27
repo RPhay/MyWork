@@ -93,12 +93,17 @@ export async function analyzeAndMigrate() {
       );
     }
 
-    // Step 3: Ensure generic schema exists
+    // Step 3: Ensure generic schema exists AND is current. Always runs, even
+    // when every table is already present - ensureGenericSchema is also where
+    // renameLegacyColumns lives (work_item_id -> daily_id etc.), and an
+    // existing-but-stale table needs that rename applied before step 5b reads
+    // daily_id off it. Skipping this when nothing was missing left preexisting
+    // databases with the old column name forever.
+    await ensureGenericSchema();
     if (hasMissingGenericTables) {
-      await ensureGenericSchema();
       report.actions.push(`✓ Created missing generic entity tables (${report.analysis.missingGenericTables.length})`);
     } else {
-      report.actions.push('✓ Generic entity schema already exists');
+      report.actions.push('✓ Generic entity schema already exists (columns brought up to date)');
     }
 
     // Step 4: Ensure system types are seeded
@@ -539,7 +544,10 @@ export async function migrateRetiredWorkJunctions({ drop = false } = {}) {
     // cannot tell you that about any particular table.
     let accounted = 0;
 
-    const rows = await query(`SELECT daily_id, ${column} AS entity_id FROM ${quoteIdentifier(table)}`);
+    // These seven tables were retired (commit be6ca95) before the work_item ->
+    // daily rename ever happened, so LEGACY_COLUMN_RENAMES never touched them -
+    // the work-item-referencing column here is still work_item_id, not daily_id.
+    const rows = await query(`SELECT work_item_id AS daily_id, ${column} AS entity_id FROM ${quoteIdentifier(table)}`);
     for (const r of rows) {
       // A link whose entity or day is gone would fail the foreign key and abort
       // the run, and describes nothing worth keeping.
