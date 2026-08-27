@@ -2002,6 +2002,12 @@ const GenericEntity = (() => {
         console.error(`[GenericEntity] No splitPane found for type ${typeSlugToUse}`);
       }
 
+      // An open editor takes the whole screen - every rail steps aside until
+      // it closes. 'template' edits inside its own rail; every other type is
+      // the CONTENT pane, since only one type tab is ever current. See
+      // tabs.js#focusPaneForEditor.
+      window.tabManager?.focusPaneForEditor(typeSlugToUse === 'template' ? 'template' : 'content');
+
       syncRowSelection(typeSlugToUse);
     },
 
@@ -2067,6 +2073,8 @@ const GenericEntity = (() => {
       // Hide the pane
       const typeSplitPane = splitPanesByType[currentTypeSlug];
       if (typeSplitPane) typeSplitPane.hideRightPane();
+      // Bring back whatever rails stepped aside when this editor opened.
+      window.tabManager?.restorePanesAfterEditor();
       syncRowSelection(currentTypeSlug);
     },
 

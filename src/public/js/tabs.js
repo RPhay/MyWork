@@ -121,11 +121,19 @@ class TabManager {
     const rank = (pane) => (mru.indexOf(pane) === -1 ? Number.MAX_SAFE_INTEGER : mru.indexOf(pane));
     const byRecency = (panes) => [...panes].sort((a, b) => rank(a) - rank(b));
 
+    // Set while an editor is open elsewhere in the file (focusPaneForEditor),
+    // to force exactly one pane on screen without touching the stored rail
+    // preferences below - an editor abandoned by navigating away rather than
+    // being closed properly (a reload, a click to another tab) must not leave
+    // the real preference permanently overwritten with this transient one.
+    let editorForcedPane = null;
+
     // What is ACTUALLY on screen, left to right. Every decision below is made
     // against this rather than against the stored flags, which can disagree
     // with it - a rail is stored as open while a full-width view is up, and
     // apply() clamps to two panes whatever the flags say.
     const visiblePanes = () => {
+      if (editorForcedPane) return [editorForcedPane];
       const on = this.fullWidthTab ? [] : RAILS.filter(isOn);
       const showContent = this.fullWidthTab
         ? true
@@ -246,9 +254,35 @@ class TabManager {
     };
     this.setPanes = setPanes;
 
+    // An open editor commands the screen: every other pane steps aside, the
+    // same way half of a pair does on a click (see the rule above showPane) -
+    // this is that same "takes the screen alone" outcome, triggered by an
+    // editor opening rather than a click. `pane` is a RAIL slug or CONTENT.
+    // The panes on screen when the editor opened are remembered so closing it
+    // brings them back exactly as they were, the way the stepped-aside pane
+    // always has.
+    let panesBeforeEditor = null;
+    this.focusPaneForEditor = (pane) => {
+      if (panesBeforeEditor === null) panesBeforeEditor = visiblePanes();
+      editorForcedPane = pane;
+      apply();
+    };
+    this.restorePanesAfterEditor = () => {
+      if (panesBeforeEditor === null) return;
+      editorForcedPane = null;
+      panesBeforeEditor = null;
+      apply();
+    };
+
     // The one rule, applied to whichever tab was clicked - see the comment
     // above setupRails().
     const showPane = (target) => {
+      // A real click is the user overriding whatever an open editor forced -
+      // otherwise the click would be silently swallowed, since visiblePanes()
+      // would keep reporting only the forced pane no matter what was clicked.
+      editorForcedPane = null;
+      panesBeforeEditor = null;
+
       const before = visiblePanes();
 
       if (this.fullWidthTab) {

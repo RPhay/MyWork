@@ -471,6 +471,10 @@ async function editWorkItem(dailyId) {
       dailiesSplitPane.showRightPane();
     }
 
+    // An open editor takes the whole screen - every other pane steps aside
+    // until it closes. See tabs.js#focusPaneForEditor.
+    window.tabManager?.focusPaneForEditor('daily');
+
     syncDailiesRowSelection();
   } catch (error) {
     console.error("Error loading work item:", error);
@@ -484,6 +488,8 @@ function closeWorkItemEditor() {
   if (dailiesSplitPane) {
     dailiesSplitPane.hideRightPane();
   }
+  // Bring back whatever rails stepped aside when this editor opened.
+  window.tabManager?.restorePanesAfterEditor();
   syncDailiesRowSelection();
 }
 
