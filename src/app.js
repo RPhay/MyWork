@@ -11,6 +11,7 @@ import logger from "./utils/logger.js";
 import { ValidationError, AppError } from "./config/errors.js";
 import indexRouter from "./routes/index.js";
 import { checkDbHealth } from "./utils/dbHealth.js";
+import { resolveSsoState } from "./services/ssoModeService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -116,6 +117,59 @@ app.use((req, res, next) => {
   }
 
   next();
+});
+
+// Single sign-on gate.
+//
+// With SSO_MODE=off - the home machine, and the default - resolveSsoState()
+// returns enabled:false and this middleware does NOTHING. That is the point:
+// the app behaves exactly as it did before SSO existed, with no login screen
+// and no auth on any route.
+//
+// With it enabled, an unauthenticated page load goes to /auth/login and an
+// unauthenticated API call gets 401 rather than a redirect, because a fetch()
+// following a 302 to an HTML login page produces a parse error somewhere far
+// away from the actual cause.
+app.use(async (req, res, next) => {
+  let ssoState;
+  try {
+    ssoState = await resolveSsoState();
+  } catch (error) {
+    // A gate that throws must not lock the app. Failing OPEN is deliberate
+    // and is the correct direction HERE, where the alternative is bricking a
+    // local single-user app that had no authentication yesterday.
+    logger.warn("SSO gate could not resolve state, continuing without it", {
+      error: error.message,
+    });
+    return next();
+  }
+
+  res.locals.sso = {
+    enabled: ssoState.enabled,
+    reason: ssoState.reason,
+    signedIn: Boolean(req.session?.ssoUser),
+    displayName: req.session?.ssoUser?.displayName || null,
+  };
+
+  if (!ssoState.enabled) return next();
+  if (req.session?.ssoUser) return next();
+
+  // Paths that must stay reachable while signed out, or the gate locks its
+  // own door: the sign-in flow itself, the health probe, static assets, and
+  // /setup (a database that is not configured yet cannot resolve a profile).
+  const openPaths = ["/auth", "/health", "/setup", "/favicon"];
+  if (openPaths.some((prefix) => req.path.startsWith(prefix))) {
+    return next();
+  }
+
+  if (req.path.startsWith("/api/")) {
+    return res.status(401).json({
+      success: false,
+      message: "Sign-in required",
+    });
+  }
+
+  return res.redirect("/auth/login");
 });
 
 // First-run database gate: page loads (not API calls) redirect to /setup

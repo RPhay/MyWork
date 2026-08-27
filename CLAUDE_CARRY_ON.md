@@ -4,7 +4,7 @@ What is in flight and what is planned next. **Not** a place for specification,
 standards, or architecture — those belong in `CLAUDE.md`, `UI_STANDARDS.md`,
 `CLAUDE_TESTING.md`, and code comments next to the thing they describe.
 
-Last updated: 2026-08-26.
+Last updated: 2026-08-27.
 
 ## Read this first if you are picking the work up
 
@@ -52,6 +52,34 @@ is urgent unless marked so.
 across a chat is a list nobody reads again; the point of this file is that it is
 read first.
 
+### Known broken, and left broken on purpose (2026-08-27)
+
+- [ ] **Entra auth for Azure DevOps / ServiceNow data sources throws.**
+      `dataSourceAuth.js:205` and `dataSourceAuthService.js:136-138` still
+      `SELECT sso_tenant_id_enc, sso_client_id_enc, sso_client_secret_enc,
+      sso_redirect_uri FROM contexts`, but the SSO deletion (`df129b9`,
+      2026-08-26) dropped all seven `sso_*` columns. Verified against the live
+      database: `SHOW COLUMNS FROM contexts LIKE 'sso%'` returns nothing, so
+      the authorize endpoint fails on an unknown column.
+
+      That commit's own message says `auth/entraId.js` was KEPT precisely
+      because data-source auth imports it - the columns underneath it went
+      anyway. No spec covers the route, which is why a green full suite did
+      not notice.
+
+      There is a **second, independent** bug on the same line:
+      `const [contexts] = await query(...)` destructures mysql2-style, but this
+      repo's `query()` returns rows directly (`connectionPool.js:236`), so
+      `contexts` is the first ROW and the `contexts.length === 0` guard below
+      is `undefined === 0` - always false. Same shape as the `ssoUserService`
+      bug CLAUDE.md records.
+
+      Left alone deliberately: the fix is a real either/or, not a typo.
+      Restore per-context encrypted credential columns, point data-source auth
+      at the new machine-wide `SSO_*` values in `.env.local`, or delete the
+      path as the login subsystem was. **Deferred by the user on 2026-08-27**
+      with SSO login chosen as the work in hand instead.
+
 ### Yours to do (this machine cannot)
 
 - [ ] **Migrate the MSSQL install's legacy rows.** ← *the only one with data at
@@ -65,7 +93,13 @@ read first.
       Read-Only when the schema build runs, which happens at startup.
 - [ ] **Run the MSSQL schema.** Both dialect files changed a great deal on
       2026-08-26 and only the MySQL half has been run. This project's own rule
-      is that a T-SQL translation is verified by running it.
+      is that a T-SQL translation is verified by running it. **Now also carries the
+      2026-08-27 SSO work**: a new `user_identities` table, its
+      `createUpdatedAtTrigger`, and three `columnExists` backfills - none of
+      which has executed against SQL Server. The same commit REMOVED a
+      `createUpdatedAtTrigger(pool, "sso_identities")` call that built a
+      trigger on a table the file no longer creates, so a fresh MSSQL install
+      failed at that exact line; that fix is likewise unverified by running.
 
 ### Verification
 

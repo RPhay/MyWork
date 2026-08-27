@@ -231,6 +231,48 @@ export async function createMysqlSchema(connection) {
     )
   `);
 
+  // An external identity (today: Entra ID) MAPPED ONTO an existing profile.
+  //
+  // Deliberately NOT a second notion of "user". The previous SSO subsystem
+  // died because findOrCreateSsoUser wrote users.username and users.email
+  // against a table that has neither; the lesson taken is that signing in
+  // must SELECT a profile, not invent a parallel identity of its own. So
+  // `users` is untouched above, and everything Entra knows lives here.
+  //
+  // NOT named `sso_identities`: that name is in RETIRED_TABLES, and reusing
+  // it would leave one name meaning both "dropped, unread" and "live".
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS user_identities (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      provider VARCHAR(50) NOT NULL DEFAULT 'entra',
+      subject VARCHAR(255) NOT NULL,
+      email VARCHAR(255),
+      display_name VARCHAR(255),
+      last_login_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_provider_subject (provider, subject),
+      INDEX idx_user (user_id)
+    )
+  `);
+
+  // Backfills, twin of the block in mssqlSchema.js. Both files are re-run on
+  // every "Fix Schema", so a column added only to the CREATE TABLE body above
+  // would never reach an install whose table predates it.
+  for (const [col, ddl] of [
+    ['email', 'VARCHAR(255) NULL'],
+    ['display_name', 'VARCHAR(255) NULL'],
+    ['last_login_at', 'TIMESTAMP NULL'],
+  ]) {
+    if (!(await columnExists(connection, 'user_identities', col))) {
+      await connection.query(
+        `ALTER TABLE user_identities ADD COLUMN \`${col}\` ${ddl}`,
+      );
+    }
+  }
+
   // Folders for grouping contexts (optional; contexts can sit at root or inside a folder)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS context_folders (

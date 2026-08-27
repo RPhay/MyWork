@@ -33,6 +33,7 @@ import focusMonitorsRouter from "./api/focusMonitors.js";
 import searchRouter from "./api/search.js";
 import trashRouter from "./api/trash.js";
 import statusDigestRouter from "./api/statusDigest.js";
+import authRouter from "./auth.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
 import * as entityTypeService from "../services/entityTypeService.js";
@@ -86,6 +87,12 @@ router.use("/api/", async (req, res, next) => {
 });
 
 // API Routes
+// Auth routes sit OUTSIDE the /api/ gate above and outside the login gate in
+// app.js - a sign-in page you must already be signed in to reach is a locked
+// door with the key behind it. They 404 by themselves when SSO_MODE resolves
+// to off, so mounting them unconditionally is safe.
+router.use("/auth", authRouter);
+
 router.use("/api/goals", goalsRouter);
 router.use("/api/priorities", prioritiesRouter);
 router.use("/api/dailies", dailiesRouter);

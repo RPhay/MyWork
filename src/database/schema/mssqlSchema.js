@@ -353,8 +353,50 @@ export async function createMssqlSchema(pool) {
   );
 
   // `sso_identities` is RETIRED - the login subsystem that read it is gone.
+  // The createUpdatedAtTrigger call that stood here went with it: it built a
+  // trigger on a table this file no longer creates, so a fresh MSSQL install
+  // failed at exactly this line. Its replacement is the table below.
 
-  await createUpdatedAtTrigger(pool, "sso_identities");
+  // Twin of the user_identities block in mysqlSchema.js - read the reasoning
+  // there. An external identity mapped onto an existing profile; `users`
+  // stays (id, name, created_at).
+  await createTableIfNotExists(
+    pool,
+    "user_identities",
+    `
+    CREATE TABLE [MyWork].[user_identities] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      user_id INT NOT NULL,
+      provider NVARCHAR(50) NOT NULL CONSTRAINT df_user_identities_provider DEFAULT 'entra',
+      subject NVARCHAR(255) NOT NULL,
+      email NVARCHAR(255) NULL,
+      display_name NVARCHAR(255) NULL,
+      last_login_at DATETIME2 NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT fk_user_identities_user FOREIGN KEY (user_id)
+        REFERENCES [MyWork].[users](id) ON DELETE CASCADE,
+      CONSTRAINT unique_provider_subject UNIQUE (provider, subject)
+    )
+  `,
+  );
+
+  await createUpdatedAtTrigger(pool, "user_identities");
+
+  // Backfills, for an install whose user_identities predates a column. Both
+  // schema files are re-run on every "Fix Schema", so a column added only to
+  // the CREATE TABLE body above would never reach an existing install.
+  for (const [col, ddl] of [
+    ["email", "NVARCHAR(255) NULL"],
+    ["display_name", "NVARCHAR(255) NULL"],
+    ["last_login_at", "DATETIME2 NULL"],
+  ]) {
+    if (!(await columnExists(pool, "user_identities", col))) {
+      await pool
+        .request()
+        .query(`ALTER TABLE [MyWork].[user_identities] ADD ${col} ${ddl}`);
+    }
+  }
 
   // Contexts table moved to before tickets table (see below, tickets references contexts)
 

@@ -56,6 +56,15 @@ function getOrCreateConfigEncryptionKey() {
   return generated;
 }
 
+// SSO_MODE is read in exactly one place - here - so an unknown or misspelt
+// value cannot mean "on" by accident. Anything unrecognised is 'off': the
+// failure direction for an authentication switch is to demand a login you
+// cannot satisfy, so an unreadable setting must never enable it.
+function normaliseSsoMode(raw) {
+  const value = String(raw || 'off').trim().toLowerCase();
+  return ['off', 'on', 'auto'].includes(value) ? value : 'off';
+}
+
 const config = {
   app: {
     name: process.env.APP_NAME || 'MyWork',
@@ -111,6 +120,30 @@ const config = {
       clientId: process.env.OAUTH_MICROSOFT_CLIENT_ID,
       clientSecret: process.env.OAUTH_MICROSOFT_CLIENT_SECRET,
     },
+  },
+  // Entra ID single sign-on. THREE-STATE on purpose, not a boolean: 'off' is
+  // this machine has no business asking for a login, 'on' is it must, and
+  // 'auto' is decide by whether the tenant is actually reachable. A boolean
+  // cannot tell "off because I am at home" from "off because it is broken",
+  // which is precisely how the previous SSO subsystem sat looking like a
+  // feature for months while being unreachable.
+  //
+  // It lives in .env.local (gitignored, per-machine) rather than in the
+  // database, because the answer differs by MACHINE and NETWORK, not by
+  // context - and because a value in .env.local cannot conflict on merge
+  // between the two development machines the way a tracked file does.
+  sso: {
+    mode: normaliseSsoMode(process.env.SSO_MODE),
+    tenantId: process.env.SSO_TENANT_ID || process.env.OAUTH_MICROSOFT_TENANT_ID,
+    clientId: process.env.SSO_CLIENT_ID || process.env.OAUTH_MICROSOFT_CLIENT_ID,
+    clientSecret:
+      process.env.SSO_CLIENT_SECRET || process.env.OAUTH_MICROSOFT_CLIENT_SECRET,
+    redirectUri:
+      process.env.SSO_REDIRECT_URI ||
+      `${process.env.APP_URL || 'http://localhost:3000'}/auth/callback`,
+    // How long a resolved 'auto' probe is trusted before being re-run.
+    probeCacheMs: parseInt(process.env.SSO_PROBE_CACHE_MS || '300000', 10),
+    probeTimeoutMs: parseInt(process.env.SSO_PROBE_TIMEOUT_MS || '2000', 10),
   },
 };
 

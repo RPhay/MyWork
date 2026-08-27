@@ -117,42 +117,80 @@ does it, and validates the stored id against the database rather than trusting
 the file. Without it the picker's static backdrop blocks every spec, and only on
 a clean checkout, which is where the failure is least explicable.
 
-## There is no authentication
+## Authentication is OFF by default and ON by machine
 
-The app has sessions, CSRF, helmet and rate limiting, which makes it *look*
-secured. It has **no authentication of any kind** — no login, no user model, no
-auth middleware on any route. Anyone who can reach the port has full read/write
-access to every context.
+The app ships with **no authentication** — no login, no auth middleware doing
+anything, and anyone who can reach the port has full read/write access to every
+context. That is still true on any install that has not opted in, and it is
+still the right trade for a single-user app on `localhost`.
 
-That is a reasonable trade for a single-user app on `localhost`, and it is not a
-bug to be fixed in place. It is written down here so that **putting this on a
-network is recognised as a change that needs an auth layer first**, rather than
-as a deployment detail.
+What changed on 2026-08-27 is that opting IN is now possible, per machine,
+without the two machines needing different code. **`SSO_MODE` in `.env.local`**
+decides:
 
-### The SSO code is scaffolding, and does not run
+| value | effect |
+|---|---|
+| `off` | **Default.** No login, no gate. Byte-for-byte the old behaviour. |
+| `on` | Entra ID sign-in required before any page or API call. |
+| `auto` | Probe whether the tenant answers; enable if it does, else `off`. |
 
-There IS an Entra ID / SSO subsystem — `routes/api/sso.js`,
-`routes/api/contextSso.js`, `services/contextSsoService.js`,
-`services/ssoUserService.js`, `auth/entraId.js` — and the routes are registered,
-which makes it look like the paragraph above is out of date. It is not.
+`.env.local` is the switch because it is **gitignored and per-machine** — the
+same seam that already lets one machine run MySQL and the other MSSQL — so the
+home checkout and the work checkout disagree without ever conflicting on merge
+the way `.version` does.
 
-`ssoUserService.findOrCreateSsoUser()` reads and writes `users.username` and
-`users.email`. **This project's `users` table is `(id, name, created_at)`** — see
-`mysqlSchema.js`. Every one of those statements fails on an unknown column, so
-signing in cannot work and never has. Deliberately left failing rather than
-patched into something that half-works: giving SSO a real user record means
-deciding what a user IS here, which is the same decision this section defers.
+**Three states, not a boolean, and this is the load-bearing part.** A boolean
+cannot distinguish *off because I am at home* from *off because it is broken*,
+and that ambiguity is exactly how the previous SSO subsystem sat looking like a
+working feature for months while being unreachable. So every resolution carries
+a `reason`, and `GET /auth/status` reports it. If SSO ever appears not to be
+working, read that endpoint before reading any code.
 
-What WAS fixed (2026-08-25) is the storage side, which is independent of that:
-`contextSsoService.js` called `connectionPool.query(...)` — an identifier it
-never imported — so every read/save/disable of an SSO *config* threw
-`ReferenceError`. Those now use the repo's `queryOne`/`update` helpers and work.
-The per-identity functions in `ssoUserService.js` (everything except
-`findOrCreateSsoUser`) touch only `sso_identities`, which does exist, and were
-destructuring `[rows]` mysql2-style when this repo's `query()` returns rows
-directly; they are correct now too.
+Three rules that the implementation depends on:
 
-So: config storage works, identity mapping works, **login does not**.
+- **`off` must be a total no-op.** The gate in `app.js` returns `next()` before
+  touching anything, and `/auth/*` returns 404 rather than rendering a sign-in
+  page. A login page reachable on the home machine is a page someone will
+  eventually be stuck on.
+- **The gate fails OPEN.** If `resolveSsoState()` throws, the request continues
+  unauthenticated. That is the correct direction *here*: the alternative is
+  bricking a local single-user app that had no authentication yesterday. It
+  would be the wrong direction on a public network, and that is the line to
+  reconsider before this is ever exposed.
+- **`on` with missing credentials does not enable.** It reports
+  `misconfigured: true` and names the absent variables. Half-configured SSO
+  redirects to an authorize URL built from `undefined`, which locks you out of
+  your own app.
+
+### Signing in SELECTS a profile; it does not invent a user
+
+`users` is still `(id, name, created_at)` and is **not** extended. An Entra
+identity is a row in **`user_identities`** (`provider`, `subject`, `email`,
+`display_name`) pointing at a `users` row.
+
+This is the whole lesson of the SSO subsystem that was deleted on 2026-08-26:
+`findOrCreateSsoUser()` wrote `users.username` and `users.email` against a table
+with neither column, so every login threw on an unknown column. Given a second
+notion of "user", the two drift; given one, signing in is just an authenticated
+way to choose a Profile, which is what Profiles already were.
+
+Resolution order on callback, and step 2 is the one that matters:
+
+1. An existing `user_identities` row for that Entra subject — the normal path.
+2. **A profile whose `name` matches the Entra display name** — adopts the
+   profile you already use. Without it, the first work-machine login creates a
+   *second* profile and lands you in an empty app with every context still
+   owned by the old one.
+3. Failing both, a new profile named after the display name.
+
+Sign-in then calls `setActiveUserId()`, because **the active profile is
+server-wide** (`data/active-user.json`) for the pool reason in the Profiles
+section above. A per-session user would reintroduce exactly the two-browsers-
+two-databases race that one server-wide value makes unreachable. The documented
+cost stands unchanged: **two tabs cannot be two users**, signed in or not.
+
+The table is **not** named `sso_identities`. That name is in `RETIRED_TABLES`,
+and reusing it would leave one name meaning both "dropped, unread" and "live".
 
 ## Credentials
 
