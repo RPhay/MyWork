@@ -96,15 +96,40 @@ read first.
       is a login layer, a session->user binding, middleware on every route and
       per-user settings storage - a project, not a flag, and the thing that must
       happen before this is ever put on a network.
-- [ ] **Audit the seven empty-but-referenced tables.** Still seven on
-      2026-08-26, but a DIFFERENT seven than this file used to list: `quotes`
-      and `sso_identities` went with the SSO deletion, and `sources` +
-      `work_entity_associations` turn out to belong here. Counted directly:
-      `daily_entities`, `source_auth`, `context_folders`, `day_highlights`,
-      `work_source_associations`, `sources`, `work_entity_associations` all hold
-      0 rows while code reads them. That is the same shape the Todos & Ideas
-      report had - wired, and answering with nothing. Each is either an unused
-      feature or a broken one, and telling those apart needs a look per table.
+- [x] **Audit the seven empty-but-referenced tables - DONE 2026-08-26. None is
+      broken.** Each is empty for a reason that checks out, and none has the
+      Todos & Ideas shape. That bug was wired-and-answering-nothing *with data
+      present*; here there is simply no data.
+
+      **The three Dailies junctions - `work_entity_associations`,
+      `daily_entities`, `work_source_associations` - are empty because THIS
+      DATABASE HAS NO DAILIES.** 0 live `daily` entities, 0 `entity_relationships`
+      with a daily parent, against 129 ideas / 127 tasks / 38 projects. Read and
+      write both go through `work_entity_associations` in `dailyService.js`
+      (`getEntityAssociations` selects from it, `createWorkItem`/`updateWorkItem`
+      insert into it), so it is ONE store, not the two-stores bug that hit
+      Templates. And the reason there is no data is worth connecting: **the
+      dailies are the 29 unmigrated `work_items` rows on the MSSQL machine.**
+      Migrating those (the first item in "Yours to do") is what will put rows in
+      all three.
+
+      **`sources` + `source_auth`:** the Data Sources UI is REACHABLE, and looks
+      unreachable if you check carelessly - see the trap below. Unused feature,
+      not a broken one.
+
+      **`context_folders`:** reachable, Settings -> Contexts -> New Folder, and
+      guarded by `context-folder-drag.spec.js` in the guard set, which passes.
+      Unused.
+
+      **`day_highlights`:** reachable from `dailies-calendar.js` /
+      `dailies-menus.js`. Unused, and will stay unused while there are no
+      dailies to highlight.
+
+      **Trap, do not rediscover:** `data-sources.ejs` and `backup.ejs` are
+      included by **`contexts.ejs`**, not by `dashboard.ejs` or `settings.ejs`.
+      Grepping the two PAGE templates for them finds nothing and reads as "this
+      tab is dead code". It is not - the include is one level down.
+
 - [ ] **Check the new `time_box` roll-up on screen.** Every type's Time Box now
       carries `rollup: 'sum'`, so a folder totals what is planned inside it.
       That is new behaviour, verified in the data but not looked at in the app.
