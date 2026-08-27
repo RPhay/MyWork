@@ -83,19 +83,27 @@ read first.
       fixed and guarded, but each was a separate symptom of the same design -
       it sends what is on screen and the server trusts it. Sending only what
       changed ends the class rather than the instances.
-- [ ] **Decide whether MyWork is multi-user.** SSO is GONE - deleted 2026-08-26
-      on the user's instruction, along with `sso_identities` and `quotes` - so
-      the "finish or delete" half of this is settled. The question it was
-      deferring is not. Checked 2026-08-26: there is **no auth of any kind**
-      (zero matches for `requireAuth`, `isAuthenticated`, `passport`,
-      `req.user` across `src/`), `users` is `(id, name, created_at)` with one
-      row, and settings are global - there is no settings table at all.
-      But **`contexts.user_id` exists** in BOTH schema files, foreign-keyed to
-      `users(id)`, and `activeContextService.js` already filters on it. So
-      context ownership is modelled; nothing enforces identity. Making this real
-      is a login layer, a session->user binding, middleware on every route and
-      per-user settings storage - a project, not a flag, and the thing that must
-      happen before this is ever put on a network.
+- [x] **Multi-user - DONE 2026-08-26, as PROFILES.** Decided and shipped: pick a
+      user, see only their contexts. Full rules in `CLAUDE.md` ("Profiles are a
+      view, not a login"); the reasoning and the phases that were dropped are in
+      the artifact:
+      https://claude.ai/code/artifact/2005820c-437e-4566-808b-8aea8c38d0f7
+
+      **What was NOT built, and why it was not needed.** The expensive plan - a
+      connection pool per context, `AsyncLocalStorage` threaded through every
+      request, password hashing, auth middleware, a persistent session store -
+      existed to solve two users being active AT ONCE. Keeping the chosen user
+      server-wide makes that unreachable, so the whole tier disappeared rather
+      than being deferred. If real accounts are ever wanted, the picker becomes
+      a login and the file becomes a session value, and THAT is when the
+      pool-per-context work becomes necessary. Everything else survives.
+
+      **Still open, deliberately:** real authentication. There is still no
+      password anywhere, so this remains a view filter, and putting the app on a
+      network still needs an auth layer FIRST. The status digest schedule is
+      also still one global file - making it per-profile needs a rule for which
+      profile a background job with no active user runs as.
+
 - [x] **Audit the seven empty-but-referenced tables - DONE 2026-08-26. None is
       broken.** Each is empty for a reason that checks out, and none has the
       Todos & Ideas shape. That bug was wired-and-answering-nothing *with data

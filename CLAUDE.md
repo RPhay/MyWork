@@ -69,6 +69,54 @@ places, with two different sets of specs.
 
 @CLAUDE_TESTING.md
 
+## Profiles are a view, not a login
+
+`activeUserService.js` decides who is using MyWork. Pick a user, see that
+user's contexts and everything inside them; switch, and see somebody else's.
+**There is no password and no attempt to look like there is one** - anyone can
+become anyone. It separates *whose work is on screen*, not *who is allowed to
+look*, which is why the section below still stands unchanged. Do not "finish"
+it by adding a password box: that is real authentication and a different
+decision (see `CLAUDE_CARRY_ON.md`).
+
+**Why it is cheap: a context already IS a separate database.** Isolation is not
+a `WHERE user_id = ?` on 131 query sites, it is which database the connection
+points at. `contexts.user_id` records the owner, and `getActiveContextId()`
+only resolves a context that the current user owns.
+
+**The chosen user is SERVER-WIDE** (`data/active-user.json`), mirroring the
+active context beside it, and this is load-bearing rather than lazy. The app
+holds ONE pool and swaps it on context change, so a per-SESSION user would let
+two browsers want two databases at the same instant and the pool would be wrong
+for one of them. One server-wide value makes that unreachable. The cost, which
+is not a bug to be fixed: **two tabs cannot be two users.**
+
+Three rules that each came from getting it wrong:
+
+- **Filter at the ROUTE, not inside `getAllContexts()`.** That function has a
+  caller which must keep seeing every context - `schemaMigrationService` walks
+  all of them to apply a schema change, and a silently user-filtered list there
+  would skip databases and report success. `getContextsForUser()` is the opt-in.
+- **Filtering the list is not enough.** `setActiveContextId()` refuses a context
+  whose owner is not the current user. Without that the picker is decorative:
+  the list is filtered, but the endpoint still accepts any id typed or
+  remembered from before a switch.
+- **A profile owning no contexts is redirected off the dashboard.** Rendering it
+  anyway does not degrade, it hangs: every tab fires a fetch, each resolves the
+  active context, each throws, and the page never finishes loading.
+
+Per-profile too: the focus bar's monitors (keyed inside the existing file, so no
+existing setup is lost) and browser view state, which is CLEARED on a change of
+user rather than namespaced - many of the 39 `localStorage` keys are computed,
+so a prefix scheme half-lands the moment one is missed, and a missed one looks
+like a preference rather than a bug. The status digest schedule is deliberately
+still global.
+
+**The suite needs a profile chosen before it runs** - `tests/e2e/global-setup.js`
+does it, and validates the stored id against the database rather than trusting
+the file. Without it the picker's static backdrop blocks every spec, and only on
+a clean checkout, which is where the failure is least explicable.
+
 ## There is no authentication
 
 The app has sessions, CSRF, helmet and rate limiting, which makes it *look*
