@@ -197,7 +197,15 @@
           // `work_item`. Now that Dailies IS `daily`, excluding it removed the
           // Dailies tab from the bar entirely - the rail still rendered, so the
           // only symptom was a missing button.
-          .filter(t => !['outlook_calendar', 'folder'].includes(t.slug))
+          //
+          // Excluded by type_category rather than a hardcoded slug list: the
+          // slug list here never got 'ado_work_item' added when that type was
+          // introduced, so Azure DevOps Work Items rendered as a real tab
+          // despite SPECIAL_ENTITY_TYPES declaring it type_category 'external'
+          // (systemEntityTypes.js) - exactly the non-editable, no-tab kind
+          // 'outlook_calendar' already was. Any future external source type
+          // is excluded automatically now, the way it should have been.
+          .filter(t => t.type_category !== 'external' && t.slug !== 'folder')
           .sort((a, b) => {
             if (a.slug === 'daily') return -1;
             if (b.slug === 'daily') return 1;
