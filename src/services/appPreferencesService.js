@@ -14,23 +14,19 @@ import logger from "../utils/logger.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STORE = path.join(__dirname, "../../data/app-preferences.json");
 
-// A landing tab has to be a slug that actually RENDERS a tab, and two
-// separate rules decide that:
-//
-//   - Dailies and Templates are RAILS. They sit beside whichever tab is
-//     showing rather than being one, so naming one leaves the tab pane empty
-//     and the app looking like it failed to load. Not a style rule: `daily`
-//     was the hardcoded fallback in two places and did exactly that.
-//   - External types (Outlook Calendar, Azure DevOps Work Items) and
-//     `folder` are filtered OUT of the tab bar - see dashboard.ejs, which
-//     excludes them by type_category for the same reason.
-//
-// The second rule is applied by reading type_category rather than listing
-// slugs, so a future external type is excluded here automatically, exactly
-// as it is in the tab bar. Naming slugs is how ado_work_item came to render
-// as a real tab in the first place.
-const RAIL_SLUGS = new Set(["daily", "template"]);
+// The rails. They have no tab pane, so one can never be `currentTab` - that
+// is what left the app showing the Dailies rail alone and looking like it had
+// failed to load. Choosing one here means "open with this rail on screen",
+// which the rail layout in tabs.js handles; it never becomes a tab.
+const RAILS = [
+  { slug: "daily", label: "Dailies" },
+  { slug: "template", label: "Templates" },
+];
+const RAIL_SLUGS = new Set(RAILS.map((r) => r.slug));
 
+// A type renders a tab unless it is a rail, or excluded from the tab bar the
+// way dashboard.ejs excludes them - by type_category, not by a list of slugs.
+// Naming slugs is how ado_work_item came to render as a real tab.
 function rendersATab(type) {
   return (
     !RAIL_SLUGS.has(type.slug) &&
@@ -56,106 +52,82 @@ function write(prefs) {
   fs.writeFileSync(STORE, JSON.stringify(prefs, null, 2));
 }
 
-// Rails that may be OPENED ON, which is a different question from being a
-// landing TAB. A rail has no tab pane, so it can never be `currentTab` -
-// that is what produced the Dailies-alone-on-screen bug. It can, though, be
-// the pane the app opens showing, which is what "open on Dailies" means and
-// is handled entirely by the rail layout in tabs.js.
-export const LANDING_RAILS = [
-  { slug: "daily", label: "Dailies" },
-  { slug: "template", label: "Templates" },
-];
+/**
+ * ONE setting: what the app opens on. A rail or a tab, chosen from one list.
+ *
+ * It was briefly two settings - a tab and a rail - which is one more decision
+ * than the question deserves ("open on X" is a single thought) and made
+ * "Dailies" look like it meant something different in each.
+ *
+ * `landingTab`/`landingRail` are read as fallbacks so a value saved under the
+ * old shape still applies instead of silently reverting to the default.
+ */
+export function getStartupView() {
+  const prefs = read();
+  return prefs.startupView ?? prefs.landingRail ?? prefs.landingTab ?? null;
+}
 
 export function getPreferences() {
-  const { landingTab = null, landingRail = null } = read();
-  return { landingTab, landingRail };
+  return { startupView: getStartupView() };
 }
 
-/** The rail to open showing, or null for none. */
-export function getLandingRail() {
-  return getPreferences().landingRail;
+export async function getStartupChoices() {
+  const entityTypeService = await import("./entityTypeService.js");
+  const types = await entityTypeService.getAllEntityTypes();
+  return [
+    ...RAILS.map((r) => ({ ...r, kind: "rail" })),
+    ...types
+      .filter(rendersATab)
+      .map((t) => ({ slug: t.slug, label: t.label, kind: "tab" })),
+  ];
 }
 
-export function setLandingRail(slug) {
+export async function setStartupView(slug) {
   const prefs = read();
 
+  // Old keys are removed whenever this is written, so the fallback in
+  // getStartupView() cannot outlive a deliberate change and start
+  // contradicting it later.
+  delete prefs.landingTab;
+  delete prefs.landingRail;
+
   if (slug === null || slug === "" || slug === undefined) {
-    delete prefs.landingRail;
+    delete prefs.startupView;
     write(prefs);
-    return { landingRail: null };
+    return { startupView: null };
   }
 
-  if (!LANDING_RAILS.some((r) => r.slug === slug)) {
-    throw new ValidationError(`'${slug}' is not a rail`);
+  const choices = await getStartupChoices();
+  if (!choices.some((c) => c.slug === slug)) {
+    throw new ValidationError(`'${slug}' is not something the app can open on`);
   }
 
-  prefs.landingRail = slug;
+  prefs.startupView = slug;
   write(prefs);
-  return { landingRail: slug };
-}
-
-/** The stored landing tab, or null when none has been chosen. */
-export function getLandingTab() {
-  return getPreferences().landingTab;
+  return { startupView: slug };
 }
 
 /**
- * Choose the landing tab. Validated against the types that actually exist,
- * so a renamed or deleted type cannot leave the app opening on a tab that
- * is not there - which is the failure this setting exists to end, not to
- * reproduce in a new place.
- */
-export async function setLandingTab(slug) {
-  const prefs = read();
-
-  if (slug === null || slug === "" || slug === undefined) {
-    delete prefs.landingTab;
-    write(prefs);
-    return { landingTab: null };
-  }
-
-  const entityTypeService = await import("./entityTypeService.js");
-  const types = await entityTypeService.getAllEntityTypes();
-  const allowed = types.filter(rendersATab).map((t) => t.slug);
-
-  if (!allowed.includes(slug)) {
-    throw new ValidationError(
-      RAIL_SLUGS.has(slug)
-        ? `${slug} is a rail, not a tab - it cannot be the landing tab`
-        : `'${slug}' does not render a tab, so it cannot be the landing tab`,
-    );
-  }
-
-  prefs.landingTab = slug;
-  write(prefs);
-  return { landingTab: slug };
-}
-
-/** Which slugs may be offered as a landing tab. */
-export async function getLandingTabChoices() {
-  const entityTypeService = await import("./entityTypeService.js");
-  const types = await entityTypeService.getAllEntityTypes();
-  return types
-    .filter(rendersATab)
-    .map((t) => ({ slug: t.slug, label: t.label }));
-}
-
-/**
- * The tab the dashboard should open on: the stored choice if it is still
- * valid, otherwise the first type that is not a rail.
+ * What the dashboard should render with.
  *
- * Never returns a rail slug, and never returns a hardcoded guess. Both
- * previous fallbacks were the literal string 'daily', which names a rail and
- * therefore has no pane - so the app opened showing the Dailies rail and an
- * empty space where a tab should be.
+ * `tab` is ALWAYS a real tab, even when a rail was chosen - the type pane
+ * needs a valid tab behind it either way, and `currentTab` must never be a
+ * rail. `rail` and `railOnly` say what the layout should do on top of that.
  */
-export async function resolveLandingTab() {
-  const choices = await getLandingTabChoices();
-  if (choices.length === 0) return null;
+export async function resolveStartup() {
+  const choices = await getStartupChoices();
+  const tabs = choices.filter((c) => c.kind === "tab");
+  const firstTab =
+    tabs.find((t) => t.slug === "priority")?.slug || tabs[0]?.slug || null;
 
-  const stored = getLandingTab();
-  if (stored && choices.some((c) => c.slug === stored)) return stored;
+  const chosen = getStartupView();
+  if (!chosen || !choices.some((c) => c.slug === chosen)) {
+    return { tab: firstTab, rail: null, railOnly: false };
+  }
 
-  const preferred = choices.find((c) => c.slug === "priority");
-  return preferred ? preferred.slug : choices[0].slug;
+  if (RAIL_SLUGS.has(chosen)) {
+    return { tab: firstTab, rail: chosen, railOnly: true };
+  }
+
+  return { tab: chosen, rail: null, railOnly: false };
 }

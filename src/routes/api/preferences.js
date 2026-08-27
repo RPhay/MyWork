@@ -4,24 +4,17 @@ import logger from "../../utils/logger.js";
 
 const router = express.Router();
 
-// Current preferences, plus the choices the landing-tab picker may offer.
-// Both in one response because the picker is useless without the list, and
-// two round trips to render one select is two chances to disagree.
+// The current choice plus the one list it is chosen from. Both together
+// because the picker is useless without the list, and two round trips to
+// render one select is two chances to disagree.
 router.get("/", async (req, res) => {
   try {
-    const prefs = appPreferencesService.getPreferences();
-    const landingTabChoices =
-      await appPreferencesService.getLandingTabChoices();
-    const resolvedLandingTab =
-      await appPreferencesService.resolveLandingTab();
+    const { startupView } = appPreferencesService.getPreferences();
+    const startupChoices = await appPreferencesService.getStartupChoices();
+    const resolved = await appPreferencesService.resolveStartup();
     res.json({
       success: true,
-      data: {
-        ...prefs,
-        landingTabChoices,
-        resolvedLandingTab,
-        landingRailChoices: appPreferencesService.LANDING_RAILS,
-      },
+      data: { startupView, startupChoices, resolved },
     });
   } catch (error) {
     logger.error("Error reading preferences:", error);
@@ -29,28 +22,14 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.put("/landing-tab", async (req, res) => {
+router.put("/startup-view", async (req, res) => {
   try {
-    const data = await appPreferencesService.setLandingTab(
-      req.body.landingTab ?? null,
+    const data = await appPreferencesService.setStartupView(
+      req.body.startupView ?? null,
     );
-    res.json({ success: true, message: "Landing tab saved", data });
+    res.json({ success: true, message: "Startup view saved", data });
   } catch (error) {
-    logger.error("Error saving landing tab:", error);
-    res
-      .status(error.statusCode || 500)
-      .json({ success: false, message: error.message });
-  }
-});
-
-router.put("/landing-rail", async (req, res) => {
-  try {
-    const data = appPreferencesService.setLandingRail(
-      req.body.landingRail ?? null,
-    );
-    res.json({ success: true, message: "Startup rail saved", data });
-  } catch (error) {
-    logger.error("Error saving landing rail:", error);
+    logger.error("Error saving startup view:", error);
     res
       .status(error.statusCode || 500)
       .json({ success: false, message: error.message });

@@ -154,11 +154,17 @@ router.get("/", async (req, res) => {
     // a type that exists, and the first non-rail type otherwise - so this
     // cannot resolve to a slug with no pane, which is what the old hardcoded
     // fallbacks did.
-    const { resolveLandingTab, getLandingRail } = await import(
+    // ONE setting decides what the app opens on. resolveStartup() always
+    // returns a real tab - a rail can never be `currentTab`, which is what
+    // left the app showing a rail alone and looking like it failed to load -
+    // plus, when a rail was chosen, which one and that it takes the screen.
+    const { resolveStartup } = await import(
       "../services/appPreferencesService.js"
     );
-    const tab = req.query.tab || (await resolveLandingTab()) || "priority";
-    const landingRail = getLandingRail();
+    const startup = await resolveStartup();
+    const tab = req.query.tab || startup.tab || "priority";
+    const landingRail = startup.rail;
+    const landingRailOnly = startup.railOnly;
     const version = readVersion();
 
     // A profile that owns no contexts has nothing to show here.
@@ -189,6 +195,7 @@ router.get("/", async (req, res) => {
       currentYear,
       activeTab: tab,
       landingRail,
+      landingRailOnly,
       version,
       dbHealth: res.locals.dbHealth,
       entityTypes: entityTypes || [],

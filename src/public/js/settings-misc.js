@@ -259,46 +259,44 @@
     await load();
   }
 
-  // ---- Startup: which tab the dashboard opens on ----
+  // ---- Startup: what the app opens on ----
   //
-  // Exists because the landing tab used to be a hardcoded 'daily' in two
-  // places. Dailies is a rail with no pane, so the app opened on a tab that
-  // does not exist and showed the rail alone. The server never offers a rail
-  // as a choice here, and validates the same rule on save.
+  // ONE dropdown, listing rails and tabs together, because "open on X" is a
+  // single thought. It was briefly two selects - a tab and a rail - which
+  // made "Dailies" appear to mean something different in each.
+  //
+  // Choosing a rail never makes it the current TAB: a rail has no tab pane,
+  // and naming one as the landing tab is what left the app showing the rail
+  // alone, looking like it had failed to load. The server keeps the two
+  // apart; this select just offers one list.
   async function initStartup() {
-    const select = document.getElementById('landingTabSelect');
-    const railSelect = document.getElementById('landingRailSelect');
-    const saveBtn = document.getElementById('saveLandingTabBtn');
-    const hint = document.getElementById('landingTabHint');
+    const select = document.getElementById('startupViewSelect');
+    const saveBtn = document.getElementById('saveStartupViewBtn');
+    const hint = document.getElementById('startupViewHint');
     if (!select || !saveBtn) return;
 
     async function load() {
       try {
         const body = await (await fetch('/api/preferences')).json();
         if (!body.success) return;
-        const { landingTab, landingTabChoices, resolvedLandingTab,
-                landingRail, landingRailChoices } = body.data;
+        const { startupView, startupChoices, resolved } = body.data;
+
+        const rails = (startupChoices || []).filter(c => c.kind === 'rail');
+        const tabs = (startupChoices || []).filter(c => c.kind === 'tab');
+        const group = (label, items) => items.length
+          ? `<optgroup label="${label}">` +
+            items.map(c => `<option value="${c.slug}">${app.escapeHtml(c.label)}</option>`).join('') +
+            '</optgroup>'
+          : '';
 
         select.innerHTML =
-          '<option value="">First available tab</option>' +
-          (landingTabChoices || [])
-            .map(c => `<option value="${c.slug}">${app.escapeHtml(c.label)}</option>`)
-            .join('');
-        select.value = landingTab || '';
-
-        if (railSelect) {
-          railSelect.innerHTML =
-            '<option value="">Default (Dailies)</option>' +
-            (landingRailChoices || [])
-              .map(c => `<option value="${c.slug}">${app.escapeHtml(c.label)}</option>`)
-              .join('');
-          railSelect.value = landingRail || '';
-        }
+          '<option value="">Default</option>' + group('Rails', rails) + group('Tabs', tabs);
+        select.value = startupView || '';
 
         if (hint) {
-          hint.textContent = landingTab
+          hint.textContent = startupView
             ? ''
-            : `No choice saved - opening on ${resolvedLandingTab || 'the first tab'}.`;
+            : `No choice saved - opening on ${resolved?.tab || 'the first tab'}.`;
         }
       } catch (error) {
         console.error('Could not load preferences:', error);
@@ -307,30 +305,17 @@
 
     saveBtn.addEventListener('click', async () => {
       try {
-        const res = await app.fetchRaw('/api/preferences/landing-tab', {
+        const res = await app.fetchRaw('/api/preferences/startup-view', {
           method: 'PUT',
-          body: JSON.stringify({ landingTab: select.value || null })
+          body: JSON.stringify({ startupView: select.value || null })
         });
         const body = await res.json();
         if (!body.success) { app.notify(body.message || 'Could not save', 'danger'); return; }
-
-        if (railSelect) {
-          const railRes = await app.fetchRaw('/api/preferences/landing-rail', {
-            method: 'PUT',
-            body: JSON.stringify({ landingRail: railSelect.value || null })
-          });
-          const railBody = await railRes.json();
-          if (!railBody.success) {
-            app.notify(railBody.message || 'Could not save the rail', 'danger');
-            return;
-          }
-        }
-
         app.notify('Startup saved', 'success');
         await load();
       } catch (error) {
-        console.error('Could not save landing tab:', error);
-        app.notify('Could not save the startup tab', 'danger');
+        console.error('Could not save startup view:', error);
+        app.notify('Could not save the startup view', 'danger');
       }
     });
 

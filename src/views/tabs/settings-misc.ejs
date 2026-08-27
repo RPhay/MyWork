@@ -31,33 +31,20 @@
 
   <div class="misc-subpane" data-misc-pane="startup" hidden>
     <p class="text-muted small">
-      Which tab the dashboard opens on. Dailies, Templates and Priorities are
-      <em>rails</em> - they sit beside whichever tab is showing rather than
-      being one - so they are not offered here: choosing one would leave the
-      tab pane empty, which is what a hardcoded default used to do.
+      What MyWork opens on. Dailies and Templates are rails, so choosing one
+      opens with that rail taking the screen; anything else opens on that tab.
     </p>
 
     <div class="row g-2 align-items-end" style="max-width: 40rem;">
       <div class="col-auto">
-        <label for="landingTabSelect" class="form-label small mb-1">Open on</label>
-        <select class="form-select form-select-sm" id="landingTabSelect"></select>
+        <label for="startupViewSelect" class="form-label small mb-1">Open on</label>
+        <select class="form-select form-select-sm" id="startupViewSelect"></select>
       </div>
       <div class="col-auto">
-        <label for="landingRailSelect" class="form-label small mb-1">Rail showing</label>
-        <select class="form-select form-select-sm" id="landingRailSelect"></select>
-      </div>
-      <div class="col-auto">
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="saveLandingTabBtn">Save</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="saveStartupViewBtn">Save</button>
       </div>
     </div>
-    <p class="form-text small mt-2" id="landingTabHint"></p>
-    <p class="form-text small">
-      The rail is a separate choice from the tab because a rail is not a tab -
-      it sits <em>beside</em> whichever tab is showing. Applied on a first
-      load, or after a profile change clears saved layout; after that the
-      rails stay wherever you last left them rather than being reset on every
-      visit.
-    </p>
+    <p class="form-text small mt-2" id="startupViewHint"></p>
   </div>
 
   <div class="misc-subpane" data-misc-pane="focus-colours">
