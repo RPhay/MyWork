@@ -33,6 +33,37 @@
       <div class="modal-body">
         <p class="text-muted small mb-3">Choose a profile to see its contexts and records. You can switch any time from the navbar.</p>
         <div class="list-group" id="userPickerList"></div>
+
+        <%# Only rendered when single sign-on is enabled. This modal has a
+            STATIC backdrop, so while it is up the navbar - and with it the
+            only other place to set an address - is unreachable. Without this
+            field, a sign-in that landed on the wrong profile could not be
+            corrected from the app at all. %>
+        <div id="userPickerEmailBlock" class="mt-3 d-none">
+          <label for="userPickerEmail" class="form-label small fw-semibold mb-1">
+            Your work email address
+          </label>
+          <input type="email" class="form-control form-control-sm" id="userPickerEmail"
+                 placeholder="e.g. you@company.com" autocomplete="email">
+          <div class="form-text small">
+            Saved against whichever profile you choose below, and matched on
+            next sign-in so single sign-on lands here instead of making a new
+            profile. Leave blank to skip.
+          </div>
+          <%# The escape hatch. This modal blocks everything behind it, and
+              single sign-on will only move you to a different profile after
+              you authenticate as it - so without a way to sign out from
+              HERE, a sign-in on the wrong profile has no exit. %>
+          <div class="mt-3 pt-2 border-top">
+            <button type="button" class="btn btn-sm btn-outline-danger" id="userPickerSignOut">
+              <i class="bi bi-box-arrow-right"></i> Sign out
+            </button>
+            <div class="form-text small mb-0">
+              Set the address above first, then sign out and back in to be
+              matched to that profile.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

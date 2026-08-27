@@ -88,7 +88,9 @@
 
           <% if (error) { %>
           <div class="alert alert-danger py-2" role="alert">
-            <%= error === 'no-session'
+            <%= error === 'profile-gone'
+              ? 'The profile you were signed in as no longer exists, so you have been signed out. Signing in again will match you to a profile by your email address.'
+              : error === 'no-session'
               ? 'Your session was not returned by the browser, so the sign-in could not be completed. This usually means cookies are blocked for this site, or the sign-in took longer than the session timeout.'
               : error === 'state-mismatch'
                 ? 'That sign-in could not be verified. Please try again.'

@@ -1033,18 +1033,64 @@ async function promptForNewUser() {
 // Nobody chosen yet - on a fresh install, or after the chosen profile was
 // deleted. The app is showing SOMEBODY'S data at this point (the fallback in
 // getActiveContextId), so this asks rather than letting that pass unnoticed.
-function showUserPicker(users) {
+async function showUserPicker(users) {
   if (!users || users.length === 0) return;
   const el = document.getElementById('userPickerModal');
   if (!el) return;
   const list = document.getElementById('userPickerList');
   list.innerHTML = users.map(u => `
-    <button type="button" class="list-group-item list-group-item-action" data-pick-user="${u.id}">
-      <i class="bi bi-person-circle me-2"></i>${app.escapeHtml(u.name)}
+    <button type="button" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between gap-2" data-pick-user="${u.id}">
+      <span><i class="bi bi-person-circle me-2"></i>${app.escapeHtml(u.name)}</span>
+      ${u.email ? `<small class="text-muted">${app.escapeHtml(u.email)}</small>` : ''}
     </button>
   `).join('');
+
+  // The address field only appears where it means something. On a machine
+  // with SSO off it would be an unexplained box on the first screen anyone
+  // sees; with SSO on it is the ONLY way out of a sign-in that landed on the
+  // wrong profile, because this modal's static backdrop hides the navbar.
+  const emailBlock = document.getElementById('userPickerEmailBlock');
+  const emailInput = document.getElementById('userPickerEmail');
+  let ssoEnabled = false;
+  try {
+    const status = await (await fetch('/auth/status')).json();
+    ssoEnabled = Boolean(status?.data?.enabled);
+  } catch {
+    ssoEnabled = false;
+  }
+  if (emailBlock && ssoEnabled) emailBlock.classList.remove('d-none');
+
+  const signOutBtn = document.getElementById('userPickerSignOut');
+  if (signOutBtn) signOutBtn.addEventListener('click', ssoSignOut);
+
   list.querySelectorAll('[data-pick-user]').forEach(b =>
-    b.addEventListener('click', () => switchToUser(b.dataset.pickUser)));
+    b.addEventListener('click', async () => {
+      const userId = b.dataset.pickUser;
+      const email = (emailInput?.value || '').trim();
+
+      // Save the address BEFORE switching: switchToUser reloads the page on
+      // success, so anything left until afterwards never runs.
+      if (email && ssoEnabled) {
+        try {
+          const response = await app.fetchRaw(`/api/users/${userId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ email })
+          });
+          const result = await response.json();
+          if (!result.success) {
+            app.notify('Could not save that address: ' + result.message, 'danger');
+            return;
+          }
+        } catch (error) {
+          console.error('Error saving email from picker:', error);
+          app.notify('Could not save that address', 'danger');
+          return;
+        }
+      }
+
+      switchToUser(userId);
+    }));
+
   new bootstrap.Modal(el, { backdrop: 'static', keyboard: false }).show();
 }
 

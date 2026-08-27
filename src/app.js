@@ -166,7 +166,34 @@ app.use(async (req, res, next) => {
   };
 
   if (!ssoState.enabled) return next();
-  if (req.session?.ssoUser) return next();
+
+  if (req.session?.ssoUser) {
+    // The signed-in session IS the answer to "who is using MyWork", so make
+    // the server-wide active profile agree with it. Without this, anything
+    // that clears or invalidates data/active-user.json - a deleted profile,
+    // most likely - leaves a SIGNED IN user staring at the profile picker,
+    // which has a static backdrop and therefore hides the navbar and every
+    // control that could fix it.
+    //
+    // Only asserted when the stored value is missing. A signed-in session
+    // does not fight a deliberate switch, and the switch itself is already
+    // constrained to this same profile by PUT /api/active-user.
+    try {
+      const activeUserService = await import("./services/activeUserService.js");
+      const currentId = await activeUserService.getActiveUserId();
+      if (currentId === null) {
+        await activeUserService.setActiveUserId(req.session.ssoUser.userId);
+      }
+    } catch {
+      // The profile this session signed in as no longer exists - it was
+      // deleted while signed in. Nothing can be repaired from inside that
+      // session, so end it: the redirect below sends them to sign in again,
+      // which resolves an identity afresh (by email, now, if one is set).
+      delete req.session.ssoUser;
+      return res.redirect("/auth/login?error=profile-gone");
+    }
+    return next();
+  }
 
   // Paths that must stay reachable while signed out, or the gate locks its
   // own door: the sign-in flow itself, the health probe, static assets, and

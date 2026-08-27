@@ -39,6 +39,7 @@
  */
 
 import * as db from "../src/database/homePool.js";
+import * as activeUserService from "../src/services/activeUserService.js";
 
 const args = process.argv.slice(2);
 const APPLY = args.includes("--apply");
@@ -214,6 +215,15 @@ async function main() {
       into.id,
     ]);
   }
+
+  // The deleted profile was almost certainly the ACTIVE one - it is the one
+  // you signed in as. data/active-user.json still names it, and
+  // getActiveUserId() returns null for a profile that no longer exists, which
+  // puts the app behind the "Who's using MyWork?" picker with a static
+  // backdrop. Repointing it here is the difference between this script
+  // finishing the job and handing back a blocked app.
+  await activeUserService.setActiveUserId(into.id);
+  console.log(`  active profile repointed to #${into.id} ${into.name}`);
 
   console.log("\nDone. Sign out and sign in again.");
   console.log(
