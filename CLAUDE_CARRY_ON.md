@@ -83,17 +83,28 @@ read first.
       fixed and guarded, but each was a separate symptom of the same design -
       it sends what is on screen and the server trusts it. Sending only what
       changed ends the class rather than the instances.
-- [ ] **Decide what a USER is, and finish or delete SSO.** The subsystem is
-      wired and cannot work: `findOrCreateSsoUser` reads `users.username` and
-      `users.email`, and this project's `users` table is `(id, name,
-      created_at)`. Deliberately left failing, because fixing it means making
-      that decision. `sso_identities` holds 0 rows.
-- [ ] **Audit the seven empty-but-referenced tables.** `daily_entities`,
-      `quotes`, `source_auth`, `sso_identities`, `context_folders`,
-      `day_highlights` and `work_source_associations` all hold 0 rows while
-      code reads them. That is the same shape the Todos & Ideas report had -
-      wired, and answering with nothing. Each is either an unused feature or a
-      broken one, and telling those apart needs a look per table.
+- [ ] **Decide whether MyWork is multi-user.** SSO is GONE - deleted 2026-08-26
+      on the user's instruction, along with `sso_identities` and `quotes` - so
+      the "finish or delete" half of this is settled. The question it was
+      deferring is not. Checked 2026-08-26: there is **no auth of any kind**
+      (zero matches for `requireAuth`, `isAuthenticated`, `passport`,
+      `req.user` across `src/`), `users` is `(id, name, created_at)` with one
+      row, and settings are global - there is no settings table at all.
+      But **`contexts.user_id` exists** in BOTH schema files, foreign-keyed to
+      `users(id)`, and `activeContextService.js` already filters on it. So
+      context ownership is modelled; nothing enforces identity. Making this real
+      is a login layer, a session->user binding, middleware on every route and
+      per-user settings storage - a project, not a flag, and the thing that must
+      happen before this is ever put on a network.
+- [ ] **Audit the seven empty-but-referenced tables.** Still seven on
+      2026-08-26, but a DIFFERENT seven than this file used to list: `quotes`
+      and `sso_identities` went with the SSO deletion, and `sources` +
+      `work_entity_associations` turn out to belong here. Counted directly:
+      `daily_entities`, `source_auth`, `context_folders`, `day_highlights`,
+      `work_source_associations`, `sources`, `work_entity_associations` all hold
+      0 rows while code reads them. That is the same shape the Todos & Ideas
+      report had - wired, and answering with nothing. Each is either an unused
+      feature or a broken one, and telling those apart needs a look per table.
 - [ ] **Check the new `time_box` roll-up on screen.** Every type's Time Box now
       carries `rollup: 'sum'`, so a folder totals what is planned inside it.
       That is new behaviour, verified in the data but not looked at in the app.

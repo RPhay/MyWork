@@ -251,6 +251,55 @@ the focus bar — each rule below came from a specific regression.
   1 — so the coercion tests `Number.isFinite` instead, and null/undefined/''
   are what count as unset.
 
+## Retired tables: the evidence check, and the MSSQL migration
+
+Detail behind "Retiring a table is not the same as dropping it" in `CLAUDE.md`.
+
+`inspectRetiredTables()` refuses to drop a table whose rows have no matching
+entity, matched on **title** via `LEGACY_TABLE_TYPE` in
+`src/database/retiredTables.js`. Title is weaker evidence than a legacy id
+column - only Dailies left one behind (`entities.legacy_daily_id`) - which is
+why it is used ONLY for tables no code reads at all. A stale row nobody queries
+costs nothing; dropping an unmigrated one cannot be undone.
+
+That refusal fired on the MSSQL machine and was correct:
+
+```
+MyWork.work_items - 29 row(s) have no matching entity
+```
+
+`work_items`, `tasks`, `priorities` and `to_dos` on that install never became
+entities, because every `scripts/phaseN-migrate-*.js` uses the mysql2 pool's own
+transaction API, which the `mssql` package does not mirror. Since every service
+reads `entities` now, those records sit in the database and are invisible in the
+app. They are data, not a stale copy.
+
+`scripts/migrate-legacy-to-entities.js` exists to make that refusal go away
+honestly - by moving the rows, not by destroying them. Four deliberate
+differences from the phase scripts:
+
+- goes through `connectionPool.query`, which both engines share, so it runs
+  unchanged on MySQL and SQL Server;
+- **discovers each table's columns from INFORMATION_SCHEMA** instead of
+  hardcoding them - a column list written on this machine would be a guess about
+  a database it cannot see;
+- matches every column against the target type's field keys and **reports what
+  it cannot carry** rather than silently dropping it;
+- skips a row that already has a same-titled entity of that type - the same test
+  the drop guard applies - so a second run is a no-op, not a duplicate.
+
+Dry run by default. Back up before `--apply`; there is no undo.
+
+## The MyWork icon
+
+`src/public/favicon.svg` - a day's list with the top line ticked, on an
+indigo-to-violet rounded tile. A letter mark was the obvious alternative and was
+rejected: the app is one idea, typed rows gathered onto a day, and a checked
+list says that at **16px**, which is the size that actually has to work in a
+browser tab. The two undone rules get shorter down the stack so the shape still
+reads as a list once the strokes blur together at that size. Verified at 16, 32,
+64 and 128px.
+
 ## Recurrence: removed, not documented here any more
 
 This section used to carry the mechanism, the JSON schema and a `POST` example.

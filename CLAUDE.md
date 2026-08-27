@@ -141,6 +141,57 @@ Raw/Developing/Ready, and Categories have no status at all; **Worked Time is on 
 list before touching row rendering, the editor, or the focus bar:
 `CLAUDE_REFERENCE.md`.
 
+## Read-only types, and what may hold a Template
+
+Three types cannot be edited in Settings. **One predicate decides it** -
+`type_category` set to anything other than `'editable'` - and both the editor
+(`entity-type-editor.js`, which disables every control and adds a note) and the
+Settings lists (`settings-entity-types.js`, which splits them into two lists)
+read that same rule. Do not add a second test.
+
+- **Outlook Calendar** and **Azure DevOps Work Items** (`type_category:
+  'external'`) mirror a shape another system owns. Editing them here would only
+  let the two disagree. `canBeRelated()` also keeps `'external'` types out of
+  the hand-authored parent/child lists.
+- **Templates** (`type_category: 'template'`) must stay in step with Dailies,
+  because dropping a template on a day produces a **daily** carrying whatever
+  the template held - so a property added to one and not the other is a property
+  lost in the transfer.
+
+Templates does not have to be kept in step by hand: saving Dailies calls
+`syncTemplateFieldsFromDaily()` in `entityTypeService.js`, which is the moment
+the two would otherwise drift. **Add a field to Dailies and Templates gets it.**
+
+Read-only describes editing the **type**. Template ROWS are created, edited and
+deleted as normal on the Templates rail.
+
+**Nothing may hold a Template.** No type declares `template` as a hierarchy
+child, and `SELF_NESTING_SLUGS` excludes it by name so the
+every-hierarchical-type rule cannot hand it one back. A template is dragged onto
+Dailies and becomes a new daily; it is never filed underneath something.
+**Azure DevOps Work Items are the exact opposite** - they go under every type,
+because the point of dropping one is to say "this ADO item belongs to that goal
+/ project / day".
+
+## Retiring a table is not the same as dropping it
+
+`src/database/retiredTables.js` is the ONE list of tables the app no longer
+reads, imported by both schema files and by `retiredTablesService.js`. It lived
+in three places before, which is exactly how such lists come to disagree with
+the schema they describe.
+
+A table earns its place there by being **migrated and unread**: its rows exist
+as entities, and nothing in `src/` queries it. Settings -> **Drop Retired
+Tables** then drops it without a full schema run - but `inspectRetiredTables()`
+**refuses any table holding rows with no matching entity**, and that refusal is
+the guard working. Do not force it; migrate the rows first.
+
+That refusal is how the MSSQL install's unmigrated rows were found, and
+**`scripts/migrate-legacy-to-entities.js` is the one migration script that runs
+on either engine** - every `scripts/phaseN-migrate-*.js` is MySQL-only. Dry run
+by default; `--apply` writes. Why it exists and what it does differently:
+`CLAUDE_REFERENCE.md`.
+
 ## Recurrence was withdrawn — do not rebuild it from these docs
 
 Todos and tasks once had a recurring schedule that made them appear as work
