@@ -163,7 +163,12 @@
   </style>
 </head>
 <body
-  data-active-tab="<%= activeTab || 'daily' %>"
+  <%# NOT 'daily' as a fallback - Dailies is a rail and has no tab pane, so
+      that value opened the app on a tab that does not exist, leaving the
+      rail alone on screen. The server always sends a real slug now
+      (appPreferencesService.resolveLandingTab); empty is better than a lie
+      if it ever does not. %>
+  data-active-tab="<%= activeTab || '' %>"
   data-current-year="<%= currentYear %>"
   data-csrf-token="<%= csrfToken %>"
   data-version="<%= version %>"

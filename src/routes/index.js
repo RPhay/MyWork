@@ -33,6 +33,7 @@ import focusMonitorsRouter from "./api/focusMonitors.js";
 import searchRouter from "./api/search.js";
 import trashRouter from "./api/trash.js";
 import statusDigestRouter from "./api/statusDigest.js";
+import preferencesRouter from "./api/preferences.js";
 import authRouter from "./auth.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
@@ -93,6 +94,7 @@ router.use("/api/", async (req, res, next) => {
 // to off, so mounting them unconditionally is safe.
 router.use("/auth", authRouter);
 
+router.use("/api/preferences", preferencesRouter);
 router.use("/api/goals", goalsRouter);
 router.use("/api/priorities", prioritiesRouter);
 router.use("/api/dailies", dailiesRouter);
@@ -147,9 +149,15 @@ router.get("/setup", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const currentYear = new Date().getFullYear();
-    // Dailies is a rail, not a page - the landing tab is the first real one,
-    // which the client resolves from the rendered tab buttons.
-    const tab = req.query.tab || "priority";
+    // Dailies is a rail, not a page, so it can never be the landing tab.
+    // resolveLandingTab() returns the stored preference when it still names
+    // a type that exists, and the first non-rail type otherwise - so this
+    // cannot resolve to a slug with no pane, which is what the old hardcoded
+    // fallbacks did.
+    const { resolveLandingTab } = await import(
+      "../services/appPreferencesService.js"
+    );
+    const tab = req.query.tab || (await resolveLandingTab()) || "priority";
     const version = readVersion();
 
     // A profile that owns no contexts has nothing to show here.

@@ -240,9 +240,63 @@
     await load();
   }
 
+  // ---- Startup: which tab the dashboard opens on ----
+  //
+  // Exists because the landing tab used to be a hardcoded 'daily' in two
+  // places. Dailies is a rail with no pane, so the app opened on a tab that
+  // does not exist and showed the rail alone. The server never offers a rail
+  // as a choice here, and validates the same rule on save.
+  async function initStartup() {
+    const select = document.getElementById('landingTabSelect');
+    const saveBtn = document.getElementById('saveLandingTabBtn');
+    const hint = document.getElementById('landingTabHint');
+    if (!select || !saveBtn) return;
+
+    async function load() {
+      try {
+        const body = await (await fetch('/api/preferences')).json();
+        if (!body.success) return;
+        const { landingTab, landingTabChoices, resolvedLandingTab } = body.data;
+
+        select.innerHTML =
+          '<option value="">First available tab</option>' +
+          (landingTabChoices || [])
+            .map(c => `<option value="${c.slug}">${app.escapeHtml(c.label)}</option>`)
+            .join('');
+        select.value = landingTab || '';
+
+        if (hint) {
+          hint.textContent = landingTab
+            ? ''
+            : `No choice saved - opening on ${resolvedLandingTab || 'the first tab'}.`;
+        }
+      } catch (error) {
+        console.error('Could not load preferences:', error);
+      }
+    }
+
+    saveBtn.addEventListener('click', async () => {
+      try {
+        const res = await app.fetchRaw('/api/preferences/landing-tab', {
+          method: 'PUT',
+          body: JSON.stringify({ landingTab: select.value || null })
+        });
+        const body = await res.json();
+        if (!body.success) { app.notify(body.message || 'Could not save', 'danger'); return; }
+        app.notify('Startup tab saved', 'success');
+        await load();
+      } catch (error) {
+        console.error('Could not save landing tab:', error);
+        app.notify('Could not save the startup tab', 'danger');
+      }
+    });
+
+    await load();
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { init(); initSubTabs(); initDigest(); initMonitors(); });
+    document.addEventListener('DOMContentLoaded', () => { init(); initSubTabs(); initDigest(); initMonitors(); initStartup(); });
   } else {
-    init(); initSubTabs(); initDigest(); initMonitors();
+    init(); initSubTabs(); initDigest(); initMonitors(); initStartup();
   }
 })();

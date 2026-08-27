@@ -672,8 +672,14 @@ class TabManager {
   setupUrlSync() {
     // Handle browser back/forward
     window.addEventListener('popstate', (e) => {
-      const tab = e.state?.tab || window.APP_CONFIG?.activeTab || 'daily';
-      this.showTab(tab);
+      // Never fall back to 'daily': it is a RAIL, it has no pane, and
+      // showTab() on it leaves the type pane empty - which looks exactly
+      // like the app failing to load. Falling back to the tab this page
+      // opened on keeps something real on screen.
+      const tab = e.state?.tab || window.APP_CONFIG?.activeTab || this.currentTab;
+      if (tab && document.querySelector(`button[data-tab="${CSS.escape(tab)}"]`)) {
+        this.showTab(tab);
+      }
     });
   }
 

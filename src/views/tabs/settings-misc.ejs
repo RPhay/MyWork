@@ -22,7 +22,32 @@
         <i class="bi bi-grid-3x3-gap"></i> Focus monitors
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" type="button" role="tab" data-misc-tab="startup">
+        <i class="bi bi-box-arrow-in-right"></i> Startup
+      </button>
+    </li>
   </ul>
+
+  <div class="misc-subpane" data-misc-pane="startup" hidden>
+    <p class="text-muted small">
+      Which tab the dashboard opens on. Dailies, Templates and Priorities are
+      <em>rails</em> - they sit beside whichever tab is showing rather than
+      being one - so they are not offered here: choosing one would leave the
+      tab pane empty, which is what a hardcoded default used to do.
+    </p>
+
+    <div class="row g-2 align-items-end" style="max-width: 40rem;">
+      <div class="col-auto">
+        <label for="landingTabSelect" class="form-label small mb-1">Open on</label>
+        <select class="form-select form-select-sm" id="landingTabSelect"></select>
+      </div>
+      <div class="col-auto">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="saveLandingTabBtn">Save</button>
+      </div>
+    </div>
+    <p class="form-text small mt-2" id="landingTabHint"></p>
+  </div>
 
   <div class="misc-subpane" data-misc-pane="focus-colours">
     <p class="text-muted small">
