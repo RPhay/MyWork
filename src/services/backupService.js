@@ -34,17 +34,58 @@ export async function createContextBackup(contextId, contextName) {
     // Create SQL dump
     const sqlFile = path.join(tempDir, 'database.sql');
 
-    // Properly escape the password for shell execution
-    const escapeShell = (str) => {
-      if (!str) return '';
-      return `'${str.replace(/'/g, "'\\''")}'`;
+    // The password goes in the ENVIRONMENT, never in the command.
+    //
+    // It used to be built in as `-p<password>`, shell-escaped. Escaping made it
+    // syntactically safe and did nothing about the two real problems: an
+    // argument vector is world-readable, so any `ps` on the machine showed the
+    // credential in full, and the command string is echoed verbatim in the
+    // error whenever mysqldump fails. That is not theoretical - it is how the
+    // password ended up written 38 times into logs/error.log and once into a
+    // Playwright run log.
+    //
+    // MYSQL_PWD is read by the mysql client family for exactly this purpose and
+    // is not visible in the process list. It is scoped to this child process,
+    // so it does not leak into anything else this server spawns.
+    const dumpEnv = {
+      env: { ...process.env, ...(dbPassword ? { MYSQL_PWD: dbPassword } : {}) },
+      // A dump of a real database can exceed the default 1MB stdout buffer;
+      // output is redirected to a file, but the warning stream still counts.
+      maxBuffer: 10 * 1024 * 1024,
     };
+    const dumpCmd = (extra) =>
+      `mysqldump -h ${dbHost} -P ${dbPort} -u ${dbUser} ${extra} --lock-tables=false ${dbName} > "${sqlFile}"`;
 
-    const passwordArg = dbPassword ? `-p${escapeShell(dbPassword)}` : '';
-    const dumpCmd = `mysqldump -h ${dbHost} -P ${dbPort} -u ${dbUser} ${passwordArg} --single-transaction --lock-tables=false ${dbName} > "${sqlFile}"`;
-
+    // `--single-transaction` is what makes the dump a consistent point in time
+    // rather than a smear across whatever was written while it ran. Since MySQL
+    // 8.0.32 it also briefly flushes tables, which needs RELOAD or
+    // FLUSH_TABLES - a privilege this app's database user does not have:
+    //
+    //   Access denied; you need (at least one of) the RELOAD or
+    //   FLUSH_TABLES privilege(s) for this operation (1227)
+    //
+    // So every context backup has been failing outright. A backup button that
+    // reliably produces nothing is worse than one that produces a slightly
+    // weaker backup, so fall back rather than give up - and say clearly which
+    // kind was made, because "consistent" is the whole value of the first.
+    //
+    // Granting RELOAD to the database user removes the fallback entirely; that
+    // is a privilege change for whoever administers the database to make, not
+    // something this code should assume.
     logger.info(`Creating database dump for context ${contextId}...`);
-    await execAsync(dumpCmd);
+    let consistent = true;
+    try {
+      await execAsync(dumpCmd('--single-transaction'), dumpEnv);
+    } catch (error) {
+      const privilegeIssue = /RELOAD|FLUSH_TABLES|1227/.test(error.message || '');
+      if (!privilegeIssue) throw error;
+
+      consistent = false;
+      logger.warn('mysqldump could not take a consistent snapshot (the database user '
+        + 'lacks RELOAD/FLUSH_TABLES). Falling back to a non-transactional dump - it is '
+        + 'a valid backup, but not a single point in time. Grant RELOAD to remove this.');
+      await execAsync(dumpCmd('--skip-lock-tables'), dumpEnv);
+    }
 
     // Create metadata file
     const metadata = {
@@ -53,7 +94,11 @@ export async function createContextBackup(contextId, contextName) {
       databaseName: dbName,
       databaseType: config.type,
       createdAt: new Date().toISOString(),
-      backupVersion: '1.0'
+      backupVersion: '1.0',
+      // Whether this dump is a single point in time. A restore from a
+      // non-consistent dump can contain a half-finished write, and the person
+      // restoring it should be able to tell without rerunning anything.
+      consistentSnapshot: consistent
     };
 
     const metadataFile = path.join(tempDir, 'backup-metadata.json');
