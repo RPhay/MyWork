@@ -30,6 +30,53 @@
         font-size: 0.8125rem;
         color: #6c757d;
       }
+      .login-diag {
+        font-size: 0.75rem;
+        color: #6c757d;
+      }
+      .login-diag summary {
+        cursor: pointer;
+        user-select: none;
+      }
+      .login-diag code {
+        color: #212529;
+        word-break: break-all;
+      }
+      .diag-error {
+        background: #f8d7da;
+        border: 1px solid #f5c2c7;
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.625rem;
+        margin: 0.625rem 0;
+      }
+      .diag-error code {
+        color: #58151c;
+      }
+      .diag-label {
+        font-weight: 600;
+        color: #58151c;
+        margin-bottom: 0.125rem;
+      }
+      .diag-meta {
+        margin-top: 0.25rem;
+        opacity: 0.75;
+      }
+      .diag-list {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.125rem 0.75rem;
+        margin: 0.625rem 0;
+      }
+      .diag-list dt {
+        font-weight: 600;
+      }
+      .diag-list dd {
+        margin: 0;
+        min-width: 0;
+      }
+      .diag-hint {
+        opacity: 0.85;
+      }
     </style>
   </head>
   <body>
@@ -62,7 +109,43 @@
                is broken" look identical from the browser, which is the exact
                failure the three-state SSO_MODE exists to prevent. -->
           <hr class="my-4" />
-          <p class="login-why mb-0"><%= reason %></p>
+          <p class="login-why mb-2"><%= reason %></p>
+
+          <%# What Microsoft actually said, and what this machine is
+              configured with. A sign-in failure is nearly always a mismatch
+              between the two, and without this the only way to see it was
+              the server's stdout. The client SECRET is never rendered - only
+              whether one is set. %>
+          <details class="login-diag" <%= lastError ? 'open' : '' %>>
+            <summary>Diagnostics</summary>
+
+            <% if (lastError && lastError.detail) { %>
+            <div class="diag-error">
+              <div class="diag-label">Microsoft returned</div>
+              <code><%= lastError.detail %></code>
+              <div class="diag-meta"><%= lastError.stage %> · <%= lastError.at %></div>
+            </div>
+            <% } %>
+
+            <dl class="diag-list">
+              <dt>SSO_MODE</dt><dd><code><%= diagnostics.mode %></code></dd>
+              <dt>Tenant</dt>
+              <dd><code><%= diagnostics.tenantId || 'not set' %></code></dd>
+              <dt>Client ID</dt>
+              <dd><code><%= diagnostics.clientId || 'not set' %></code></dd>
+              <dt>Client secret</dt>
+              <dd><code><%= diagnostics.hasSecret ? 'set' : 'NOT SET' %></code></dd>
+              <dt>Redirect URI</dt>
+              <dd><code><%= diagnostics.redirectUri || 'not set' %></code></dd>
+            </dl>
+
+            <p class="diag-hint mb-0">
+              The redirect URI must match the Entra app registration exactly —
+              scheme, port and path, registered under <em>Web</em>, not SPA.
+              Values come from <code>.env.local</code>; restart the server
+              after changing them.
+            </p>
+          </details>
         </div>
       </div>
     </div>

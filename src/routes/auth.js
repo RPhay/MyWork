@@ -60,11 +60,32 @@ async function requireSsoEnabled(req, res, next) {
 // instant bounce to Microsoft makes a misconfiguration look like a hang,
 // and leaves nowhere to show `reason`.
 router.get("/login", requireSsoEnabled, async (req, res) => {
+  // Read-and-clear: the detail belongs to the attempt that just failed, and
+  // leaving it set would make the NEXT visit look like a fresh failure.
+  const lastError = req.session.ssoLastError || null;
+  if (req.session.ssoLastError) delete req.session.ssoLastError;
+
+  const state = res.locals.ssoState;
+
   res.render("pages/login", {
     title: "Sign in",
     appName: config.app.name,
-    reason: res.locals.ssoState.reason,
+    reason: state.reason,
     error: req.query.error || null,
+    lastError,
+    // What this machine is CONFIGURED with, for the diagnostics panel.
+    //
+    // The tenant and client id are shown because a sign-in failure is very
+    // often one of them being wrong, and comparing them against the Entra
+    // app registration is the fix. The SECRET is never shown - only whether
+    // one is present, which is the only thing anyone needs to know about it.
+    diagnostics: {
+      mode: state.intent,
+      tenantId: config.sso.tenantId || null,
+      clientId: config.sso.clientId || null,
+      hasSecret: Boolean(config.sso.clientSecret),
+      redirectUri: config.sso.redirectUri || null,
+    },
   });
 });
 
@@ -136,7 +157,17 @@ router.get("/callback", requireSsoEnabled, async (req, res) => {
     logger.info("SSO sign-in complete", { userId });
     res.redirect("/");
   } catch (error) {
-    logger.error("SSO callback failed", { error: error.message });
+    // Keep what Entra actually said, for the login page to show. Held in the
+    // session and cleared on read rather than passed through the query
+    // string: an AADSTS description is long, and a URL is the wrong place
+    // for something the browser will keep in history.
+    const detail = error.entraDetail || error.message || null;
+    logger.error("SSO callback failed", { detail });
+    req.session.ssoLastError = {
+      detail,
+      at: new Date().toISOString(),
+      stage: error.entraDetail ? "token-exchange-or-graph" : "callback",
+    };
     res.redirect("/auth/login?error=" + encodeURIComponent("sign-in-failed"));
   }
 });

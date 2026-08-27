@@ -36,13 +36,50 @@ export class EntraIdAuth {
   }
 
   /**
+   * Microsoft's token endpoint accepts ONLY
+   * application/x-www-form-urlencoded. Passing axios a plain object sends
+   * JSON, which it rejects before ever looking at the credentials - so a
+   * perfectly correct tenant, client id and secret still fail. Every POST to
+   * the authority goes through here so that cannot be got wrong in one place
+   * and right in another.
+   */
+  async _postForm(path, fields) {
+    return axios.post(
+      `${this.authorityUrl}/${path}`,
+      new URLSearchParams(fields).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+  }
+
+  /**
+   * Turn an axios failure into a message that says what Entra actually
+   * objected to. Microsoft returns { error, error_description } and the
+   * description carries the AADSTS code - the single most useful string in
+   * the whole flow, and previously discarded in favour of "Failed to
+   * exchange authorization code for token".
+   *
+   * Never includes the client secret: only fields Entra itself sent back.
+   */
+  static describeAuthError(error, fallback) {
+    const data = error.response?.data;
+    if (data?.error_description) {
+      // The description is multi-line and repeats the correlation id; the
+      // first line carries the AADSTS code and the human explanation.
+      return String(data.error_description).split(/\r?\n/)[0].trim();
+    }
+    if (data?.error) return String(data.error);
+    if (error.code) return `${error.code} contacting Microsoft`;
+    return error.message || fallback;
+  }
+
+  /**
    * Exchange authorization code for access token
    * @param {string} code - Authorization code from redirect
    * @returns {Promise<{accessToken, refreshToken, expiresIn, idToken}>}
    */
   async exchangeCodeForToken(code) {
     try {
-      const response = await axios.post(`${this.authorityUrl}/token`, {
+      const response = await this._postForm('token', {
         client_id: this.clientId,
         client_secret: this.clientSecret,
         code: code,
@@ -58,8 +95,14 @@ export class EntraIdAuth {
         idToken: response.data.id_token
       };
     } catch (error) {
-      console.error('Error exchanging code for token:', error.response?.data || error.message);
-      throw new Error('Failed to exchange authorization code for token');
+      const detail = EntraIdAuth.describeAuthError(
+        error,
+        'Failed to exchange authorization code for token'
+      );
+      console.error('Error exchanging code for token:', detail);
+      const wrapped = new Error(detail);
+      wrapped.entraDetail = detail;
+      throw wrapped;
     }
   }
 
@@ -70,7 +113,7 @@ export class EntraIdAuth {
    */
   async refreshAccessToken(refreshToken) {
     try {
-      const response = await axios.post(`${this.authorityUrl}/token`, {
+      const response = await this._postForm('token', {
         client_id: this.clientId,
         client_secret: this.clientSecret,
         refresh_token: refreshToken,
@@ -83,8 +126,14 @@ export class EntraIdAuth {
         expiresIn: response.data.expires_in
       };
     } catch (error) {
-      console.error('Error refreshing token:', error.response?.data || error.message);
-      throw new Error('Failed to refresh access token');
+      const detail = EntraIdAuth.describeAuthError(
+        error,
+        'Failed to refresh access token'
+      );
+      console.error('Error refreshing token:', detail);
+      const wrapped = new Error(detail);
+      wrapped.entraDetail = detail;
+      throw wrapped;
     }
   }
 
@@ -119,8 +168,14 @@ export class EntraIdAuth {
         surname: response.data.surname
       };
     } catch (error) {
-      console.error('Error fetching user info:', error.response?.data || error.message);
-      throw new Error('Failed to fetch user information');
+      const detail = EntraIdAuth.describeAuthError(
+        error,
+        'Failed to fetch user information from Microsoft Graph'
+      );
+      console.error('Error fetching user info:', detail);
+      const wrapped = new Error(detail);
+      wrapped.entraDetail = detail;
+      throw wrapped;
     }
   }
 
@@ -130,7 +185,7 @@ export class EntraIdAuth {
    */
   async revokeRefreshToken(refreshToken) {
     try {
-      await axios.post(`${this.authorityUrl}/revoke`, {
+      await this._postForm('revoke', {
         client_id: this.clientId,
         client_secret: this.clientSecret,
         token: refreshToken,
