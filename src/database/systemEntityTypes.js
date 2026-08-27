@@ -591,7 +591,15 @@ export const ENGINE_FIELD_DEFS = [
   { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
   { field_key: 'focus_monitor', label: 'Focus bar monitor', field_type: 'number', required: false, show_in_row: false },
   { field_key: 'focus_color', label: 'Focus chip colour', field_type: 'text', required: false, show_in_row: false },
-  { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+  // `rollup: 'sum'` so a folder totals the time planned inside it - the eight
+  // types that declare time_box in their own field list all carry it, and a
+  // type getting its Time Box from HERE was the only way to end up with the
+  // field and not the roll-up. That is how `ado_work_item` and
+  // `outlook_calendar` came to differ from every editable type. The seeders
+  // backfill it where the column is NULL, so the three that already differ are
+  // corrected on the next schema run without overwriting anyone's choice
+  // ("No roll-up" stores '', never NULL).
+  { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false, rollup: 'sum' },
 ];
 
 /**
