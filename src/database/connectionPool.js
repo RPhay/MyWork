@@ -11,7 +11,7 @@ import {
   toNamedParams,
   qualifyTablesForMssql,
   MSSQL_SCHEMA,
-} from "./mssqlTranslation.js";
+  assertNoUnqualifiedTables,} from "./mssqlTranslation.js";
 
 let pool;
 let currentConfig = {
@@ -101,10 +101,16 @@ async function getMssqlKnownTables() {
       result.recordset.map((r) => String(r.name).toLowerCase()),
     );
   } catch (error) {
-    // Never let this break a query: an empty set simply qualifies nothing,
-    // which is the behaviour that existed before this cache.
+    // A FAILURE, not a fallback. Without the table list nothing can be
+    // qualified, and continuing means every statement in this process
+    // silently addresses dbo instead of [MyWork] - saving rows that are
+    // never seen again, with no error anywhere. Empty-set-so-qualify-nothing
+    // is exactly how that stayed invisible. See CLAUDE.md.
     logger.error("Could not read the MyWork table list:", error);
-    mssqlKnownTables = new Set();
+    mssqlKnownTables = null;
+    throw new Error(
+      `Cannot address the ${MSSQL_SCHEMA} schema: its table list could not be read (${error.message})`,
+    );
   }
   return mssqlKnownTables;
 }
@@ -120,10 +126,10 @@ async function executeMssql(sqlText, values) {
   // Last, so it sees the finished statement: the rewrites above can introduce
   // table references of their own (the upsert becomes a MERGE naming its
   // target), and those need pinning to [MyWork] just as much as the original.
-  rewritten.sql = qualifyTablesForMssql(
-    rewritten.sql,
-    await getMssqlKnownTables(),
-  );
+  const knownTables = await getMssqlKnownTables();
+  rewritten.sql = qualifyTablesForMssql(rewritten.sql, knownTables);
+  // Checked, not trusted - see assertNoUnqualifiedTables.
+  assertNoUnqualifiedTables(rewritten.sql, knownTables);
   const { translatedSql, params } = toNamedParams(
     rewritten.sql,
     rewritten.values,

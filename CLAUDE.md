@@ -42,6 +42,43 @@ making the change, not as a separate step you might forget.
 merge between the two development machines. Why, and how to resolve it:
 `CLAUDE_REFERENCE.md`.
 
+## NOTHING EVER FALLS BACK TO `dbo`. EVER.
+
+Every table, on **every** engine, lives in the `MyWork` schema/database and is
+addressed there explicitly. On SQL Server that means `[MyWork].[thing]` in
+every statement, without exception.
+
+**This is not a style preference. An unqualified name does not fail - it
+resolves against the login's default schema and silently succeeds somewhere
+else.** So a statement that writes `dbo.entities` and another that reads
+`[MyWork].entities` both "work", and the symptom is a row that saves, reports
+success, and is never seen again. Nothing in the app reports it, no error is
+logged, and no test catches it, because from SQL Server's point of view
+nothing went wrong.
+
+Three rules, all of them load-bearing:
+
+- **Every pool qualifies.** `connectionPool.js` and `homePool.js` both run
+  MSSQL, and both must pass every statement through
+  `qualifyTablesForMssql()`. `homePool.js` did NOT until 2026-08-27, which
+  meant every read and write of `users`, `contexts`, `context_folders`,
+  `context_tab_settings` and `user_identities` went out unqualified. It
+  appeared to work only because the login's default schema happened to be
+  right - luck, not design.
+- **A missing table list is a FAILURE, not a fallback.** If the `[MyWork]`
+  table list cannot be read, qualification is impossible, and continuing
+  means every statement in the process silently addresses `dbo`. It throws
+  instead. Empty-set-so-qualify-nothing is how this stayed invisible.
+- **The check is enforced, not trusted.** `assertNoUnqualifiedTables()` runs
+  after the rewrites and throws if any known table name still appears
+  unqualified. A rewrite that misses a case must break loudly the first time
+  it runs, rather than writing to `dbo` for a month.
+
+If you add a rewrite to `mssqlTranslation.js`, it runs BEFORE qualification,
+and the qualifier sees its output - a rewrite that introduces a new table
+reference (the upsert becomes a `MERGE` naming its target) must therefore be
+qualifiable, and there is a unit test for exactly that.
+
 ## Database schema changes must cover every supported database type
 
 Any change to the schema — a new/dropped column, table, index, or constraint — must be made in **both** `src/database/schema/mysqlSchema.js` (canonical) and `src/database/schema/mssqlSchema.js` (T-SQL translation), never just one. Each is idempotent and re-run on every "Fix Schema" / schema-update call, so a new column needs a matching `columnExists()` backfill block in both files (not just the `CREATE TABLE` body), or it will silently never reach installs whose tables predate that column — this is exactly how columns have gone missing on MSSQL after schema work done only against MySQL. `mssqlSchema.js`'s own header comment states this same rule; this entry exists so it isn't missed at the point a change is made in `mysqlSchema.js`.

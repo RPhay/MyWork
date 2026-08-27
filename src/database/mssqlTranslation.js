@@ -219,22 +219,78 @@ export const MSSQL_SCHEMA = "MyWork";
  * a column or a table that genuinely is not ours is left untouched. An empty
  * set rewrites nothing.
  */
+// The keywords a table name can follow. DELETE/UPDATE take a name directly;
+// everything else arrives via FROM, JOIN or INTO.
+//
+// MERGE is here because rewriteUpsertForMssql PRODUCES one - the upsert
+// becomes `MERGE <table> AS target`, which is a table reference this file
+// created itself. It was missing until 2026-08-27, so every field-value
+// upsert on SQL Server named its target unqualified and resolved it against
+// the login's default schema. A rewrite that introduces a table reference has
+// to be qualifiable, and the unit tests now check that specifically.
+const TABLE_REF_PATTERN =
+  /\b(FROM|JOIN|INTO|UPDATE|TABLE|MERGE)\s+(\[?)([A-Za-z_][A-Za-z0-9_]*)(\]?)/gi;
+
 export function qualifyTablesForMssql(sqlText, knownTables) {
   if (!knownTables || knownTables.size === 0) return sqlText;
 
-  // The keywords a table name can follow. DELETE/UPDATE take a name directly;
-  // everything else arrives via FROM, JOIN or INTO.
-  const pattern = /\b(FROM|JOIN|INTO|UPDATE|TABLE)\s+(\[?)([A-Za-z_][A-Za-z0-9_]*)(\]?)/gi;
+  return sqlText.replace(
+    TABLE_REF_PATTERN,
+    (match, keyword, openBracket, name, closeBracket, offset) => {
+      if (!knownTables.has(name.toLowerCase())) return match;
 
-  return sqlText.replace(pattern, (match, keyword, openBracket, name) => {
-    if (!knownTables.has(name.toLowerCase())) return match;
+      // Already qualified - "[MyWork].[x]" reaches here as the [MyWork] part,
+      // and its table name is not in the set, so it is skipped above. This
+      // guards the other direction: a name followed by a dot is a qualifier,
+      // not a table.
+      //
+      // Uses the match's OFFSET, not indexOf(match). indexOf finds the FIRST
+      // occurrence of that text, so in a statement naming the same table
+      // twice, the second occurrence was tested against the first one's
+      // surroundings - and could be left unqualified, which on SQL Server
+      // means it silently addresses dbo.
+      const after = sqlText.slice(offset + match.length);
+      if (after.startsWith(".")) return match;
 
-    // Already qualified - "[MyWork].[x]" reaches here as the [MyWork] part, and
-    // its table name is not in the set, so it is skipped above. This guards the
-    // other direction: a name followed by a dot is a qualifier, not a table.
-    const after = sqlText.slice(sqlText.indexOf(match) + match.length);
-    if (after.startsWith(".")) return match;
+      return `${keyword} [${MSSQL_SCHEMA}].[${name}]`;
+    },
+  );
+}
 
-    return `${keyword} [${MSSQL_SCHEMA}].[${name}]`;
-  });
+/**
+ * Refuse to run a statement that still names a known table unqualified.
+ *
+ * The whole danger of this dialect is that an unqualified name does NOT
+ * fail - it resolves against the login's default schema and quietly succeeds
+ * somewhere else. A row saves, reports success, and is never seen again, and
+ * nothing anywhere reports a problem.
+ *
+ * So the qualifier's output is CHECKED rather than trusted: a rewrite that
+ * misses a case breaks loudly the first time it runs, instead of writing to
+ * dbo for a month. See the `dbo` section in CLAUDE.md.
+ */
+export function assertNoUnqualifiedTables(sqlText, knownTables) {
+  if (!knownTables || knownTables.size === 0) return sqlText;
+
+  const offenders = [];
+  for (const m of sqlText.matchAll(TABLE_REF_PATTERN)) {
+    const name = m[3];
+    if (!knownTables.has(name.toLowerCase())) continue;
+
+    // A name followed by a dot is a schema qualifier, not a table.
+    const after = sqlText.slice(m.index + m[0].length);
+    if (after.startsWith(".")) continue;
+
+    offenders.push(name);
+  }
+
+  if (offenders.length > 0) {
+    throw new Error(
+      `Refusing to run SQL that names ${[...new Set(offenders)].join(", ")} ` +
+        `without the [${MSSQL_SCHEMA}] schema - an unqualified name silently ` +
+        `resolves to dbo on SQL Server. SQL: ${sqlText.slice(0, 300)}`,
+    );
+  }
+
+  return sqlText;
 }

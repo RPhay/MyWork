@@ -12,6 +12,9 @@ import {
   rewriteInsertIgnoreForMssql,
   rewriteNowForMssql,
   toNamedParams,
+  qualifyTablesForMssql,
+  assertNoUnqualifiedTables,
+  MSSQL_SCHEMA,
 } from "./mssqlTranslation.js";
 import { createMysqlSchema } from "./schema/mysqlSchema.js";
 import { createMssqlSchema } from "./schema/mssqlSchema.js";
@@ -92,9 +95,47 @@ async function getPool() {
   return pool;
 }
 
+// The [MyWork] table list, for qualification. Mirrors connectionPool's cache
+// deliberately rather than sharing it: the two pools point at different
+// databases, so one set of table names cannot describe both.
+let mssqlKnownTables = null;
+
+async function getMssqlKnownTables() {
+  if (mssqlKnownTables) return mssqlKnownTables;
+  try {
+    const p = await getPool();
+    const result = await p
+      .request()
+      .query(
+        `SELECT name FROM sys.tables WHERE SCHEMA_NAME(schema_id) = '${MSSQL_SCHEMA}'`,
+      );
+    mssqlKnownTables = new Set(
+      result.recordset.map((r) => String(r.name).toLowerCase()),
+    );
+  } catch (error) {
+    // A failure, not a fallback - see the dbo section in CLAUDE.md.
+    logger.error("Could not read the MyWork table list (home pool):", error);
+    mssqlKnownTables = null;
+    throw new Error(
+      `Cannot address the ${MSSQL_SCHEMA} schema: its table list could not be read (${error.message})`,
+    );
+  }
+  return mssqlKnownTables;
+}
+
 async function executeMssql(sqlText, values) {
   const rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
   rewritten.sql = rewriteNowForMssql(rewritten.sql);
+
+  // THIS POOL QUALIFIES TOO. It did not until 2026-08-27, so every read and
+  // write of users, contexts, context_folders, context_tab_settings and
+  // user_identities went out unqualified and resolved against the login's
+  // default schema - silently addressing dbo whenever that was not [MyWork].
+  // It appeared to work only by luck. See CLAUDE.md.
+  const knownTables = await getMssqlKnownTables();
+  rewritten.sql = qualifyTablesForMssql(rewritten.sql, knownTables);
+  assertNoUnqualifiedTables(rewritten.sql, knownTables);
+
   const { translatedSql, params } = toNamedParams(
     rewritten.sql,
     rewritten.values,

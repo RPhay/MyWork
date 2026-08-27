@@ -6,6 +6,7 @@ import {
   rewriteUpsertForMssql,
   toNamedParams,
   qualifyTablesForMssql,
+  assertNoUnqualifiedTables,
 } from '../../src/database/mssqlTranslation.js';
 
 /**
@@ -182,5 +183,93 @@ describe('qualifyTablesForMssql', () => {
     const sql = 'SELECT * FROM contexts';
     expect(qualifyTablesForMssql(sql, new Set())).toBe(sql);
     expect(qualifyTablesForMssql(sql, null)).toBe(sql);
+  });
+});
+
+/**
+ * NOTHING FALLS BACK TO dbo.
+ *
+ * An unqualified name on SQL Server does not fail - it resolves against the
+ * login's default schema and quietly succeeds somewhere else, so a row saves,
+ * reports success, and is never seen again. These guard the two ways that has
+ * actually happened. See the dbo section in CLAUDE.md.
+ */
+describe('nothing falls back to dbo', () => {
+  const known = new Set(['entities', 'contexts', 'users', 'entity_field_values']);
+
+  // The bug: qualifyTablesForMssql used indexOf(match) to look at what
+  // followed a match, which finds the FIRST occurrence of that text. A
+  // statement naming the same table twice had its second occurrence tested
+  // against the first one's surroundings.
+  it('qualifies EVERY occurrence when a table is named more than once', () => {
+    const sql =
+      'SELECT * FROM entities e JOIN entities p ON p.id = e.parent_id';
+    const out = qualifyTablesForMssql(sql, known);
+    expect(out).toBe(
+      'SELECT * FROM [MyWork].[entities] e JOIN [MyWork].[entities] p ON p.id = e.parent_id',
+    );
+    expect(() => assertNoUnqualifiedTables(out, known)).not.toThrow();
+  });
+
+  it('qualifies an INSERT target, not just a FROM', () => {
+    const out = qualifyTablesForMssql(
+      'INSERT INTO entities (title) VALUES (?)',
+      known,
+    );
+    expect(out).toBe('INSERT INTO [MyWork].[entities] (title) VALUES (?)');
+  });
+
+  it('qualifies UPDATE and DELETE targets', () => {
+    expect(qualifyTablesForMssql('UPDATE entities SET title = ?', known)).toBe(
+      'UPDATE [MyWork].[entities] SET title = ?',
+    );
+    expect(
+      qualifyTablesForMssql('DELETE FROM entities WHERE id = ?', known),
+    ).toBe('DELETE FROM [MyWork].[entities] WHERE id = ?');
+  });
+
+  it('THROWS rather than letting an unqualified table through', () => {
+    expect(() =>
+      assertNoUnqualifiedTables('SELECT * FROM entities', known),
+    ).toThrow(/entities/);
+    expect(() =>
+      assertNoUnqualifiedTables('INSERT INTO users (name) VALUES (?)', known),
+    ).toThrow(/users/);
+  });
+
+  it('names every offending table, so one fix does not hide the next', () => {
+    expect(() =>
+      assertNoUnqualifiedTables(
+        'SELECT * FROM entities JOIN contexts ON 1=1',
+        known,
+      ),
+    ).toThrow(/entities, contexts/);
+  });
+
+  it('accepts a fully qualified statement', () => {
+    expect(() =>
+      assertNoUnqualifiedTables(
+        'SELECT * FROM [MyWork].[entities] JOIN [MyWork].[contexts] ON 1=1',
+        known,
+      ),
+    ).not.toThrow();
+  });
+
+  it('leaves tables that are not ours alone, and does not object to them', () => {
+    const sql = 'SELECT * FROM sys.tables JOIN some_other_table ON 1=1';
+    expect(qualifyTablesForMssql(sql, known)).toBe(sql);
+    expect(() => assertNoUnqualifiedTables(sql, known)).not.toThrow();
+  });
+
+  // A rewrite that introduces a table reference of its own must still be
+  // qualifiable - the upsert becomes a MERGE naming its target.
+  it('qualifies a table reference introduced by an earlier rewrite', () => {
+    const { sql } = rewriteUpsertForMssql(
+      'INSERT INTO entity_field_values (entity_id, value_text) VALUES (?, ?) ON DUPLICATE KEY UPDATE value_text = VALUES(value_text)',
+      [1, 'x'],
+    );
+    const out = qualifyTablesForMssql(sql, known);
+    expect(() => assertNoUnqualifiedTables(out, known)).not.toThrow();
+    expect(out).toContain('[MyWork].[entity_field_values]');
   });
 });
