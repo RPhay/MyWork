@@ -88,8 +88,21 @@ router.get("/callback", requireSsoEnabled, async (req, res) => {
 
   // State must match what we issued. Rejecting on mismatch is what stops a
   // forged callback from logging this browser in as somebody else.
+  //
+  // The two failures are reported SEPARATELY because they have nothing to do
+  // with each other and only one of them is suspicious. "No state at all"
+  // means the session cookie did not come back - the browser withheld it, or
+  // the session expired - and lumping it in with a genuine mismatch sends
+  // you looking for tampering when the cause is a cookie policy.
   const issued = req.session.ssoState;
-  if (!issued || !state || issued.state !== state) {
+  if (!issued) {
+    logger.warn("SSO callback arrived with no session state", {
+      hasStateParam: Boolean(state),
+    });
+    return res.redirect("/auth/login?error=no-session");
+  }
+  if (!state || issued.state !== state) {
+    logger.warn("SSO callback state did not match the one issued");
     return res.redirect("/auth/login?error=state-mismatch");
   }
   delete req.session.ssoState;

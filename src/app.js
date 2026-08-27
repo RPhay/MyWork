@@ -56,7 +56,21 @@ app.use(
     cookie: {
       secure: config.app.env === "production", // HTTPS only in production
       httpOnly: true,
-      sameSite: "strict",
+      // 'strict' unless single sign-on is in use, and this is NOT a
+      // preference - Strict is incompatible with OAuth.
+      //
+      // The browser deliberately withholds a Strict cookie on a cross-site
+      // navigation, and the redirect back from login.microsoftonline.com to
+      // /auth/callback is exactly that. The callback therefore ran with a
+      // brand-new empty session, could not find the state it had issued, and
+      // reported "that sign-in could not be verified" - which reads like a
+      // tampered request rather than a cookie that was never sent.
+      //
+      // 'lax' sends the cookie on top-level GET navigations (the callback)
+      // while still withholding it from cross-site POSTs and subresource
+      // requests, which is the CSRF vector that matters; csurf covers the
+      // rest. Scoped to SSO_MODE so a machine with SSO off keeps Strict.
+      sameSite: config.sso.mode === "off" ? "strict" : "lax",
       maxAge: config.session.timeout,
     },
   }),
