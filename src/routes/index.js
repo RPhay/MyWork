@@ -13,6 +13,7 @@ import ideasRouter from "./api/ideas.js";
 import ideaFoldersRouter from "./api/ideaFolders.js";
 import contextsRouter from "./api/contexts.js";
 import activeContextRouter from "./api/activeContext.js";
+import activeUserRouter from "./api/activeUser.js";
 import usersRouter from "./api/users.js";
 import contextDatabaseConfigRouter from "./api/contextDatabaseConfig.js";
 import systemDatabaseRouter from "./api/systemDatabase.js";
@@ -46,6 +47,7 @@ router.use("/api/", async (req, res, next) => {
     "/api/contexts",
     "/api/context-folders",
     "/api/users",
+    "/api/active-user",   // How you CHANGE profile - must work with no context
     "/api/context-database-config",
     "/api/system-database",
     "/api/setup",
@@ -98,6 +100,7 @@ router.use("/api/ideas", ideasRouter);
 router.use("/api/idea-folders", ideaFoldersRouter);
 router.use("/api/contexts", contextsRouter);
 router.use("/api/active-context", activeContextRouter);
+router.use("/api/active-user", activeUserRouter);
 router.use("/api/users", usersRouter);
 router.use("/api/context-database-config", contextDatabaseConfigRouter);
 router.use("/api/system-database", systemDatabaseRouter);
@@ -141,6 +144,26 @@ router.get("/", async (req, res) => {
     // which the client resolves from the rendered tab buttons.
     const tab = req.query.tab || "priority";
     const version = readVersion();
+
+    // A profile that owns no contexts has nothing to show here.
+    //
+    // Rendering the dashboard anyway does not degrade gracefully - it degrades
+    // into a storm: every tab fires its own fetch, each one resolves the active
+    // context, each one throws, and the page never finishes loading. That is
+    // what a freshly created profile hit, and the symptom (a page that hangs)
+    // says nothing about the cause (you own no contexts yet).
+    //
+    // Send them where the problem is fixable instead. Settings renders without
+    // needing an active context, so this cannot bounce back and forth.
+    const { getActiveUserId } = await import("../services/activeUserService.js");
+    const { getContextsForUser } = await import("../services/contextService.js");
+    const activeUserId = await getActiveUserId();
+    if (activeUserId) {
+      const owned = await getContextsForUser(activeUserId);
+      if (owned.length === 0) {
+        return res.redirect("/settings?tab=contexts&needsContext=1");
+      }
+    }
 
     // Fetch all active entity types for generic tab rendering
     const entityTypes = await entityTypeService.getAllEntityTypes();

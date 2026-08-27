@@ -1,14 +1,26 @@
 import express from 'express';
 import * as contextService from '../../services/contextService.js';
 import * as backupService from '../../services/backupService.js';
+import * as activeUserService from '../../services/activeUserService.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
 
-// Get all contexts
+// The contexts the current user owns.
+//
+// Filtered here rather than inside getAllContexts, which still returns every
+// context for the callers that need that - schemaMigrationService walks all of
+// them to apply a schema change, and would silently skip databases if this
+// filter lived in the service.
+//
+// With nobody chosen (a fresh install, before the picker has been used) this
+// falls back to the full list so Settings > Contexts is reachable at all.
 router.get('/', async (req, res) => {
   try {
-    const contexts = await contextService.getAllContexts();
+    const userId = await activeUserService.getActiveUserId();
+    const contexts = userId
+      ? await contextService.getContextsForUser(userId)
+      : await contextService.getAllContexts();
     res.json({ success: true, data: contexts });
   } catch (error) {
     logger.error('Error fetching contexts:', error);
@@ -38,10 +50,17 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create context
+// Create context, owned by whoever is using the app.
+//
+// An explicit user_id in the body still wins, so Settings can create a context
+// on someone else's behalf; the current user is the default, not an override.
 router.post('/', async (req, res) => {
   try {
-    const context = await contextService.createContext(req.body);
+    const userId = await activeUserService.getActiveUserId();
+    const context = await contextService.createContext({
+      ...req.body,
+      user_id: req.body.user_id ?? userId ?? null,
+    });
     res.status(201).json({ success: true, message: 'Context created', data: context });
   } catch (error) {
     logger.error('Error creating context:', error);

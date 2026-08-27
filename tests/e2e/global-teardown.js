@@ -28,6 +28,7 @@ export default async function globalTeardown() {
   }
 
   await sweepTestFields();
+  await sweepTestUsers();
 
   if (!rows.length) return;
 
@@ -77,5 +78,38 @@ async function sweepTestFields() {
     console.log(`[teardown] swept ${fields.length} leftover test field definition(s)`);
   } catch (err) {
     console.warn(`[teardown] field sweep failed: ${err.message}`);
+  }
+}
+
+/**
+ * Leftover test PROFILES.
+ *
+ * user-profiles.spec creates a `ZZZ Profile Probe` to prove that a second
+ * profile sees none of the first one's contexts, and removes it in an
+ * `afterAll` - which, like every other teardown that runs through the page,
+ * cannot finish if the page is already gone. Same failure mode that left six
+ * `zzz` field definitions on the Ideas type.
+ *
+ * A stray profile is not as damaging as a stray field definition - it renders
+ * nothing - but it does show up in the switcher, and the switcher is a list of
+ * real people. Somebody else's test artefact sitting in it is confusing in a
+ * way a hidden row is not.
+ *
+ * Only profiles owning NO contexts are swept, which is the same rule
+ * userService.deleteUser enforces: a profile that owns a context is either
+ * real, or a test failure that needs looking at rather than tidying away.
+ */
+async function sweepTestUsers() {
+  try {
+    const users = await query(
+      "SELECT u.id, u.name FROM users u"
+      + " LEFT JOIN contexts c ON c.user_id = u.id"
+      + " WHERE u.name LIKE 'ZZZ%' AND c.id IS NULL",
+    );
+    if (!users.length) return;
+    await query(`DELETE FROM users WHERE id IN (${users.map((u) => u.id).join(',')})`);
+    console.log(`[teardown] swept ${users.length} leftover test profile(s)`);
+  } catch (err) {
+    console.warn(`[teardown] profile sweep failed: ${err.message}`);
   }
 }

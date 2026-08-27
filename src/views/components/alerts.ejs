@@ -18,3 +18,22 @@
     </div>
   <% } %>
 <% } %>
+
+<%# Shown when nobody has chosen a profile yet - a fresh install, or after the
+    chosen one was deleted. Static backdrop: at this point the app is already
+    showing SOMEBODY'S data (getActiveContextId falls back), so dismissing it
+    without choosing would leave that unnoticed, which is the one thing the
+    profile picker exists to prevent. %>
+<div class="modal fade" id="userPickerModal" tabindex="-1" aria-labelledby="userPickerTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="userPickerTitle"><i class="bi bi-person-circle me-2"></i>Who's using MyWork?</h5>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Choose a profile to see its contexts and records. You can switch any time from the navbar.</p>
+        <div class="list-group" id="userPickerList"></div>
+      </div>
+    </div>
+  </div>
+</div>

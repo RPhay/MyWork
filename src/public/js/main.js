@@ -761,13 +761,179 @@ function showContextDatabaseConfigModal(contextId) {
   modal.show();
 }
 
+
+// Local view state belongs to whoever was last here.
+//
+// Thirty-nine localStorage call sites across seven files hold theme, split-pane
+// widths, which rows are expanded, the open editor, saved views and the focus
+// palette. All of it is per BROWSER, so without this, switching profile leaves
+// you looking at the previous person's layout and theme.
+//
+// Cleared wholesale on a change of user rather than namespaced per key. Many of
+// those keys are COMPUTED (`entity-expanded-${id}`, `splitPane-${id}-left`), so
+// a prefix scheme means editing every site and would half-land the first time
+// one was missed - and a missed one is invisible, because stale layout looks
+// like a preference, not a bug. Clearing cannot be half-done.
+//
+// The trade: your layout resets when you switch, rather than each profile
+// keeping its own. Keeping it per profile means moving this state server-side,
+// which is a bigger change than the leak justifies today.
+//
+// Safe to clear everything: this origin serves only MyWork, so nothing else
+// stores anything here.
+function forgetOtherProfilesLocalState(user) {
+  const MARKER = 'mywork.lastUserId';
+  try {
+    const current = user ? String(user.id) : '';
+    const previous = localStorage.getItem(MARKER);
+    // First ever load has no marker - record it and clear nothing, or every
+    // existing user loses their layout the day profiles ship.
+    if (previous === null) {
+      localStorage.setItem(MARKER, current);
+      return;
+    }
+    if (previous === current) return;
+
+    localStorage.clear();
+    localStorage.setItem(MARKER, current);
+  } catch {
+    // Private mode, or storage disabled. Nothing to forget in that case.
+  }
+}
+
+// Top-right user switcher (navbar.ejs, present on every page).
+//
+// A PROFILE picker, not a login: there is no password and it is not access
+// control. It decides whose contexts - and therefore whose data - the app is
+// showing. See src/services/activeUserService.js.
+//
+// Switching reloads the page for the same reason switching context does:
+// every tab's data is filtered server-side by the active context, and the new
+// user's context is a different database entirely.
+async function initUserSwitcher() {
+  const btn = document.getElementById('userSwitcherBtn');
+  const label = document.getElementById('userSwitcherLabel');
+  const menu = document.getElementById('userSwitcherMenu');
+  if (!btn) return null;
+
+  try {
+    const response = await fetch('/api/active-user');
+    const result = await response.json();
+    if (!result.success) throw new Error(result.message);
+
+    const { user, users, needsUser, needsContext } = result.data;
+
+    forgetOtherProfilesLocalState(user);
+
+    label.textContent = user ? user.name : 'Choose user';
+
+    // The list, plus a way to add a profile without going to Settings - a new
+    // user is two clicks from here, which is the whole point of a picker.
+    menu.innerHTML = (users || []).map(u => `
+      <li>
+        <button type="button" class="dropdown-item ${user && u.id === user.id ? 'active' : ''}" data-user-id="${u.id}">
+          <i class="bi bi-person-fill"></i> ${app.escapeHtml(u.name)}
+        </button>
+      </li>
+    `).join('') + `
+      <li><hr class="dropdown-divider"></li>
+      <li><button type="button" class="dropdown-item" id="addUserItem"><i class="bi bi-plus-lg"></i> New user…</button></li>`;
+
+    menu.querySelectorAll('[data-user-id]').forEach(item => {
+      item.addEventListener('click', () => {
+        if (item.classList.contains('active')) return;
+        switchToUser(item.dataset.userId);
+      });
+    });
+
+    const addItem = document.getElementById('addUserItem');
+    if (addItem) addItem.addEventListener('click', promptForNewUser);
+
+    return { user, users, needsUser, needsContext };
+  } catch (error) {
+    console.error('Error loading users:', error);
+    label.textContent = 'User';
+    return null;
+  }
+}
+
+async function switchToUser(userId) {
+  try {
+    const response = await app.fetchRaw('/api/active-user', {
+      method: 'PUT',
+      body: JSON.stringify({ userId })
+    });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify('Error: ' + result.message, 'danger');
+      return;
+    }
+    // A profile that owns nothing is a real state, not a failure - the switch
+    // worked, there is simply nowhere to go yet. Say so instead of reloading
+    // into an error page.
+    if (result.data?.needsContext) {
+      app.notify(`${result.data.user.name} has no contexts yet - create one in Settings`, 'warning');
+      window.location.href = '/settings?tab=contexts';
+      return;
+    }
+    window.location.reload();
+  } catch (error) {
+    console.error('Error switching user:', error);
+    app.notify('Error switching user', 'danger');
+  }
+}
+
+async function promptForNewUser() {
+  const name = await app.prompt('Name for the new profile', { title: 'New user', placeholder: 'e.g. Ryan' });
+  if (!name || !name.trim()) return;
+  try {
+    const response = await app.fetchRaw('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ name: name.trim() })
+    });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify('Error: ' + result.message, 'danger');
+      return;
+    }
+    await switchToUser(result.data.id);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    app.notify('Error creating user', 'danger');
+  }
+}
+
+// Nobody chosen yet - on a fresh install, or after the chosen profile was
+// deleted. The app is showing SOMEBODY'S data at this point (the fallback in
+// getActiveContextId), so this asks rather than letting that pass unnoticed.
+function showUserPicker(users) {
+  if (!users || users.length === 0) return;
+  const el = document.getElementById('userPickerModal');
+  if (!el) return;
+  const list = document.getElementById('userPickerList');
+  list.innerHTML = users.map(u => `
+    <button type="button" class="list-group-item list-group-item-action" data-pick-user="${u.id}">
+      <i class="bi bi-person-circle me-2"></i>${app.escapeHtml(u.name)}
+    </button>
+  `).join('');
+  list.querySelectorAll('[data-pick-user]').forEach(b =>
+    b.addEventListener('click', () => switchToUser(b.dataset.pickUser)));
+  new bootstrap.Modal(el, { backdrop: 'static', keyboard: false }).show();
+}
+
+async function initUserAndContext() {
+  const state = await initUserSwitcher();
+  initContextSwitcher();
+  if (state?.needsUser) showUserPicker(state.users);
+}
+
 // Initialize on page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     console.log('MyWork application initialized');
-    initContextSwitcher();
+    initUserAndContext();
   });
 } else {
   console.log('MyWork application initialized');
-  initContextSwitcher();
+  initUserAndContext();
 }

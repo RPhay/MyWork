@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ValidationError } from '../config/errors.js';
-import { getContextById, getAllContexts } from './contextService.js';
+import { getContextById, getAllContexts, getContextsForUser } from './contextService.js';
+import { getActiveUserId } from './activeUserService.js';
 import { getLiveConnectionConfig } from './contextDatabaseConfigService.js';
 import { encrypt, decrypt } from '../utils/credentialCrypto.js';
 import * as connectionPool from '../database/connectionPool.js';
@@ -32,17 +33,30 @@ function writeStore(store) {
 // database - see applyCachedConnectionAtBoot for why that has to happen first.
 export async function getActiveContextId() {
   const store = readStore();
-  const contexts = await getAllContexts();
-  const ownedContexts = contexts.filter(c => c.user_id);
 
-  if (store.activeContextId && ownedContexts.some(c => c.id === store.activeContextId)) {
+  // Narrowed from "any owned context" to "a context owned by the person using
+  // the app". That single change is what makes profiles work: everything the
+  // app reads comes from the active context's database, so restricting which
+  // context can be active restricts everything downstream with it.
+  //
+  // With nobody chosen yet, fall back to the old behaviour rather than
+  // throwing. A fresh install boots with no data/active-user.json, and the
+  // picker itself has to be able to load.
+  const activeUserId = await getActiveUserId();
+  const candidates = activeUserId
+    ? await getContextsForUser(activeUserId)
+    : (await getAllContexts()).filter(c => c.user_id);
+
+  if (store.activeContextId && candidates.some(c => c.id === store.activeContextId)) {
     return store.activeContextId;
   }
 
-  if (ownedContexts.length === 0) {
-    throw new ValidationError('No contexts have an owner assigned yet - assign one in Settings > Contexts before this context can be used');
+  if (candidates.length === 0) {
+    throw new ValidationError(activeUserId
+      ? 'This user has no contexts yet - create one to get started'
+      : 'No contexts have an owner assigned yet - assign one in Settings > Contexts before this context can be used');
   }
-  return ownedContexts[0].id;
+  return candidates[0].id;
 }
 
 // Switches the live connection pool to whatever context is passed in.
@@ -139,6 +153,13 @@ export async function setActiveContextId(id) {
   const context = await getContextById(id);
   if (!context.user_id) {
     throw new ValidationError('Assign a user to this context (Settings > Contexts) before activating it');
+  }
+  // Nobody may activate somebody else's context. Without this the picker is
+  // decorative: the contexts LIST is filtered, but the endpoint behind it would
+  // still accept any id that was typed or remembered in a URL.
+  const activeUserId = await getActiveUserId();
+  if (activeUserId && context.user_id !== activeUserId) {
+    throw new ValidationError('That context belongs to another user - switch user to open it');
   }
   const store = readStore();
   writeStore({ ...store, activeContextId: context.id });

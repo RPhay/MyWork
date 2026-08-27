@@ -11,6 +11,7 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { getActiveUserId } from './activeUserService.js';
 
 const DIR = path.join(process.cwd(), 'data');
 const SETTINGS_FILE = path.join(DIR, 'focus-monitors.json');
@@ -90,13 +91,42 @@ export function sanitizeSettings(patch) {
   return { count, showNumbers, monitors, maxMonitors };
 }
 
+// PER PROFILE, sharing one file.
+//
+// The focus bar is the most personal thing on the screen - how many zones, what
+// they are called - so leaving it global would be the first place one profile
+// visibly leaked into another.
+//
+// Settings live under `byUser[<id>]`. A user who has never changed theirs falls
+// back to the values at the TOP level of the file, which is the shape this file
+// had before profiles existed. That is deliberate rather than a migration step:
+// the existing configuration keeps working for everybody, and only becomes one
+// person's the moment they change it. Nothing is rewritten, so nothing is lost
+// if profiles are abandoned.
+//
+// With nobody chosen, the top-level values are read and written directly, which
+// is exactly the old behaviour.
+function legacyOf(store) {
+  return { count: store.count, showNumbers: store.showNumbers, monitors: store.monitors };
+}
+
 export async function getMonitorSettings() {
-  return sanitizeSettings({ ...DEFAULT_SETTINGS, ...(await readJson(SETTINGS_FILE, {})) });
+  const store = await readJson(SETTINGS_FILE, {});
+  const userId = await getActiveUserId();
+  const mine = userId ? store.byUser?.[userId] : null;
+  return sanitizeSettings({ ...DEFAULT_SETTINGS, ...(mine ?? legacyOf(store)) });
 }
 
 export async function setMonitorSettings(patch) {
+  const store = await readJson(SETTINGS_FILE, {});
+  const userId = await getActiveUserId();
   const next = sanitizeSettings({ ...(await getMonitorSettings()), ...(patch || {}) });
-  await writeJson(SETTINGS_FILE, next);
+
+  if (userId) {
+    await writeJson(SETTINGS_FILE, { ...store, byUser: { ...(store.byUser || {}), [userId]: next } });
+  } else {
+    await writeJson(SETTINGS_FILE, { ...store, ...next });
+  }
   return next;
 }
 

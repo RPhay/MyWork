@@ -20,6 +20,10 @@ export default defineConfig({
   // Sweeps leftover ZZZ rows once the suite ends. Specs still clean up after
   // themselves; this catches what their hooks cannot, because a hook that
   // cleans up through `page.evaluate` dies with the page a timeout tore down.
+  // Chooses a profile before anything runs - without one the app raises a
+  // static-backdrop picker that blocks every spec. See the file for why this
+  // only bites on a clean checkout, which is what makes it worth automating.
+  globalSetup: './tests/e2e/global-setup.js',
   globalTeardown: './tests/e2e/global-teardown.js',
 
   // Serial, on purpose, and this is not a performance oversight.

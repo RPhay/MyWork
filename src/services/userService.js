@@ -1,5 +1,5 @@
 import * as db from "../database/homePool.js";
-import { ValidationError } from "../config/errors.js";
+import { ValidationError, NotFoundError } from "../config/errors.js";
 
 // Deliberately minimal: a user is just a name, no password or session - it
 // exists only to be assigned as a context's owner (Settings > Contexts).
@@ -48,4 +48,32 @@ export async function findOrCreateUser(name) {
   if (existing) return existing;
 
   return createUser(trimmed);
+}
+
+/**
+ * Remove a profile.
+ *
+ * REFUSES while the user still owns contexts, rather than cascading. A
+ * context's rows live in that context's own database, so deleting the owner
+ * cannot tidy them up - it would only orphan the context, which then appears
+ * in nobody's list and cannot be activated, because activation requires an
+ * owner. That is data made unreachable rather than deleted, which is worse
+ * than either.
+ *
+ * Reassign or delete the contexts first, and the intent stays explicit.
+ */
+export async function deleteUser(id) {
+  const user = await getUserById(id);
+  if (!user) throw new NotFoundError("User not found");
+
+  const owned = await db.query("SELECT name FROM contexts WHERE user_id = ?", [id]);
+  if (owned.length > 0) {
+    throw new ValidationError(
+      `${user.name} still owns ${owned.length} context(s): ${owned.map(c => c.name).join(", ")}. `
+      + "Reassign or delete them first.",
+    );
+  }
+
+  await db.query("DELETE FROM users WHERE id = ?", [id]);
+  return true;
 }

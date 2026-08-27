@@ -26,4 +26,15 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Remove a profile. Refuses while it still owns contexts - see deleteUser.
+router.delete('/:id', async (req, res) => {
+  try {
+    await userService.deleteUser(Number(req.params.id));
+    res.json({ success: true, message: 'User deleted' });
+  } catch (error) {
+    logger.error('Error deleting user:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

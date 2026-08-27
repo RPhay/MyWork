@@ -47,6 +47,29 @@ export async function getAllContexts() {
   return attachUserNames(rows.map(maskContext));
 }
 
+/**
+ * The contexts one user owns.
+ *
+ * A SEPARATE function rather than an argument to getAllContexts, deliberately.
+ * getAllContexts has callers that must keep seeing every context no matter who
+ * is using the app - schemaMigrationService walks all of them to apply a schema
+ * change, and a silently user-filtered list there would skip databases and
+ * report success. Making the filter opt-in means that caller cannot acquire it
+ * by accident.
+ *
+ * An unowned context (user_id NULL) belongs to nobody and is returned to
+ * nobody. It already cannot be activated - see activeContextService - so this
+ * only stops it appearing in a list it could not be chosen from.
+ */
+export async function getContextsForUser(userId) {
+  if (!userId) return [];
+  const rows = await db.query(
+    "SELECT * FROM contexts WHERE user_id = ? ORDER BY order_index ASC, name ASC",
+    [userId],
+  );
+  return attachUserNames(rows.map(maskContext));
+}
+
 export async function getContextById(id) {
   const context = await db.queryOne("SELECT * FROM contexts WHERE id = ?", [
     id,
@@ -59,7 +82,7 @@ export async function getContextById(id) {
 }
 
 export async function createContext(data) {
-  const { name } = data;
+  const { name, user_id } = data;
 
   if (!name) {
     throw new ValidationError("Context name is required");
@@ -71,9 +94,16 @@ export async function createContext(data) {
   const nextOrder = (result?.maxOrder ?? -1) + 1;
 
   try {
+    // The owner is stamped at creation rather than assigned afterwards in
+    // Settings. A context with no owner cannot be activated and appears in
+    // nobody's list, so creating one without an owner produced something the
+    // creator could not then use - and the fix was a step they had no reason
+    // to know about. The caller supplies it (routes resolve the current user)
+    // so this service does not have to reach for activeUserService and form an
+    // import cycle with it.
     const contextId = await db.insert(
-      "INSERT INTO contexts (name, order_index) VALUES (?, ?)",
-      [name, nextOrder],
+      "INSERT INTO contexts (name, order_index, user_id) VALUES (?, ?, ?)",
+      [name, nextOrder, user_id ?? null],
     );
     return getContextById(contextId);
   } catch (error) {
