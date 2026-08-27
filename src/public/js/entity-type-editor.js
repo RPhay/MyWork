@@ -767,6 +767,88 @@ async function saveTypeRelationships(typeId) {
   }
 }
 
+
+// What actually changed, rather than everything on screen.
+//
+// The editor used to send the type rebuilt from the DOM on every save, and the
+// server trusted it. That is one design behind four separate incidents: the
+// status roles were destroyed, Templates came back with supports_hierarchy = 0,
+// fields the form could not draw were silently retyped to `text`, and every
+// type's self-nesting rule was deleted. Each was fixed individually; each was
+// the same shape - a value the form did not really know being sent as though it
+// did.
+//
+// The live example, still latent: `rollup` is read from a <select> that only
+// exists for field types in ROLLUP_MODES. For any other type the read yields ''
+// and is sent as an explicit null, which the server writes. Today every field
+// type that HAS a stored rollup also has a ROLLUP_MODES entry, so nothing is
+// lost - but the moment one gains a rollup without an entry (exactly how
+// `timebox` arrived) opening that type and pressing Save wipes it. That is the
+// mechanism behind all 130 fields once reading rollup = NULL.
+//
+// Sending only differences ends the class instead of the instances: a property
+// the form does not understand is one it cannot have changed, so it is not sent
+// at all, and the server keeps what it had.
+//
+// The fields ARRAY is always sent whole and in order, even when only one entry
+// changed. Its ORDER is the data - the server derives display_order from the
+// index - so a partial array would silently reorder the type. Each entry is
+// trimmed to its identity plus what differs.
+function sameValue(a, b) {
+  // The DOM says true/false, MySQL says 1/0, and an absent value arrives as
+  // null, undefined or ''. Compare what they MEAN, or every save "changes"
+  // every boolean and the diff achieves nothing.
+  if (typeof a === 'boolean' || typeof b === 'boolean') return Boolean(a) === Boolean(b);
+  const empty = (v) => v === null || v === undefined || v === '';
+  if (empty(a) && empty(b)) return true;
+  if (typeof a === 'object' || typeof b === 'object') {
+    const norm = (v) => {
+      if (empty(v)) return null;
+      try { return JSON.stringify(typeof v === 'string' ? JSON.parse(v) : v); } catch { return String(v); }
+    };
+    return norm(a) === norm(b);
+  }
+  return String(a) === String(b);
+}
+
+const TYPE_PROPS = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'supports_folders'];
+const FIELD_PROPS = ['label', 'field_type', 'show_in_row', 'show_column_label', 'rollup', 'field_options'];
+
+function onlyChanges(typeData, original) {
+  if (!original) return typeData;              // creating: nothing to diff against
+
+  const patch = {};
+  for (const prop of TYPE_PROPS) {
+    if (!sameValue(typeData[prop], original[prop])) patch[prop] = typeData[prop];
+  }
+  // Deletions are never inferred from absence - they are stated. Carried
+  // through untouched.
+  if (typeData.removed_field_keys?.length) patch.removed_field_keys = typeData.removed_field_keys;
+
+  const priorByKey = new Map((original.fields || []).map((f) => [f.field_key, f]));
+  let fieldChanged = (original.fields || []).length !== typeData.fields.length;
+
+  patch.fields = typeData.fields.map((field, i) => {
+    const prior = priorByKey.get(field.field_key);
+    if (!prior) { fieldChanged = true; return field; }        // new: send it all
+    if ((original.fields || [])[i]?.field_key !== field.field_key) fieldChanged = true;
+
+    const trimmed = { field_key: field.field_key };
+    for (const prop of FIELD_PROPS) {
+      if (!sameValue(field[prop], prior[prop])) {
+        trimmed[prop] = field[prop];
+        fieldChanged = true;
+      }
+    }
+    return trimmed;
+  });
+
+  // Nothing about the fields moved or differs: leave the whole array out, so a
+  // save that only renamed the type does not touch a single field row.
+  if (!fieldChanged && !patch.removed_field_keys) delete patch.fields;
+  return patch;
+}
+
 async function saveEntityType() {
   const form = document.getElementById('entityTypeForm');
   if (!form.checkValidity()) {
@@ -814,13 +896,28 @@ async function saveEntityType() {
         // through the column chooser on the page itself - one value, two views.
         show_in_row: row.querySelector('.field-show-in-row').checked,
         show_column_label: row.querySelector('.field-show-label').checked,
+      };
+
+      // Roll-up is only CLAIMED for a field type that actually has the control.
+      //
+      // The select is rendered from ROLLUP_MODES; for any type not in it there
+      // is no select, the read yields '', and this used to send an explicit
+      // null - which the server faithfully wrote, wiping a stored roll-up the
+      // form had never shown. Diffing the payload does not help, because a
+      // fabricated null genuinely DIFFERS from the stored value and so reads as
+      // a deliberate change.
+      //
+      // Omitting the key entirely is what makes it safe: the server treats
+      // `undefined` as "not mentioned" and keeps what it had. A form cannot
+      // have changed a control it never drew.
+      if (ROLLUP_MODES[fieldType]) {
         // A status field with no roll-up mode leaves every folder of that type
         // blank no matter what it contains, which is never what someone means
         // by adding a status. The select is empty until its type is chosen, so
         // saving before touching it used to store null - default it instead.
-        rollup: row.querySelector('.field-rollup')?.value
-          || (fieldType === 'status' ? 'status' : null)
-      };
+        fieldData.rollup = row.querySelector('.field-rollup')?.value
+          || (fieldType === 'status' ? 'status' : null);
+      }
 
       // Emoji configuration: one default, or the set to cycle through.
       if (fieldType === 'emoji' || fieldType === 'emojis') {
@@ -880,10 +977,13 @@ async function saveEntityType() {
     const url = currentEditingType ? `/api/entity-types/${currentEditingType.id}` : '/api/entity-types';
     const method = currentEditingType ? 'PUT' : 'POST';
 
+    // Only what changed - see onlyChanges. A create sends everything, because
+    // there is nothing to differ from.
+    const payload = onlyChanges(typeData, currentEditingType);
+
     const response = await app.fetchRaw(url, {
       method,
-      
-      body: JSON.stringify(typeData)
+      body: JSON.stringify(payload)
     });
 
     const result = await response.json();
