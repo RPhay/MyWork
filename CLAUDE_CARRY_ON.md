@@ -13,8 +13,12 @@ http://localhost:3000, after copying `.env.example` to `.env.local`.
 
 **Testing rules are in `CLAUDE_TESTING.md`.** The one that matters most: e2e
 runs write to the user's REAL database, so they leave rows in the app the user
-is looking at. The baseline is **340 entities** - anything above that after a
-run is residue. `global-teardown.js` sweeps leftover `ZZZ` rows AND leftover
+is looking at. The baseline is **304 entities** - anything above that after a
+run is residue. (It was 340 until 2026-08-27, when 36 rows of older spec
+residue - 33 "Test Project for Context Menu" plus the Test/T2 folders around
+them - were backed up to
+`data/entity-backup-2026-08-27T1416-test-residue.json` and removed, along with
+a leaked `tests` entity TYPE that had been rendering as a real tab.) `global-teardown.js` sweeps leftover `ZZZ` rows AND leftover
 `zzz_` field DEFINITIONS, but it is a backstop, not a licence.
 
 ### Where the work stands (2026-08-26)
