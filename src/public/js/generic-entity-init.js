@@ -121,7 +121,24 @@ async function initGenericEntityTab(typeSlug, typeName) {
     if (containsOtherTypes) {
       try {
         const res = await app.fetchRaw('/api/entity-types', {});
-        for (const t of ((await res.json()).data || [])) schemaByTypeId.set(t.id, t);
+        for (const t of ((await res.json()).data || [])) {
+          // NEVER replace the page's own schema with this snapshot.
+          //
+          // Line above seeds the map with the LIVE `typeSchema` - the object the
+          // column-header drag mutates when it renumbers display_order. Letting
+          // this loop overwrite that entry swapped the live object for a copy
+          // taken at load, so after a drag the columns re-rendered in the new
+          // order (they read `typeSchema`) while the editor still opened in the
+          // old one (it reads this map, via schemaForEntity). It came back only
+          // on reload, which is exactly what column-reorder-editor-sync.spec
+          // asserts must not happen: column order and editor field order are
+          // ONE value.
+          //
+          // Only types OTHER than this page's are wanted here anyway - the whole
+          // point of the map is rendering a nested row of a different type.
+          if (t.id === typeSchema.id) continue;
+          schemaByTypeId.set(t.id, t);
+        }
       } catch { /* fall back to the page's own schema */ }
     }
     const schemaForEntity = (entity) => schemaByTypeId.get(entity?.entity_type_id) || typeSchema;
