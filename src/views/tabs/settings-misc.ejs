@@ -43,10 +43,21 @@
         <select class="form-select form-select-sm" id="landingTabSelect"></select>
       </div>
       <div class="col-auto">
+        <label for="landingRailSelect" class="form-label small mb-1">Rail showing</label>
+        <select class="form-select form-select-sm" id="landingRailSelect"></select>
+      </div>
+      <div class="col-auto">
         <button type="button" class="btn btn-sm btn-outline-secondary" id="saveLandingTabBtn">Save</button>
       </div>
     </div>
     <p class="form-text small mt-2" id="landingTabHint"></p>
+    <p class="form-text small">
+      The rail is a separate choice from the tab because a rail is not a tab -
+      it sits <em>beside</em> whichever tab is showing. Applied on a first
+      load, or after a profile change clears saved layout; after that the
+      rails stay wherever you last left them rather than being reset on every
+      visit.
+    </p>
   </div>
 
   <div class="misc-subpane" data-misc-pane="focus-colours">

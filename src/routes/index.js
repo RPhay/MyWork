@@ -154,10 +154,11 @@ router.get("/", async (req, res) => {
     // a type that exists, and the first non-rail type otherwise - so this
     // cannot resolve to a slug with no pane, which is what the old hardcoded
     // fallbacks did.
-    const { resolveLandingTab } = await import(
+    const { resolveLandingTab, getLandingRail } = await import(
       "../services/appPreferencesService.js"
     );
     const tab = req.query.tab || (await resolveLandingTab()) || "priority";
+    const landingRail = getLandingRail();
     const version = readVersion();
 
     // A profile that owns no contexts has nothing to show here.
@@ -187,6 +188,7 @@ router.get("/", async (req, res) => {
       title: "MyWork Dashboard",
       currentYear,
       activeTab: tab,
+      landingRail,
       version,
       dbHealth: res.locals.dbHealth,
       entityTypes: entityTypes || [],

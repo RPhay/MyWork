@@ -56,9 +56,42 @@ function write(prefs) {
   fs.writeFileSync(STORE, JSON.stringify(prefs, null, 2));
 }
 
+// Rails that may be OPENED ON, which is a different question from being a
+// landing TAB. A rail has no tab pane, so it can never be `currentTab` -
+// that is what produced the Dailies-alone-on-screen bug. It can, though, be
+// the pane the app opens showing, which is what "open on Dailies" means and
+// is handled entirely by the rail layout in tabs.js.
+export const LANDING_RAILS = [
+  { slug: "daily", label: "Dailies" },
+  { slug: "template", label: "Templates" },
+];
+
 export function getPreferences() {
-  const { landingTab = null } = read();
-  return { landingTab };
+  const { landingTab = null, landingRail = null } = read();
+  return { landingTab, landingRail };
+}
+
+/** The rail to open showing, or null for none. */
+export function getLandingRail() {
+  return getPreferences().landingRail;
+}
+
+export function setLandingRail(slug) {
+  const prefs = read();
+
+  if (slug === null || slug === "" || slug === undefined) {
+    delete prefs.landingRail;
+    write(prefs);
+    return { landingRail: null };
+  }
+
+  if (!LANDING_RAILS.some((r) => r.slug === slug)) {
+    throw new ValidationError(`'${slug}' is not a rail`);
+  }
+
+  prefs.landingRail = slug;
+  write(prefs);
+  return { landingRail: slug };
 }
 
 /** The stored landing tab, or null when none has been chosen. */

@@ -93,10 +93,27 @@ class TabManager {
       a !== b && !NEVER_TOGETHER.some((pair) => pair.includes(a) && pair.includes(b));
 
     const isOn = (slug) => localStorage.getItem(KEY(slug)) === 'true';
-    // Dailies starts on, matching how the rail behaved when it was the only
-    // one; Templates starts off.
+
+    // Which rail this install opens showing (Settings > Miscellaneous >
+    // Startup). This is NOT the landing tab and must never be confused with
+    // it: a rail has no tab pane, so naming one as `currentTab` leaves the
+    // type pane empty - the exact bug that made the app look like it failed
+    // to load. Opening on a rail is a LAYOUT choice, applied here.
+    const landingRail = document.body?.dataset.landingRail || null;
+
+    // Applied only when nothing has been stored yet - a first load, or after
+    // the profile change that clears local state. Beyond that the rails are
+    // wherever you last left them, and a preference that reasserted itself on
+    // every load would fight you for the layout.
     if (localStorage.getItem(KEY('daily')) === null) {
+      // Dailies starts on, matching how the rail behaved when it was the only
+      // one; Templates starts off.
       localStorage.setItem(KEY('daily'), 'true');
+
+      if (landingRail && landingRail !== 'daily') {
+        localStorage.setItem(KEY('daily'), 'false');
+        localStorage.setItem(KEY(landingRail), 'true');
+      }
     }
 
     const shell = document.getElementById('appShell');

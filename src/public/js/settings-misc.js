@@ -174,10 +174,21 @@
     const blankMonitor = () => ({ label: '', layout: 'side-by-side' });
     let state = { count: 0, showNumbers: false, maxMonitors: 32, monitors: [] };
 
-    function rowHtml(n, m) {
+    // How many rows this panel offers regardless of how many monitors are
+    // actually in use.
+    //
+    // The BAR still draws only what is pinned - that is the derived-count
+    // rule and it is not being undone here. This is the settings table, where
+    // the point is to author a label BEFORE dragging anything onto a monitor;
+    // with only the live count rendered there was no row to type it into.
+    // Nothing here creates a monitor: an empty box never appears on the bar
+    // because a label was written for it.
+    const AUTHORABLE_ROWS = 7;
+
+    function rowHtml(n, m, inUse) {
       return `
-        <tr data-monitor-row="${n}">
-          <td>${n}</td>
+        <tr data-monitor-row="${n}"${inUse ? '' : ' class="text-muted"'}>
+          <td>${n}${inUse ? '' : ' <i class="bi bi-dash-circle" title="Not in use yet - nothing is pinned to this monitor. A label saved here waits for it."></i>'}</td>
           <td><input type="text" class="form-control form-control-sm monitor-label" maxlength="40"
                      value="${(m.label || '').replace(/"/g, '&quot;')}" placeholder="e.g. Today"></td>
           <td>
@@ -201,9 +212,17 @@
     }
 
     function renderRows() {
-      el('monitorRows').innerHTML = Array.from({ length: state.count }, (_, i) =>
-        rowHtml(i + 1, state.monitors[i] || blankMonitor())).join('');
-      el('monitorRowsEmpty').hidden = state.count > 0;
+      // At least AUTHORABLE_ROWS, more if more are actually in use, never
+      // past what the store holds.
+      const rows = Math.min(
+        state.maxMonitors,
+        Math.max(state.count, AUTHORABLE_ROWS),
+      );
+      el('monitorRows').innerHTML = Array.from({ length: rows }, (_, i) =>
+        rowHtml(i + 1, state.monitors[i] || blankMonitor(), i < state.count)).join('');
+      // Never "no monitors yet" now - there are always rows to fill in, and
+      // the per-row marker says which are live.
+      el('monitorRowsEmpty').hidden = true;
     }
 
     function paint(data) {
@@ -248,6 +267,7 @@
   // as a choice here, and validates the same rule on save.
   async function initStartup() {
     const select = document.getElementById('landingTabSelect');
+    const railSelect = document.getElementById('landingRailSelect');
     const saveBtn = document.getElementById('saveLandingTabBtn');
     const hint = document.getElementById('landingTabHint');
     if (!select || !saveBtn) return;
@@ -256,7 +276,8 @@
       try {
         const body = await (await fetch('/api/preferences')).json();
         if (!body.success) return;
-        const { landingTab, landingTabChoices, resolvedLandingTab } = body.data;
+        const { landingTab, landingTabChoices, resolvedLandingTab,
+                landingRail, landingRailChoices } = body.data;
 
         select.innerHTML =
           '<option value="">First available tab</option>' +
@@ -264,6 +285,15 @@
             .map(c => `<option value="${c.slug}">${app.escapeHtml(c.label)}</option>`)
             .join('');
         select.value = landingTab || '';
+
+        if (railSelect) {
+          railSelect.innerHTML =
+            '<option value="">Default (Dailies)</option>' +
+            (landingRailChoices || [])
+              .map(c => `<option value="${c.slug}">${app.escapeHtml(c.label)}</option>`)
+              .join('');
+          railSelect.value = landingRail || '';
+        }
 
         if (hint) {
           hint.textContent = landingTab
@@ -283,7 +313,20 @@
         });
         const body = await res.json();
         if (!body.success) { app.notify(body.message || 'Could not save', 'danger'); return; }
-        app.notify('Startup tab saved', 'success');
+
+        if (railSelect) {
+          const railRes = await app.fetchRaw('/api/preferences/landing-rail', {
+            method: 'PUT',
+            body: JSON.stringify({ landingRail: railSelect.value || null })
+          });
+          const railBody = await railRes.json();
+          if (!railBody.success) {
+            app.notify(railBody.message || 'Could not save the rail', 'danger');
+            return;
+          }
+        }
+
+        app.notify('Startup saved', 'success');
         await load();
       } catch (error) {
         console.error('Could not save landing tab:', error);

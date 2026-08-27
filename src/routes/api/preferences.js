@@ -16,7 +16,12 @@ router.get("/", async (req, res) => {
       await appPreferencesService.resolveLandingTab();
     res.json({
       success: true,
-      data: { ...prefs, landingTabChoices, resolvedLandingTab },
+      data: {
+        ...prefs,
+        landingTabChoices,
+        resolvedLandingTab,
+        landingRailChoices: appPreferencesService.LANDING_RAILS,
+      },
     });
   } catch (error) {
     logger.error("Error reading preferences:", error);
@@ -32,6 +37,20 @@ router.put("/landing-tab", async (req, res) => {
     res.json({ success: true, message: "Landing tab saved", data });
   } catch (error) {
     logger.error("Error saving landing tab:", error);
+    res
+      .status(error.statusCode || 500)
+      .json({ success: false, message: error.message });
+  }
+});
+
+router.put("/landing-rail", async (req, res) => {
+  try {
+    const data = appPreferencesService.setLandingRail(
+      req.body.landingRail ?? null,
+    );
+    res.json({ success: true, message: "Startup rail saved", data });
+  } catch (error) {
+    logger.error("Error saving landing rail:", error);
     res
       .status(error.statusCode || 500)
       .json({ success: false, message: error.message });
