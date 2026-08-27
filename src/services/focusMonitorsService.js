@@ -1,13 +1,19 @@
 /**
- * Definitions for the focus bar's monitors: how many zones (0 upwards), whether
- * each shows its number, and each one's optional label and layout
- * (side-by-side or stacked).
+ * Definitions for the focus bar's monitors: whether each shows its number, and
+ * each one's optional label and layout (side-by-side or stacked).
+ *
+ * How MANY monitors exist is not stored here, or anywhere - it is not a
+ * setting. A monitor exists the moment something is dragged onto the bar's
+ * empty space and creates it, and stops existing the moment nothing is pinned
+ * to it any more; routes/api/focusMonitors.js derives the count on every read
+ * from focusService.getFocusItems() (the highest `focus_monitor` in use).
+ * This file only holds the LABEL/LAYOUT for whichever monitor numbers you have
+ * used at some point - small singleton config that does not justify a table
+ * either dialect must then maintain forever, same reasoning as
+ * statusDigestService.js.
  *
  * Which items sit on which monitor is a property of the item itself
- * (`focus_monitor`, alongside `focus_slot` - see focusService.js). This file
- * only holds the shape of the zones - small singleton config that does not
- * justify a table either dialect must then maintain forever, same reasoning
- * as statusDigestService.js.
+ * (`focus_monitor`, alongside `focus_slot` - see focusService.js).
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -28,13 +34,10 @@ export const MAX_MONITORS = 32;
 const DEFAULT_MONITOR = { label: '', layout: 'side-by-side' };
 
 const DEFAULT_SETTINGS = {
-  // The count may be 0 (the bar disappears entirely); 1 is only the default
-  // for a config that has never been saved.
-  count: 1,
   showNumbers: false,
-  // Always MAX_MONITORS entries regardless of `count`, so turning the count
-  // down and back up never loses a label or layout already set for a hidden
-  // monitor.
+  // Always MAX_MONITORS entries, so a monitor that stops being used (nothing
+  // pinned to it right now) does not lose its label or layout - it comes back
+  // exactly as it was the moment something is pinned there again.
   monitors: Array.from({ length: MAX_MONITORS }, () => ({ ...DEFAULT_MONITOR })),
 };
 
@@ -59,20 +62,6 @@ async function writeJson(file, value) {
  * first (see setMonitorSettings).
  */
 export function sanitizeSettings(patch) {
-  // 0 is a real setting, not "unset": with no monitors the focus bar shows
-  // nothing at all. So the floor is 0, and the coercion cannot use `|| 1` -
-  // Number(0) is falsy, so `|| 1` silently turned "no monitors" back into one.
-  // `null`, `undefined` and '' are UNSET and fall back to the default; only a
-  // real number counts. Number() alone will not do: Number(null) and Number('')
-  // are both 0, which would read a missing setting as a deliberate "no
-  // monitors" and hide the bar on a config that never mentioned it.
-  const givenCount = patch?.count;
-  const raw = (givenCount === null || givenCount === undefined || givenCount === '')
-    ? NaN
-    : Number(givenCount);
-  const count = Number.isFinite(raw)
-    ? Math.min(MAX_MONITORS, Math.max(0, Math.trunc(raw)))
-    : DEFAULT_SETTINGS.count;
   const showNumbers = !!patch?.showNumbers;
 
   // Shipped with every read so the browser enforces the SAME bound as the
@@ -88,7 +77,7 @@ export function sanitizeSettings(patch) {
     };
   });
 
-  return { count, showNumbers, monitors, maxMonitors };
+  return { showNumbers, monitors, maxMonitors };
 }
 
 // PER PROFILE, sharing one file.
@@ -107,7 +96,7 @@ export function sanitizeSettings(patch) {
 // With nobody chosen, the top-level values are read and written directly, which
 // is exactly the old behaviour.
 function legacyOf(store) {
-  return { count: store.count, showNumbers: store.showNumbers, monitors: store.monitors };
+  return { showNumbers: store.showNumbers, monitors: store.monitors };
 }
 
 export async function getMonitorSettings() {
@@ -131,21 +120,22 @@ export async function setMonitorSettings(patch) {
 }
 
 /**
- * The settings after removing the monitor at `position` (1-based): its slot
- * is spliced out, a blank one is pushed back onto the end so the array still
- * holds exactly MAX_MONITORS entries, and the count drops by one.
+ * The settings after removing the monitor at `position` (1-based): its label
+ * and layout are spliced out and every later one shifts down to match its new
+ * number, so a monitor's config always follows the same renumbering
+ * focusService.shiftMonitorsAfterRemoval applies to what is pinned there. A
+ * blank entry is pushed back onto the end so the array still holds exactly
+ * MAX_MONITORS entries.
  *
- * Pure - reassigning whatever was pinned to the removed monitor (or to a
- * later one, which is about to be renumbered) is focusService's job, since
- * that touches entities, not this file's settings. The caller runs that
- * reassignment against the SAME `position` before or after calling this; the
- * two are independent stores that just need to agree in the end.
+ * Pure - the entity reassignment is focusService's job, since that touches
+ * entities, not this file's settings. The caller runs that reassignment
+ * against the SAME `position` before or after calling this; the two are
+ * independent stores that just need to agree in the end.
  */
 export function withMonitorRemoved(settings, position) {
   const pos = Math.max(1, Number(position) || 1);
-  if (settings.count <= 0) return sanitizeSettings(settings);   // nothing to remove
   const monitors = settings.monitors.slice();
   monitors.splice(pos - 1, 1);
   monitors.push({ ...DEFAULT_MONITOR });
-  return sanitizeSettings({ ...settings, count: settings.count - 1, monitors });
+  return sanitizeSettings({ ...settings, monitors });
 }

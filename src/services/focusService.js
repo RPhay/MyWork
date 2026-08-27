@@ -203,37 +203,11 @@ export async function moveFocus(entityId, monitor, contextId = null) {
 }
 
 /**
- * When the monitor count shrinks, anything pinned beyond the new count has
- * nowhere to live. Rather than block the save, they land on monitor 1, kept
- * in their relative order after whatever is already there. Returns how many
- * moved, so the settings save can report it.
- */
-export async function reassignOverflow(newCount, contextId = null) {
-  if (!contextId) contextId = await getActiveContextId();
-  const raw = Number(newCount);
-  const limit = Number.isFinite(raw) ? Math.max(0, Math.trunc(raw)) : 1;
-  // Going to ZERO monitors is not overflow - there is nowhere to move anything
-  // TO. The pins are kept exactly as they are and simply stop being drawn, so
-  // turning monitors back on restores the bar as it was rather than having
-  // silently collapsed everything onto monitor 1 on the way past.
-  if (limit === 0) return 0;
-  const current = await getFocusItems(contextId);
-  const overflow = current
-    .filter(i => i.monitor > limit)
-    .sort((a, b) => a.monitor - b.monitor || a.slot - b.slot);
-
-  for (const item of overflow) {
-    await moveFocus(item.id, 1, contextId);
-  }
-  return overflow.length;
-}
-
-/**
  * Removing monitor `position` shifts every later monitor down by one to fill
  * the gap. Anything pinned to the removed monitor, and anything on a monitor
  * being renumbered, needs to follow: the removed monitor's own items land on
- * monitor 1 (same fallback as reassignOverflow), and everything past it
- * drops by one to match its new number. Returns how many items moved.
+ * monitor 1, and everything past it drops by one to match its new number.
+ * Returns how many items moved.
  */
 export async function shiftMonitorsAfterRemoval(position, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();

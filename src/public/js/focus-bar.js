@@ -12,8 +12,12 @@
   const REFRESH_MS = 60000;
 
   let items = [];
+  // count: 0 until the first refresh() lands the server-derived value - never
+  // actually rendered (render() is only reached through setItems(), which
+  // only runs after data has arrived), but 0 is the honest shape: no monitor
+  // exists until something is pinned to one.
   let monitorSettings = {
-    count: 1,
+    count: 0,
     showNumbers: false,
     maxMonitors: 32,
     monitors: Array.from({ length: 32 }, () => ({ label: '', layout: 'side-by-side' })),
@@ -24,6 +28,16 @@
   // The server owns the bound and ships it with every settings read; the
   // fallback only covers the first paint, before that read lands.
   const monitorLimit = () => Number(monitorSettings.maxMonitors) || 32;
+
+  // How many monitors exist RIGHT NOW: the highest monitor number anything in
+  // `items` currently occupies. Derived from `items` rather than read off
+  // monitorSettings.count, which the server computes the same way but which
+  // this client only refetches on refresh() - a pin/unpin/move updates
+  // `items` immediately (setItems, after every call()) without necessarily
+  // triggering a refresh(), so trusting the last-fetched settings value here
+  // would leave a just-created or just-emptied monitor invisible until the
+  // next refresh happened to land.
+  const currentMonitorCount = () => items.reduce((max, i) => Math.max(max, i.monitor || 0), 0);
 
   // Which stacked monitor the pointer is currently over, 1-based or null.
   // Driven by our own mouseover/mouseout rather than left to CSS :hover,
@@ -175,21 +189,18 @@
     `;
   }
 
-  // The bar shows its configured monitors whether or not anything is pinned to
-  // them - they are the persistent zones you drag onto, not a strip that only
-  // exists once something lands on it.
-  //
-  // ZERO monitors is the one exception, and it means exactly what it says:
-  // nothing is drawn. Not an empty strip, not a drop hint - the bar leaves the
-  // navbar entirely. Whatever is pinned stays pinned in the database and comes
-  // back untouched the moment a monitor exists again; see reassignOverflow,
-  // which deliberately does NOT sweep pins onto monitor 1 on the way to zero.
+  // A monitor is exactly as real as what's pinned to it - `count` (server-
+  // derived, see focusMonitorsService.js) is the highest monitor number
+  // anything currently occupies, so this loop only ever draws populated
+  // zones. Nothing pinned anywhere means count is 0, and 0 means exactly what
+  // it says: nothing is drawn, not an empty strip, not a drop hint - the bar
+  // leaves the navbar entirely. Whatever is pinned stays pinned in the
+  // database regardless; only the drawing depends on count.
   function render() {
     const bar = document.getElementById('focusBar');
     if (!bar) return;
 
-    // NOT `|| 1`: 0 is falsy, so that turned "no monitors" back into one.
-    const count = Math.max(0, Number(monitorSettings.count) || 0);
+    const count = currentMonitorCount();
     if (count === 0) {
       bar.innerHTML = '';
       bar.classList.add('no-monitors');
@@ -338,27 +349,17 @@
       menuEl.insertAdjacentHTML('beforeend', '<hr style="margin:4px 0;">');
     }
 
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'context-menu-item';
-    addBtn.disabled = monitorSettings.count >= monitorLimit();
-    addBtn.innerHTML = '<span>+</span><span>Add a monitor</span>';
-    addBtn.addEventListener('click', async () => {
-      closeMenu();
-      try {
-        await app.fetchData('/api/focus-monitors/add', { method: 'POST' });
-        await refresh();
-      } catch (error) {
-        app.notify(error.message || 'Could not add a monitor', 'danger');
-      }
-    });
-    menuEl.appendChild(addBtn);
+    // There is deliberately no "+ Add a monitor" item here any more: a
+    // monitor that starts out empty is exactly the persistent, pre-configured
+    // box this feature was rebuilt to stop showing. Dragging something onto
+    // the bar's own empty space (below) is the only way to make one - the
+    // monitor and its first pin arrive together.
 
     if (monitor) {
       const removeMonitorBtn = document.createElement('button');
       removeMonitorBtn.type = 'button';
       removeMonitorBtn.className = 'context-menu-item';
-      removeMonitorBtn.disabled = monitorSettings.count <= 1;
+      removeMonitorBtn.disabled = currentMonitorCount() <= 1;
       removeMonitorBtn.innerHTML = '<span>✕</span><span>Remove this monitor</span>';
       removeMonitorBtn.addEventListener('click', async () => {
         closeMenu();
@@ -509,12 +510,16 @@
       if (hoveredMonitor === n) hoveredMonitor = null;
     });
 
-    // One right-click, one menu - anywhere in the bar (a chip, a monitor's
-    // own empty space, or the bar's slack around a narrow set of monitors).
+    // One right-click, one menu - on a chip or a monitor's own empty space.
+    // NOT the bar's own slack around a narrow set of monitors any more - that
+    // used to offer "Add a monitor", which no longer exists (see
+    // openContextMenu): dragging is the only way to create one now, so a menu
+    // with nothing in it would just be a blank popup.
     bar.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
       const chip = e.target.closest('.focus-chip');
       const zone = e.target.closest('.focus-monitor');
+      if (!chip && !zone) return;
+      e.preventDefault();
       const monitor = zone ? Number(zone.dataset.monitor) : null;
       // Pin the stack open for as long as this menu is showing - the menu
       // itself renders outside the monitor's box, so the pointer leaving the
@@ -615,7 +620,7 @@
       const placeable = reordering || (e.dataTransfer.types.includes('id') && e.dataTransfer.types.includes('type'));
       if (zone) {
         zone.classList.add('drop-target');
-      } else if (placeable && monitorSettings.count < monitorLimit()) {
+      } else if (placeable && currentMonitorCount() < monitorLimit()) {
         // The bar's own empty space, not any existing monitor - dropping
         // here makes a new one for whatever is let go, so it gets its own
         // cue rather than looking like nothing is there to land on.
@@ -652,21 +657,19 @@
       const type = e.dataTransfer.getData('type');
       if (!movingId && !(entityId && type)) return;
 
-      // Dropped on the bar's own empty space, not any existing monitor -
-      // make a new one for it, the same one the dragover cue above promised,
-      // rather than silently falling back to monitor 1.
+      // Dropped on the bar's own empty space, not any existing monitor - make
+      // a new one for it, the same one the dragover cue above promised. There
+      // is nothing to create ahead of time: the next monitor number is simply
+      // one past the highest in use, and it becomes real the moment the pin/
+      // move call below lands something on it - see focusMonitorsService.js's
+      // header comment for why this isn't a server round-trip any more.
       if (targetMonitor === null) {
-        if (monitorSettings.count >= monitorLimit()) {
+        const count = currentMonitorCount();
+        if (count >= monitorLimit()) {
           app.notify(`Already at the maximum of ${monitorLimit()} monitors`, 'danger');
           return;
         }
-        try {
-          monitorSettings = await app.fetchData('/api/focus-monitors/add', { method: 'POST' });
-          targetMonitor = monitorSettings.count;
-        } catch (error) {
-          app.notify(error.message || 'Could not add a monitor', 'danger');
-          return;
-        }
+        targetMonitor = count + 1;
       }
 
       // A chip dragged along the bar is a REORDER (or a move to a different

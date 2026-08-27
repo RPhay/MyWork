@@ -109,24 +109,16 @@
 
   <div class="misc-subpane" data-misc-pane="focus-monitors" hidden>
     <p class="text-muted small">
-      The pin bar can be split into any number of "monitors" - black squares you drag
-      pinned items onto and between. Each one can carry an optional label and
+      The pin bar can be split into "monitors" - black squares you drag pinned
+      items onto and between. There is no count to set: drag a pinned item (or
+      drag a row straight from a list) onto the bar's own empty space to make
+      the next one, and a monitor disappears again the moment nothing is
+      pinned to it. Each one you've used can still carry an optional label and
       choose whether its items sit side by side or stack with only the top one
       showing until you click it open.
     </p>
 
     <div class="row g-2 align-items-end" style="max-width: 40rem;">
-      <div class="col-auto">
-        <label class="form-label small mb-0" for="monitorCount">Number of monitors</label>
-        <%# 0 is a real choice: with no monitors the focus bar is not drawn at
-            all. Pins are kept, not discarded - set a monitor back and they
-            reappear where they were. `max` is filled in from the server's own
-            bound when the settings load, so this markup never has to know it. %>
-        <input type="number" class="form-control form-control-sm" id="monitorCount"
-               min="0" step="1" style="width: 7rem;"
-               aria-describedby="monitorCountHelp">
-        <div class="form-text small" id="monitorCountHelp">0 hides the bar</div>
-      </div>
       <div class="col-auto">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" id="monitorShowNumbers">
@@ -145,6 +137,9 @@
       </thead>
       <tbody id="monitorRows"></tbody>
     </table>
+    <p class="text-muted small" id="monitorRowsEmpty" hidden>
+      No monitors yet - drag a pinned item onto the focus bar to create one.
+    </p>
 
     <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
       <button type="button" class="btn btn-sm btn-outline-secondary" id="saveMonitorsBtn">Save</button>

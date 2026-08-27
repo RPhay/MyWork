@@ -157,18 +157,22 @@
 
   // ===== Focus monitors =====
   //
-  // Definitions only (count, numbering, per-monitor label/layout) - saved
-  // server-side via /api/focus-monitors, following the status digest's
-  // pattern, since these should be the same on every machine, unlike the
-  // colours above. Which items sit on which monitor lives on the items
-  // themselves and is not configured here.
+  // Numbering, per-monitor label/layout, and showNumbers - saved server-side
+  // via /api/focus-monitors, following the status digest's pattern, since
+  // these should be the same on every machine, unlike the colours above.
+  // Which items sit on which monitor lives on the items themselves and is not
+  // configured here - and neither is HOW MANY monitors exist: `count` in the
+  // GET/PUT response is server-derived (the highest monitor number anything
+  // is currently pinned to), not a setting this pane writes. The row table
+  // below is read-only in how many rows it shows; only the label/layout cells
+  // in it are editable.
   async function initMonitors() {
     const pane = document.querySelector('[data-misc-pane="focus-monitors"]');
     if (!pane) return;
 
     const el = (id) => document.getElementById(id);
     const blankMonitor = () => ({ label: '', layout: 'side-by-side' });
-    let state = { count: 1, showNumbers: false, maxMonitors: 32, monitors: [] };
+    let state = { count: 0, showNumbers: false, maxMonitors: 32, monitors: [] };
 
     function rowHtml(n, m) {
       return `
@@ -185,8 +189,7 @@
         </tr>`;
     }
 
-    // Whatever is currently typed for rows 1..count, back into state - so
-    // switching the count down and up before saving never drops a label.
+    // Whatever is currently typed for rows 1..count, back into state.
     function collectRows() {
       document.querySelectorAll('#monitorRows tr[data-monitor-row]').forEach(tr => {
         const n = Number(tr.dataset.monitorRow);
@@ -198,27 +201,19 @@
     }
 
     function renderRows() {
-      // NOT `|| 1`: Number('0') is falsy, which turned "no monitors" back into one.
-      const count = Math.min(
-        state.maxMonitors,
-        Math.max(0, Number(el('monitorCount').value) || 0),
-      );
-      el('monitorRows').innerHTML = Array.from({ length: count }, (_, i) =>
+      el('monitorRows').innerHTML = Array.from({ length: state.count }, (_, i) =>
         rowHtml(i + 1, state.monitors[i] || blankMonitor())).join('');
+      el('monitorRowsEmpty').hidden = state.count > 0;
     }
 
     function paint(data) {
       const max = Number(data.maxMonitors) || 32;
       state = {
-        // NOT `|| 1`: Number(0) is falsy, so `|| 1` showed "1 monitor" for a
-        // setting saved as 0 - the one value that hides the bar.
-        count: Number.isFinite(Number(data.count)) ? Math.max(0, Number(data.count)) : 1,
+        count: Math.max(0, Number(data.count) || 0),
         showNumbers: !!data.showNumbers,
         maxMonitors: max,
         monitors: Array.from({ length: max }, (_, i) => data.monitors?.[i] || blankMonitor()),
       };
-      el('monitorCount').max = String(max);
-      el('monitorCount').value = String(state.count);
       el('monitorShowNumbers').checked = state.showNumbers;
       renderRows();
     }
@@ -229,17 +224,8 @@
       if (body.success) paint(body.data);
     };
 
-    el('monitorCount')?.addEventListener('input', () => {
-      collectRows();
-      renderRows();
-    });
-
     el('saveMonitorsBtn')?.addEventListener('click', async () => {
       collectRows();
-      state.count = Math.min(
-        state.maxMonitors,
-        Math.max(0, Number(el('monitorCount').value) || 0),
-      );
       state.showNumbers = el('monitorShowNumbers').checked;
 
       const res = await app.fetchRaw('/api/focus-monitors', { method: 'PUT', body: JSON.stringify(state) });
@@ -247,12 +233,7 @@
       if (!body.success) { app.notify(body.message || 'Could not save', 'danger'); return; }
 
       paint(body.data);
-      app.notify(
-        body.data.reassignedCount
-          ? `Focus monitors saved — ${body.data.reassignedCount} pinned item(s) moved to Monitor 1`
-          : 'Focus monitors saved',
-        body.data.reassignedCount ? 'info' : 'success',
-      );
+      app.notify('Focus monitors saved', 'success');
       document.dispatchEvent(new CustomEvent('focus-monitors-changed'));
     });
 

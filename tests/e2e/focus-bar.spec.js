@@ -38,12 +38,13 @@ test.beforeEach(async ({ page }) => {
     for (const e of ((await j('/api/entities/idea'))?.data) || []) {
       if ((e.title || '').startsWith('ZZZ')) await j(`/api/entities/idea/${e.id}`, { method: 'DELETE' });
     }
-    // Every test starts from the default single-monitor layout too, so a
-    // prior test's count/layout never leaks into the next one.
+    // Every test starts with no labels/layout left over from a prior one.
+    // `count` isn't part of this any more - it's derived from what's pinned
+    // above, which this loop already just cleared to zero.
     await j('/api/focus-monitors', {
       method: 'PUT',
       body: JSON.stringify({
-        count: 1, showNumbers: false,
+        showNumbers: false,
         monitors: Array.from({ length: 6 }, () => ({ label: '', layout: 'side-by-side' })),
       }),
     });
@@ -231,13 +232,21 @@ test('only one clock runs at a time', async ({ page }) => {
   await cleanup(page, made);
 });
 
-test('the bar always shows its configured monitor squares, and highlights the one under a drag', async ({ page }) => {
+test('the bar is hidden with nothing pinned, and appears the moment something is', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1600);
 
-  // Visible with nothing pinned - monitors are persistent zones you drag
-  // onto, not a strip that only appears once something lands on it.
+  // A monitor is exactly as real as what's pinned to it - nothing pinned
+  // anywhere means no monitor exists, and the bar takes no space at all.
+  await expect(page.locator('#focusBar')).toBeHidden();
+  await expect(page.locator('#focusBar .focus-monitor')).toHaveCount(0);
+
+  const made = await makeIdeas(page, ['ZZZ appears on pin']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id }) });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1600);
+
   await expect(page.locator('#focusBar')).toBeVisible();
   await expect(page.locator('#focusBar .focus-monitor')).toHaveCount(1);
 
@@ -249,6 +258,8 @@ test('the bar always shows its configured monitor squares, and highlights the on
   });
 
   await expect(page.locator('#focusBar .focus-monitor').first()).toHaveClass(/drop-target/);
+
+  await cleanup(page, made);
 });
 
 test('a row dragged onto the bar is tracked, not copied or linked', async ({ page }) => {
@@ -484,8 +495,6 @@ test('items can be pinned to a specific monitor, and moved to another via the AP
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 3 }) });
-
   const made = await makeIdeas(page, ['ZZZ mon A', 'ZZZ mon B']);
   await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: 1 }) });
   await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[1].id, monitor: 2 }) });
@@ -497,10 +506,11 @@ test('items can be pinned to a specific monitor, and moved to another via the AP
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
 
-  await expect(page.locator('#focusBar .focus-monitor')).toHaveCount(3);
+  // count is derived from what's pinned - 2, not some pre-configured number -
+  // so monitor 3 does not exist yet, only 1 and 2 do.
+  await expect(page.locator('#focusBar .focus-monitor')).toHaveCount(2);
   await expect(page.locator('#focusBar .focus-monitor[data-monitor="1"] .focus-chip')).toHaveCount(1);
   await expect(page.locator('#focusBar .focus-monitor[data-monitor="2"] .focus-chip')).toHaveCount(1);
-  await expect(page.locator('#focusBar .focus-monitor[data-monitor="3"] .focus-chip')).toHaveCount(0);
 
   // The endpoint a cross-monitor drag calls: move item A from monitor 1 to 3.
   await api(page, `/api/focus/${made[0].id}/monitor`, { method: 'PATCH', body: JSON.stringify({ monitor: 3 }) });
@@ -515,7 +525,12 @@ test('monitor numbers show only when enabled in settings', async ({ page }) => {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 2, showNumbers: false }) });
+  // Two real monitors, so there is something for the numbers to label.
+  const made = await makeIdeas(page, ['ZZZ nums A', 'ZZZ nums B']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: 1 }) });
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[1].id, monitor: 2 }) });
+
+  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ showNumbers: false }) });
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1600);
   await expect(page.locator('#focusBar .focus-monitor-number')).toHaveCount(0);
@@ -524,6 +539,8 @@ test('monitor numbers show only when enabled in settings', async ({ page }) => {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1600);
   await expect(page.locator('#focusBar .focus-monitor-number')).toHaveCount(2);
+
+  await cleanup(page, made);
 });
 
 test('a stacked monitor shows only the top item until hovered, with no arrow to click', async ({ page }) => {
@@ -904,10 +921,11 @@ test('dragging onto the bar\'s empty space at the cap does not create a new moni
 
   const cap = (await api(page, '/api/focus-monitors')).body.data.maxMonitors;
   expect(cap, 'the settings payload carries the bound').toBeGreaterThan(0);
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: cap }) });
 
+  // count is derived from the highest monitor in use, so pinning directly to
+  // `cap` reaches it in one call - no need to populate every monitor below it.
   const made = await makeIdeas(page, ['ZZZ at cap']);
-  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: 1 }) });
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: cap }) });
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
 
@@ -929,55 +947,23 @@ test('dragging onto the bar\'s empty space at the cap does not create a new moni
   expect(settings.count, 'still at the cap - no monitor was added').toBe(cap);
 
   const focus = (await api(page, '/api/focus')).body.data;
-  expect(focus.find(i => i.id === made[0].id).monitor, 'the item stayed where it was').toBe(1);
-
-  await cleanup(page, made);
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
-});
-
-test('shrinking the monitor count moves overflow items to monitor 1', async ({ page }) => {
-  await page.goto('/?tab=idea');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1500);
-
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 3 }) });
-
-  const made = await makeIdeas(page, ['ZZZ shrink A', 'ZZZ shrink B']);
-  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: 1 }) });
-  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[1].id, monitor: 3 }) });
-
-  const shrink = await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
-  expect(shrink.body.data.reassignedCount, 'the one item on monitor 3 was moved').toBe(1);
-
-  const focus = (await api(page, '/api/focus')).body.data;
-  expect(focus.every(i => i.monitor === 1), 'everything now lives on monitor 1').toBe(true);
+  expect(focus.find(i => i.id === made[0].id).monitor, 'the item stayed where it was').toBe(cap);
 
   await cleanup(page, made);
 });
+
+// There is no "shrink the count" action any more, and so nothing left to
+// reassign for it - count is derived, not set, and the old test for it
+// (PUT { count: 1 } moving monitor 3's item to monitor 1) has no equivalent
+// in the new model. Removing a specific monitor still reassigns what was
+// pinned to it - that's shiftMonitorsAfterRemoval, covered below.
 
 // ===== Add/remove a monitor from its own context menu =====
-
-test('POST /api/focus-monitors/add adds one monitor, and refuses past the cap', async ({ page }) => {
-  await page.goto('/?tab=idea');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
-
-  const cap = (await api(page, '/api/focus-monitors')).body.data.maxMonitors;
-
-  // One below the cap, so /add has exactly one move left to make.
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: cap - 1 }) });
-
-  const atCap = await api(page, '/api/focus-monitors/add', { method: 'POST' });
-  expect(atCap.body.data.count).toBe(cap);
-
-  const pastCap = await api(page, '/api/focus-monitors/add', { method: 'POST' });
-  expect(pastCap.status, 'refuses past the cap').toBe(400);
-
-  // Well clear of the old fixed limit of six - the point of the change.
-  expect(cap).toBeGreaterThan(6);
-
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
-});
+//
+// "Add" no longer exists as a menu action or an endpoint - a monitor that
+// starts out empty is exactly the persistent, pre-configured box this
+// feature was rebuilt to stop showing. See the drag-creates-a-monitor tests
+// above for the one way a monitor comes into existence now.
 
 test('POST /api/focus-monitors/:position/remove removes that monitor, shifts the rest, and reassigns items', async ({ page }) => {
   await page.goto('/?tab=idea');
@@ -985,7 +971,6 @@ test('POST /api/focus-monitors/:position/remove removes that monitor, shifts the
   await page.waitForTimeout(1000);
 
   await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({
-    count: 3,
     monitors: [
       { label: 'One', layout: 'side-by-side' },
       { label: 'Two', layout: 'side-by-side' },
@@ -1012,55 +997,59 @@ test('POST /api/focus-monitors/:position/remove removes that monitor, shifts the
   await cleanup(page, made);
 });
 
-// Removing the last monitor takes the count to 0, which is a real setting: the
-// bar is not drawn at all. This used to be refused with a 400 on the argument
-// that "at least one monitor is required", which contradicted the 0 that
-// Settings already offered and that sanitizeSettings already preserved.
-test('removing the last remaining monitor leaves none, and hides the bar', async ({ page }) => {
+// There is no separate "remove the last monitor" action to test any more:
+// count is derived from what's pinned, so the bar hides itself the moment
+// nothing is - covered by 'the bar is hidden with nothing pinned...' above.
+// Calling remove directly against the ONLY monitor while something is still
+// pinned to it is a no-op rather than an error (shiftMonitorsAfterRemoval has
+// nowhere lower to move that item TO), which is why the Settings UI disables
+// "Remove this monitor" whenever count <= 1 - see the context-menu test below.
+
+// With nothing pinned anywhere, count is already 0, so there is nothing to
+// remove and the endpoint says so.
+test('removing a monitor when none exist is refused', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
 
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
   const res = await api(page, '/api/focus-monitors/1/remove', { method: 'POST' });
-  expect(res.status, 'removing the last one is allowed').toBe(200);
-
-  const settings = (await api(page, '/api/focus-monitors')).body.data;
-  expect(settings.count, 'down to no monitors').toBe(0);
-
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(1200);
-  await expect(page.locator('#focusBar'), 'the bar is not drawn with no monitors').toBeHidden();
-
-  // With none left there is nothing to remove, and that IS the error case.
-  const again = await api(page, '/api/focus-monitors/1/remove', { method: 'POST' });
-  expect(again.status, 'nothing to remove').toBe(400);
-
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
+  expect(res.status, 'nothing to remove').toBe(400);
 });
 
-test('right-clicking a monitor offers add/remove/layout, right from the page', async ({ page }) => {
+test('right-clicking a monitor offers remove/layout (never add) right from the page', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
 
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
+  const made = await makeIdeas(page, ['ZZZ rclick mon A']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: 1 }) });
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1600);
 
-  const zone = page.locator('#focusBar .focus-monitor[data-monitor="1"]');
+  let zone = page.locator('#focusBar .focus-monitor[data-monitor="1"]');
   await zone.click({ button: 'right' });
 
-  const menu = page.locator('.focus-context-menu');
-  await expect(menu.getByText('Add a monitor')).toBeVisible();
+  let menu = page.locator('.focus-context-menu');
+  // There is no "Add a monitor" any more - dragging is the only way to make
+  // one, see the drag-creates-a-monitor tests above.
+  await expect(menu.getByText('Add a monitor')).toHaveCount(0);
   // Only one monitor exists, so removing it must be offered but disabled.
   await expect(menu.getByText('Remove this monitor')).toBeVisible();
   await expect(menu.locator('.context-menu-item', { hasText: 'Remove this monitor' })).toBeDisabled();
+  await page.evaluate(() => document.querySelector('.focus-context-menu')?.remove());
 
-  await menu.locator('.context-menu-item', { hasText: 'Add a monitor' }).click();
-  await page.waitForTimeout(900);
+  // A second monitor, pinned directly rather than through the removed "Add"
+  // button - now there is something to remove.
+  const madeB = await makeIdeas(page, ['ZZZ rclick mon B']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: madeB[0].id, monitor: 2 }) });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1600);
 
-  await expect(page.locator('#focusBar .focus-monitor')).toHaveCount(2);
+  zone = page.locator('#focusBar .focus-monitor[data-monitor="1"]');
+  await zone.click({ button: 'right' });
+  menu = page.locator('.focus-context-menu');
+  await expect(menu.locator('.context-menu-item', { hasText: 'Remove this monitor' }), 'now enabled with 2 monitors').toBeEnabled();
+  await page.evaluate(() => document.querySelector('.focus-context-menu')?.remove());
 
   // Switch monitor 2 to stacked from its own menu.
   await page.locator('#focusBar .focus-monitor[data-monitor="2"]').click({ button: 'right' });
@@ -1069,7 +1058,7 @@ test('right-clicking a monitor offers add/remove/layout, right from the page', a
 
   await expect(page.locator('#focusBar .focus-monitor[data-monitor="2"]')).toHaveAttribute('data-layout', 'stacked');
 
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
+  await cleanup(page, [...made, ...madeB]);
 });
 
 // A monitor's own space can be too small to reliably right-click around a
@@ -1079,8 +1068,6 @@ test('right-clicking a chip shows the chip\'s own choices and the monitor\'s cho
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
-
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
 
   const made = await makeIdeas(page, ['ZZZ combined menu']);
   await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: 1 }) });
@@ -1094,8 +1081,9 @@ test('right-clicking a chip shows the chip\'s own choices and the monitor\'s cho
   // The chip's own choices.
   await expect(menu.locator('.focus-swatch-row')).not.toHaveCount(0);
   await expect(menu.getByText('Remove from focus bar')).toBeVisible();
-  // The monitor's, in the SAME menu, without a second right-click.
-  await expect(menu.getByText('Add a monitor')).toBeVisible();
+  // The monitor's, in the SAME menu, without a second right-click. No "Add" -
+  // dragging is the only way to make one now.
+  await expect(menu.getByText('Add a monitor')).toHaveCount(0);
   await expect(menu.getByText('Side by side')).toBeVisible();
   await expect(menu.getByText('Stacked')).toBeVisible();
 
@@ -1104,13 +1092,17 @@ test('right-clicking a chip shows the chip\'s own choices and the monitor\'s cho
 
 // The bar fills the whole strip between the brand and the context switcher
 // (flex: 1 1 auto) - only one narrow monitor box sits centred inside it, so
-// there is real empty bar area on either side to right-click.
-test('right-clicking the bar\'s own empty space (not a specific monitor) still offers "Add a monitor"', async ({ page }) => {
+// there is real empty bar area on either side to right-click. It offers
+// nothing now - "Add a monitor" is gone (dragging is the only way to make
+// one), and there is no chip or monitor under the pointer to act on, so no
+// menu opens at all rather than an empty popup.
+test('right-clicking the bar\'s own empty space opens no menu', async ({ page }) => {
   await page.goto('/?tab=idea');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
 
-  await api(page, '/api/focus-monitors', { method: 'PUT', body: JSON.stringify({ count: 1 }) });
+  const made = await makeIdeas(page, ['ZZZ empty-space rclick']);
+  await api(page, '/api/focus', { method: 'POST', body: JSON.stringify({ entityId: made[0].id, monitor: 1 }) });
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1600);
 
@@ -1128,9 +1120,7 @@ test('right-clicking the bar\'s own empty space (not a specific monitor) still o
   await page.mouse.click(empty.x, empty.y, { button: 'right' });
   await page.waitForTimeout(400);
 
-  const menu = page.locator('.focus-context-menu');
-  await expect(menu.getByText('Add a monitor')).toBeVisible();
-  await expect(menu.getByText('Remove this monitor')).toHaveCount(0);
-  await expect(menu.getByText('Side by side')).toHaveCount(0);
-  await expect(menu.getByText('Stacked')).toHaveCount(0);
+  await expect(page.locator('.focus-context-menu')).toHaveCount(0);
+
+  await cleanup(page, made);
 });

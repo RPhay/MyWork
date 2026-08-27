@@ -14,44 +14,41 @@ const send = (res, promise) => promise
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   });
 
-// GET /api/focus-monitors - the monitor definitions (count, numbering, labels, layout)
+// How many monitor zones actually exist right now: not a setting, the highest
+// `focus_monitor` any pinned item currently carries. Zero when nothing is
+// pinned anywhere - see focusMonitorsService.js's header comment for why this
+// isn't stored. Capped defensively at MAX_MONITORS, the same bound the label/
+// layout array is built to, though nothing should ever pin past it in practice.
+async function currentCount(contextId) {
+  const items = await focusService.getFocusItems(contextId);
+  const highest = items.reduce((max, i) => Math.max(max, i.monitor), 0);
+  return Math.min(focusMonitorsService.MAX_MONITORS, highest);
+}
+
+async function settingsWithCount(contextId) {
+  const [settings, count] = await Promise.all([
+    focusMonitorsService.getMonitorSettings(),
+    currentCount(contextId),
+  ]);
+  return { ...settings, count };
+}
+
+// GET /api/focus-monitors - the monitor definitions (numbering, labels,
+// layout) plus how many currently exist, derived from what is pinned.
 router.get('/', async (req, res) => {
-  send(res, focusMonitorsService.getMonitorSettings());
-});
-
-// PUT /api/focus-monitors - save the definitions. If the count shrinks, any
-// pinned items beyond it are moved to monitor 1 first, so settings and
-// pinned state never disagree.
-router.put('/', async (req, res) => {
   send(res, (async () => {
-    const prev = await focusMonitorsService.getMonitorSettings();
-    const next = focusMonitorsService.sanitizeSettings({ ...prev, ...(req.body || {}) });
-
-    let reassignedCount = 0;
-    // `next.count > 0` because reassigning to zero monitors is meaningless -
-    // see reassignOverflow, which keeps the pins untouched in that case.
-    if (next.count < prev.count && next.count > 0) {
-      const contextId = await activeContextService.getActiveContextId();
-      reassignedCount = await focusService.reassignOverflow(next.count, contextId);
-    }
-
-    const saved = await focusMonitorsService.setMonitorSettings(next);
-    return { ...saved, reassignedCount };
+    const contextId = await activeContextService.getActiveContextId();
+    return settingsWithCount(contextId);
   })());
 });
 
-// POST /api/focus-monitors/add - one more monitor, up to MAX_MONITORS.
-// Declared before /:position/remove is unambiguous either way since the
-// literal "add" never matches a numeric :position segment, but kept here to
-// read top-to-bottom with the routes it pairs with in the context menu.
-router.post('/add', async (req, res) => {
+// PUT /api/focus-monitors - save the label/layout/showNumbers definitions.
+// `count` in the body, if present, is ignored - it isn't a setting, see above.
+router.put('/', async (req, res) => {
   send(res, (async () => {
-    const prev = await focusMonitorsService.getMonitorSettings();
-    const { MAX_MONITORS } = focusMonitorsService;
-    if (prev.count >= MAX_MONITORS) {
-      throw new ValidationError(`Already at the maximum of ${MAX_MONITORS} monitors`);
-    }
-    return focusMonitorsService.setMonitorSettings({ count: prev.count + 1 });
+    const contextId = await activeContextService.getActiveContextId();
+    await focusMonitorsService.setMonitorSettings(req.body || {});
+    return settingsWithCount(contextId);
   })());
 });
 
@@ -60,18 +57,19 @@ router.post('/add', async (req, res) => {
 // lands on monitor 1.
 router.post('/:position/remove', async (req, res) => {
   send(res, (async () => {
-    const prev = await focusMonitorsService.getMonitorSettings();
-    if (prev.count < 1) throw new ValidationError('There are no monitors to remove');
+    const contextId = await activeContextService.getActiveContextId();
+    const count = await currentCount(contextId);
+    if (count < 1) throw new ValidationError('There are no monitors to remove');
 
     const position = Number(req.params.position);
-    if (!(position >= 1 && position <= prev.count)) throw new ValidationError('No such monitor');
+    if (!(position >= 1 && position <= count)) throw new ValidationError('No such monitor');
 
-    const contextId = await activeContextService.getActiveContextId();
     const movedCount = await focusService.shiftMonitorsAfterRemoval(position, contextId);
 
+    const prev = await focusMonitorsService.getMonitorSettings();
     const next = focusMonitorsService.withMonitorRemoved(prev, position);
-    const saved = await focusMonitorsService.setMonitorSettings(next);
-    return { ...saved, movedCount };
+    await focusMonitorsService.setMonitorSettings(next);
+    return { ...(await settingsWithCount(contextId)), movedCount };
   })());
 });
 
