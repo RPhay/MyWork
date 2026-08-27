@@ -22,22 +22,31 @@ function maskContext(context) {
   };
 }
 
+// The owner's name AND address. Both, because the caller decides which to
+// show: with single sign-on the address is the identity that actually
+// matters - it is what a sign-in is matched on - whereas the name is just a
+// label. Deciding here would mean this service knowing about SSO_MODE, which
+// it has no other reason to.
 async function attachUserNames(contexts) {
   const userIds = [...new Set(contexts.map((c) => c.user_id).filter(Boolean))];
   if (userIds.length === 0)
-    return contexts.map((c) => ({ ...c, userName: null }));
+    return contexts.map((c) => ({ ...c, userName: null, userEmail: null }));
 
   const placeholders = userIds.map(() => "?").join(",");
   const users = await db.query(
-    `SELECT id, name FROM users WHERE id IN (${placeholders})`,
+    `SELECT id, name, email FROM users WHERE id IN (${placeholders})`,
     userIds,
   );
-  const nameById = new Map(users.map((u) => [u.id, u.name]));
+  const byId = new Map(users.map((u) => [u.id, u]));
 
-  return contexts.map((c) => ({
-    ...c,
-    userName: c.user_id ? nameById.get(c.user_id) || null : null,
-  }));
+  return contexts.map((c) => {
+    const owner = c.user_id ? byId.get(c.user_id) : null;
+    return {
+      ...c,
+      userName: owner ? owner.name : null,
+      userEmail: owner ? owner.email || null : null,
+    };
+  });
 }
 
 export async function getAllContexts() {

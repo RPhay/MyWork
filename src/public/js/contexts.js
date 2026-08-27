@@ -18,7 +18,7 @@ function contextRowHtml(context) {
       ${!context.db_host ? `<i class="bi bi-house-fill text-primary" title="Home database" style="font-size:.8rem;flex-shrink:0"></i>` : ""}
       ${
         context.userName
-          ? `<span class="badge bg-light text-dark border context-row-owner" title="Owner">${app.escapeHtml(context.userName)}</span>`
+          ? `<span class="badge bg-light text-dark border context-row-owner" title="Owner: ${app.escapeHtml(context.userName)}">${app.escapeHtml(ownerLabel({ name: context.userName, email: context.userEmail }))}</span>`
           : `<span class="badge bg-danger context-row-owner" title="No owner assigned"><i class="bi bi-exclamation-triangle"></i> No owner</span>`
       }
       <span class="context-row-actions">
@@ -416,6 +416,11 @@ function showContextPanel(context) {
 
 let allUsers = [];
 
+// Whether single sign-on is in force on THIS machine. Decides how an owner
+// is labelled below; false on the home machine, where profiles are just
+// names and an email column would be noise.
+let ssoEnabled = false;
+
 async function loadUsers() {
   try {
     const response = await fetch("/api/users");
@@ -424,6 +429,29 @@ async function loadUsers() {
   } catch (error) {
     console.error("Error loading users:", error);
   }
+
+  try {
+    const status = await (await fetch("/auth/status")).json();
+    ssoEnabled = Boolean(status?.data?.enabled);
+  } catch {
+    ssoEnabled = false;
+  }
+}
+
+/**
+ * How to label a context's owner.
+ *
+ * With single sign-on the ADDRESS is the identity that matters - it is what
+ * a sign-in is matched on, and what decides which profile a person lands in
+ * - while the display name is only a label the tenant can change. So the
+ * address wins wherever there is one.
+ *
+ * Falls back to the name when a profile has no address, which is every
+ * profile until someone sets one, and always on a machine with SSO off.
+ */
+function ownerLabel({ name, email }) {
+  if (ssoEnabled && email) return email;
+  return name || null;
 }
 
 function populateContextOwnerSelect(context) {
@@ -431,7 +459,10 @@ function populateContextOwnerSelect(context) {
   select.innerHTML =
     '<option value="">Unassigned</option>' +
     allUsers
-      .map((u) => `<option value="${u.id}">${app.escapeHtml(u.name)}</option>`)
+      .map(
+        (u) =>
+          `<option value="${u.id}">${app.escapeHtml(ownerLabel(u))}</option>`,
+      )
       .join("");
   select.value = context.user_id || "";
   document
