@@ -14,6 +14,7 @@ import { RETIRED_TABLES, LEGACY_TABLE_TYPE } from '../retiredTables.js';
 import {
   SYSTEM_ENTITY_TYPES,
   SPECIAL_ENTITY_TYPES,
+  seededTypesWithFields,
   resolveTypeRelationships,
   upgradedStatusOptions,
 } from '../systemEntityTypes.js';
@@ -683,7 +684,12 @@ export async function createMysqlSchema(connection) {
   `);
 
   // Seed default fields for system entity types. Array order is display_order.
-  for (const type of SYSTEM_ENTITY_TYPES) {
+    // `seededTypesWithFields()`, not SYSTEM_ENTITY_TYPES: the SPECIAL (external)
+  // types declare no fields of their own and were therefore seeded with NONE -
+  // `ado_work_item` arrived with zero fields, so it had no Time Box, no Worked
+  // Time and no priority control. That is what time-box.spec and
+  // worked-time.spec assert about EVERY type. They get the engine block here.
+  for (const type of seededTypesWithFields()) {
     const [typeResult] = await connection.query(
       'SELECT id FROM entity_types WHERE slug = ?',
       [type.slug]

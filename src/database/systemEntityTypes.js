@@ -563,6 +563,54 @@ export const SPECIAL_ENTITY_TYPES = [
 // `template` is excluded even though it supports hierarchy: it holds OTHER
 // types, but nothing holds a template - see the rule above. Without this it
 // would get a template->template rule from here and quietly undo that.
+/**
+ * The engine block: the fields EVERY type carries so the app's own machinery
+ * works on it - the priority control, the Priorities board, the focus bar and
+ * its clock, and the Time Box.
+ *
+ * It lives HERE, in the pure-data module, rather than in entityTypeService,
+ * because both the service and the two schema seeders need it and this file is
+ * the only one all three can import without a cycle (it imports nothing).
+ * entityTypeService re-exports it, so existing importers are unaffected.
+ *
+ * Why it matters that the seeders have it: `createEntityType` calls
+ * `ensureEngineFields`, but the seeders INSERT a type row directly and never
+ * go through the service. Every type declared in SYSTEM_ENTITY_TYPES spells its
+ * fields out, so the gap only showed on SPECIAL_ENTITY_TYPES, which declare
+ * none - `ado_work_item` was seeded with ZERO fields and no Time Box, no Worked
+ * Time and no priority control, which time-box.spec and worked-time.spec caught.
+ * `outlook_calendar` only had them by accident of history: it predates this
+ * block and had been created through the service.
+ */
+export const ENGINE_FIELD_DEFS = [
+  { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
+  { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
+  { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
+  { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
+  { field_key: 'focus_seconds', label: 'Worked Time', field_type: 'duration', required: false, show_in_row: false },
+  { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
+  { field_key: 'focus_monitor', label: 'Focus bar monitor', field_type: 'number', required: false, show_in_row: false },
+  { field_key: 'focus_color', label: 'Focus chip colour', field_type: 'text', required: false, show_in_row: false },
+  { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
+];
+
+/**
+ * Every type the schema seeders should give fields to, and which fields.
+ *
+ * SYSTEM types bring their own list. SPECIAL (external) types declare none and
+ * get the engine block - they are read-only in Settings because their SHAPE
+ * follows what the source sends, which is a statement about the imported
+ * fields, not a reason to withhold the app's own machinery. An ADO work item is
+ * something you plan and work on, so it needs a Time Box and Worked Time like
+ * anything else.
+ */
+export function seededTypesWithFields() {
+  return [
+    ...SYSTEM_ENTITY_TYPES,
+    ...SPECIAL_ENTITY_TYPES.map((t) => ({ ...t, fields: ENGINE_FIELD_DEFS })),
+  ];
+}
+
 export const SELF_NESTING_SLUGS = SYSTEM_ENTITY_TYPES
   .filter((t) => t.supports_hierarchy && t.slug !== 'template')
   .map((t) => t.slug);

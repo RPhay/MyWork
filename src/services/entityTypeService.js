@@ -1,6 +1,7 @@
 import { query } from '../database/connectionPool.js';
 import { ValidationError, NotFoundError, ConflictError } from '../config/errors.js';
 import { UNPINNABLE_TYPE_SLUGS } from '../config/constants.js';
+import { ENGINE_FIELD_DEFS } from '../database/systemEntityTypes.js';
 // A captured snapshot of a working configuration - see revertSystemType.
 import typeDefaults from '../database/typeDefaults.json' with { type: 'json' };
 import logger from '../utils/logger.js';
@@ -430,22 +431,10 @@ export const FOCUS_FIELD_KEYS = new Set([
   'focus_slot', 'focus_seconds', 'focus_started_at', 'focus_monitor', 'focus_color',
 ]);
 
-export const ENGINE_FIELD_DEFS = [
-  // Not engine-OWNED (it is the user's to set, and not in
-  // ENGINE_OWNED_FIELD_KEYS), but every seeded type carries one and
-  // priority-field.spec asserts that every type does. A type created through
-  // this path had none, so its rows had no priority control at all while the
-  // nine built-in types did.
-  { field_key: 'priority', label: 'Priority', field_type: 'priority', required: false, show_in_row: true },
-  { field_key: 'board_bay', label: 'Priorities board column', field_type: 'text', required: false, show_in_row: false },
-  { field_key: 'board_order', label: 'Priorities board position', field_type: 'number', required: false, show_in_row: false },
-  { field_key: 'focus_slot', label: 'Focus bar slot', field_type: 'number', required: false, show_in_row: false },
-  { field_key: 'focus_seconds', label: 'Worked Time', field_type: 'duration', required: false, show_in_row: false },
-  { field_key: 'focus_started_at', label: 'Focus clock started (epoch ms)', field_type: 'number', required: false, show_in_row: false },
-  { field_key: 'focus_monitor', label: 'Focus bar monitor', field_type: 'number', required: false, show_in_row: false },
-  { field_key: 'focus_color', label: 'Focus chip colour', field_type: 'text', required: false, show_in_row: false },
-  { field_key: 'time_box', label: 'Time Box', field_type: 'timebox', required: false, show_in_row: false },
-];
+// Re-exported from the pure-data module so the schema seeders can share it -
+// they cannot import this file (it reaches the live pool, which during a schema
+// build is not the database being built). See systemEntityTypes.js.
+export { ENGINE_FIELD_DEFS };
 
 /**
  * Add any engine field the type does not already have. Idempotent: it reads
