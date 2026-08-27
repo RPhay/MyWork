@@ -851,6 +851,23 @@ async function initUserSwitcher() {
     // the home machine this is null and nothing below it renders.
     const ssoUserId = await getSsoSignedInUserId();
 
+    // Badge on the BUTTON, beside the name, visible without opening the
+    // menu - being signed in is a standing fact about the session, not a
+    // detail to go looking for. Removed and re-added rather than toggled
+    // because initUserSwitcher re-runs (after setting an email, say) and a
+    // toggle would leave two badges behind.
+    const existingBadge = document.getElementById('userSwitcherSsoBadge');
+    if (existingBadge) existingBadge.remove();
+    if (ssoUserId !== null && user && user.id === ssoUserId) {
+      const badge = document.createElement('span');
+      badge.id = 'userSwitcherSsoBadge';
+      badge.className = 'badge text-bg-light ms-1';
+      badge.textContent = 'SSO';
+      badge.title = 'Signed in with Microsoft single sign-on';
+      // Before the caret, which Bootstrap draws as the button's ::after.
+      label.insertAdjacentElement('afterend', badge);
+    }
+
     // The list, plus a way to add a profile without going to Settings - a new
     // user is two clicks from here, which is the whole point of a picker.
     menu.innerHTML = (users || []).map(u => {
