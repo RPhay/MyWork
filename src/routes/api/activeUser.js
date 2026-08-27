@@ -11,6 +11,7 @@ import * as activeContextService from '../../services/activeContextService.js';
 import * as contextService from '../../services/contextService.js';
 import * as userService from '../../services/userService.js';
 import logger from '../../utils/logger.js';
+import { resolveSsoState } from '../../services/ssoModeService.js';
 
 const router = express.Router();
 
@@ -56,6 +57,27 @@ router.get('/', async (req, res) => {
  */
 router.put('/', async (req, res) => {
   try {
+    // With SSO in force, the picker is NOT free. Filtering or greying the
+    // dropdown is not enough - this endpoint still accepts any id typed or
+    // remembered from before, which would make the sign-in decorative: sign
+    // in as one profile, then simply become another. Exactly the reasoning
+    // behind setActiveContextId refusing a context you do not own.
+    //
+    // Only enforced when SSO actually resolved to enabled AND this session
+    // signed in; with SSO_MODE=off there is no session identity to compare
+    // against and the picker stays as free as it has always been.
+    const ssoState = await resolveSsoState();
+    const signedInUserId = req.session?.ssoUser?.userId ?? null;
+    if (ssoState.enabled && signedInUserId !== null) {
+      if (Number(req.body.userId) !== Number(signedInUserId)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            'Signed in with single sign-on - sign out to use a different profile',
+        });
+      }
+    }
+
     const user = await activeUserService.setActiveUserId(req.body.userId);
     const contexts = await contextService.getContextsForUser(user.id);
 

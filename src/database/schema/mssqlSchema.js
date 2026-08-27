@@ -347,10 +347,33 @@ export async function createMssqlSchema(pool) {
     CREATE TABLE [MyWork].[users] (
       id INT IDENTITY(1,1) PRIMARY KEY,
       name NVARCHAR(255) NOT NULL UNIQUE,
+      email NVARCHAR(255) NULL,
       created_at DATETIME2 DEFAULT SYSUTCDATETIME()
     )
   `,
   );
+
+  // Twin of the users.email block in mysqlSchema.js, and DELIBERATELY not the
+  // same syntax. A SQL Server UNIQUE constraint permits exactly ONE NULL, so
+  // the MySQL form here would reject the second profile that has no address -
+  // which is every profile until someone sets one. A filtered unique index
+  // enforces uniqueness only over the rows that actually have an email.
+  if (!(await columnExists(pool, "users", "email"))) {
+    await pool.request().query(`
+      ALTER TABLE [MyWork].[users] ADD email NVARCHAR(255) NULL
+    `);
+  }
+
+  await pool.request().query(`
+    IF NOT EXISTS (
+      SELECT 1 FROM sys.indexes
+      WHERE name = 'unique_users_email'
+        AND object_id = OBJECT_ID('[MyWork].[users]')
+    )
+    CREATE UNIQUE INDEX unique_users_email
+      ON [MyWork].[users](email)
+      WHERE email IS NOT NULL
+  `);
 
   // `sso_identities` is RETIRED - the login subsystem that read it is gone.
   // The createUpdatedAtTrigger call that stood here went with it: it built a

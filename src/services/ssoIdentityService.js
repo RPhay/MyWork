@@ -37,14 +37,20 @@ export async function getIdentitiesForUser(userId) {
  * only if nothing matches, the profile) as needed.
  *
  * Resolution order, most to least specific:
- *   1. An existing identity for this Entra subject  - the normal path.
- *   2. A profile whose name matches the display name - adopts the profile
- *      you already use, so turning SSO on does not orphan your work.
- *   3. A new profile named after the Entra display name.
+ *   1. An existing identity for this Entra subject - the normal path, and
+ *      the only one that runs after the first successful sign-in.
+ *   2. A profile whose `email` matches the Entra address. THE MATCH THAT
+ *      MATTERS: set users.email on the profile you already use and the first
+ *      work-machine login adopts it instead of creating a second one.
+ *   3. A profile whose NAME is that email address - covers profiles that
+ *      were named by address before users.email existed.
+ *   4. A profile whose name matches the Entra display name.
+ *   5. A new profile, carrying both the display name and the address.
  *
- * Step 2 matters more than it looks: without it, the first work-machine
- * login would create a SECOND profile and land you in an empty app with
- * every context still owned by the old one.
+ * Steps 2-4 exist for one reason: without them the first login creates a
+ * SECOND profile and lands you in an empty app with every context still
+ * owned by the old one. Email is checked before name because a display name
+ * is not unique and can be changed by whoever administers the tenant.
  */
 export async function resolveIdentityToUser(entraUser) {
   const subject = entraUser?.id;
@@ -53,7 +59,18 @@ export async function resolveIdentityToUser(entraUser) {
   }
 
   const displayName = (entraUser.displayName || entraUser.email || "").trim();
-  const email = entraUser.email || null;
+
+  // Every address this account is known by, most-recognisable first. A tenant
+  // whose UPN differs from its mail address would otherwise match only
+  // whichever of the two happened to be typed into "Email for SSO".
+  const candidateEmails = [
+    ...new Set(
+      [entraUser.mail, entraUser.userPrincipalName, entraUser.email]
+        .map(userService.normaliseEmail)
+        .filter(Boolean),
+    ),
+  ];
+  const email = candidateEmails[0] || null;
 
   const existing = await findIdentity(subject);
   if (existing) {
@@ -64,22 +81,66 @@ export async function resolveIdentityToUser(entraUser) {
     return { userId: existing.user_id, linked: false, created: false };
   }
 
-  if (!displayName) {
+  if (!displayName && candidateEmails.length === 0) {
     throw new ValidationError(
       "Entra profile has neither a display name nor an email to match a profile by",
     );
   }
 
-  let user = await db.queryOne("SELECT * FROM users WHERE name = ?", [
-    displayName,
-  ]);
+  // Step 2: the address on the profile itself - ANY of the account's
+  // addresses, so it does not matter which one was entered.
+  let user = null;
+  let matchedBy = null;
+  for (const candidate of candidateEmails) {
+    user = await userService.getUserByEmail(candidate);
+    if (user) {
+      matchedBy = "email";
+      break;
+    }
+  }
+
+  // Step 3: a profile NAMED by one of those addresses.
+  if (!user) {
+    for (const candidate of candidateEmails) {
+      user = await db.queryOne("SELECT * FROM users WHERE LOWER(name) = ?", [
+        candidate,
+      ]);
+      if (user) {
+        matchedBy = "name-as-email";
+        break;
+      }
+    }
+  }
+
+  // Step 4: the display name.
+  if (!user && displayName) {
+    user = await db.queryOne("SELECT * FROM users WHERE name = ?", [
+      displayName,
+    ]);
+    if (user) matchedBy = "display-name";
+  }
+
   let created = false;
 
   if (!user) {
-    user = await userService.createUser(displayName);
+    user = await userService.createUser(displayName || email, email);
     created = true;
-    logger.info("SSO created a new profile", { name: displayName });
+    matchedBy = "created";
+    logger.info("SSO created a new profile", { name: displayName || email });
+  } else if (email && !user.email) {
+    // Matched by NAME, and the profile carries no address yet. Store it, so
+    // the next sign-in matches at step 2 and stops depending on a display
+    // name the tenant administrator can rename out from under it.
+    await userService.updateUser(user.id, { email });
+    logger.info("SSO backfilled a profile's email from Entra", {
+      userId: user.id,
+    });
   }
+
+  logger.info("SSO resolved an Entra identity to a profile", {
+    userId: user.id,
+    matchedBy,
+  });
 
   await db.insert(
     `INSERT INTO user_identities (user_id, provider, subject, email, display_name, last_login_at)

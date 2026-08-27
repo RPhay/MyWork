@@ -26,6 +26,25 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Update a profile's name and/or email.
+//
+// The email is what single sign-on matches a signing-in Entra account
+// against, so this endpoint is what makes SSO adopt an EXISTING profile
+// rather than create a second one beside it.
+router.put('/:id', async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    const user = await userService.updateUser(Number(req.params.id), {
+      name,
+      email,
+    });
+    res.json({ success: true, message: 'User updated', data: user });
+  } catch (error) {
+    logger.error('Error updating user:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // Remove a profile. Refuses while it still owns contexts - see deleteUser.
 router.delete('/:id', async (req, res) => {
   try {

@@ -101,9 +101,19 @@ export class EntraIdAuth {
         }
       });
 
+      // BOTH addresses, not one picked for you. In many tenants the UPN
+      // (ryan@company.onmicrosoft.com) is not the mail address
+      // (ryan@company.com), and collapsing them here means the profile match
+      // depends on which of the two someone happened to type into "Email for
+      // SSO". Returning both lets ssoIdentityService match on either.
+      //
+      // `email` is kept as the primary for existing callers, and prefers
+      // `mail` because that is the address a person recognises.
       return {
         id: response.data.id,
-        email: response.data.userPrincipalName || response.data.mail,
+        email: response.data.mail || response.data.userPrincipalName,
+        mail: response.data.mail || null,
+        userPrincipalName: response.data.userPrincipalName || null,
         displayName: response.data.displayName,
         givenName: response.data.givenName,
         surname: response.data.surname

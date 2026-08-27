@@ -2,11 +2,32 @@ import { query, update, insert } from '../database/connectionPool.js';
 import { encrypt, decrypt } from '../utils/credentialCrypto.js';
 import EntraIdAuth from '../auth/entraId.js';
 import logger from '../utils/logger.js';
+import config from '../config/environment.js';
+import { getConfigurationState } from './ssoModeService.js';
 
 /**
  * Service for managing data source authentication
  * Handles credentials, SSO tokens, and token refresh per data source
  */
+
+/**
+ * Build an EntraIdAuth from the machine's .env.local SSO_* values, or null
+ * when this machine has no tenant configured.
+ *
+ * Returning null rather than throwing is deliberate: a home machine with no
+ * SSO_* set should make data-source auth simply unavailable, not error.
+ */
+export function buildEntraAuthFromEnv({ redirectUri = '' } = {}) {
+  const { configured } = getConfigurationState();
+  if (!configured) return null;
+
+  return new EntraIdAuth({
+    tenantId: config.sso.tenantId,
+    clientId: config.sso.clientId,
+    clientSecret: config.sso.clientSecret,
+    redirectUri,
+  });
+}
 
 /**
  * Get current auth for a data source
@@ -96,9 +117,14 @@ export function isAuthValid(auth) {
 }
 
 /**
- * Refresh SSO token if needed
+ * Refresh SSO token if needed.
+ *
+ * Took a `contextId` until 2026-08-27, when the tenant stopped coming from
+ * per-context columns. Dropped rather than underscore-prefixed: it had no
+ * callers, and a parameter that is accepted and ignored invites someone to
+ * pass a context id and believe it selected a tenant.
  */
-export async function refreshSsoTokenIfNeeded(sourceId, authType, contextId) {
+export async function refreshSsoTokenIfNeeded(sourceId, authType) {
   try {
     const auth = await getSourceAuth(sourceId, authType);
     if (!auth) return null;
@@ -120,24 +146,19 @@ export async function refreshSsoTokenIfNeeded(sourceId, authType, contextId) {
       return null; // Can't refresh without refresh token
     }
 
-    // Get SSO config from context
-    const [contextRows] = await query(
-      'SELECT sso_provider, sso_tenant_id_enc, sso_client_id_enc, sso_client_secret_enc FROM contexts WHERE id = ?',
-      [contextId]
-    );
-
-    if (contextRows.length === 0) return null;
-
-    const contextAuth = contextRows[0];
-    if (!contextAuth.sso_tenant_id_enc) return null;
-
-    // Refresh the token
-    const entraAuth = new EntraIdAuth({
-      tenantId: decrypt(JSON.parse(contextAuth.sso_tenant_id_enc)),
-      clientId: decrypt(JSON.parse(contextAuth.sso_client_id_enc)),
-      clientSecret: decrypt(JSON.parse(contextAuth.sso_client_secret_enc)),
-      redirectUri: '' // Not needed for refresh
-    });
+    // Tenant config comes from .env.local (config.sso), NOT from per-context
+    // encrypted columns. Those columns were dropped with the SSO login
+    // subsystem on 2026-08-26, and this SELECT went on referencing them - so
+    // every refresh threw "Unknown column 'sso_tenant_id_enc'". It also
+    // destructured `[contextRows]` mysql2-style when this repo's query()
+    // returns rows directly, which made the length guard below `undefined
+    // === 0` and therefore never true.
+    //
+    // Machine-wide rather than per-context is the deliberate part: which
+    // tenant you can reach is a property of the MACHINE and NETWORK, which is
+    // the same reason SSO_MODE lives there. One tenant per machine.
+    const entraAuth = buildEntraAuthFromEnv({ redirectUri: '' });
+    if (!entraAuth) return null;
 
     const refreshResult = await entraAuth.refreshAccessToken(auth.authData.refreshToken);
 

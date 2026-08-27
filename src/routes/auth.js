@@ -160,6 +160,10 @@ router.get("/status", async (req, res) => {
       cached: Boolean(state.cached),
       reason: state.reason,
       signedIn: Boolean(req.session?.ssoUser),
+      // Which PROFILE the session is signed in as. The navbar needs the id,
+      // not the name: two profiles can share a display name, and matching a
+      // dropdown row by string would put the badge on the wrong one.
+      userId: req.session?.ssoUser?.userId ?? null,
       // Never the tenant id, client id or secret - a diagnostic endpoint is
       // not a place to echo credentials.
       displayName: req.session?.ssoUser?.displayName || null,

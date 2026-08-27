@@ -801,6 +801,25 @@ function forgetOtherProfilesLocalState(user) {
   }
 }
 
+// Which profile this session is signed in as via single sign-on, or null.
+//
+// Returns null for every reason that is not "signed in": SSO off (the home
+// machine, and the default), enabled but not yet signed in, or the endpoint
+// unreachable. The navbar must render identically in all of those cases -
+// an SSO badge that appears because a fetch failed is worse than no badge.
+async function getSsoSignedInUserId() {
+  try {
+    const response = await fetch('/auth/status');
+    if (!response.ok) return null;
+    const result = await response.json();
+    const data = result?.data;
+    if (!data?.enabled || !data.signedIn) return null;
+    return typeof data.userId === 'number' ? data.userId : null;
+  } catch {
+    return null;
+  }
+}
+
 // Top-right user switcher (navbar.ejs, present on every page).
 //
 // A PROFILE picker, not a login: there is no password and it is not access
@@ -827,17 +846,41 @@ async function initUserSwitcher() {
 
     label.textContent = user ? user.name : 'Choose user';
 
+    // Which profile, if any, this session actually SIGNED IN as. Only ever
+    // set when SSO_MODE resolves to on/auto and the sign-in completed, so on
+    // the home machine this is null and nothing below it renders.
+    const ssoUserId = await getSsoSignedInUserId();
+
     // The list, plus a way to add a profile without going to Settings - a new
     // user is two clicks from here, which is the whole point of a picker.
-    menu.innerHTML = (users || []).map(u => `
+    menu.innerHTML = (users || []).map(u => {
+      const isActive = Boolean(user && u.id === user.id);
+      // The signed-in profile is almost always also the ACTIVE row, which is
+      // painted Bootstrap primary - so a text-bg-primary badge there is blue
+      // on blue and reads as bare text with no pill at all. Light badge on
+      // the active row, primary everywhere else.
+      const badge = ssoUserId !== null && u.id === ssoUserId
+        ? `<span class="badge ${isActive ? 'text-bg-light' : 'text-bg-primary'}" title="Signed in with Microsoft single sign-on">SSO</span>`
+        : '';
+      // Signed in: every OTHER profile is unreachable, because the server
+      // refuses the switch. Disabling here is presentation only - the guard
+      // that matters is in PUT /api/active-user, since a disabled button
+      // stops a click and nothing else.
+      const locked = ssoUserId !== null && u.id !== ssoUserId;
+      return `
       <li>
-        <button type="button" class="dropdown-item ${user && u.id === user.id ? 'active' : ''}" data-user-id="${u.id}">
-          <i class="bi bi-person-fill"></i> ${app.escapeHtml(u.name)}
+        <button type="button" class="dropdown-item d-flex align-items-center justify-content-between gap-3 ${isActive ? 'active' : ''} ${locked ? 'disabled' : ''}" data-user-id="${u.id}"${locked ? ' disabled title="Signed in with single sign-on - sign out to use a different profile"' : ''}>
+          <span><i class="bi bi-person-fill"></i> ${app.escapeHtml(u.name)}</span>
+          ${badge}
         </button>
       </li>
-    `).join('') + `
+    `;
+    }).join('') + `
       <li><hr class="dropdown-divider"></li>
-      <li><button type="button" class="dropdown-item" id="addUserItem"><i class="bi bi-plus-lg"></i> New user…</button></li>`;
+      ${user ? `<li><button type="button" class="dropdown-item" id="setUserEmailItem" title="The address single sign-on matches this profile by"><i class="bi bi-envelope"></i> Email for SSO…</button></li>` : ''}
+      <li><button type="button" class="dropdown-item" id="addUserItem"><i class="bi bi-plus-lg"></i> New user…</button></li>
+      ${ssoUserId !== null ? `<li><hr class="dropdown-divider"></li>
+      <li><button type="button" class="dropdown-item text-danger" id="ssoSignOutItem"><i class="bi bi-box-arrow-right"></i> Sign out</button></li>` : ''}`;
 
     menu.querySelectorAll('[data-user-id]').forEach(item => {
       item.addEventListener('click', () => {
@@ -848,6 +891,14 @@ async function initUserSwitcher() {
 
     const addItem = document.getElementById('addUserItem');
     if (addItem) addItem.addEventListener('click', promptForNewUser);
+
+    const emailItem = document.getElementById('setUserEmailItem');
+    if (emailItem) {
+      emailItem.addEventListener('click', () => promptForUserEmail(user));
+    }
+
+    const signOutItem = document.getElementById('ssoSignOutItem');
+    if (signOutItem) signOutItem.addEventListener('click', ssoSignOut);
 
     return { user, users, needsUser, needsContext };
   } catch (error) {
@@ -880,6 +931,65 @@ async function switchToUser(userId) {
   } catch (error) {
     console.error('Error switching user:', error);
     app.notify('Error switching user', 'danger');
+  }
+}
+
+// End the single sign-on session.
+//
+// Only ever rendered when signed in. Reloads rather than redirecting: the
+// gate in app.js will bounce the next page load to /auth/login by itself,
+// and letting it do so keeps one place deciding where an unauthenticated
+// request goes.
+async function ssoSignOut() {
+  try {
+    await app.fetchRaw('/auth/logout', { method: 'POST' });
+  } catch (error) {
+    console.error('Error signing out:', error);
+  }
+  window.location.reload();
+}
+
+// Set the address single sign-on matches this profile by.
+//
+// Without this the email match is unreachable from the UI, and an SSO
+// feature you cannot configure lands you on a NEW profile with none of your
+// contexts - which is the failure the match exists to prevent. Set it on the
+// profile you already use, BEFORE the first sign-in on the work machine.
+async function promptForUserEmail(user) {
+  if (!user) return;
+
+  const email = await app.prompt(
+    `Work email address for ${user.name}. Single sign-on matches this profile by it; leave blank to clear.`,
+    {
+      title: 'Email for SSO',
+      defaultValue: user.email || '',
+      placeholder: 'e.g. you@company.com',
+    },
+  );
+  // Cancelled. An empty STRING is a deliberate clear and must still be sent,
+  // which is why this tests for null rather than falsiness.
+  if (email === null || email === undefined) return;
+
+  try {
+    const response = await app.fetchRaw(`/api/users/${user.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ email: email.trim() }),
+    });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify('Error: ' + result.message, 'danger');
+      return;
+    }
+    app.notify(
+      email.trim()
+        ? `${user.name} will be matched by ${email.trim()}`
+        : `Cleared the email for ${user.name}`,
+      'success',
+    );
+    initUserSwitcher();
+  } catch (error) {
+    console.error('Error saving user email:', error);
+    app.notify('Could not save the email address', 'danger');
   }
 }
 

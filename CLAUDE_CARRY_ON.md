@@ -52,33 +52,21 @@ is urgent unless marked so.
 across a chat is a list nobody reads again; the point of this file is that it is
 read first.
 
-### Known broken, and left broken on purpose (2026-08-27)
+### Closed on 2026-08-27
 
-- [ ] **Entra auth for Azure DevOps / ServiceNow data sources throws.**
-      `dataSourceAuth.js:205` and `dataSourceAuthService.js:136-138` still
-      `SELECT sso_tenant_id_enc, sso_client_id_enc, sso_client_secret_enc,
-      sso_redirect_uri FROM contexts`, but the SSO deletion (`df129b9`,
-      2026-08-26) dropped all seven `sso_*` columns. Verified against the live
-      database: `SHOW COLUMNS FROM contexts LIKE 'sso%'` returns nothing, so
-      the authorize endpoint fails on an unknown column.
+- **Entra auth for Azure DevOps / ServiceNow works again.** Both call sites -
+  `dataSourceAuth.js` (login AND callback; the callback was a second site that
+  a grep found after the first was fixed) and `dataSourceAuthService.js` -
+  read the seven `sso_*` columns dropped by `df129b9`, so every call threw
+  `Unknown column 'sso_tenant_id_enc'`. They now take the tenant from
+  `config.sso` (`.env.local`) via `buildEntraAuthFromEnv()`. **Machine-wide,
+  not per-context, and deliberately so:** which tenant you can reach is a
+  property of the machine and network, the same reasoning that puts SSO_MODE
+  there. One tenant per machine.
 
-      That commit's own message says `auth/entraId.js` was KEPT precisely
-      because data-source auth imports it - the columns underneath it went
-      anyway. No spec covers the route, which is why a green full suite did
-      not notice.
-
-      There is a **second, independent** bug on the same line:
-      `const [contexts] = await query(...)` destructures mysql2-style, but this
-      repo's `query()` returns rows directly (`connectionPool.js:236`), so
-      `contexts` is the first ROW and the `contexts.length === 0` guard below
-      is `undefined === 0` - always false. Same shape as the `ssoUserService`
-      bug CLAUDE.md records.
-
-      Left alone deliberately: the fix is a real either/or, not a typo.
-      Restore per-context encrypted credential columns, point data-source auth
-      at the new machine-wide `SSO_*` values in `.env.local`, or delete the
-      path as the login subsystem was. **Deferred by the user on 2026-08-27**
-      with SSO login chosen as the work in hand instead.
+  The `const [contexts] = await query(...)` destructuring bug went with them -
+  this repo's `query()` returns rows directly, so `contexts` was the first ROW
+  and the `contexts.length === 0` guard was `undefined === 0`, never true.
 
 ### Yours to do (this machine cannot)
 

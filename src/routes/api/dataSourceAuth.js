@@ -4,8 +4,6 @@ import MsOutlookAuth from '../../auth/msOutlookAuth.js';
 import dataSourceAuthService from '../../services/dataSourceAuthService.js';
 import * as sourceService from '../../services/sourceService.js';
 import * as activeContextService from '../../services/activeContextService.js';
-import { query } from '../../database/connectionPool.js';
-import { decrypt } from '../../utils/credentialCrypto.js';
 import config from '../../config/environment.js';
 import logger from '../../utils/logger.js';
 
@@ -200,34 +198,26 @@ router.post('/sources/:sourceId/auth/sso/login', async (req, res, next) => {
       });
     }
 
-    // Get context SSO config
-    const [contexts] = await query(
-      'SELECT sso_tenant_id_enc, sso_client_id_enc, sso_client_secret_enc, sso_redirect_uri FROM contexts WHERE id = ?',
-      [contextId]
-    );
-
-    if (contexts.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Context not found or SSO not configured'
-      });
-    }
-
-    const contextAuth = contexts[0];
-    if (!contextAuth.sso_tenant_id_enc) {
-      return res.status(400).json({
-        success: false,
-        message: 'SSO not configured for this context'
-      });
-    }
-
-    // Initialize auth handler
-    const auth = new EntraIdAuth({
-      tenantId: decrypt(JSON.parse(contextAuth.sso_tenant_id_enc)),
-      clientId: decrypt(JSON.parse(contextAuth.sso_client_id_enc)),
-      clientSecret: decrypt(JSON.parse(contextAuth.sso_client_secret_enc)),
-      redirectUri: contextAuth.sso_redirect_uri
+    // Tenant config comes from .env.local (config.sso), NOT from per-context
+    // encrypted columns. The SELECT that stood here read the seven sso_*
+    // columns dropped with the login subsystem on 2026-08-26, so this
+    // endpoint threw "Unknown column 'sso_tenant_id_enc'" on every call. It
+    // also destructured `[contexts]` mysql2-style when query() returns rows
+    // directly, making the guard below `undefined === 0` - always false.
+    //
+    // See buildEntraAuthFromEnv: which tenant is reachable is a property of
+    // the machine, which is why it lives beside SSO_MODE.
+    const auth = dataSourceAuthService.buildEntraAuthFromEnv({
+      redirectUri: `${config.app.url}/api/sources/${sourceId}/auth/sso/callback`,
     });
+
+    if (!auth) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'No Entra tenant is configured on this machine - set SSO_TENANT_ID, SSO_CLIENT_ID and SSO_CLIENT_SECRET in .env.local'
+      });
+    }
 
     // Generate state for CSRF protection
     const state = EntraIdAuth.generateState();
@@ -291,27 +281,19 @@ router.get('/sources/:sourceId/auth/sso/callback', async (req, res, next) => {
       });
     }
 
-    // Get context config
-    const [contexts] = await query(
-      'SELECT sso_tenant_id_enc, sso_client_id_enc, sso_client_secret_enc, sso_redirect_uri FROM contexts WHERE id = ?',
-      [authState.contextId]
-    );
+    // Same machine-wide tenant the login half used. The redirect URI must be
+    // byte-identical to the one sent to /authorize or Entra rejects the
+    // exchange, so it is rebuilt the same way rather than stored.
+    const auth = dataSourceAuthService.buildEntraAuthFromEnv({
+      redirectUri: `${config.app.url}/api/sources/${sourceId}/auth/sso/callback`,
+    });
 
-    if (contexts.length === 0) {
+    if (!auth) {
       return res.status(400).json({
         success: false,
-        message: 'Context not found'
+        message: 'No Entra tenant is configured on this machine'
       });
     }
-
-    // Exchange code for token
-    const contextAuth = contexts[0];
-    const auth = new EntraIdAuth({
-      tenantId: decrypt(JSON.parse(contextAuth.sso_tenant_id_enc)),
-      clientId: decrypt(JSON.parse(contextAuth.sso_client_id_enc)),
-      clientSecret: decrypt(JSON.parse(contextAuth.sso_client_secret_enc)),
-      redirectUri: contextAuth.sso_redirect_uri
-    });
 
     const tokens = await auth.exchangeCodeForToken(code);
     const userInfo = await auth.getUserInfo(tokens.accessToken);

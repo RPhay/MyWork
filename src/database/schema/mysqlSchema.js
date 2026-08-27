@@ -227,9 +227,27 @@ export async function createMysqlSchema(connection) {
     CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(255) NOT NULL UNIQUE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      email VARCHAR(255) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_users_email (email)
     )
   `);
+
+  // Backfill for installs whose users table predates email. NULL is the
+  // normal state - a profile only needs an address if it is going to be
+  // matched by single sign-on.
+  //
+  // The UNIQUE is added with the column, not separately, so the two cannot
+  // drift. MySQL permits any number of NULLs under a UNIQUE key, which is
+  // what makes this safe; SQL Server does NOT, and its twin in mssqlSchema.js
+  // uses a filtered index for that reason. Do not "simplify" the two into
+  // matching syntax.
+  if (!(await columnExists(connection, 'users', 'email'))) {
+    await connection.query('ALTER TABLE users ADD COLUMN email VARCHAR(255) NULL');
+    await connection.query(
+      'ALTER TABLE users ADD UNIQUE KEY unique_users_email (email)',
+    );
+  }
 
   // An external identity (today: Entra ID) MAPPED ONTO an existing profile.
   //
