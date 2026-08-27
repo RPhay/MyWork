@@ -94,27 +94,49 @@ class TabManager {
 
     const isOn = (slug) => localStorage.getItem(KEY(slug)) === 'true';
 
-    // Set when Settings > Startup names a RAIL rather than a tab. A rail has
-    // no tab pane, so it can never be `currentTab` - that is what left the
-    // Dailies rail alone on screen looking like a failed load - so opening on
-    // one is applied here, as a layout, while currentTab stays a real tab.
-    const landingRail = document.body?.dataset.landingRail || null;
-    const landingRailOnly = document.body?.dataset.landingRailOnly === 'true';
+    // Settings > Miscellaneous > Startup: what the app opens on, and whether
+    // that is a rail or a tab. A rail can never be `currentTab` - naming one
+    // as the landing tab is what left the rail alone on screen looking like a
+    // failed load - so a rail choice is applied HERE, as a layout, while
+    // currentTab stays a real tab underneath.
+    const startupView = document.body?.dataset.startupView || null;
+    const startupKind = document.body?.dataset.startupKind || null;
 
-    // Applied only when nothing has been stored yet - a first load, or after
-    // the profile change that clears local state. Beyond that the rails are
-    // wherever you last left them, and a preference that reasserted itself on
-    // every load would fight you for the layout.
-    if (localStorage.getItem(KEY('daily')) === null) {
-      // Dailies starts on, matching how the rail behaved when it was the only
-      // one; Templates starts off.
-      localStorage.setItem(KEY('daily'), 'true');
-
-      if (landingRail) {
-        RAILS.forEach((slug) => localStorage.setItem(KEY(slug), String(slug === landingRail)));
-        // "Open on Dailies" means Dailies, not Dailies beside a type list.
-        if (landingRailOnly) localStorage.setItem(CONTENT_KEY, 'false');
+    // Applied when the dashboard is NAVIGATED to - leaving Settings and
+    // coming back, or signing in - but NOT on a refresh.
+    //
+    // The distinction matters and the Navigation Timing API is what draws it:
+    // 'navigate' is arriving at the page, 'reload' is F5 (hard or otherwise),
+    // 'back_forward' is history. Arriving is when "open on X" should mean
+    // something; refreshing is someone asking for THIS page again, and
+    // rearranging their panes underneath them is not that.
+    //
+    // Unknown type (an old browser, or the entry missing) is treated as
+    // arriving, because a startup setting that silently never applies is the
+    // worse failure of the two.
+    const navType = (() => {
+      try {
+        return performance.getEntriesByType('navigation')[0]?.type ?? 'navigate';
+      } catch {
+        return 'navigate';
       }
+    })();
+    const arriving = navType !== 'reload' && navType !== 'back_forward';
+
+    // "Open on X" means X ALONE, which is why every other pane is turned off
+    // rather than merely adding the chosen one.
+    if (startupView && startupKind && arriving) {
+      RAILS.forEach((slug) =>
+        localStorage.setItem(KEY(slug), String(startupKind === 'rail' && slug === startupView)));
+      localStorage.setItem(CONTENT_KEY, String(startupKind === 'tab'));
+      this.contentVisible = startupKind === 'tab';
+    } else if (localStorage.getItem(KEY('daily')) === null) {
+      // Either no startup choice, or this was a refresh and the stored
+      // layout stands. Only the very first load needs a default.
+
+      // No startup choice: the old default, applied once. Dailies starts on,
+      // matching how the rail behaved when it was the only one.
+      localStorage.setItem(KEY('daily'), 'true');
     }
 
     const shell = document.getElementById('appShell');

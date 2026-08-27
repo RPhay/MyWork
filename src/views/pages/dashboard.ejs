@@ -169,8 +169,8 @@
       (appPreferencesService.resolveLandingTab); empty is better than a lie
       if it ever does not. %>
   data-active-tab="<%= activeTab || '' %>"
-  data-landing-rail="<%= typeof landingRail !== 'undefined' && landingRail ? landingRail : '' %>"
-  data-landing-rail-only="<%= typeof landingRailOnly !== 'undefined' && landingRailOnly ? 'true' : '' %>"
+  data-startup-view="<%= typeof startupView !== 'undefined' && startupView ? startupView : '' %>"
+  data-startup-kind="<%= typeof startupKind !== 'undefined' && startupKind ? startupKind : '' %>"
   data-current-year="<%= currentYear %>"
   data-csrf-token="<%= csrfToken %>"
   data-version="<%= version %>"

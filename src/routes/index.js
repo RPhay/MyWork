@@ -163,8 +163,12 @@ router.get("/", async (req, res) => {
     );
     const startup = await resolveStartup();
     const tab = req.query.tab || startup.tab || "priority";
-    const landingRail = startup.rail;
-    const landingRailOnly = startup.railOnly;
+    // The chosen pane, and whether it is a rail or a tab. Sent on EVERY load,
+    // not just a first one: "open on Dailies" has to mean it every time the
+    // dashboard is opened - coming back from Settings, or after signing in -
+    // which is what a startup setting is for.
+    const startupView = startup.view;
+    const startupKind = startup.kind;
     const version = readVersion();
 
     // A profile that owns no contexts has nothing to show here.
@@ -194,8 +198,8 @@ router.get("/", async (req, res) => {
       title: "MyWork Dashboard",
       currentYear,
       activeTab: tab,
-      landingRail,
-      landingRailOnly,
+      startupView,
+      startupKind,
       version,
       dbHealth: res.locals.dbHealth,
       entityTypes: entityTypes || [],

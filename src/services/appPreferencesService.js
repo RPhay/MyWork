@@ -121,13 +121,21 @@ export async function resolveStartup() {
     tabs.find((t) => t.slug === "priority")?.slug || tabs[0]?.slug || null;
 
   const chosen = getStartupView();
+
+  // No choice, or one naming a type that no longer exists: leave the layout
+  // alone entirely. `view: null` is how the client knows not to force
+  // anything, so an install that has never touched this setting behaves
+  // exactly as it did before it existed.
   if (!chosen || !choices.some((c) => c.slug === chosen)) {
-    return { tab: firstTab, rail: null, railOnly: false };
+    return { tab: firstTab, view: null, kind: null };
   }
 
   if (RAIL_SLUGS.has(chosen)) {
-    return { tab: firstTab, rail: chosen, railOnly: true };
+    // A rail can never be `currentTab` - that is what left the app showing a
+    // rail alone and looking like it had failed to load - so the type pane
+    // still gets a real tab behind it, hidden though it will be.
+    return { tab: firstTab, view: chosen, kind: "rail" };
   }
 
-  return { tab: chosen, rail: null, railOnly: false };
+  return { tab: chosen, view: chosen, kind: "tab" };
 }
