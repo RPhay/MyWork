@@ -35,11 +35,29 @@
  * Take a database backup before --apply. This moves data.
  */
 
+import fs from "fs";
+import path from "path";
 import config from "../src/config/environment.js";
 import { query } from "../src/database/connectionPool.js";
 
 const APPLY = process.argv.includes("--apply");
 const INCLUDE_ORPHANS = process.argv.includes("--include-orphans");
+
+
+// Nothing in dbo is dropped before its rows are on disk.
+//
+// This runs on a machine whose output cannot easily be reviewed first, so
+// "read the dry run and decide" is not available. A dump costs a file and
+// makes every drop reversible, which is the property that actually matters
+// when the plan cannot be checked in advance.
+async function dumpBeforeDrop(table) {
+  const dir = path.join(process.cwd(), "data");
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `dbo-rescue-${table}.json`);
+  const rows = await query(`SELECT * FROM [dbo].[${table}]`);
+  fs.writeFileSync(file, JSON.stringify(rows, null, 1));
+  return { file, count: rows.length };
+}
 
 function line() {
   console.log("-".repeat(72));
@@ -111,6 +129,23 @@ async function main() {
         skipped.map((p) => `${p.table} (${p.count} rows)`).join(", ") +
         "\nThese are older tables the app does not read under either schema." +
         "\nPass --include-orphans to move them into [MyWork] as well.",
+    );
+  }
+
+  // Both sides holding rows is the one case that MERGES two populated tables
+  // rather than moving one. Ids are checked for clashes and a clash refuses,
+  // but non-clashing rows from both sides end up side by side - which for
+  // contexts or users means duplicates to tidy, not data lost.
+  const merging = plan.filter(
+    (p) => p.action === "COPY-THEN-DROP" && p.twinCount > 0,
+  );
+  if (merging.length) {
+    console.log(
+      "\n** Both schemas hold rows for: " +
+        merging.map((p) => `${p.table} (dbo ${p.count} / MyWork ${p.twinCount})`).join(", ") +
+        "\n   These MERGE. Ids that clash refuse outright; ids that do not will" +
+        "\n   sit alongside each other, so expect duplicates to tidy afterwards." +
+        "\n   Every dbo table is dumped to data/dbo-rescue-<table>.json first. **",
     );
   }
 
@@ -187,8 +222,11 @@ async function main() {
       }
 
       if (p.action === "DROP") {
+        const dump = await dumpBeforeDrop(p.table);
         await query(`DROP TABLE [dbo].[${p.table}]`);
-        console.log(`  dropped empty dbo.${p.table}`);
+        console.log(
+          `  dropped empty dbo.${p.table} (dumped ${dump.count} row(s) to ${dump.file})`,
+        );
         continue;
       }
 
@@ -244,8 +282,12 @@ async function main() {
         }
       }
 
+      const dump = await dumpBeforeDrop(p.table);
       await query(`DROP TABLE [dbo].[${p.table}]`);
-      console.log(`  copied ${p.count} row(s) from dbo.${p.table}, dropped dbo copy`);
+      console.log(
+        `  copied ${p.count} row(s) from dbo.${p.table}, dropped dbo copy` +
+          ` (dump: ${dump.file})`,
+      );
     } catch (error) {
       console.log(`  FAILED on ${p.table}: ${error.message}`);
     }
