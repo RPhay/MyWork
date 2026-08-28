@@ -99,7 +99,10 @@ test('Dailies shows no column headers until the day has work', async ({ page }) 
   await page.evaluate(async (d) => {
     const input = document.getElementById('selectedDate');
     input.value = d;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    // loadWorkItems() reads the input directly. A `change` event does NOT
+    // drive the rail, and relying on it made this pass only while today
+    // happened to be empty too - which is the very thing being asserted.
+    await window.loadWorkItems?.();
   }, today);
   await page.waitForTimeout(1200);
 

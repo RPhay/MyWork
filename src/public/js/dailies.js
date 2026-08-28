@@ -879,88 +879,11 @@ function initDailies() {
     closeWorkItemEditorBtn.addEventListener("click", closeWorkItemEditor);
   }
 
-  // Child item editor handlers
-  const closeChildBtn = document.getElementById("closeChildItemEditorBtn");
-  if (closeChildBtn) {
-    closeChildBtn.addEventListener("click", closeChildItemEditor);
-  }
-
-  const saveChildBtn = document.getElementById("saveChildItemEditorBtn");
-  if (saveChildBtn) {
-    saveChildBtn.addEventListener("click", async () => {
-      const type = document.getElementById("childItemEditorType").value;
-      const id = document.getElementById("childItemEditorId").value;
-      const title = document.getElementById("childItemEditorTitle").value;
-
-      if (!title) {
-        app.notify("Title is required", "warning");
-        return;
-      }
-
-      try {
-        const typeMap = {
-          'priority': '/api/priorities',
-          'category': '/api/categories',
-          'goal': '/api/goals',
-          'template': '/api/daily-templates',
-          'todo': '/api/to-dos',
-          'task': '/api/tasks',
-          'ticket': '/api/tickets',
-          'idea': '/api/ideas'
-        };
-
-        const endpoint = typeMap[type];
-        if (!endpoint) {
-          console.error('Unknown type:', type);
-          return;
-        }
-
-        // Build payload from only the fields this type actually has
-        const payload = { title, name: title };
-
-        (CHILD_ITEM_FIELD_MAP[type] || []).forEach((field) => {
-          if (field === 'notes') {
-            payload.notes = document.getElementById('childItemEditorNotes').value;
-          } else if (field === 'description') {
-            payload.description = document.getElementById('childItemEditorDescription').value;
-          } else if (field === 'status') {
-            payload.status = document.getElementById('childItemEditorStatus').value;
-          } else if (field === 'year') {
-            const year = document.getElementById('childItemEditorYear').value;
-            if (year) payload.year = parseInt(year, 10);
-          }
-        });
-
-        console.log('[Save child item] Sending to', endpoint + '/' + id, 'payload:', payload);
-
-        const response = await app.fetchRaw(`${endpoint}/${id}`, {
-          method: 'PUT',
-          
-          body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-          console.error('Save failed with status:', response.status);
-          const text = await response.text();
-          console.error('Response body:', text);
-        }
-
-        const result = await response.json();
-        console.log('[Save child item] Response:', result);
-
-        if (result.success) {
-          app.notify("Item saved!", "success");
-          closeChildItemEditor();
-          loadWorkItems();
-        } else {
-          app.notify("Error: " + result.message, "danger");
-        }
-      } catch (error) {
-        console.error("Error saving child item:", error);
-        app.notify("Error saving item", "danger");
-      }
-    });
-  }
+  // The child editor's Revert/Save buttons and its per-type payload builder
+  // stood here. Editing a row inside a daily goes through the shared editor
+  // now, so the Dailies pane's own Save serves both - see
+  // dailies-child-editor.js. Keeping this would have been a second save path
+  // writing a different set of fields to the same records.
 
   initDailiesEventListeners();
   renderCalendar();

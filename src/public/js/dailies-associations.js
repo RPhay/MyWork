@@ -561,24 +561,11 @@ function deleteChildItem(itemType, itemId) {
 
 // Edit child item - opens the appropriate editor for the item type
 function editChildItem(itemType, itemId) {
-  // Map item types to their editor functions
-  const editorMap = {
-    'priority': () => editChildPriority(itemId),
-    'category': () => editChildCategory(itemId),
-    'goal': () => editChildGoal(itemId),
-    'template': () => editChildTemplate(itemId),
-    'todo': () => editChildTodo(itemId),
-    'task': () => editChildTask(itemId),
-    'ticket': () => editChildTicket(itemId),
-    'idea': () => editChildIdea(itemId)
-  };
-
-  const editor = editorMap[itemType];
-  if (editor) {
-    editor();
-  } else {
-    console.error('Unknown item type:', itemType);
-  }
+  // No per-type map. It listed eight slugs, two of which ('todo', 'area') had
+  // been renamed out of existence, so those rows opened nothing and any type
+  // invented later opened nothing either. The editor is built from whatever
+  // type this row says it is.
+  openChildItemEditor(itemType, itemId);
 }
 
 // Create and edit item - creates new item and opens in editor

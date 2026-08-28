@@ -95,68 +95,11 @@
         </div>
       </div>
 
-      <!-- Right Pane: Child Item Editor (Hidden by default) -->
-      <div class="split-pane-right hidden" id="childItemEditorPane">
-        <div class="split-pane-editor">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <div>
-              <div class="split-pane-editor-title" id="childItemEditorDisplayTitle">Select an item to edit</div>
-              <small class="text-muted" id="childItemEditorTypeLabel"></small>
-            </div>
-            <div class="editor-actions-bar">
-              <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="closeChildItemEditorBtn">Revert</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="saveChildItemEditorBtn" disabled>Save</button>
-              </div>
-            </div>
-          </div>
-          <form id="childItemEditorForm">
-            <input type="hidden" id="childItemEditorId" name="id">
-            <input type="hidden" id="childItemEditorType" name="type">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-            <!-- Universal fields -->
-            <div class="mb-3">
-              <label for="childItemEditorTitle" class="form-label">Title *</label>
-              <input type="text" class="form-control" id="childItemEditorTitle" name="title" required>
-            </div>
-
-            <!-- For todos and tasks: notes/description -->
-            <div class="mb-3" id="childItemEditorNotesField" style="display: none;">
-              <label for="childItemEditorNotes" class="form-label">Notes</label>
-              <textarea class="form-control" id="childItemEditorNotes" name="notes" rows="3"></textarea>
-            </div>
-
-            <!-- For priorities/categories: description -->
-            <div class="mb-3" id="childItemEditorDescriptionField" style="display: none;">
-              <label for="childItemEditorDescription" class="form-label">Description</label>
-              <textarea class="form-control" id="childItemEditorDescription" name="description" rows="3"></textarea>
-            </div>
-
-            <!-- For todos/tasks: status -->
-            <div class="mb-3" id="childItemEditorStatusField" style="display: none;">
-              <label class="form-label">Status</label>
-              <!-- Same control as above. These two values are the todo/task
-                   vocabulary, which is not the work item one - kept as they
-                   were, only the presentation changes. -->
-              <div class="option-choice-row" role="radiogroup" aria-label="Status" data-status-picker="childItemEditorStatus">
-                <button type="button" class="option-choice status-option status-role-todo selected"
-                        data-action="pick-status" data-value="incomplete" role="radio" aria-checked="true">Incomplete</button>
-                <button type="button" class="option-choice status-option status-role-done"
-                        data-action="pick-status" data-value="complete" role="radio" aria-checked="false">Complete</button>
-              </div>
-              <input type="hidden" id="childItemEditorStatus" name="status" value="incomplete">
-            </div>
-
-            <!-- For goals: year -->
-            <div class="mb-3" id="childItemEditorYearField" style="display: none;">
-              <label for="childItemEditorYear" class="form-label">Year</label>
-              <input type="number" class="form-control" id="childItemEditorYear" name="year">
-            </div>
-
-          </form>
-        </div>
-      </div>
+      <%# The Child Item Editor pane stood here - a second, hand-written form
+          with a per-type field map. A row inside a daily is edited in the
+          Dailies pane above now, built from that row's OWN type, so there is
+          one editor over a record rather than two that disagree. See
+          dailies-child-editor.js. %>
       </div>
     </div>
   </div>
