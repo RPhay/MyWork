@@ -471,8 +471,21 @@ export async function softDeleteEntityType(id) {
   const type = await getEntityType(id);
   if (type.is_system) throw new ValidationError('Cannot delete system types');
 
+  // The slug is RELEASED, by moving it aside on the deleted row.
+  //
+  // `entity_types.slug` is UNIQUE and this is a soft delete, so a deleted type
+  // used to hold its name for ever: create "Widgets", delete it, and creating
+  // "Widgets" again failed on a duplicate key - with a raw driver error, since
+  // nothing looks for deleted rows to explain it. The same trap caught the
+  // schema seeders, which find a system type missing (getEntityType filters
+  // deleted rows) and try to insert it.
+  //
+  // Renamed rather than reviving the old row on the next create: reviving
+  // would bring back every entity of that type, which is not what someone
+  // recreating a name expects. The deleted row keeps its history under a name
+  // nothing will ask for again.
   await query(
-    'UPDATE entity_types SET deleted_at = NOW() WHERE id = ?',
+    "UPDATE entity_types SET deleted_at = NOW(), slug = CONCAT(slug, '__deleted_', id) WHERE id = ?",
     [id]
   );
 }

@@ -7,10 +7,16 @@
 // spec died on `Cannot read properties of undefined (reading 'id')` - 12
 // failures across 5 files in the 2026-08-25 baseline, all from one missing row.
 //
-// The type is created and then LEFT IN PLACE deliberately. Deleting a type is a
-// soft delete that reserves its slug permanently, so a spec that made a fresh
-// one per run would pile up dead reservations. One reused fixture type is the
-// cheaper trade.
+// The type is created here and REMOVED by global-teardown.js, once the whole
+// run is over - it has to outlive every file that uses it, so no per-spec hook
+// can own it.
+//
+// It used to be left in place permanently instead, because deleting a type was
+// a soft delete that reserved its slug for ever and the next run could not
+// recreate it. The cost was that a fixture sat in the user's app as a real tab
+// called "Tests", indistinguishable from something they had made, and it was
+// twice mistaken for a leak. softDeleteEntityType() releases the slug now, so
+// the cheaper trade is no longer needed.
 
 /**
  * Create an entity type if it is not already there. Safe to call repeatedly.

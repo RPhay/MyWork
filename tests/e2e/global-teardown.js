@@ -29,6 +29,7 @@ export default async function globalTeardown() {
 
   await sweepTestFields();
   await sweepTestUsers();
+  await sweepFixtureTypes();
 
   if (!rows.length) return;
 
@@ -111,5 +112,45 @@ async function sweepTestUsers() {
     console.log(`[teardown] swept ${users.length} leftover test profile(s)`);
   } catch (err) {
     console.warn(`[teardown] profile sweep failed: ${err.message}`);
+  }
+}
+
+/**
+ * The `tests` fixture type, removed at the END of the run.
+ *
+ * Five spec files need "a type the user created" to exist, and helpers/
+ * fixtures.js makes one. It used to be left behind on purpose, because
+ * deleting a type reserved its slug for ever and the next run could not
+ * recreate it - so the fixture sat in the user's app as a real tab called
+ * "Tests", indistinguishable from something they had made.
+ *
+ * softDeleteEntityType() moves the slug aside now, so the name comes free and
+ * the next run makes it again. Swept here rather than per-spec: the type has
+ * to outlive every file that uses it, and this is the only hook that runs
+ * after all of them.
+ */
+async function sweepFixtureTypes() {
+  try {
+    const types = await query(
+      "SELECT id, slug FROM entity_types WHERE slug = 'tests' AND deleted_at IS NULL",
+    );
+    for (const type of types) {
+      const rows = await query('SELECT id FROM entities WHERE entity_type_id = ?', [type.id]);
+      if (rows.length) {
+        const ids = rows.map((r) => r.id).join(',');
+        await query(
+          `DELETE FROM entity_relationships
+           WHERE parent_entity_id IN (${ids}) OR child_entity_id IN (${ids})`,
+        );
+        await query(`DELETE FROM entity_field_values WHERE entity_id IN (${ids})`);
+        await query(`DELETE FROM entities WHERE id IN (${ids})`);
+      }
+      await query('DELETE FROM entity_type_relationships WHERE parent_type_id = ? OR child_type_id = ?', [type.id, type.id]);
+      await query('DELETE FROM entity_type_fields WHERE entity_type_id = ?', [type.id]);
+      await query('DELETE FROM entity_types WHERE id = ?', [type.id]);
+      console.log(`[teardown] removed fixture type '${type.slug}' and ${rows.length} row(s)`);
+    }
+  } catch (err) {
+    console.warn(`[teardown] fixture type sweep failed: ${err.message}`);
   }
 }
