@@ -83,6 +83,22 @@ read first.
       then `--apply` after a backup.
 - [ ] **Pull and restart on the MSSQL machine.** Templates only moves to
       Read-Only when the schema build runs, which happens at startup.
+- [ ] **Run `node scripts/verify-mssql.js` FIRST.** ← *start here on that
+      machine.* One command covering the four checks that used to be separate
+      items: the schema applies, every table is in `[MyWork]` and none in
+      `dbo`, today's additions are present (`user_identities`, its trigger,
+      `users.email`, the FILTERED unique index, and no leftover
+      `sso_identities` trigger), and a create -> list -> delete round trip
+      through the app's own services actually works - including a field value,
+      which exercises the MERGE upsert whose target was unqualified until
+      2026-08-27. Exits non-zero on any failure.
+
+      If it reports tables in `dbo`: **`node scripts/rescue-dbo-tables.js`**
+      (dry run; `--apply` writes, take a backup first). The code now refuses
+      to run an unqualified statement, but that only stops NEW writes going
+      astray - rows already written to `dbo` are invisible to an app that
+      reads `[MyWork]`, and only moving them gets them back.
+
 - [ ] **Run the MSSQL schema.** Both dialect files changed a great deal on
       2026-08-26 and only the MySQL half has been run. This project's own rule
       is that a T-SQL translation is verified by running it. **Now also carries the
