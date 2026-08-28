@@ -59,6 +59,58 @@ async function dumpBeforeDrop(table) {
   return { file, count: rows.length };
 }
 
+
+// What is actually IN a table, briefly.
+//
+// The plan's row counts say how much is on each side but not WHICH side is
+// the real one, and that is the only question worth asking before merging
+// two populated tables. A handful of rows answers it at a glance - an empty
+// [MyWork].contexts beside a dbo.contexts holding your actual contexts is
+// obvious the moment you can see them, and invisible from counts alone.
+const PREVIEW_ROWS = 5;
+
+async function previewTable(schema, table) {
+  const cols = await query(
+    `SELECT COLUMN_NAME AS c, DATA_TYPE AS t
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+     ORDER BY ORDINAL_POSITION`,
+    [schema, table],
+  );
+  if (cols.length === 0) return ["    (no columns)"];
+
+  // Prefer the columns a person can recognise a row by. Falls back to the
+  // first few, so a table with none of these still shows something.
+  const preferred = ["id", "name", "title", "label", "slug", "email", "created_at"];
+  const names = cols.map((r) => r.c);
+  const shown = [
+    ...preferred.filter((n) => names.includes(n)),
+    ...names.filter((n) => !preferred.includes(n)),
+  ].slice(0, 5);
+
+  const select = shown.map((n) => `[${n}]`).join(", ");
+  let rows;
+  try {
+    rows = await query(
+      `SELECT TOP ${PREVIEW_ROWS} ${select} FROM [${schema}].[${table}]`,
+    );
+  } catch (error) {
+    return [`    (could not read: ${error.message})`];
+  }
+  if (rows.length === 0) return ["    (empty)"];
+
+  const fmt = (v) => {
+    if (v === null || v === undefined) return "-";
+    const str = v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+    return str.length > 28 ? str.slice(0, 27) + "\u2026" : str;
+  };
+
+  return [
+    "    " + shown.join(" | "),
+    ...rows.map((r) => "    " + shown.map((n) => fmt(r[n])).join(" | ")),
+  ];
+}
+
 function line() {
   console.log("-".repeat(72));
 }
@@ -119,6 +171,16 @@ async function main() {
         (twin ? `  [MyWork].${t} rows=${twinCount}` : "  (no [MyWork] twin)") +
         `  -> ${action}`,
     );
+
+    // Show BOTH sides for a twin - which one holds the real data is the
+    // whole question, and counts alone do not answer it.
+    console.log(`    --- dbo.${t} ---`);
+    for (const l of await previewTable("dbo", t)) console.log(l);
+    if (twin) {
+      console.log(`    --- [MyWork].${t} ---`);
+      for (const l of await previewTable("MyWork", t)) console.log(l);
+    }
+    console.log("");
   }
   line();
 
