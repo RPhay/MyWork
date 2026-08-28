@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # statusline.sh - append a live test-run line to the Claude Code status line.
 #
-#   tests ▏ priority-field.spec.js · 98/134 · ~2m ████████████░░░░░ 73%
+#   tests ▏ priority-field.spec.js · 98/36 · 96/2 ████████████░░░░░ 73% · ~2m
+#
+# 98/36 is completed/REMAINING (not total), and 96/2 is successful/failed.
 #
 # It prints NOTHING when no run is armed, so the status line is byte-for-byte
 # what it was before on every other day. That is the whole contract: a status
@@ -66,25 +68,33 @@ fi
 pct=$(( done_n * 100 / total_n ))
 eta_s=$(( elapsed * (total_n - done_n) / done_n ))
 eta=$(( (eta_s + 59) / 60 ))m
+remaining=$(( total_n - done_n ))
+passed=$(( done_n - fails ))
 
 # Plain text first so the bar can be sized against the REAL visible width -
 # measuring a string with escapes in it is how these lines end up wrapping.
-left="tests ▏ ${spec:-?} · ${done_n}/${total_n} · ~${eta}"
-[[ $fails -gt 0 ]] && left+=" · ${fails} fail"
-right=" ${pct}%"
+# x/y is completed/REMAINING (not total), a/b is successful/failed - both
+# read as "what's left" and "how it's going" rather than a raw running count.
+# The ETA sits at the far RIGHT, past the percentage, so the eye lands on the
+# spec and the count first and the estimate last - it is the least certain
+# number on the line and reads as an aside rather than a fact.
+left="tests ▏ ${spec:-?} · ${done_n}/${remaining} · ${passed}/${fails}"
+right=" ${pct}% · ~${eta}"
 barw=$(( cols - ${#left} - ${#right} - 3 ))
 (( barw < 8 )) && barw=8
 filled=$(( done_n * barw / total_n ))
 
+# Bright foregrounds only - no grey, no dim, both unreadable on a black
+# terminal. Completed/successful are GREEN, remaining is CYAN, separators
+# are BLUE, and failed is RED only when > 0 - a zero must not read as alarming.
 bar_col=$GREEN
+fail_col=$GREEN
 (( fails > 0 )) && bar_col=$RED
+(( fails > 0 )) && fail_col=$RED
 
-printf '%s%stests%s %s▏%s %s%s%s %s·%s %s%s/%s%s %s·%s %s~%s%s %s%s%s%s%s%s %s%s%%%s' \
-  "$NL" "$CYAN" "$RESET" "$BLUE" "$RESET" \
-  "$WHITE" "${spec:-?}" "$RESET" "$BLUE" "$RESET" \
-  "$YELLOW" "$done_n" "$total_n" "$RESET" "$BLUE" "$RESET" \
-  "$CYAN" "$eta" "$RESET" \
-  "$( (( fails > 0 )) && printf '%s%d fail%s ' "$RED" "$fails" "$RESET" )" \
-  "$bar_col" "$(printf '%*s' "$filled" '' | sed 's/ /\xe2\x96\x88/g')" \
-  "$BLUE" "$(printf '%*s' "$((barw - filled))" '' | sed 's/ /\xe2\x96\x91/g')" "$RESET" \
-  "$bar_col" "$pct" "$RESET"
+bar_filled=$(printf '%*s' "$filled" '' | sed 's/ /\xe2\x96\x88/g')
+bar_empty=$(printf '%*s' "$((barw - filled))" '' | sed 's/ /\xe2\x96\x91/g')
+
+line="${CYAN}tests${RESET} ${BLUE}▏${RESET} ${WHITE}${spec:-?}${RESET} ${BLUE}·${RESET} ${GREEN}${done_n}${RESET}${BLUE}/${RESET}${CYAN}${remaining}${RESET} ${BLUE}·${RESET} ${GREEN}${passed}${RESET}${BLUE}/${RESET}${fail_col}${fails}${RESET} ${bar_col}${bar_filled}${RESET}${BLUE}${bar_empty}${RESET} ${bar_col}${pct}%${RESET} ${BLUE}·${RESET} ${CYAN}~${eta}${RESET}"
+
+printf '%s%s' "$NL" "$line"

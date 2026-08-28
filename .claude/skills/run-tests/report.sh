@@ -64,10 +64,27 @@ current_spec() {
     grep -oE '[A-Za-z0-9._-]+\.(spec|test)\.[cm]?[jt]s' | tail -1
 }
 
-# True once the runner has printed its summary and no runner process is left.
+# A run is over when ITS OWN log carries a summary line in the tail AND that
+# log has stopped growing. This used to ask `pgrep` whether ANY playwright or
+# jest process was alive anywhere on the machine, which is wrong the moment two
+# tiers run back to back: the FINISHED watch sees the NEXT tier's process, so it
+# never exits, keeps emitting stale 100% sitreps until it times out - and then
+# its EXIT trap disarms the status line belonging to the run actually in flight.
+# Both halves of that happened on 2026-08-28, during a guard set followed by a
+# full suite. Everything here is scoped to one log, so a second run cannot be
+# mistaken for this one.
+#
+# The tail window matters on its own: a tier that runs unit tests and then e2e
+# into one log holds a jest summary hundreds of lines above the real end, and
+# testing the whole file would call the run finished while it was still going.
+# The growth check is what covers the moment that jest summary IS the tail.
 run_finished() {
-  grep -qE '^[[:space:]]*[0-9]+ (passed|failed)|^Tests:' "$1" &&
-    ! pgrep -f 'playwright.*(test|workerProcessEntry)|jest' >/dev/null 2>&1
+  local log=$1 a b
+  tail -n 5 "$log" | grep -qE '^[[:space:]]*[0-9]+ (passed|failed)|^Tests:' || return 1
+  a=$(wc -c < "$log" 2>/dev/null || echo 0)
+  sleep 2
+  b=$(wc -c < "$log" 2>/dev/null || echo 0)
+  [[ $a == "$b" ]]
 }
 
 # ----------------------------------------------------------------- sitrep ---
@@ -111,17 +128,33 @@ POINTER="$HOME/.claude/run-tests-current"
 arm()    { printf '%s\t%s\n' "$1" "$2" > "$POINTER"; }
 disarm() { rm -f "$POINTER"; }
 
+# Disarm ONLY if the pointer still names the run this watch armed. Watches can
+# overlap - one tier finishing while the next is already running - and an
+# unconditional rm in the exit trap means the FIRST watch silently disarms the
+# SECOND one's status line on its way out. That is not hypothetical: it blanked
+# a live full-suite status line on 2026-08-28. The explicit `disarm` subcommand
+# stays unconditional, because a human asking for it means ALL of it.
+disarm_mine() {
+  [[ -f $POINTER ]] || return 0
+  local cur
+  IFS=$'\t' read -r cur _ < "$POINTER"
+  [[ $cur == "${MY_LOG:-}" ]] && rm -f "$POINTER"
+  return 0
+}
+
 watch_run() {
   local log=$1 start=$2 interval=${3:-180}
   arm "$log" "$start"
+  MY_LOG=$log
   # Disarm however this exits - a stale pointer would leave the status line
-  # reporting a finished run for the rest of the session.
-  trap disarm EXIT INT TERM
+  # reporting a finished run for the rest of the session - but only if the
+  # pointer is still OURS. See disarm_mine.
+  trap disarm_mine EXIT INT TERM
   while true; do
     sleep "$interval"
     [[ -f $log ]] || { echo "waiting for $log"; continue; }
     sitrep "$log" "$start"
-    if run_finished "$log"; then echo "RUN FINISHED"; disarm; return 0; fi
+    if run_finished "$log"; then echo "RUN FINISHED"; disarm_mine; return 0; fi
   done
 }
 

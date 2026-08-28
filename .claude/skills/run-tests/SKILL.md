@@ -108,19 +108,28 @@ and the estimate says which one is in flight instead of just reading long.
 sitreps without waiting three minutes for the next message:
 
 ```
-tests ▏ worked-time.spec.js · 130/134 · ~1m ████████████████████████░ 97%
+tests ▏ worked-time.spec.js · 130/4 · 130/0 ████████████████████████░ 97% · ~1m
 ```
 
-The spec in flight, N of M, minutes remaining, and a bar sized to whatever is
-left of the terminal width. `statusline.sh` beside this file renders it, and
+The spec in flight, then two pairs - completed/REMAINING (130/4, not
+130/134) and successful/failed (130/0) - colour-coded (green for
+completed/successful, cyan for remaining, red for failed only once it's
+non-zero), a bar sized to whatever is left of the terminal width, and the
+estimate last. `statusline.sh` beside this file renders it, and
 `.claude/settings.json` points the `statusLine` command at it.
 
-Three properties it must keep:
+Four properties it must keep:
 
 - **It prints NOTHING when no run is armed.** A status line that grew a
   permanent empty row would be worse than not having the feature. `watch` arms
   it, and disarms on ANY exit via a trap — a stale pointer file would leave a
   finished run on screen for the rest of the session.
+- **A watch only disarms a pointer it still OWNS.** Tiers run back to back, so
+  two watches overlap routinely, and an unconditional `rm` in the exit trap
+  means the FIRST one blanks the status line of the run actually in flight —
+  which it did, on 2026-08-28, to a live full suite. The trap compares the
+  pointer's log against its own before removing it. The explicit `disarm`
+  subcommand stays unconditional: a human asking for it means all of it.
 - **It DELEGATES rather than replaces.** Whatever `statusLine` was already
   configured (`$RUN_TESTS_STATUSLINE_DELEGATE`, else
   `~/.claude/statusline-command.sh`) still runs, gets the JSON payload on
