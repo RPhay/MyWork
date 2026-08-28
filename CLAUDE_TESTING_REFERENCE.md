@@ -64,6 +64,36 @@ not in `entities`, so clearing the entity types does not touch them — and
 clearing them needs its own pass. Dailies no longer have this problem: they are
 entities of type `daily` and the `work_items` table was dropped on 2026-08-25.
 
+## "The count went down" - how to tell a lost row from a swept one
+
+A falling entity count is not evidence of loss, and eyeballing it is not a
+check. Two runs of the suite legitimately move it by dozens, and hard deletes
+leave nothing behind to read - which is why the question cannot be answered
+from the database alone.
+
+Answer it from the BACKUPS instead. `data/entity-backup-*.json` is written
+before every bulk delete (rule 5 in `CLAUDE_TESTING.md`), so the union of ids
+they record is the set of rows that existed and are now gone. Diff that against
+`SELECT id FROM entities` and read the titles: a machine-shaped title
+(`ZZZ...`, `DEBUG_`/`SAVEPERFECT_`/`TOGGLE_`, a trailing epoch, `Parent Item`,
+`New <Type>`) is a test artifact; anything else is worth chasing.
+
+Then confirm from the other side - nothing may point at a row that is gone:
+
+```sql
+SELECT COUNT(*) FROM entity_field_values v
+  LEFT JOIN entities e ON e.id = v.entity_id WHERE e.id IS NULL;
+-- and the same for entity_relationships (parent AND child),
+-- daily_entities, work_entity_associations.
+```
+
+All five must be zero. A non-zero one names the missing id directly.
+
+Done on 2026-08-27 over 22 backup files: 757 recorded ids were absent, every one
+of them test residue, and all five dangling counts were zero. The 36 rows purged
+from Projects that day were 33 `Test Project for Context Menu` plus `test`,
+`Test` and `T2` - which is why Projects is empty and that is not a loss.
+
 ## Why the guard set is the list
 
 From "The guard set" in `CLAUDE_TESTING.md`. Context, not action.

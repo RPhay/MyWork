@@ -175,12 +175,6 @@
   data-csrf-token="<%= csrfToken %>"
   data-version="<%= version %>"
 >
-  <!-- changeTracker.js has NO caller left in src/. dailies-child-editor.js was
-       the last one, and it uses the shared editor's own change tracking now.
-       Kept loaded rather than deleted in the same breath as the editor rewrite:
-       removing a global that 35 classic scripts share is its own change, and
-       an unused file is cheaper than a wrong load order. -->
-  <script src="/js/changeTracker.js"></script>
   <%- include('../components/dbHealthBanner.ejs') %>
   <%- include('../components/navbar.ejs') %>
 
@@ -463,10 +457,11 @@
   <script src="/js/forms.js"></script>
   <script src="/js/save-shortcut.js"></script>
   <!-- Dailies, split across files. dailies.js must stay LAST: it holds the
-       DOMContentLoaded bootstrap and calls into all the others. The only
-       load-order constraint among the rest was dailies-child-editor.js
-       calling createChangeTracker() at top level; it uses the shared editor's
-       change tracking now, so that constraint is gone. -->
+       DOMContentLoaded bootstrap and calls into all the others. Nothing else
+       here has a load-order constraint: the last one was
+       dailies-child-editor.js calling createChangeTracker() at top level, and
+       that factory is gone - every editor uses GenericEntity's own change
+       tracking, so there is one notion of "unsaved" rather than two. -->
   <script src="/js/dailies-calendar.js"></script>
   <script src="/js/dailies-items.js"></script>
   <script src="/js/dailies-menus.js"></script>
