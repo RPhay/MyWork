@@ -548,3 +548,27 @@ function setupDragListeners() {
     });
   });
 }
+
+// A file dropped anywhere OTHER than a drop zone navigates the tab to it.
+// That was harmless while nothing here accepted files; the Dailies rail does
+// now, so a drag that lands a few pixels short of the rail would replace the
+// app with a rendering of the .ics and take any open editor's unsaved state
+// with it. Both listeners are needed: dragover decides whether a drop is
+// allowed at all, drop decides whether the browser handles it.
+//
+// defaultPrevented means a real drop zone already claimed the event - bubble
+// phase, so its handler has run - and this leaves it alone.
+(function guardStrayFileDrops() {
+  const carriesFiles = (dt) => Array.from(dt?.types || []).includes('Files');
+
+  document.addEventListener('dragover', (e) => {
+    if (carriesFiles(e.dataTransfer)) e.preventDefault();
+  });
+
+  document.addEventListener('drop', (e) => {
+    if (e.defaultPrevented || !carriesFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    console.warn('[dragDropUtils] file drop outside a drop zone, ignored:',
+      Array.from(e.dataTransfer.files || []).map((f) => f.name));
+  });
+})();

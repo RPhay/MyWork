@@ -215,7 +215,16 @@ function initWorkItemsListEventListeners() {
 
   centerPane.addEventListener("dragover", (e) => {
     const types = Array.from(e.dataTransfer.types || []);
+    // "Files" belongs in this list, and leaving it out is what made the FIRST
+    // Outlook drag of a session do nothing. Outlook hands the first drag over
+    // as a temp .ics FILE - types is ["Files"] and nothing else - so none of
+    // the text flavours below matched, preventDefault() was never called, and
+    // the browser refused the drop outright: no drop event, no handler, no
+    // message. Drag the same appointment again and Outlook now also offers
+    // text/plain from its cache, which matched, which is why every drop after
+    // the first one worked.
     const hasCalendarData =
+      types.includes("Files") ||
       types.includes("text/calendar") ||
       types.includes("text/plain") ||
       types.some(
@@ -362,60 +371,89 @@ function initWorkItemsListEventListeners() {
       return;
     }
 
-    // Handle external calendar events from Outlook
+    // Handle external calendar events from Outlook.
+    //
+    // Read the DataTransfer SYNCHRONOUSLY and completely, before any await.
+    // The event's data is only valid for the duration of the handler, so an
+    // await here empties getData() and the drop silently does nothing - which
+    // is the shape of "it hung and then nothing happened". File objects, once
+    // captured, stay valid afterwards.
     const types = Array.from(e.dataTransfer.types || []);
-    console.log("[Dailies WorkItems] Drop detected. Types:", types);
+    const files = Array.from(e.dataTransfer.files || []);
+    const read = (t) => {
+      try { return e.dataTransfer.getData(t) || ''; } catch { return ''; }
+    };
 
-    let calendarText = null;
+    let calendarText =
+      (types.includes('text/calendar') && read('text/calendar')) ||
+      (types.includes('text/plain') && read('text/plain')) ||
+      '';
 
-    if (e.dataTransfer.types.includes("text/calendar")) {
-      calendarText = e.dataTransfer.getData("text/calendar");
-    } else if (e.dataTransfer.types.includes("text/plain")) {
-      calendarText = e.dataTransfer.getData("text/plain");
-    } else {
-      for (const t of e.dataTransfer.types) {
-        if (
-          t.toLowerCase().includes("calendar") ||
-          t.toLowerCase().includes("ics") ||
-          t.toLowerCase().includes("event")
-        ) {
-          calendarText = e.dataTransfer.getData(t);
-          break;
+    if (!calendarText) {
+      const named = types.find((t) => /calendar|ics|event/i.test(t));
+      if (named) calendarText = read(named);
+    }
+    if (!calendarText) calendarText = read('text');
+
+    console.log('[Dailies WorkItems] Drop detected. Types:', types,
+      'files:', files.map((f) => `${f.name} (${f.type || 'no type'}, ${f.size}b)`));
+
+    // Outlook hands the FIRST drag of a session over as a file rather than as
+    // text - it writes a temp .ics and Chrome blocks the page while Outlook
+    // produces it, which is the pause. Nothing read it, so the drop was
+    // dropped: no item, no message, and a second drag of the same appointment
+    // then worked because Outlook had it cached as text. Read the file.
+    if (!looksLikeCalendarText(calendarText) && files.length) {
+      const cal = files.find((f) =>
+        /\.(ics|vcs)$/i.test(f.name) || /calendar/i.test(f.type));
+      if (cal) {
+        try {
+          calendarText = await cal.text();
+        } catch (err) {
+          console.error('[Dailies WorkItems] Could not read dropped file', cal.name, err);
         }
       }
     }
 
-    if (!calendarText) {
-      calendarText = e.dataTransfer.getData("text");
-    }
+    console.log('[Dailies WorkItems] Calendar text:', calendarText?.substring(0, 100));
 
-    console.log(
-      "[Dailies WorkItems] Calendar text:",
-      calendarText?.substring(0, 100),
-    );
-
-    // Check if this looks like calendar data
-    const looksLikeCalendar =
-      calendarText &&
-      (calendarText.includes("BEGIN:VEVENT") ||
-        calendarText.includes("DTSTART") ||
-        calendarText.includes("When:") ||
-        calendarText.includes("Location:") ||
-        calendarText.includes("Organizer:"));
-
-    if (looksLikeCalendar) {
+    if (looksLikeCalendarText(calendarText)) {
       const event = parseCalendarEvent(calendarText);
-      console.log("[Dailies WorkItems] Parsed event:", event);
+      console.log('[Dailies WorkItems] Parsed event:', event);
 
       if (event.title) {
-        const dateInput = document.getElementById("selectedDate");
-        const date = dateInput?.value || new Date().toISOString().split("T")[0];
+        const dateInput = document.getElementById('selectedDate');
+        const date = dateInput?.value || new Date().toISOString().split('T')[0];
         await createWorkItemFromCalendarEvent(event, date);
+        return;
       }
+      app.notify('That calendar item had no subject, so there was nothing to name it', 'warning');
+      return;
+    }
+
+    // Say so. Doing nothing at all is indistinguishable from the app being
+    // broken, and it was: an unreadable drop left no item and no explanation.
+    if (types.length || files.length) {
+      const what = files.length
+        ? files.map((f) => f.name).join(', ')
+        : types.join(', ');
+      console.warn('[Dailies WorkItems] Nothing usable in the drop:', { types, files: files.map((f) => f.name) });
+      app.notify(`Could not read that drop (${what}) - drag the appointment from the calendar view`, 'warning');
     }
   });
 }
 
+
+// What counts as calendar data, wherever it came from - a text/plain payload,
+// a named calendar flavour, or the contents of a dropped .ics file.
+function looksLikeCalendarText(text) {
+  return !!text && (
+    text.includes('BEGIN:VEVENT') ||
+    text.includes('DTSTART') ||
+    text.includes('When:') ||
+    text.includes('Location:') ||
+    text.includes('Organizer:'));
+}
 
 function initWorkItemContextMenu() {
   const menu = document.getElementById("workItemContextMenu");
