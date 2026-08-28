@@ -91,21 +91,38 @@ test('Dailies shows no column headers until the day has work', async ({ page }) 
   const errs=[]; page.on('pageerror',e=>errs.push(e.message));
   await page.goto('/?tab=category'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1800);
 
+  // A day chosen to be empty, NOT today. This read the rail's default day and
+  // asserted it held nothing, so it failed for anyone who had a daily on the
+  // date the run happened to land on - a real record in the user's database
+  // reported as a defect in the app. Far enough out that nothing is on it.
+  const today = new Date(Date.now() + 400 * 86400000).toISOString().slice(0,10);
+  await page.evaluate(async (d) => {
+    const input = document.getElementById('selectedDate');
+    input.value = d;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, today);
+  await page.waitForTimeout(1200);
+
   const header = page.locator('.work-item-tree-header');
   await expect(header).toBeHidden();
   console.log('empty day ->', JSON.stringify({
+    day: today,
     headerHidden: !(await header.isVisible()),
     emptyText: (await page.locator('#workItemsList').innerText()).slice(0, 60),
   }));
 
-  // Add a work item for today, and the header appears
-  const today = new Date().toISOString().slice(0,10);
+  // Add a work item on that same day, and the header appears
   await page.evaluate(async ({today}) => {
     const t = document.body.dataset.csrfToken;
     await fetch('/api/dailies', {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':t},
       body: JSON.stringify({title:'ZZZ header probe', date: today})});
   }, {today});
-  await page.reload({waitUntil:'networkidle'}); await page.waitForTimeout(1800);
+  // Re-read the day rather than reloading the page: a reload puts the rail
+  // back on today, and racing it to set the date again is what made this
+  // flaky. The input is ALREADY on this day, so dispatching `change` with the
+  // same value redraws nothing - ask the rail to reload instead.
+  await page.evaluate(() => window.loadWorkItems?.());
+  await page.waitForTimeout(1500);
   await expect(page.locator('.work-item-tree-header')).toBeVisible();
   console.log('with work ->', JSON.stringify({headerVisible: await page.locator('.work-item-tree-header').isVisible()}));
 

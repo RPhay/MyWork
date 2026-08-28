@@ -1619,6 +1619,16 @@ const GenericEntity = (() => {
     } catch { return null; }
   }
 
+  // Puts Revert/Save back in the pane header they were rendered in, so a
+  // rewrite of the editor's content cannot take them with it. Safe to call
+  // when the bar is already home, or when there is no bar.
+  function returnActionsBarHome(typeSlug) {
+    const outerPane = document.getElementById(`${typeSlug}EditorPane`);
+    const bar = outerPane?.querySelector('.editor-actions-bar');
+    const home = outerPane?.querySelector('.editor-actions-home');
+    if (bar && home && bar.parentElement !== home) home.appendChild(bar);
+  }
+
   function buildForm(typeSchema, entity = {}) {
     // A folder only organizes - it has no field values of its own, so its
     // editor is the name and nothing else, for every type alike.
@@ -2116,6 +2126,17 @@ const GenericEntity = (() => {
       // Clear the editor content
       const editorPaneId = `${currentTypeSlug}-editor-pane`;
       const editorPane = document.getElementById(editorPaneId);
+      // Revert and Save live INSIDE the form now (populate moves them onto the
+      // title line), so emptying this pane would destroy them - and they are
+      // never rebuilt, because their click handlers are bound once at init and
+      // populate only ever MOVES the existing node. The next editor to open
+      // then had no buttons at all.
+      //
+      // Every close-then-populate path hit it: the context menu's "New ...
+      // inside" and "Edit", and Revert itself. "+ Folder" did not, which is
+      // why it looked fine by hand. Send the bar home first; populate finds it
+      // there and moves it back onto the next title line.
+      returnActionsBarHome(currentTypeSlug);
       if (editorPane) editorPane.innerHTML = '';
       // Hide the pane
       const typeSplitPane = splitPanesByType[currentTypeSlug];

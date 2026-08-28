@@ -67,10 +67,26 @@ test('New from a type tab menu opens that type with a fresh editor', async ({ pa
 
   await page.locator('button[data-tab="idea"]').click({ button: 'right' });
   await page.waitForTimeout(400);
-  await page.locator('.tab-context-menu .context-menu-item', { hasText: 'New' }).first().click();
+  // 'New Folder' specifically. `hasText: 'New'` with .first() was ambiguous -
+  // the ➕ item is labelled with the type's own singular ("Idea"), so the only
+  // item carrying the word "New" is the folder one, which is what this always
+  // actually clicked.
+  await page.locator('.tab-context-menu .context-menu-item', { hasText: 'New Folder' }).first().click();
   await page.waitForTimeout(1400);
 
   await expect(page.locator('#tab-idea')).toHaveClass(/active/);
-  await expect(page.locator('#entity-editor-form input[name="title"]'),
-    'an empty editor, ready for the new record').toHaveValue('');
+
+  // The editor opens on a record that now EXISTS - creating it is what the
+  // button does, as of "New creates the row and keeps the editor on it". So
+  // the box holds the placeholder name rather than being empty, and it is
+  // selected, so typing replaces it. Asserting '' here was asserting the
+  // behaviour that change replaced.
+  const title = page.locator('#entity-editor-form input[name="title"]');
+  await expect(title, 'the editor is open on the new folder').toHaveValue('New Folder');
+  const selection = await title.evaluate(el => ({
+    focused: el === document.activeElement,
+    selected: el.value.slice(el.selectionStart, el.selectionEnd),
+  }));
+  expect(selection.focused, 'the name is focused, ready to be typed over').toBe(true);
+  expect(selection.selected, 'and selected, so typing replaces it').toBe('New Folder');
 });
