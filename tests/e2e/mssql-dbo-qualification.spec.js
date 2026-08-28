@@ -193,13 +193,40 @@ test('every updated_at trigger body names its table with the schema', () => {
   const fn = source.slice(
     source.indexOf('async function createUpdatedAtTrigger'),
   );
-  const body = fn.slice(0, fn.indexOf('\n}'));
 
-  expect(body, 'the trigger body must UPDATE via a qualified name').toContain(
+  // Only the CREATE TRIGGER template, not the whole function. The function
+  // also DETECTS a stale unqualified trigger, and that detection necessarily
+  // contains the very string being forbidden here - scanning the whole
+  // function matches the guard rather than the DDL, which is a test failing
+  // on the code that fixes the problem.
+  const ddlStart = fn.indexOf('CREATE TRIGGER');
+  const ddlEnd = fn.indexOf('END', ddlStart);
+  expect(ddlStart, 'no CREATE TRIGGER template found').toBeGreaterThan(-1);
+  const ddl = fn.slice(ddlStart, ddlEnd);
+
+  expect(ddl, 'the trigger body must UPDATE via a qualified name').toContain(
     'FROM [MyWork].[${tableName}]',
   );
   expect(
-    /FROM \$\{tableName\}/.test(body),
+    /FROM\s+\$\{tableName\}/.test(ddl),
     'the trigger body still names the table unqualified',
   ).toBe(false);
+});
+
+test('a trigger already in the database is replaced when its body is stale', () => {
+  // createTriggerIfNotExists only asks whether a trigger of that NAME exists.
+  // A trigger created before the body was qualified would therefore live on
+  // forever, writing to dbo on every UPDATE - silently undoing the schema run
+  // that was meant to fix it, and recreating dbo rows after they were cleaned
+  // up. The definition has to be checked, not just the name.
+  const source = readFile('database/schema/mssqlSchema.js');
+  const fn = source.slice(
+    source.indexOf('async function createUpdatedAtTrigger'),
+  );
+  const body = fn.slice(0, fn.indexOf('\nasync function', 1));
+
+  expect(body, 'must read the stored definition').toContain('sys.sql_modules');
+  expect(body, 'must drop a stale trigger before recreating it').toContain(
+    'DROP TRIGGER',
+  );
 });

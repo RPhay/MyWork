@@ -191,10 +191,7 @@ async function createUpdatedAtTrigger(pool, tableName) {
   }
 
   const triggerName = `trg_${tableName}_updated_at`;
-  await createTriggerIfNotExists(
-    pool,
-    triggerName,
-    `
+  const ddl = `
     CREATE TRIGGER ${triggerName} ON [MyWork].[${tableName}]
     AFTER UPDATE AS
     BEGIN
@@ -203,8 +200,37 @@ async function createUpdatedAtTrigger(pool, tableName) {
       FROM [MyWork].[${tableName}] t
       INNER JOIN inserted i ON t.id = i.id;
     END
-  `,
-  );
+  `;
+
+  // A trigger created BEFORE the body was qualified is still in the database
+  // with its old definition, and createTriggerIfNotExists would leave it
+  // there forever - it only asks whether a trigger of that name exists, not
+  // whether it is the right one. Its body says `FROM ${tableName}`, so every
+  // UPDATE it fires on writes to dbo.${tableName}: a stale trigger silently
+  // undoing the very thing this schema run is fixing, and one that would
+  // start recreating dbo rows the moment they were cleaned up.
+  //
+  // So the DEFINITION is checked, not just the name, and a stale one is
+  // replaced. sys.sql_modules holds what was actually stored.
+  const existing = await pool.request().query(`
+    SELECT m.definition AS def
+    FROM sys.triggers t
+    JOIN sys.sql_modules m ON m.object_id = t.object_id
+    WHERE t.name = '${triggerName}'
+  `);
+
+  if (existing.recordset.length > 0) {
+    const def = existing.recordset[0].def || "";
+    if (def.includes(`[MyWork].[${tableName}]`) && !/FROM\s+${tableName}\b/.test(def)) {
+      return; // already correct
+    }
+    console.warn(
+      `[schema] replacing stale trigger ${triggerName} - its body did not name [MyWork]`,
+    );
+    await pool.request().query(`DROP TRIGGER [MyWork].[${triggerName}]`);
+  }
+
+  await createTriggerIfNotExists(pool, triggerName, ddl);
 }
 
 // `entities`, NOT `work_items` - see the note on mysqlSchemaExists. This probe
