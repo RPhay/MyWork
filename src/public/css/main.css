@@ -758,6 +758,36 @@ footer {
   display: none;
 }
 
+/* An empty bar is hidden at rest - a monitor is exactly as real as what is
+   pinned to it, so no empty boxes sit in the navbar. But dragging onto the
+   bar is the only way to create the FIRST monitor, and `display: none` cannot
+   be dropped on, so a drag carrying something pinnable brings the strip back
+   for the length of the gesture. Without this, unpinning the last chip made
+   drag-to-pin permanently impossible. */
+.focus-bar.no-monitors.drag-active {
+  display: flex;
+  align-items: center;
+}
+
+.focus-bar-landing {
+  display: none;
+  flex: 1 1 auto;
+  padding: 3px 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.65);
+  /* The BAR takes the drop. If the hint took it, `closest('.focus-monitor')`
+     would still be null and the drop would work, but the hint would also
+     swallow dragleave and flicker the strip as the pointer crossed it. */
+  pointer-events: none;
+}
+
+.focus-bar.drag-active .focus-bar-landing {
+  display: block;
+}
+
 .focus-bar {
   display: flex;
   flex: 1 1 auto;

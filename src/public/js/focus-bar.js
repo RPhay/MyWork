@@ -202,7 +202,16 @@
 
     const count = currentMonitorCount();
     if (count === 0) {
-      bar.innerHTML = '';
+      // Nothing pinned, so there are no monitors to draw - but the bar is also
+      // the ONLY thing a drag can land on to create the first one, and an
+      // element the stylesheet has hidden cannot receive a drop. Drawing
+      // literally nothing here made that a dead end: unpin the last chip and
+      // dragging could never pin anything again, because the only target for
+      // the gesture had left the page. So the empty bar keeps a landing strip,
+      // which CSS reveals only while a drag carrying something pinnable is
+      // actually in flight - no empty boxes sitting in the navbar at rest,
+      // which is what deriving the count was for, and no vanished target.
+      bar.innerHTML = '<div class="focus-bar-landing">Drop here to focus</div>';
       bar.classList.add('no-monitors');
       stopTicking();
       return;
@@ -716,9 +725,26 @@
     // context menu, just by gesture. Needs its own dragover on the document:
     // without a preventDefault somewhere along the way, the browser refuses
     // the drop before it ever reaches a 'drop' listener.
+    // Whether a gesture is carrying something the bar could actually pin - the
+    // same test the bar's own dragover uses to decide if it may promise a new
+    // monitor. Anything else (page text, an image) must leave the empty bar
+    // hidden rather than offering a landing strip a drop could not fill.
+    const carriesPinnable = (dt) => !!dt && (dt.types.includes('focus-chip-id')
+      || (dt.types.includes('id') && dt.types.includes('type')));
+
     document.addEventListener('dragover', (e) => {
       if (e.dataTransfer.types.includes('focus-chip-id')) e.preventDefault();
+      // Driven from the DOCUMENT, not the bar: when nothing is pinned the bar
+      // is hidden, and a hidden element receives no dragover of its own to
+      // reveal itself with. See the empty-bar branch in render().
+      if (carriesPinnable(e.dataTransfer)) bar.classList.add('drag-active');
     });
+
+    // The strip lasts exactly as long as the gesture, however it ends -
+    // dropped, cancelled with Escape, or let go outside the window.
+    const hideLanding = () => bar.classList.remove('drag-active');
+    document.addEventListener('dragend', hideLanding);
+    document.addEventListener('drop', hideLanding);
 
     document.addEventListener('drop', async (e) => {
       if (bar.contains(e.target)) return;      // the bar handles its own drops
