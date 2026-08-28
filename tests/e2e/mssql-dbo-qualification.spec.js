@@ -230,3 +230,26 @@ test('a trigger already in the database is replaced when its body is stale', () 
     'DROP TRIGGER',
   );
 });
+
+test('trigger lookups are scoped to the [MyWork] parent table, never by name alone', () => {
+  // sys.triggers is not scoped by schema, and a trigger belongs to its PARENT
+  // TABLE's schema - so `WHERE name = 'trg_sources_updated_at'` finds the one
+  // on dbo.sources exactly as readily as [MyWork].sources.
+  //
+  // That broke both ways. A dbo namesake made createTriggerIfNotExists skip
+  // creating the [MyWork] trigger, leaving that table with none; and dropping
+  // by bare name raised "cannot drop the trigger MyWork.trg_sources_updated_at
+  // because it does not exist" - the row found described dbo's trigger.
+  const source = readFile('database/schema/mssqlSchema.js');
+
+  const lookups = source.match(/FROM sys\.triggers[\s\S]{0,400}?(?=`)/g) || [];
+  expect(lookups.length, 'no sys.triggers lookups found').toBeGreaterThan(0);
+
+  const unscoped = lookups.filter(
+    (q) => !/parent_id|SCHEMA_NAME\(\s*t\.schema_id\s*\)/.test(q),
+  );
+  expect(
+    unscoped,
+    `these sys.triggers lookups are not scoped to [MyWork]: ${unscoped.join(' || ')}`,
+  ).toEqual([]);
+});

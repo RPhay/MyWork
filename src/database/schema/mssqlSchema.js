@@ -157,12 +157,37 @@ async function dropColumnIfExists(pool, tableName, columnName) {
   return true;
 }
 
+/**
+ * sys.triggers is not scoped by schema, and a trigger's schema is its PARENT
+ * TABLE's - so `WHERE name = 'trg_sources_updated_at'` finds the one on
+ * dbo.sources just as readily as the one on [MyWork].sources.
+ *
+ * That mattered in both directions. Asking by name alone, a dbo namesake
+ * makes this skip creating the [MyWork] trigger, leaving that table with no
+ * trigger at all; and dropping by name alone produced "cannot drop the
+ * trigger MyWork.trg_sources_updated_at because it does not exist" - the
+ * trigger found was dbo's.
+ *
+ * Every lookup here is therefore by parent_id against a specific [MyWork]
+ * table, which cannot be ambiguous.
+ */
+async function triggerOnMyWorkTable(pool, tableName) {
+  const result = await pool.request().query(`
+    SELECT tr.name AS triggerName, m.definition AS def
+    FROM sys.triggers tr
+    JOIN sys.sql_modules m ON m.object_id = tr.object_id
+    WHERE tr.parent_id = OBJECT_ID('[MyWork].[${tableName}]')
+  `);
+  return result.recordset[0] || null;
+}
+
 async function createTriggerIfNotExists(pool, triggerName, ddl) {
-  const result = await pool
-    .request()
-    .query(
-      `SELECT COUNT(*) as cnt FROM sys.triggers WHERE name = '${triggerName}'`,
-    );
+  const result = await pool.request().query(`
+    SELECT COUNT(*) AS cnt
+    FROM sys.triggers tr
+    JOIN sys.tables t ON t.object_id = tr.parent_id
+    WHERE tr.name = '${triggerName}' AND SCHEMA_NAME(t.schema_id) = 'MyWork'
+  `);
   if (result.recordset[0].cnt === 0) {
     await pool.request().query(ddl);
   }
@@ -212,22 +237,21 @@ async function createUpdatedAtTrigger(pool, tableName) {
   //
   // So the DEFINITION is checked, not just the name, and a stale one is
   // replaced. sys.sql_modules holds what was actually stored.
-  const existing = await pool.request().query(`
-    SELECT m.definition AS def
-    FROM sys.triggers t
-    JOIN sys.sql_modules m ON m.object_id = t.object_id
-    WHERE t.name = '${triggerName}'
-  `);
+  const existing = await triggerOnMyWorkTable(pool, tableName);
 
-  if (existing.recordset.length > 0) {
-    const def = existing.recordset[0].def || "";
+  if (existing) {
+    const def = existing.def || "";
     if (def.includes(`[MyWork].[${tableName}]`) && !/FROM\s+${tableName}\b/.test(def)) {
       return; // already correct
     }
     console.warn(
-      `[schema] replacing stale trigger ${triggerName} - its body did not name [MyWork]`,
+      `[schema] replacing stale trigger ${existing.triggerName} on [MyWork].[${tableName}] - its body did not name [MyWork]`,
     );
-    await pool.request().query(`DROP TRIGGER [MyWork].[${triggerName}]`);
+    // Its ACTUAL name, which need not be the one this file would choose -
+    // an older schema version may have named it differently.
+    await pool
+      .request()
+      .query(`DROP TRIGGER [MyWork].[${existing.triggerName}]`);
   }
 
   await createTriggerIfNotExists(pool, triggerName, ddl);
