@@ -30,6 +30,7 @@ export default async function globalTeardown() {
   await sweepTestFields();
   await sweepTestUsers();
   await sweepFixtureTypes();
+  await sweepPlaceholderRows();
 
   if (!rows.length) return;
 
@@ -152,5 +153,58 @@ async function sweepFixtureTypes() {
     }
   } catch (err) {
     console.warn(`[teardown] fixture type sweep failed: ${err.message}`);
+  }
+}
+
+/**
+ * Rows the app named itself, left behind by a spec that clicked "+".
+ *
+ * "+ <Type>" CREATES a record now rather than opening an unsaved blank, so
+ * fifteen spec files leave a real "New Category" / "New Folder" row behind
+ * whether or not they save. They cannot be ZZZ-prefixed - the APP chooses the
+ * title - so the sweep above cannot see them, and 52 accumulated in one
+ * evening's runs.
+ *
+ * Deleting everything called "New Category" would be wrong: that is exactly
+ * what the user's own freshly-created rows are called until they type over the
+ * name. The discriminator is TIME - only rows created after this run started,
+ * stamped by global-setup.js. A row the user made yesterday, or made in
+ * another window while the suite ran, keeps its name and is left alone.
+ */
+async function sweepPlaceholderRows() {
+  let startedAt;
+  try {
+    const { readFileSync } = await import('node:fs');
+    startedAt = JSON.parse(readFileSync('data/test-run-started.json', 'utf8')).startedAt;
+  } catch {
+    // No stamp - do nothing rather than guess. A missed sweep is a tidy-up
+    // task; a wrong one is the user's data.
+    return;
+  }
+  if (!startedAt) return;
+
+  try {
+    const rows = await query(
+      `SELECT e.id, e.title
+         FROM entities e
+         JOIN entity_types t ON t.id = e.entity_type_id
+        WHERE e.created_at >= ?
+          AND (e.title = 'New Folder'
+               OR e.title = CONCAT('New ', t.label_singular)
+               OR e.title = CONCAT('New ', t.label))`,
+      [startedAt],
+    );
+    if (!rows.length) return;
+
+    const ids = rows.map((r) => r.id).join(',');
+    await query(
+      `DELETE FROM entity_relationships
+       WHERE parent_entity_id IN (${ids}) OR child_entity_id IN (${ids})`,
+    );
+    await query(`DELETE FROM entity_field_values WHERE entity_id IN (${ids})`);
+    await query(`DELETE FROM entities WHERE id IN (${ids})`);
+    console.log(`[teardown] swept ${rows.length} placeholder row(s) created during this run`);
+  } catch (err) {
+    console.warn(`[teardown] placeholder sweep failed: ${err.message}`);
   }
 }

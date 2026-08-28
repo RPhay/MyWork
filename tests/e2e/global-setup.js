@@ -12,6 +12,14 @@
 // than failing everywhere: it fails only on a clean checkout or a fresh CI
 // container, which is exactly where the message is least useful.
 //
+// It also stamps when the run began. Clicking "+ <Type>" CREATES a row now,
+// named by the app ("New Category", "New Folder"), so 15 spec files leave real
+// rows behind that no ZZZ prefix can identify - 52 accumulated in a single
+// evening. The teardown cannot simply delete everything called "New Category",
+// because that is exactly what the user's own unnamed rows are called; the one
+// safe discriminator is "created after this run started". See
+// sweepPlaceholderRows in global-teardown.js.
+//
 // So this does once what a person does once: pick somebody.
 //
 // It writes the file directly rather than driving the UI. The store is a plain
@@ -26,9 +34,42 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '../..');
 const STORE = path.join(ROOT, 'data/active-user.json');
 
+// Where the run's start time is recorded for global-teardown.js.
+export const RUN_STAMP = path.join('data', 'test-run-started.json');
+
+// Asked of the DATABASE, not of Node. `entities.created_at` is written by the
+// database's own clock, and comparing it to a UTC ISO string from here silently
+// matched nothing: the column holds local time, the string said Z, and the two
+// were seven hours apart. The sweep ran, found no rows, and reported success.
+async function stampRunStart(query) {
+  try {
+    const rows = await query('SELECT NOW() AS started');
+    const started = rows?.[0]?.started;
+    if (!started) return;
+    const d = started instanceof Date ? started : new Date(started);
+    // One second back: DATETIME has second resolution, so a row created in the
+    // same second as the stamp would otherwise sort as "before" it.
+    d.setSeconds(d.getSeconds() - 1);
+    const p2 = (n) => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} `
+      + `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+    fs.mkdirSync(path.dirname(RUN_STAMP), { recursive: true });
+    fs.writeFileSync(RUN_STAMP, JSON.stringify({ startedAt: stamp }));
+  } catch (err) {
+    // Never fail the run over this - the sweep just does nothing.
+    console.warn(`[global-setup] could not stamp run start: ${err.message}`);
+  }
+}
+
 export default async function globalSetup() {
   // Imported lazily: loading the pool at module scope would connect before
   // Playwright has decided whether it is even running.
+  //
+  // connectionPool, not homePool: `entities.created_at` is written by the
+  // CONTEXT database, so the stamp has to come from that same clock.
+  const content = await import('../../src/database/connectionPool.js');
+  await stampRunStart(content.query);
+
   const db = await import('../../src/database/homePool.js');
   const users = await db.query('SELECT id, name FROM users ORDER BY id ASC');
 
