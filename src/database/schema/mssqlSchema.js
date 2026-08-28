@@ -67,6 +67,96 @@ async function columnExists(pool, tableName, columnName) {
 // dropForeignKeysOnColumn lived here. Its callers were the column-level
 // migrations on `priorities` and `tasks`, which went with those tables.
 
+/**
+ * Drop a column, and whatever is holding on to it first.
+ *
+ * SQL Server REFUSES to drop a column that any object still references:
+ *
+ *   ALTER TABLE DROP COLUMN sso_enabled failed because one or more objects
+ *   access this column
+ *
+ * A DEFAULT constraint is the usual culprit and the easiest to miss, because
+ * nothing declared it by name - `DEFAULT 0` on a column creates a constraint
+ * called something like DF__contexts__sso_en__1AB2C3D4, and it is invisible
+ * until it blocks the drop. MySQL drops all of this silently with the column,
+ * which is exactly why the twin block in mysqlSchema.js is one line and this
+ * is not. See CLAUDE.md on verifying MSSQL by running it.
+ *
+ * Order matters: indexes and constraints first, the column last.
+ */
+async function dropColumnIfExists(pool, tableName, columnName) {
+  const target = `[MyWork].[${tableName}]`;
+
+  if (!(await columnExists(pool, tableName, columnName))) return false;
+
+  // Indexes that include the column - a column under an index cannot be
+  // dropped, and the index is meaningless once the column is gone.
+  const indexes = await pool.request().query(`
+    SELECT DISTINCT i.name
+    FROM sys.indexes i
+    JOIN sys.index_columns ic
+      ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+    JOIN sys.columns c
+      ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+    WHERE i.object_id = OBJECT_ID('${target}')
+      AND c.name = '${columnName}'
+      AND i.is_primary_key = 0
+      AND i.name IS NOT NULL
+  `);
+  for (const row of indexes.recordset) {
+    await pool
+      .request()
+      .query(`DROP INDEX [${row.name}] ON ${target}`);
+  }
+
+  // DEFAULT constraints. Auto-named, so they have to be looked up.
+  const defaults = await pool.request().query(`
+    SELECT dc.name
+    FROM sys.default_constraints dc
+    JOIN sys.columns c
+      ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id
+    WHERE dc.parent_object_id = OBJECT_ID('${target}')
+      AND c.name = '${columnName}'
+  `);
+
+  // CHECK constraints that mention the column.
+  const checks = await pool.request().query(`
+    SELECT DISTINCT cc.name
+    FROM sys.check_constraints cc
+    JOIN sys.columns c
+      ON c.object_id = cc.parent_object_id
+    WHERE cc.parent_object_id = OBJECT_ID('${target}')
+      AND c.name = '${columnName}'
+      AND cc.definition LIKE '%[[]${columnName}[]]%'
+  `);
+
+  // FOREIGN KEY constraints on the column.
+  const foreignKeys = await pool.request().query(`
+    SELECT DISTINCT fk.name
+    FROM sys.foreign_keys fk
+    JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+    JOIN sys.columns c
+      ON c.object_id = fkc.parent_object_id AND c.column_id = fkc.parent_column_id
+    WHERE fk.parent_object_id = OBJECT_ID('${target}')
+      AND c.name = '${columnName}'
+  `);
+
+  for (const row of [
+    ...defaults.recordset,
+    ...checks.recordset,
+    ...foreignKeys.recordset,
+  ]) {
+    await pool
+      .request()
+      .query(`ALTER TABLE ${target} DROP CONSTRAINT [${row.name}]`);
+  }
+
+  await pool
+    .request()
+    .query(`ALTER TABLE ${target} DROP COLUMN [${columnName}]`);
+  return true;
+}
+
 async function createTriggerIfNotExists(pool, triggerName, ddl) {
   const result = await pool
     .request()
@@ -491,12 +581,15 @@ export async function createMssqlSchema(pool) {
   //
   // One statement each, because SQL Server takes a single DROP COLUMN list but
   // fails the whole batch if any one of them is already gone.
+  //
+  // Via dropColumnIfExists, which clears the DEFAULT constraint first. A bare
+  // DROP COLUMN fails here with "one or more objects access this column" -
+  // sso_enabled had a DEFAULT, auto-named and therefore invisible until it
+  // blocked the drop, and that stopped the whole schema build on MSSQL.
   for (const col of ['sso_enabled', 'sso_provider', 'sso_tenant_id_enc',
     'sso_client_id_enc', 'sso_client_secret_enc', 'sso_redirect_uri',
     'sso_configured_at']) {
-    if (await columnExists(pool, 'contexts', col)) {
-      await pool.request().query(`ALTER TABLE [MyWork].[contexts] DROP COLUMN [${col}]`);
-    }
+    await dropColumnIfExists(pool, 'contexts', col);
   }
 
 
