@@ -1,6 +1,12 @@
 /**
  * Move anything stranded in dbo into [MyWork], and drop the dbo copies.
  *
+ * THE dbo SCHEMA ITSELF IS NEVER DROPPED. Every destructive statement in this
+ * file is DROP TABLE, DROP CONSTRAINT, or ALTER SCHEMA TRANSFER against a
+ * NAMED table - there is no DROP SCHEMA anywhere, and dbo is a schema SQL
+ * Server requires. Only the specific tables listed in the plan are touched,
+ * and each is dumped to disk immediately before it goes.
+ *
  * NOTHING EVER FALLS BACK TO dbo - see CLAUDE.md. The code now qualifies
  * every statement and refuses to run one that does not, but that only stops
  * NEW writes going astray. Rows written to dbo.<table> while the pools were
@@ -32,9 +38,9 @@
  *   node scripts/rescue-dbo-tables.js --apply
  *   node scripts/rescue-dbo-tables.js --include-orphans --apply
  *   node scripts/rescue-dbo-tables.js --force --apply
- *   node scripts/rescue-dbo-tables.js --drop-dbo --apply
+ *   node scripts/rescue-dbo-tables.js --drop-dbo-tables --apply
  *
- * --drop-dbo copies NOTHING. Every dbo table is dumped and dropped, treating
+ * --drop-dbo-tables copies NOTHING. Every dbo table is dumped and dropped, treating
  * [MyWork] as already correct. The blunt option, and the right one when the
  * dbo copies are known to be worthless - but it discards their rows, so read
  * the previews before using it.
@@ -63,7 +69,7 @@ const FORCE = process.argv.includes("--force");
 // Copy NOTHING. Dump every dbo table and drop it, treating [MyWork] as
 // already correct. The blunt option, for when the dbo copies are known to be
 // worthless and the only thing wanted is them gone.
-const DROP_DBO = process.argv.includes("--drop-dbo");
+const DROP_DBO_TABLES = process.argv.includes("--drop-dbo-tables");
 
 
 // Nothing in dbo is dropped before its rows are on disk.
@@ -179,7 +185,7 @@ async function main() {
       twinCount = Number(tw[0].c);
     }
 
-    const action = DROP_DBO
+    const action = DROP_DBO_TABLES
       ? !twin && !INCLUDE_ORPHANS
         ? "SKIP (no twin)"
         : "DROP"
@@ -210,10 +216,10 @@ async function main() {
   }
   line();
 
-  if (DROP_DBO) {
+  if (DROP_DBO_TABLES) {
     const losing = plan.filter((p) => p.action === "DROP" && p.count > 0);
     console.log(
-      "\n** --drop-dbo: nothing is copied. " +
+      "\n** --drop-dbo-tables: nothing is copied. " +
         (losing.length
           ? losing.map((p) => `${p.table} (${p.count} rows)`).join(", ") +
             " will be dumped and DISCARDED."
