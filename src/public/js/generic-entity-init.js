@@ -2165,8 +2165,16 @@ renderList();
           GenericEntity.populate(saved.id, saved, typeSchema, typeSlug, undefined, { force: true });
           renderList(); // re-render so the new row paints as selected
         } else {
-          await refreshEntities();
+          // markSaved BEFORE the refresh, not after. refreshEntities() is a
+          // round trip, and any edit made while it was in flight had already
+          // re-enabled Save - then this landed and disabled it again, with
+          // nothing left to re-enable it. The record was edited, the button
+          // was dead, and the only way out was to click another row and come
+          // back. That is the "save is disabled on every attempt" report, and
+          // it is why the second save in editable-types-comprehensive timed
+          // out: Playwright types faster than the refresh returns.
           GenericEntity.markSaved();
+          await refreshEntities();
         }
       } catch (error) {
         app.notify(error.message, 'danger');

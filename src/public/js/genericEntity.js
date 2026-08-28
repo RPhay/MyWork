@@ -2087,6 +2087,11 @@ const GenericEntity = (() => {
     // so both buttons are disabled until the next edit. markChanged() re-enables
     // them together.
     markSaved: () => {
+      // An edit made since the save started must survive it. Ordering alone
+      // fixes the known caller, but any late or duplicated call could still
+      // disable a button the user has just re-armed by typing - so the state
+      // itself decides, not the timing.
+      if (hasChanges) return;
       hasChanges = false;
       if (currentSaveBtn) currentSaveBtn.disabled = true;
       const revertBtn = document.getElementById(`${currentTypeSlug}CloseBtn`);
