@@ -171,6 +171,25 @@ async function createTriggerIfNotExists(pool, triggerName, ddl) {
 // Adds an AFTER UPDATE trigger that bumps `updated_at` to now, mirroring MySQL's
 // "ON UPDATE CURRENT_TIMESTAMP" column behavior.
 async function createUpdatedAtTrigger(pool, tableName) {
+  // A trigger on a table this file does not create fails the ENTIRE schema
+  // build - "The object 'MyWork.x' does not exist or is invalid for this
+  // operation" - and takes Analyze & Migrate down with it. That has happened
+  // twice, for sso_identities and for quotes, both times because a table was
+  // retired and its trigger call was left behind. Skipping a missing table
+  // costs nothing and is not a silent failure: it is logged, and
+  // tests/e2e/mssql-dbo-qualification.spec.js fails if a RETIRED table is
+  // named here at all.
+  const exists = await pool.request().query(`
+    SELECT COUNT(*) AS cnt FROM sys.tables
+    WHERE object_id = OBJECT_ID('[MyWork].[${tableName}]')
+  `);
+  if (exists.recordset[0].cnt === 0) {
+    console.warn(
+      `[schema] skipping updated_at trigger for [MyWork].[${tableName}] - no such table`,
+    );
+    return;
+  }
+
   const triggerName = `trg_${tableName}_updated_at`;
   await createTriggerIfNotExists(
     pool,
@@ -181,7 +200,7 @@ async function createUpdatedAtTrigger(pool, tableName) {
     BEGIN
       SET NOCOUNT ON;
       UPDATE t SET updated_at = SYSUTCDATETIME()
-      FROM ${tableName} t
+      FROM [MyWork].[${tableName}] t
       INNER JOIN inserted i ON t.id = i.id;
     END
   `,
@@ -671,10 +690,12 @@ export async function createMssqlSchema(pool) {
   // were FKs into a table nothing read; cross-entity relationships live in
   // entity_relationships now.
 
-  // Create quotes table (person + quote attribution for any object type)
   // `quotes` is RETIRED - a full CRUD router and service with no callers.
-
-  await createUpdatedAtTrigger(pool, "quotes");
+  // The createUpdatedAtTrigger call that stood here went with it: it built a
+  // trigger on a table this file no longer creates, so the whole schema build
+  // failed with "The object 'MyWork.quotes' does not exist or is invalid for
+  // this operation". Exactly what sso_identities did, and the reason
+  // createUpdatedAtTrigger now checks the table exists first.
 
   // Generic Entity Type System — structural tables
   // These define the types that entities can be; applies globally across all contexts.

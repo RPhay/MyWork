@@ -139,3 +139,67 @@ test('the MSSQL schema file never names a table without its schema', () => {
   }
   expect(bad, `unqualified in mssqlSchema.js: ${bad.join(' | ')}`).toEqual([]);
 });
+
+/**
+ * A schema file must never operate on a RETIRED table.
+ *
+ * This has stopped the MSSQL schema build twice, and both times the whole of
+ * Analyze & Migrate went with it:
+ *
+ *   sso_identities - "is RETIRED" written in a comment, with the
+ *                    createUpdatedAtTrigger call left directly beneath it
+ *   quotes         - the same, months later
+ *
+ * The failure is total, not partial: CREATE TRIGGER on a table the file no
+ * longer creates raises "The object 'MyWork.x' does not exist or is invalid
+ * for this operation" and aborts the build. RETIRED_TABLES is the single
+ * source of truth for which tables those are, so this asks it rather than
+ * keeping a second list that would drift.
+ */
+test('neither schema file creates or triggers a RETIRED table', async () => {
+  const { RETIRED_TABLES } = await import('../../src/database/retiredTables.js');
+  expect(RETIRED_TABLES.length, 'RETIRED_TABLES should not be empty').toBeGreaterThan(0);
+
+  const offenders = [];
+  for (const file of ['database/schema/mssqlSchema.js', 'database/schema/mysqlSchema.js']) {
+    // Comments say "x is RETIRED" on purpose - only real calls count.
+    const source = readFile(file)
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+    for (const table of RETIRED_TABLES) {
+      const patterns = [
+        new RegExp(`createUpdatedAtTrigger\\(\\s*pool\\s*,\\s*["'\`]${table}["'\`]`),
+        new RegExp(`createTableIfNotExists\\(\\s*pool\\s*,\\s*["'\`]${table}["'\`]`),
+        new RegExp(`CREATE TABLE (?:IF NOT EXISTS )?(?:\\[MyWork\\]\\.)?\\[?${table}\\b`, 'i'),
+      ];
+      if (patterns.some((re) => re.test(source))) {
+        offenders.push(`${file}: ${table}`);
+      }
+    }
+  }
+
+  expect(
+    offenders,
+    `retired tables still operated on: ${offenders.join(' | ')}`,
+  ).toEqual([]);
+});
+
+test('every updated_at trigger body names its table with the schema', () => {
+  // The trigger DEFINITION is stored and runs later, so an unqualified name
+  // inside the body updates dbo.<table> every time the trigger fires - long
+  // after any of this code has run.
+  const source = readFile('database/schema/mssqlSchema.js');
+  const fn = source.slice(
+    source.indexOf('async function createUpdatedAtTrigger'),
+  );
+  const body = fn.slice(0, fn.indexOf('\n}'));
+
+  expect(body, 'the trigger body must UPDATE via a qualified name').toContain(
+    'FROM [MyWork].[${tableName}]',
+  );
+  expect(
+    /FROM \$\{tableName\}/.test(body),
+    'the trigger body still names the table unqualified',
+  ).toBe(false);
+});
