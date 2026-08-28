@@ -87,6 +87,9 @@ test('REAL drag: template -> a day', async ({ page }) => {
     await page.locator('button[data-rail-toggle="template"]').click(); await page.waitForTimeout(900);
   }
 
+  // What was already on the day, so the teardown can tell the difference.
+  const dailiesBeforeDrag = (await api(page,`/api/dailies/date/${today()}`)).body?.data || [];
+
   const src = page.locator('#templateEntityList .entity-row', {hasText:'ZZZt2d template'}).first();
   const dst = page.locator('#workItemsList');
   await src.dragTo(dst);
@@ -96,7 +99,17 @@ test('REAL drag: template -> a day', async ({ page }) => {
   console.log('day after real drag ->', JSON.stringify(items.map(w=>w.title)));
   expect(items.length).toBeGreaterThan(0);
 
-  for (const w of items) await api(page,`/api/dailies/${w.id}`,{method:'DELETE'});
+  // Only the daily this drag produced. `for (const w of items)` deleted EVERY
+  // daily on the day, whoever made it - it took a real record out of the
+  // user's database on 2026-08-27. The drop instantiates the ZZZ-prefixed
+  // template, so the row it creates carries that name; anything else on the
+  // day belongs to someone else. See CLAUDE_TESTING.md: delete by id, never
+  // by "everything that happens to be here".
+  const before = new Set(dailiesBeforeDrag.map(w => String(w.id)));
+  for (const w of items.filter(w => !before.has(String(w.id)))) {
+    await api(page,`/api/dailies/${w.id}`,{method:'DELETE'});
+    await api(page,`/api/trash/${w.id}`,{method:'DELETE'});
+  }
   await api(page,`/api/entities/template/${tpl.id}`,{method:'DELETE'});
 });
 
