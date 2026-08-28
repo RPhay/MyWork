@@ -323,7 +323,7 @@ const app = {
         settled = true;
         confirmBtn.removeEventListener('click', onConfirm);
         cancelBtn.removeEventListener('click', onCancel);
-        inputEl.removeEventListener('keydown', onKeydown);
+        document.removeEventListener('keydown', onKeydown, true);
         modalElement.removeEventListener('hidden.bs.modal', onHidden);
         resolve(value);
       };
@@ -341,18 +341,49 @@ const app = {
       };
       const onCancel = () => { modal.hide(); finish(input ? null : false); };
       const onHidden = () => finish(input ? null : false);
+      // Enter = the confirm button, Escape = cancel, from anywhere in the
+      // dialog. This listener used to sit on the text INPUT, so Enter worked in
+      // a prompt() and did nothing in a confirm() - which is every delete in
+      // the app, the one dialog you answer most often.
       const onKeydown = (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+        // On DOCUMENT, not on the modal: the dialog does not reliably hold
+        // focus when it opens (observed landing on <body>), and a listener on
+        // the modal never sees a keystroke that was delivered to an ancestor.
+        // Guarded on the dialog actually being open so it is not a global key
+        // handler for the rest of the page's life.
+        if (!modalElement.classList.contains('show')) return;
+        if (e.key === 'Enter') {
+          // A focused button already turns Enter into a click. Handling it here
+          // as well would run onConfirm twice.
+          if (e.target.tagName === 'BUTTON') return;
+          e.preventDefault();
+          onConfirm();
+        } else if (e.key === 'Escape') {
+          // Bootstrap dismisses on Escape by default and that already resolved
+          // No via hidden.bs.modal. Explicit here so the behaviour survives a
+          // dialog built with keyboard:false, and so both keys are visible in
+          // one place rather than one being a framework default nobody can see.
+          e.preventDefault();
+          onCancel();
+        }
       };
 
       confirmBtn.addEventListener('click', onConfirm);
       cancelBtn.addEventListener('click', onCancel);
-      inputEl.addEventListener('keydown', onKeydown);
+      document.addEventListener('keydown', onKeydown, true);
       modalElement.addEventListener('hidden.bs.modal', onHidden);
 
+      // What holds focus decides what Enter does natively, so set it rather
+      // than leaving it to Bootstrap: the text field when there is one, the
+      // picker when it is a choice, otherwise the confirm button - which also
+      // makes Enter's effect visible instead of a hidden shortcut.
       modalElement.addEventListener(
         'shown.bs.modal',
-        () => { if (input) inputEl.focus(); },
+        () => {
+          if (input) inputEl.focus();
+          else if (choices) selectEl.focus();
+          else confirmBtn.focus();
+        },
         { once: true }
       );
 
