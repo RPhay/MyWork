@@ -185,24 +185,56 @@ async function main() {
       twinCount = Number(tw[0].c);
     }
 
-    const action = DROP_DBO_TABLES
-      ? !twin && !INCLUDE_ORPHANS
-        ? "SKIP (no twin)"
-        : "DROP"
-      : !twin
-        ? INCLUDE_ORPHANS
-          ? "TRANSFER"
-          : "SKIP (no twin)"
-        : count === 0
-          ? "DROP"
-          : "COPY-THEN-DROP";
+    // The id clash is resolved HERE, not during apply, so the plan states
+    // the real outcome. It used to be discovered later, which meant --force
+    // and --drop-dbo-tables printed the same line as a run without them and
+    // the plan did not say which tables were actually going.
+    let clash = 0;
+    if (twin && count > 0) {
+      const c = await query(
+        `SELECT COUNT(*) AS c FROM [dbo].[${t}] d
+         WHERE EXISTS (SELECT 1 FROM [MyWork].[${t}] m WHERE m.id = d.id)`,
+      ).catch(() => [{ c: 0 }]);
+      clash = Number(c[0].c);
+    }
 
-    plan.push({ table: t, count, twin, twinCount, action });
+    let action;
+    let verdict;
+    if (!twin && !INCLUDE_ORPHANS) {
+      action = "SKIP (no twin)";
+      verdict = `KEEP dbo.${t} - not a duplicate, so not the bug (--include-orphans to move it)`;
+    } else if (!twin) {
+      action = "TRANSFER";
+      verdict = `MOVE dbo.${t} into [MyWork] (${count} rows, table moved whole)`;
+    } else if (DROP_DBO_TABLES) {
+      action = "DROP";
+      verdict =
+        count === 0
+          ? `DROP dbo.${t} - empty, nothing lost`
+          : `DROP dbo.${t} - ${count} row(s) DISCARDED, none copied`;
+    } else if (count === 0) {
+      action = "DROP";
+      verdict = `DROP dbo.${t} - empty, nothing lost`;
+    } else if (clash > 0 && !FORCE) {
+      action = "SKIP (id clash)";
+      verdict =
+        `KEEP dbo.${t} - ${clash} id(s) already exist in [MyWork]; refusing. ` +
+        `Use --force ([MyWork] wins) or --drop-dbo-tables`;
+    } else if (clash > 0) {
+      action = "COPY-THEN-DROP";
+      verdict =
+        `DROP dbo.${t} - ${count - clash} row(s) copied, ${clash} DISCARDED ([MyWork] wins)`;
+    } else {
+      action = "COPY-THEN-DROP";
+      verdict = `DROP dbo.${t} - all ${count} row(s) copied first`;
+    }
+
+    plan.push({ table: t, count, twin, twinCount, action, clash, verdict });
     console.log(
       `  dbo.${t}  rows=${count}` +
-        (twin ? `  [MyWork].${t} rows=${twinCount}` : "  (no [MyWork] twin)") +
-        `  -> ${action}`,
+        (twin ? `  [MyWork].${t} rows=${twinCount}` : "  (no [MyWork] twin)"),
     );
+    console.log(`     -> ${verdict}`);
 
     // Show BOTH sides for a twin - which one holds the real data is the
     // whole question, and counts alone do not answer it.
@@ -265,6 +297,19 @@ async function main() {
         "the id is free; a clash is reported, never silently renumbered.",
     );
   }
+
+  const dropping = plan.filter((x) => x.action !== "SKIP (no twin)" && x.action !== "SKIP (id clash)" && x.action !== "TRANSFER");
+  const keeping = plan.filter((x) => x.action.startsWith("SKIP"));
+  line();
+  console.log(
+    `WILL DROP (${dropping.length}): ` +
+      (dropping.map((x) => x.table).join(", ") || "nothing"),
+  );
+  console.log(
+    `WILL KEEP (${keeping.length}): ` +
+      (keeping.map((x) => x.table).join(", ") || "nothing"),
+  );
+  line();
 
   if (!APPLY) {
     console.log("\nDRY RUN - nothing written. Re-run with --apply.\n");
@@ -358,12 +403,9 @@ async function main() {
       }
       const names = cols.map((r) => `[${r.c}]`).join(", ");
 
-      const clash = await query(
-        `SELECT COUNT(*) AS c FROM [dbo].[${p.table}] d
-         WHERE EXISTS (SELECT 1 FROM [MyWork].[${p.table}] m WHERE m.id = d.id)`,
-      ).catch(() => [{ c: 0 }]);
-
-      const clashCount = Number(clash[0].c);
+      // From the plan, not recomputed - the printed verdict and what is done
+      // must be the same decision, or the plan is a guess about the run.
+      const clashCount = p.clash;
       if (clashCount > 0 && !FORCE) {
         console.log(
           `  SKIPPED dbo.${p.table} - ${clashCount} row(s) share an id with` +
