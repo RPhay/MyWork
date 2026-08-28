@@ -31,6 +31,14 @@
  *   node scripts/rescue-dbo-tables.js
  *   node scripts/rescue-dbo-tables.js --apply
  *   node scripts/rescue-dbo-tables.js --include-orphans --apply
+ *   node scripts/rescue-dbo-tables.js --force --apply
+ *
+ * --force resolves an id CLASH by keeping [MyWork]'s row and discarding
+ * dbo's. Rows whose ids do not clash are still copied, so only the contested
+ * ones are lost, and the dump written before the drop holds every dbo row
+ * regardless. Look at the previews first: for a lookup table like `years` the
+ * two rows are almost certainly the same data, but for `contexts` it decides
+ * which side's context you keep.
  *
  * Take a database backup before --apply. This moves data.
  */
@@ -42,6 +50,10 @@ import { query } from "../src/database/connectionPool.js";
 
 const APPLY = process.argv.includes("--apply");
 const INCLUDE_ORPHANS = process.argv.includes("--include-orphans");
+// Drop a dbo copy even when some of its ids already exist in [MyWork].
+// Non-clashing rows are still copied; the clashing ones are DISCARDED, and
+// [MyWork]'s version of that id is the one that survives.
+const FORCE = process.argv.includes("--force");
 
 
 // Nothing in dbo is dropped before its rows are on disk.
@@ -318,12 +330,25 @@ async function main() {
          WHERE EXISTS (SELECT 1 FROM [MyWork].[${p.table}] m WHERE m.id = d.id)`,
       ).catch(() => [{ c: 0 }]);
 
-      if (Number(clash[0].c) > 0) {
+      const clashCount = Number(clash[0].c);
+      if (clashCount > 0 && !FORCE) {
         console.log(
-          `  SKIPPED dbo.${p.table} - ${clash[0].c} row(s) share an id with` +
-            " [MyWork]. Reconcile by hand; this script will not renumber data.",
+          `  SKIPPED dbo.${p.table} - ${clashCount} row(s) share an id with` +
+            " [MyWork]. Reconcile by hand, or re-run with --force to keep" +
+            " [MyWork]'s version of those ids and discard dbo's.",
         );
         continue;
+      }
+
+      // --force: copy everything that does NOT clash, so only the genuinely
+      // contested ids are lost, and say exactly how many those are. The dump
+      // written just before the drop holds all of them either way.
+      const onlyNew = clashCount > 0;
+      if (onlyNew) {
+        console.log(
+          `  FORCED dbo.${p.table} - ${clashCount} row(s) share an id with` +
+            " [MyWork] and will be DISCARDED ([MyWork] wins); the rest are copied.",
+        );
       }
 
       const hasIdentity = await query(
@@ -336,7 +361,11 @@ async function main() {
       try {
         await query(
           `INSERT INTO [MyWork].[${p.table}] (${names})
-           SELECT ${names} FROM [dbo].[${p.table}]`,
+           SELECT ${names} FROM [dbo].[${p.table}] d` +
+            (onlyNew
+              ? ` WHERE NOT EXISTS (
+                   SELECT 1 FROM [MyWork].[${p.table}] m WHERE m.id = d.id)`
+              : ""),
         );
       } finally {
         if (identity) {
