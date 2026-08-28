@@ -819,23 +819,12 @@ renderList();
           await deleteSelected();
           return;
         }
-        const isFolder = row?.dataset.isFolder === '1';
-        const confirmed = await app.confirm(
-          isFolder
-            ? 'Delete this folder? Everything inside it will be deleted too.'
-            : 'Delete this item? Anything nested under it will be deleted too.',
-          'Confirm Delete'
-        );
-        if (confirmed) {
-          const response = await app.fetchRaw(`/api/entities/${typeSlug}/${actionBtn.dataset.entityId}`, {
-            method: 'DELETE' });
-          if (response.ok) {
-            app.notify('Deleted', 'success');
-            await refreshEntities();
-          } else {
-            app.notify('Error deleting item', 'danger');
-          }
-        }
+        // Delegates to deleteEntity rather than repeating it. This block used
+        // to be a second copy of that function - same confirm, same request,
+        // but nothing about the editor - so the row's bin and the context
+        // menu's "Delete" behaved differently, and a fix applied to one did
+        // not reach the other. There is one delete now.
+        await deleteEntity(actionBtn.dataset.entityId, row?.dataset.isFolder === '1');
         return;
       }
 
@@ -1512,9 +1501,62 @@ renderList();
       const response = await app.fetchRaw(`/api/entities/${typeSlug}/${entityId}`, {
         method: 'DELETE' });
       if (response.ok) {
-        if (String(GenericEntity.getCurrentEntityId()) === String(entityId)) GenericEntity.close();
+        // Where to put the editor if the row being deleted is the open one.
+        //
+        // Closing it was wrong in the same way leaving it open was: the
+        // editor's whole job is to show the selected row, and after a delete
+        // there is still a selected row - the next one. Worked out BEFORE the
+        // refresh, while the deleted row's position is still known; afterwards
+        // there is nothing to be "next to".
+        const wasOpen =
+          String(GenericEntity.getCurrentEntityId()) === String(entityId);
+        let successor = null;
+        if (wasOpen) {
+          // DEDUPED, and with the deleted row removed from the candidates.
+          //
+          // A row can be in the DOM more than once - the same entity nested
+          // under a folder as well as at root - so a raw list contains
+          // duplicates, and order[at + 1] then lands on the row being
+          // deleted. The editor stayed on the item that had just gone.
+          const order = [
+            ...new Set(
+              Array.from(
+                document.querySelectorAll(`#${typeSlug}EntityList [data-entity-id]`),
+              ).map((el) => el.dataset.entityId),
+            ),
+          ];
+          const at = order.indexOf(String(entityId));
+          const candidates = order.filter((id) => String(id) !== String(entityId));
+          if (at !== -1 && candidates.length) {
+            // The row that visually takes the deleted one's place: the next
+            // surviving row below, else the nearest above.
+            successor =
+              order.slice(at + 1).find((id) => String(id) !== String(entityId)) ??
+              order
+                .slice(0, at)
+                .reverse()
+                .find((id) => String(id) !== String(entityId)) ??
+              null;
+          }
+        }
+
         app.notify('Deleted', 'success');
         await refreshEntities();
+
+        if (wasOpen) {
+          // Deleting the last row leaves nothing to select, so the editor
+          // closes - there is no row for it to be showing.
+          const entity =
+            successor != null && String(successor) !== String(entityId)
+              ? entities.find((x) => String(x.id) === String(successor))
+              : null;
+          if (entity) {
+            GenericEntity.populate(entity.id, entity, typeSchema, typeSlug, undefined, { force: true });
+            renderList(); // paint the successor as selected
+          } else {
+            GenericEntity.close();
+          }
+        }
       } else {
         app.notify('Error deleting item', 'danger');
       }
@@ -2115,11 +2157,12 @@ renderList();
         // saved, with Save and Cancel disabled because there is now nothing to
         // save and nothing to discard. Both re-enable on the next edit.
         if (wasCreate && saved?.id) {
-          // Reset first: populate() treats being handed the id it already
-          // holds as a request to toggle the editor shut.
-          GenericEntity.close();
+          // Still reachable from paths that open the editor on an unsaved
+          // blank (the context menu's "New ... inside"). No longer closes
+          // first: populate takes force, so the editor stays on screen
+          // throughout instead of blinking shut and open again.
           await refreshEntities();
-          GenericEntity.populate(saved.id, saved, typeSchema, typeSlug);
+          GenericEntity.populate(saved.id, saved, typeSchema, typeSlug, undefined, { force: true });
           renderList(); // re-render so the new row paints as selected
         } else {
           await refreshEntities();
@@ -2155,18 +2198,65 @@ renderList();
     const folderBtn = document.getElementById(`add${typeSlug}FolderBtn`);
     if (folderBtn) {
       if (typeSchema.supports_hierarchy && typeSchema.supports_folders !== 0 && typeSchema.supports_folders !== false) {
-        folderBtn.addEventListener('click', () => {
-          GenericEntity.populate(null, { is_folder: true }, typeSchema, typeSlug);
-        });
+        folderBtn.addEventListener('click', () => createAndOpen({ is_folder: true }));
       } else {
         folderBtn.remove();
       }
     }
 
-    // Add new entity
-    document.getElementById(`add${typeSlug}Btn`)?.addEventListener('click', () => {
-      GenericEntity.populate(null, {}, typeSchema, typeSlug);
-    });
+    // Add new entity.
+    //
+    // The row is CREATED immediately, rather than the editor opening on an
+    // unsaved blank. Two things follow from that and both were the point:
+    // the new row appears in the list straight away and can be seen to be
+    // selected, and every subsequent Save is an EDIT - so the editor stays
+    // put instead of closing and reopening, which is what the create-save
+    // path had to do to get around populate()'s toggle.
+    //
+    // A title is required by the server, so the row is created with the
+    // type's own name as a placeholder and the title box is selected, so
+    // typing replaces it.
+    async function createAndOpen(extra = {}) {
+      try {
+        const response = await app.fetchRaw(`/api/entities/${typeSlug}`, {
+          method: 'POST',
+          // label_singular, not the tab's label - "New Projects" for one
+          // project reads as a mistake, because it is one.
+          body: JSON.stringify({
+            title: `New ${extra.is_folder ? 'Folder' : typeSchema.label_singular || typeName}`,
+            ...extra,
+          }),
+        });
+        const result = await response.json();
+        if (!result.success) {
+          app.notify(result.message || 'Could not create it', 'danger');
+          return;
+        }
+
+        await refreshEntities();
+        // force: this may be the id the editor already holds (create, delete,
+        // create again reuses nothing, but a reopened editor might), and
+        // without it populate would read the request as "close".
+        GenericEntity.populate(result.data.id, result.data, typeSchema, typeSlug, undefined, { force: true });
+        renderList(); // paints the new row as the selected one
+
+        // Select the placeholder rather than clearing it: the row already
+        // exists and needs SOME title, so leaving the box empty would save an
+        // untitled row the moment anything else changed.
+        const titleInput = document
+          .getElementById(`${typeSlug}-editor-pane`)
+          ?.querySelector('input[name="title"]');
+        if (titleInput) {
+          titleInput.focus();
+          titleInput.select();
+        }
+      } catch (error) {
+        console.error(`Error creating ${typeSlug}:`, error);
+        app.notify('Could not create it', 'danger');
+      }
+    }
+
+    document.getElementById(`add${typeSlug}Btn`)?.addEventListener('click', () => createAndOpen());
 
   } catch (error) {
     console.error(`Error initializing ${typeSlug} tab:`, error);

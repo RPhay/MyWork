@@ -1948,9 +1948,16 @@ const GenericEntity = (() => {
     // mixed-type page (a template holding ideas, tickets and so on) the editor
     // lives in the page's pane, but a nested row must be written back to its own
     // type's endpoint. They are the same for every single-type page.
-    populate: (entityId, entity, typeConfig, typeSlugOverride, saveTypeSlug) => {
-      // Toggle close: if clicking same entity with no changes, close the editor
-      if (currentEntityId === entityId && entityId !== null) {
+    populate: (entityId, entity, typeConfig, typeSlugOverride, saveTypeSlug, options) => {
+      // Toggle close: if clicking same entity with no changes, close the editor.
+      //
+      // That is the ROW-CLICK gesture - clicking the open row again shuts it.
+      // It is wrong for anything that means "show me this item", which is why
+      // callers doing that pass { force: true }: without it, opening the
+      // editor on the item you are already on closes it instead, and the
+      // caller has to close-then-reopen to work around its own request. That
+      // workaround is what made a save flicker.
+      if (!options?.force && currentEntityId === entityId && entityId !== null) {
         if (hasChanges) {
           return; // Don't close if there are unsaved changes
         }
