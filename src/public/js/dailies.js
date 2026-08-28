@@ -112,6 +112,9 @@ async function saveWorkItemNotes() {
       bootstrap.Modal.getInstance(
         document.getElementById("workNotesModal"),
       ).hide();
+      // Same no-op-unless-open, no-autosave-echo contract as the status sync
+      // in cycleWorkItemStatus.
+      GenericEntity.syncEditorFromRow(id, 'notes', notes);
       loadWorkItems();
     } else {
       app.notify("Error: " + result.message, "danger");
@@ -158,6 +161,11 @@ async function cycleWorkItemStatus(dailyId, currentStatus) {
           statusBadge.className = `status-cell work-item-status-badge ${statusRoleClass(nextStatus)}`;
         }
       }
+      // An editor open on this record must hear about the change or it shows
+      // the old value until closed and reopened. No-ops unless the editor
+      // holds this exact entity, and writes the control programmatically so
+      // no input event fires - the autosave debounce never arms.
+      GenericEntity.syncEditorFromRow(dailyId, 'status', nextStatus);
       loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
     } else {
       app.notify("Error: " + result.message, "danger");
@@ -218,6 +226,11 @@ async function cycleWorkItemTimeBox(dailyId, currentMinutes) {
           timeboxBtn.dataset.minutes = nextMinutes === null ? '' : nextMinutes;
         }
       }
+      // The editor's Time Box control holds the LADDER value ('1h'), not
+      // minutes - the cycle array maps 1:1 onto the field's rungs. Same
+      // no-op-unless-open, no-autosave-echo contract as the status sync.
+      const TIMEBOX_MINUTES_TO_RUNG = { 15: '15m', 30: '30m', 45: '45m', 60: '1h', 90: '1.5h', 120: '2h' };
+      GenericEntity.syncEditorFromRow(dailyId, 'time_box', nextMinutes === null ? '' : TIMEBOX_MINUTES_TO_RUNG[nextMinutes]);
       // Update calendar total immediately without full reload
       const selectedDate = document.getElementById("selectedDate")?.value;
       if (selectedDate) {
@@ -249,17 +262,21 @@ async function toggleWorkItemClaude(dailyId) {
 
     const result = await response.json();
     if (result.success) {
-      // Update just this work item's claude flag in the DOM
+      // The route returns the updated item - its flag is the truth. The old
+      // code INFERRED the new state from the icon's current CSS color string,
+      // which is one repaint away from being wrong; the server's answer never
+      // is.
+      const isOn = !!result.data?.worked_with_claude;
       const workItemEl = document.querySelector(`[data-work-id="${dailyId}"]`);
       if (workItemEl) {
         const claudeToggle = workItemEl.querySelector('[data-action="toggle-claude"] i');
         if (claudeToggle) {
-          // Toggle the color and opacity
-          const isActive = claudeToggle.style.color === '#FFA500' || claudeToggle.style.color === 'rgb(255, 165, 0)';
-          claudeToggle.style.color = isActive ? '#ddd' : '#FFA500';
-          claudeToggle.style.opacity = isActive ? '0.5' : '1';
+          claudeToggle.style.color = isOn ? '#FFA500' : '#ddd';
+          claudeToggle.style.opacity = isOn ? '1' : '0.5';
         }
       }
+      // Same no-op-unless-open, no-autosave-echo contract as the status sync.
+      GenericEntity.syncEditorFromRow(dailyId, 'worked_with_claude', isOn);
     } else {
       app.notify("Error: " + result.message, "danger");
     }
@@ -851,32 +868,38 @@ function initDailies() {
   // pane leaves that state to populate(), which sets it per call anyway.
   GenericEntity.registerSplitPane("daily", dailiesSplitPane);
 
-  // Setup split-pane editor buttons. The handler no longer reads controls by
-  // id and posts a flat body to /api/dailies - it collects whatever fields the
-  // schema put on the form and writes them through the entity API, which is
-  // what makes a field added in Settings actually savable here.
-  const saveWorkItemEditorBtn = document.getElementById("dailySaveBtn");
+  // The Dailies editor autosaves like every row editor - genericEntity.js
+  // debounces after each change and fires 'entity-autosave-due', but its
+  // per-tab listeners live in generic-entity-init.js and the Dailies rail is
+  // not a generic tab, so this pane must catch its own slug. Covers the child
+  // editor too: dailies-child-editor.js populates with typeSlug 'daily'
+  // (saveTypeSlug routes the write to the child's own type). Without this
+  // listener the event fired into silence and edits made here never saved.
+  document.addEventListener('entity-autosave-due', async (e) => {
+    if (e.detail?.typeSlug !== 'daily') return;
+    try {
+      await GenericEntity.save();
+      GenericEntity.markSaved();
+      // No toast - autosave fires on every debounced change; a failure still
+      // notifies below, the one outcome worth interrupting for.
+      // The editor STAYS OPEN. It used to close on every save, so saving a
+      // record you were still working on threw you back to the list.
+      loadWorkItems();
+      loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
+    } catch (error) {
+      console.error("Error saving work item:", error);
+      app.notify(error.message || "Error saving work item", "danger");
+    }
+  });
+
   const closeWorkItemEditorBtn = document.getElementById("dailyCloseBtn");
-
-  if (saveWorkItemEditorBtn) {
-    saveWorkItemEditorBtn.addEventListener("click", async () => {
-      try {
-        await GenericEntity.save();
-        GenericEntity.markSaved();
-        app.notify("Daily updated!", "success");
-        // The editor STAYS OPEN. It used to close on every save, so saving a
-        // record you were still working on threw you back to the list.
-        loadWorkItems();
-        loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
-      } catch (error) {
-        console.error("Error saving work item:", error);
-        app.notify(error.message || "Error saving work item", "danger");
-      }
-    });
-  }
-
   if (closeWorkItemEditorBtn) {
-    closeWorkItemEditorBtn.addEventListener("click", closeWorkItemEditor);
+    closeWorkItemEditorBtn.addEventListener("click", () => {
+      // Discard FIRST: close() flushes a pending autosave, which would turn
+      // "throw my changes away" into "save them on the way out".
+      GenericEntity.discardChanges();
+      closeWorkItemEditor();
+    });
   }
 
   // The child editor's Revert/Save buttons and its per-type payload builder

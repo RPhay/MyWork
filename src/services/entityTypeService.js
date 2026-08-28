@@ -584,11 +584,17 @@ export async function deleteEntityTypeField(fieldId) {
   await query('DELETE FROM entity_type_fields WHERE id = ?', [fieldId]);
 }
 
-// Get relationship rules for a type
+// Get relationship rules for a type - only the parent side, because that is
+// the only direction anything reads: allowedChildSlugs/hierarchyChildTypeIds
+// in generic-entity-init.js and the type editor's own "Can have children"
+// list all filter on parent_type_id === this type's id. Nothing anywhere
+// reads the reverse (child_type_id === this type's id) to ask "what can I be
+// nested under" - that direction stopped being editable when "Can have
+// parents" was removed from the type editor, and was never read elsewhere.
 export async function getEntityTypeRelationships(typeId) {
   const rows = await query(
-    'SELECT * FROM entity_type_relationships WHERE parent_type_id = ? OR child_type_id = ?',
-    [typeId, typeId]
+    'SELECT * FROM entity_type_relationships WHERE parent_type_id = ?',
+    [typeId]
   );
   return rows;
 }

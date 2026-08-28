@@ -860,6 +860,19 @@ export async function createMysqlSchema(connection) {
       WHERE slug = 'template' AND type_category = 'editable'`
   );
 
+  // Templates' capability flags are reconcilable for the same reason as its
+  // type_category just above: the type is READ-ONLY in Settings, so a wrong
+  // value is drift, never a user's choice. The seed says templates NEST
+  // FREELY (supports_hierarchy) and hold NO FOLDERS (a template row is itself
+  // the container) - both were found inverted on a live database, which took
+  // away nesting inside templates and offered a folder button they must not
+  // have. ui-check.spec.js is what caught it.
+  await connection.query(
+    `UPDATE entity_types SET supports_hierarchy = 1, supports_folders = 0
+      WHERE slug = 'template' AND type_category = 'template'
+        AND (supports_hierarchy <> 1 OR supports_folders <> 0)`
+  );
+
   // Nothing may CONTAIN a template - see SYSTEM_TYPE_RELATIONSHIPS. The seeder
   // only ever adds rules, so a template->template rule created before that
   // decision would survive it. Removed by hand, once.
@@ -894,6 +907,95 @@ export async function createMysqlSchema(connection) {
        JOIN entity_types t ON t.id = f.entity_type_id
       WHERE t.slug = 'daily' AND f.field_key = 'time_box_minutes'`
   );
+
+  // The AI toggle's field key forked. The seed declares `worked_with_claude`
+  // and dailyService reads/writes that key by name, but the type editor
+  // derives a NEW field's key from its label - so a rebuilt "AI" field landed
+  // as `ai`, and from then on the daily EDITOR (schema-driven) wrote `ai`
+  // while the daily RAIL (dailyService-driven) wrote `worked_with_claude`:
+  // two value rows for one concept, neither able to see the other, and
+  // nothing warned because updateEntity accepted any key verbatim (it
+  // validates now - see entityService).
+  //
+  // Repaired toward the seed's key, which is what every line of code says.
+  // Three ordered steps, each idempotent:
+  //
+  // 1. BOTH definitions exist (a Fix Schema resurrected the seed row beside
+  //    the rebuilt one): the seed-keyed row wins, but carries the `ai` row's
+  //    display settings - those were set deliberately, in the rebuild.
+  await connection.query(
+    `UPDATE entity_type_fields wc
+       JOIN entity_types t ON t.id = wc.entity_type_id
+       JOIN entity_type_fields ai
+         ON ai.entity_type_id = wc.entity_type_id
+        AND ai.field_key = 'ai' AND ai.field_type = 'worked_with_claude'
+        SET wc.show_in_row = ai.show_in_row,
+            wc.show_column_label = ai.show_column_label,
+            wc.display_order = ai.display_order
+      WHERE t.slug = 'daily' AND wc.field_key = 'worked_with_claude'`
+  );
+  await connection.query(
+    `DELETE ai FROM entity_type_fields ai
+       JOIN entity_types t ON t.id = ai.entity_type_id
+      WHERE t.slug = 'daily' AND ai.field_key = 'ai'
+        AND ai.field_type = 'worked_with_claude'
+        AND EXISTS (
+          SELECT 1 FROM (SELECT * FROM entity_type_fields) f
+           WHERE f.entity_type_id = ai.entity_type_id
+             AND f.field_key = 'worked_with_claude')`
+  );
+  // 2. Only `ai` exists: rename the definition in place.
+  await connection.query(
+    `UPDATE entity_type_fields f
+       JOIN entity_types t ON t.id = f.entity_type_id
+        SET f.field_key = 'worked_with_claude'
+      WHERE t.slug = 'daily' AND f.field_key = 'ai'
+        AND f.field_type = 'worked_with_claude'
+        AND NOT EXISTS (
+          SELECT 1 FROM (SELECT * FROM entity_type_fields) x
+           WHERE x.entity_type_id = f.entity_type_id
+             AND x.field_key = 'worked_with_claude')`
+  );
+  // 3. Values: where an entity holds BOTH keys, the newer write wins (delete
+  //    the older `worked_with_claude` so the `ai` value can take the key);
+  //    then rekey `ai` values that have no conflict; then drop any `ai`
+  //    leftovers (the ones that conflicted and lost).
+  //
+  // Guarded because entity_field_values (and entities) are created LATER in
+  // this file - the same trap the recurrence cleanup below documents. On a
+  // fresh build there are no values to repair anyway.
+  const [[{ aiRepairTables }]] = await connection.query(
+    `SELECT COUNT(*) AS aiRepairTables FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'entity_field_values'`
+  );
+  if (aiRepairTables) {
+    await connection.query(
+      `DELETE wc FROM entity_field_values wc
+         JOIN entities e ON e.id = wc.entity_id
+         JOIN entity_types t ON t.id = e.entity_type_id
+         JOIN entity_field_values ai
+           ON ai.entity_id = wc.entity_id AND ai.field_key = 'ai'
+        WHERE t.slug = 'daily' AND wc.field_key = 'worked_with_claude'
+          AND ai.updated_at >= wc.updated_at`
+    );
+    await connection.query(
+      `UPDATE entity_field_values v
+         JOIN entities e ON e.id = v.entity_id
+         JOIN entity_types t ON t.id = e.entity_type_id
+          SET v.field_key = 'worked_with_claude'
+        WHERE t.slug = 'daily' AND v.field_key = 'ai'
+          AND NOT EXISTS (
+            SELECT 1 FROM (SELECT * FROM entity_field_values) x
+             WHERE x.entity_id = v.entity_id
+               AND x.field_key = 'worked_with_claude')`
+    );
+    await connection.query(
+      `DELETE v FROM entity_field_values v
+         JOIN entities e ON e.id = v.entity_id
+         JOIN entity_types t ON t.id = e.entity_type_id
+        WHERE t.slug = 'daily' AND v.field_key = 'ai'`
+    );
+  }
 
   // Remove the orphaned `recurrence` field definitions.
   //

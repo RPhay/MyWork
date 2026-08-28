@@ -16,6 +16,18 @@
 let currentEntityTypeModal = null;
 let entityTypeSplitPane = null;
 
+// Engine-managed fields the user should never see, here or in a record's own
+// row editor. Kept in step with INTERNAL_FIELD_KEYS in genericEntity.js -
+// this file and that one run on different pages (Settings vs. a dashboard
+// tab), neither loads the other's script, so there is no single object to
+// import this from. A NARROWER set than LOCKED_FIELD_KEYS below: Worked Time
+// is engine-written too and stays out of removal/deletion, but a person is
+// meant to read and correct it by hand, so it is not hidden.
+const HIDDEN_FIELD_KEYS = new Set([
+  'focus_slot', 'focus_started_at', 'focus_color', 'focus_monitor',
+  'board_bay', 'board_order',
+]);
+
 // Collapses the right-hand editor pane and clears it, mirroring
 // GenericEntity.close() on the typed pages.
 function closeEntityTypeEditor() {
@@ -141,19 +153,9 @@ function showEntityTypeEditorModal(type) {
       <!-- Relationships Section -->
       <div class="mb-3">
         <h6>Type Relationships</h6>
-        <div class="row">
-          <div class="col-md-6">
-            <label class="form-label" title="Types a row of this type may sit inside. Dailies is never listed - it is always implicitly a parent.">Can have parents:</label>
-            <div id="parentTypesList" style="border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
-              <!-- Parent types will be listed here -->
-            </div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" title="Types that may sit inside a row of this type.">Can have children:</label>
-            <div id="childTypesList" style="border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
-              <!-- Child types will be listed here -->
-            </div>
-          </div>
+        <label class="form-label" title="Types that may sit inside a row of this type.">Can have children:</label>
+        <div id="childTypesList" style="border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
+          <!-- Child types will be listed here -->
         </div>
       </div>
     </form>
@@ -162,9 +164,9 @@ function showEntityTypeEditorModal(type) {
   const footer = document.createElement('div');
   footer.innerHTML = `
     <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-      <button type="button" class="btn btn-sm btn-outline-secondary" id="entityTypeSaveBtn">Save</button>
+      <button type="button" class="btn btn-sm btn-outline-success" id="entityTypeSaveBtn">Save</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" id="entityTypeCancelBtn">Cancel</button>
-      <button type="button" class="btn btn-sm btn-outline-danger" id="entityTypeDeleteBtn" style="display: ${isNew ? 'none' : 'inline-block'};">Delete</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" id="entityTypeDeleteBtn" style="display: ${isNew || type?.is_system ? 'none' : 'inline-block'};">Delete</button>
     </div>
   `;
 
@@ -193,18 +195,31 @@ function showEntityTypeEditorModal(type) {
   document.getElementById('entityTypeCancelBtn').addEventListener('click', closeEntityTypeEditor);
   document.getElementById('entityTypeSaveBtn').addEventListener('click', saveEntityType);
 
-  if (!isNew) {
+  if (!isNew && !type?.is_system) {
     document.getElementById('entityTypeDeleteBtn').addEventListener('click', deleteEntityType);
   }
 
-  document.getElementById('addFieldBtn').addEventListener('click', addFieldRow);
+  // Not `addFieldRow` directly: addEventListener calls a handler with the
+  // click Event as its first argument, and addFieldRow's `field = null`
+  // default only applies when called with NO argument - so the row this
+  // built out was never really "new", it was a field whose every property
+  // read as undefined off an Event object. That happened to look right for
+  // the type/name/lock fields (all read through `field?.x`, undefined either
+  // way) and happened to look WRONG for anything checking `field` itself as
+  // a boolean - the auto-default-name tracking below, and where the row gets
+  // inserted.
+  document.getElementById('addFieldBtn').addEventListener('click', () => addFieldRow());
 
   const iconBtn = document.getElementById('typeIconBtn');
   iconBtn?.addEventListener('click', () => openIconPicker(iconBtn, document.getElementById('typeIcon')));
 
-  // Load existing fields if editing
+  // Load existing fields if editing. Internal ones are never rendered as a
+  // row - see HIDDEN_FIELD_KEYS - which is safe to just omit: a field is only
+  // ever deleted by entityTypeService because removed_field_keys named it, not
+  // because a save's field list left it out (see updateEntityType).
   if (type && type.fields && type.fields.length > 0) {
     type.fields.forEach(field => {
+      if (HIDDEN_FIELD_KEYS.has(field.field_key)) return;
       addFieldRow(field);
     });
   }
@@ -376,8 +391,12 @@ function addFieldRow(field = null) {
   // Fields the engine owns. Worked Time accumulates from the focus clock, the
   // board and focus bar keep their own bookkeeping here, and a type that loses
   // one stops working in a way that shows up nowhere until the feature is
-  // used. They are editable - rename Worked Time if you like - but not
-  // removable.
+  // used. Locked, full stop - name, type, options, column visibility, all of
+  // it - because any of those can break what writes to the field (a renamed
+  // Worked Time is still what the focus clock accumulates into; a retyped
+  // focus_color is still what the focus bar expects to read a hex string
+  // from). The one thing still allowed is dragging it to a different
+  // position - order is display-only and the engine does not care about it.
   // Draws the padlock. ENFORCEMENT is server-side, in entityTypeService's
   // ENGINE_OWNED_FIELD_KEYS - this list alone left the lock decorative, since
   // the save path deletes any field the payload merely omits. Keep the two in
@@ -388,69 +407,90 @@ function addFieldRow(field = null) {
   ]);
   const isLocked = LOCKED_FIELD_KEYS.has(field?.field_key);
 
+  // A brand new row has no type of its own yet - default it to Text rather
+  // than whatever the field-type <select> happens to list first now that its
+  // options are alphabetical. Everything below keys off this instead of
+  // `field?.field_type` directly, so a fresh row and a loaded one agree on
+  // what "the current type" means.
+  const effectiveType = field?.field_type || 'text';
+
+  // What a new field is named before anyone types a name of their own -
+  // keyed by field_type, so it reads as "this field holds a date" rather than
+  // the placeholder "Field name". Kept in step with the <select> options
+  // below by design (same value attributes), not by sharing one list with
+  // them - those options carry parenthetical detail ("Duration (worked
+  // time)") that makes a poor field name on its own.
+  const DEFAULT_FIELD_LABEL = {
+    text: 'Text', textarea: 'Long Text', number: 'Number', duration: 'Duration',
+    timebox: 'Time Box', date: 'Date', url: 'URL', links: 'Links',
+    select: 'Dropdown', radio: 'Choice', checkbox: 'Checkbox', status: 'Status',
+    priority: 'Priority', emoji: 'Emoji', emojis: 'Emojis', notes: 'Notes',
+    worked_with_claude: 'AI',
+  };
+
   fieldRow.innerHTML = `
     <div class="row g-2 align-items-center">
       <div class="col-auto">
         <span class="field-drag-handle" title="Drag to reorder" style="cursor: grab; user-select: none; font-size: 0.8em; color: #999;">⋮⋮</span>
       </div>
       <div class="col">
-        <input type="text" class="form-control form-control-sm field-label" placeholder="Field name" value="${field?.label || ''}" required>
+        <input type="text" class="form-control form-control-sm field-label" placeholder="Field name" value="${field?.label || DEFAULT_FIELD_LABEL[effectiveType] || ''}" required ${isLocked ? 'disabled' : ''}>
         <input type="hidden" class="field-key" value="${field?.field_key || ''}">
       </div>
       <div class="col">
-        <select class="form-select form-select-sm field-type">
-          <option value="text" ${field?.field_type === 'text' ? 'selected' : ''}>Text</option>
-          <option value="textarea" ${field?.field_type === 'textarea' ? 'selected' : ''}>Long Text</option>
-          <option value="number" ${field?.field_type === 'number' ? 'selected' : ''}>Number</option>
-          <option value="duration" ${field?.field_type === 'duration' ? 'selected' : ''}>Duration (worked time)</option>
-          <option value="timebox" ${field?.field_type === 'timebox' ? 'selected' : ''}>Time Box (15m to 2h)</option>
-          <option value="date" ${field?.field_type === 'date' ? 'selected' : ''}>Date</option>
-          <option value="url" ${field?.field_type === 'url' ? 'selected' : ''}>URL (single link)</option>
-          <option value="links" ${field?.field_type === 'links' ? 'selected' : ''}>Links (multiple, named)</option>
-          <option value="select" ${field?.field_type === 'select' ? 'selected' : ''}>Dropdown</option>
-          <option value="radio" ${field?.field_type === 'radio' ? 'selected' : ''}>Radio Buttons</option>
-          <option value="checkbox" ${field?.field_type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
-          <option value="status" ${field?.field_type === 'status' ? 'selected' : ''}>Status</option>
-          <option value="priority" ${field?.field_type === 'priority' ? 'selected' : ''}>Priority (Low to Critical)</option>
-          <option value="emoji" ${field?.field_type === 'emoji' ? 'selected' : ''}>Emoji (free pick)</option>
-          <option value="emojis" ${field?.field_type === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
-          <option value="notes" ${field?.field_type === 'notes' ? 'selected' : ''}>Notes (your own)</option>
-          <option value="worked_with_claude" ${field?.field_type === 'worked_with_claude' ? 'selected' : ''}>AI (yes/no toggle)</option>
+        <select class="form-select form-select-sm field-type" ${isLocked ? 'disabled' : ''}>
+          <option value="worked_with_claude" ${effectiveType === 'worked_with_claude' ? 'selected' : ''}>AI (yes/no toggle)</option>
+          <option value="checkbox" ${effectiveType === 'checkbox' ? 'selected' : ''}>Checkbox</option>
+          <option value="date" ${effectiveType === 'date' ? 'selected' : ''}>Date</option>
+          <option value="select" ${effectiveType === 'select' ? 'selected' : ''}>Dropdown</option>
+          <option value="duration" ${effectiveType === 'duration' ? 'selected' : ''}>Duration (worked time)</option>
+          <option value="emoji" ${effectiveType === 'emoji' ? 'selected' : ''}>Emoji (free pick)</option>
+          <option value="emojis" ${effectiveType === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
+          <option value="links" ${effectiveType === 'links' ? 'selected' : ''}>Links (multiple, named)</option>
+          <option value="textarea" ${effectiveType === 'textarea' ? 'selected' : ''}>Long Text</option>
+          <option value="notes" ${effectiveType === 'notes' ? 'selected' : ''}>Notes (your own)</option>
+          <option value="number" ${effectiveType === 'number' ? 'selected' : ''}>Number</option>
+          <option value="priority" ${effectiveType === 'priority' ? 'selected' : ''}>Priority (Low to Critical)</option>
+          <option value="radio" ${effectiveType === 'radio' ? 'selected' : ''}>Radio Buttons</option>
+          <option value="status" ${effectiveType === 'status' ? 'selected' : ''}>Status</option>
+          <option value="text" ${effectiveType === 'text' ? 'selected' : ''}>Text</option>
+          <option value="timebox" ${effectiveType === 'timebox' ? 'selected' : ''}>Time Box (15m to 2h)</option>
+          <option value="url" ${effectiveType === 'url' ? 'selected' : ''}>URL (single link)</option>
           ${UNLISTED_TYPE_OPTION(field)}
         </select>
       </div>
-      <div class="col-auto field-emoji-col" style="display: ${['emoji', 'emojis'].includes(field?.field_type) ? 'block' : 'none'};">
+      <div class="col-auto field-emoji-col" style="display: ${['emoji', 'emojis'].includes(effectiveType) ? 'block' : 'none'};">
         <span class="field-emoji-list">${EMOJI_CONFIG_OF(field)}</span>
-        <button type="button" class="btn btn-sm btn-outline-secondary field-emoji-add" title="Add an emoji">+</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary field-emoji-add" title="Add an emoji" ${isLocked ? 'disabled' : ''}>+</button>
         <input type="hidden" class="field-emoji-values" value="${EMOJI_CONFIG_OF(field)}">
       </div>
-      <div class="col field-options-col" style="display: ${LIST_TYPES.includes(field?.field_type) ? 'block' : 'none'};">
+      <div class="col field-options-col" style="display: ${LIST_TYPES.includes(effectiveType) ? 'block' : 'none'};">
         <div class="d-flex gap-1 align-items-center">
-          <select class="form-select form-select-sm field-options-list" title="The choices this field offers"></select>
-          <button type="button" class="btn btn-sm btn-outline-secondary field-option-add" title="Add a choice">+</button>
-          <button type="button" class="btn btn-sm btn-outline-danger field-option-del" title="Remove the selected choice">&minus;</button>
+          <select class="form-select form-select-sm field-options-list" title="The choices this field offers" ${isLocked ? 'disabled' : ''}></select>
+          <button type="button" class="btn btn-sm btn-outline-secondary field-option-add" title="Add a choice" ${isLocked ? 'disabled' : ''}>+</button>
+          <button type="button" class="btn btn-sm btn-outline-danger field-option-del" title="Remove the selected choice" ${isLocked ? 'disabled' : ''}>&minus;</button>
         </div>
         <input type="hidden" class="field-options" value="${optionsStr}">
       </div>
-      <div class="col field-checkbox-options-col" style="display: ${field?.field_type === 'checkbox' ? 'block' : 'none'};">
-        <input type="text" class="form-control form-control-sm field-checkbox-options" placeholder="Options (comma-separated)" value="${field?.field_type === 'checkbox' ? optionsStr : ''}">
+      <div class="col field-checkbox-options-col" style="display: ${effectiveType === 'checkbox' ? 'block' : 'none'};">
+        <input type="text" class="form-control form-control-sm field-checkbox-options" placeholder="Options (comma-separated)" value="${effectiveType === 'checkbox' ? optionsStr : ''}" ${isLocked ? 'disabled' : ''}>
       </div>
-      <div class="col-auto field-rollup-col" style="display: ${ROLLUP_MODES[field?.field_type] ? 'block' : 'none'};">
-        <select class="form-select form-select-sm field-rollup" title="How a folder derives this field from the items inside it">
-          ${(ROLLUP_MODES[field?.field_type] || []).map(m =>
+      <div class="col-auto field-rollup-col" style="display: ${ROLLUP_MODES[effectiveType] ? 'block' : 'none'};">
+        <select class="form-select form-select-sm field-rollup" title="How a folder derives this field from the items inside it" ${isLocked ? 'disabled' : ''}>
+          ${(ROLLUP_MODES[effectiveType] || []).map(m =>
             '<option value="' + m.value + '"' + (field?.rollup === m.value ? ' selected' : '') + '>' + m.label + '</option>'
           ).join('')}
         </select>
       </div>
       <div class="col-auto ms-auto">
         <div class="form-check form-switch" title="Show this field as a column in the row">
-          <input class="form-check-input field-show-in-row" type="checkbox" ${field?.show_in_row ? 'checked' : ''}>
+          <input class="form-check-input field-show-in-row" type="checkbox" ${field?.show_in_row ? 'checked' : ''} ${isLocked ? 'disabled' : ''}>
           <label class="form-check-label small text-muted">Column</label>
         </div>
       </div>
       <div class="col-auto">
         <div class="form-check form-switch" title="Show this column's name in the header">
-          <input class="form-check-input field-show-label" type="checkbox" ${field?.show_column_label !== 0 && field?.show_column_label !== false ? 'checked' : ''}>
+          <input class="form-check-input field-show-label" type="checkbox" ${field?.show_column_label !== 0 && field?.show_column_label !== false ? 'checked' : ''} ${isLocked ? 'disabled' : ''}>
           <label class="form-check-label small text-muted">Name</label>
         </div>
       </div>
@@ -486,10 +526,33 @@ function addFieldRow(field = null) {
     typeSelect.appendChild(opt);
   }
 
-  fieldsList.appendChild(fieldRow);
+  // Loading an existing type calls this once per field, in the order that IS
+  // the saved display_order - appending preserves it. "+ Add Field" calls it
+  // with no field at all, and a brand new row belongs at the top: the fields
+  // list can run long, and appending put a freshly added row wherever the
+  // scroll happened to be, effectively invisible until you scrolled to find
+  // it.
+  if (field) {
+    fieldsList.appendChild(fieldRow);
+  } else {
+    fieldsList.insertBefore(fieldRow, fieldsList.firstChild);
+  }
 
   const fieldTypeSelect = fieldRow.querySelector('.field-type');
+  const labelInput = fieldRow.querySelector('.field-label');
   const optionsCol = fieldRow.querySelector('.field-options-col');
+
+  // The name tracks the type for as long as it still READS like a default -
+  // a fresh row starts out that way by construction, and a saved field
+  // qualifies too if it was never renamed off its type's default (someone
+  // added a Date field and left it called "Date"). Changing the type then
+  // updates the name the same way in both cases - one rule, not "new fields
+  // only". A custom name never matches this, so it's never touched; typing
+  // one turns tracking off for good, even if what's left matches a default by
+  // coincidence (typing "Date" into a Date field should not keep rewriting
+  // itself on every later type change).
+  let labelIsAutoDefault = labelInput.value === (DEFAULT_FIELD_LABEL[effectiveType] || '');
+  labelInput.addEventListener('input', () => { labelIsAutoDefault = false; });
 
   // Show/hide options input based on field type
   // ----- choice list (dropdown / radio / status) -----
@@ -568,6 +631,10 @@ function addFieldRow(field = null) {
   const checkboxOptionsCol = fieldRow.querySelector('.field-checkbox-options-col');
 
   fieldTypeSelect.addEventListener('change', () => {
+    if (labelIsAutoDefault) {
+      labelInput.value = DEFAULT_FIELD_LABEL[fieldTypeSelect.value] || '';
+    }
+
     optionsCol.style.display = LIST_TYPES.includes(fieldTypeSelect.value) ? 'block' : 'none';
     checkboxOptionsCol.style.display = fieldTypeSelect.value === 'checkbox' ? 'block' : 'none';
 
@@ -624,7 +691,7 @@ function addFieldRow(field = null) {
   });
 }
 
-// Which types can appear in the "Can have parents" / "Can have children" lists.
+// Which types can appear in the "Can have children" list.
 //
 // Excluded, and why:
 //  - Dailies (slug `daily`, formerly `work_item`): a daily is never a child
@@ -633,8 +700,14 @@ function addFieldRow(field = null) {
 //    either wrong or a no-op the user has to keep re-ticking.
 //  - Outlook Calendar (type_category 'external'): an import source, not a
 //    regular type - it has no place in hand-authored relationship rules.
+//  - Templates (type_category 'template'): a template becomes a daily by
+//    being dragged onto the Dailies page, not by nesting under a hierarchy
+//    rule - offering it here would let someone tick a box that the drag
+//    protocol, not this screen, is what actually governs. Nothing may hold a
+//    Template (see CLAUDE.md).
 function canBeRelated(t) {
   if (t.type_category === 'external') return false;
+  if (t.type_category === 'template') return false;
   if (t.slug === 'daily') return false;
   return true;
 }
@@ -647,29 +720,17 @@ async function loadTypeRelationships(type) {
       const types = result.data || [];
       const otherTypes = types.filter(t => (!type || t.id !== type.id) && canBeRelated(t));
 
-      const parentList = document.getElementById('parentTypesList');
       const childList = document.getElementById('childTypesList');
 
-      parentList.innerHTML = '';
       childList.innerHTML = '';
 
       // Pre-check boxes against relationship rules already on this type, so
       // reopening the editor shows what was actually saved instead of always
       // starting blank.
       const relationships = (type?.relationships || []).filter(r => r.relationship_kind === 'hierarchy');
-      const isParent = (t) => relationships.some(r => r.parent_type_id === t.id && r.child_type_id === type.id);
       const isChild = (t) => relationships.some(r => r.parent_type_id === type.id && r.child_type_id === t.id);
 
       otherTypes.forEach(t => {
-        // Parent types
-        const parentCheck = document.createElement('div');
-        parentCheck.className = 'form-check';
-        parentCheck.innerHTML = `
-          <input class="form-check-input parent-type-check" type="checkbox" value="${t.id}" id="parent_${t.id}" ${type && isParent(t) ? 'checked' : ''}>
-          <label class="form-check-label" for="parent_${t.id}">${t.label}</label>
-        `;
-        parentList.appendChild(parentCheck);
-
         // Child types
         const childCheck = document.createElement('div');
         childCheck.className = 'form-check';
@@ -692,10 +753,9 @@ async function loadTypeRelationships(type) {
   }
 }
 
-// The "Can have parents"/"Can have children" checkboxes are two views onto
-// the same entity_type_relationships table (see loadTypeRelationships), so
-// saving them means diffing against what this type already had and only
-// creating/deleting the difference - not resending the whole set every time.
+// Saving means diffing the "Can have children" checkboxes against what this
+// type already had and only creating/deleting the difference - not resending
+// the whole set every time.
 async function saveTypeRelationships(typeId) {
   // The checkboxes are the ONLY record of what is wanted, and they arrive from
   // their own fetch after the form is built. Saving before they land means
@@ -705,21 +765,19 @@ async function saveTypeRelationships(typeId) {
   //
   // No checkboxes rendered at all means the section never loaded, which is not
   // the same as the user clearing it. Leave the rules alone.
-  const rendered = document.querySelectorAll('.parent-type-check, .child-type-check').length;
+  const rendered = document.querySelectorAll('.child-type-check').length;
   if (rendered === 0) {
     console.warn('[EntityTypeEditor] relationship checkboxes not loaded - leaving rules unchanged');
     return;
   }
 
-  const desiredParents = new Set(
-    Array.from(document.querySelectorAll('.parent-type-check:checked')).map(cb => Number(cb.value)));
   const desiredChildren = new Set(
     Array.from(document.querySelectorAll('.child-type-check:checked')).map(cb => Number(cb.value)));
 
   // SELF-nesting rules are excluded from the diff, and that is the whole bug
   // this guards against.
   //
-  // The checkbox lists exclude the type itself (`otherTypes`), so a rule where
+  // The checkbox list excludes the type itself (`otherTypes`), so a rule where
   // parent and child are both this type can never be "desired" - it has no box
   // to tick. It IS in `existing`, so every save saw a rule nobody asked for and
   // deleted it. Pressing Save on a type therefore removed its ability to
@@ -730,17 +788,10 @@ async function saveTypeRelationships(typeId) {
   // ensureSelfNestingRule on the server. This screen does not own it.
   const existing = (currentEditingType?.relationships || [])
     .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id !== r.child_type_id);
-  const existingParents = new Map(existing.filter(r => r.child_type_id === typeId).map(r => [r.parent_type_id, r.id]));
   const existingChildren = new Map(existing.filter(r => r.parent_type_id === typeId).map(r => [r.child_type_id, r.id]));
 
   const creates = [];
   const deletes = [];
-  for (const parentId of desiredParents) {
-    if (!existingParents.has(parentId)) creates.push({ parent_type_id: parentId, child_type_id: typeId, relationship_kind: 'hierarchy' });
-  }
-  for (const [parentId, ruleId] of existingParents) {
-    if (!desiredParents.has(parentId)) deletes.push(ruleId);
-  }
   for (const childId of desiredChildren) {
     if (!existingChildren.has(childId)) creates.push({ parent_type_id: typeId, child_type_id: childId, relationship_kind: 'hierarchy' });
   }
@@ -752,9 +803,11 @@ async function saveTypeRelationships(typeId) {
     try {
       await app.fetch('/api/entity-types/relationships', { method: 'POST', body: JSON.stringify(rule) });
     } catch (error) {
-      // The same rule may already exist from the other type's side of it
-      // (e.g. this type's "children" list and the other type's "parents"
-      // list both describe one row) - a conflict here is not a real failure.
+      // A given row now has exactly one editable path (this type's children
+      // list, from this type's own editor) - the old "the other type's
+      // parents list already created it" race is gone with that list. A
+      // conflict here means a double-submitted Save (e.g. double-clicked);
+      // swallow rather than surface, since the next load reflects the truth.
       console.warn('Could not create relationship rule:', error);
     }
   }

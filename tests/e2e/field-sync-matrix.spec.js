@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix, deleteFields } from './helpers/cleanup.js';
+import { flushAutosave } from './editor-gestures.js';
 
 // This spec declares SIX extra columns on the type, and columns drop rather
 // than collapse when the pane cannot fit them (genericEntity.fitColumns), with
@@ -96,7 +97,7 @@ test('every interactive field syncs cell <-> editor', async ({ page }) => {
     const t = page.locator('#entity-editor-form input[name="title"]');
     await t.fill(ROW);
     await t.dispatchEvent('input');
-    await page.click(`#${TYPE}SaveBtn`);
+    await flushAutosave(page);
     await page.waitForTimeout(1400);
 
     const row = page.locator(`#${TYPE}EntityList .entity-row`).filter({ hasText: ROW }).first();

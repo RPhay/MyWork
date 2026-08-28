@@ -81,6 +81,11 @@ async function selectEmoji(emoji) {
 
     const result = await response.json();
     if (result.success) {
+      // An editor open on this record hears about the change - same
+      // no-op-unless-open, no-autosave-echo contract as the status sync in
+      // cycleWorkItemStatus. Correct for templates too: the shared editor
+      // keys off the entity id whatever the type.
+      GenericEntity.syncEditorFromRow(entityId, 'emoji', emoji);
       config.reload();
     } else {
       app.notify("Error: " + result.message, "danger");

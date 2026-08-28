@@ -810,6 +810,21 @@ renderList();
         return;
       }
 
+      // Edit icon: the same gesture as double-clicking the row, for anyone who
+      // would rather click a visible control than remember the double-click.
+      // Shares populate()'s own toggle-close behaviour, so clicking it again
+      // on an already-open row closes the editor exactly like a second
+      // double-click would.
+      const editBtn = e.target.closest('[data-action="edit-row"]');
+      if (editBtn) {
+        const entity = entities.find(x => x.id == editBtn.dataset.entityId);
+        if (entity) {
+          const schema = schemaForEntity(entity);
+          GenericEntity.populate(entity.id, entity, schema, typeSlug, schema.slug);
+        }
+        return;
+      }
+
       // Delete button (editing happens by clicking the row itself, below)
       const actionBtn = e.target.closest('[data-action="delete"]');
       if (actionBtn) {
@@ -835,55 +850,51 @@ renderList();
       // means. Cells that show a rolled-up value swallow the click instead.
       if (e.target.closest('.is-rollup')) return;
 
-      // Click on the row itself: selection first, then expand/collapse.
-      //
-      // One click opens and closes the row; TWO open and close the editor. The
-      // editor used to be a single click away, which made it impossible to look
-      // inside a folder without also loading its editor, and made an accidental
-      // click on a list a state change.
-      //
-      // The expand is deferred so a double click does not first toggle the row
-      // open and shut on its way to the editor.
+      // Click on the row itself: select it, and if the editor is already open
+      // on something, follow the click into it. There is no double-click any
+      // more - it used to be what opened the editor, disambiguated from a
+      // plain click's deferred expand/collapse by a timer, but a single click
+      // does both jobs now (expand/collapse moved to its own arrow, see
+      // [data-action="toggle-expand"] above). Opening the editor from fully
+      // closed is still the pencil icon's job, not a plain click's - a click
+      // on the list should be safe to make without committing to editing
+      // something.
       const row = e.target.closest('.entity-row');
       if (row && !e.target.closest('[data-action]')) {
         if (handleSelectionClick(e, row)) return;   // modifier click: selection only
-        const node = row.closest('.entity-node');
-        if (!node) return;
-        clearTimeout(rowClickTimer);
-        rowClickTimer = setTimeout(() => toggleExpanded(node), DOUBLE_CLICK_MS);
+        const openId = GenericEntity.getCurrentEntityId();
+        // Only redirect into a DIFFERENT row. populate() on the row already
+        // open toggles it closed (that's what the pencil icon relies on) -
+        // without this guard, the second click of an ordinary double-click
+        // landed on the row this same handler had just opened a moment
+        // earlier, and closed it again right back.
+        if (openId != null && String(openId) !== String(row.dataset.entityId)) {
+          const entity = entities.find(x => x.id == row.dataset.entityId);
+          // A row nested inside a template is of its own type, so edit it
+          // with that type's fields - and save it back to that type's
+          // endpoint.
+          if (entity) {
+            const schema = schemaForEntity(entity);
+            GenericEntity.populate(entity.id, entity, schema, typeSlug, schema.slug);
+          }
+        }
       }
     });
 
-    // Two clicks: the editor. Notes are the one exception - like the Dailies
-    // rail, a note opens its own small modal on double-click rather than the
-    // full entity editor, so it's checked before the general [data-action]
-    // bail-out below rather than falling under it.
+    // Notes are the one field that still opens on double-click, in its own
+    // small modal rather than the full row editor - the same gesture the
+    // Dailies rail uses for the same field.
     listContainer.addEventListener('dblclick', (e) => {
       const notesBtn = e.target.closest('[data-action="edit-notes-field"]');
-      if (notesBtn) {
-        const entity = entities.find(x => x.id == notesBtn.dataset.entityId);
-        openNotesEditor({
-          entityId: notesBtn.dataset.entityId,
-          fieldKey: notesBtn.dataset.fieldKey,
-          fieldType: notesBtn.dataset.fieldType,
-          // Field values hang off `fields`, not the entity itself.
-          current: entity?.fields?.[notesBtn.dataset.fieldKey] ?? '',
-        });
-        return;
-      }
-
-      const row = e.target.closest('.entity-row');
-      if (!row || e.target.closest('[data-action]')) return;
-      if (e.target.closest('.is-rollup')) return;   // a summary, not a control
-      clearTimeout(rowClickTimer);                  // cancel the pending expand
-
-      const entity = entities.find(x => x.id == row.dataset.entityId);
-      // A row nested inside a template is of its own type, so edit it with that
-      // type's fields - and save it back to that type's endpoint.
-      if (entity) {
-        const schema = schemaForEntity(entity);
-        GenericEntity.populate(entity.id, entity, schema, typeSlug, schema.slug);
-      }
+      if (!notesBtn) return;
+      const entity = entities.find(x => x.id == notesBtn.dataset.entityId);
+      openNotesEditor({
+        entityId: notesBtn.dataset.entityId,
+        fieldKey: notesBtn.dataset.fieldKey,
+        fieldType: notesBtn.dataset.fieldType,
+        // Field values hang off `fields`, not the entity itself.
+        current: entity?.fields?.[notesBtn.dataset.fieldKey] ?? '',
+      });
     });
 
     // Writes a single field from a cell control. Only that key is sent, so the
@@ -934,7 +945,7 @@ renderList();
               </div>
               <div class="modal-footer border-top">
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="entityNotesEditorSave">Save</button>
+                <button type="button" class="btn btn-sm btn-outline-success" id="entityNotesEditorSave">Save</button>
               </div>
             </div>
           </div>`;
@@ -1403,12 +1414,7 @@ renderList();
 
     let pendingParentId = null; // set when creating something "inside" a row
 
-    // Long enough to catch a real double click, short enough that a single
-    // click still feels immediate.
-    const DOUBLE_CLICK_MS = 220;
-    let rowClickTimer = null;
-
-    // The chevron and a click on the row do the same thing, through here.
+    // The [data-action="toggle-expand"] arrow's handler goes through here.
     function toggleExpanded(node) {
       if (!node) return;
       node.classList.toggle('expanded');
@@ -2127,13 +2133,19 @@ renderList();
       }
     });
 
-    // Editor buttons
-    document.getElementById(`${typeSlug}SaveBtn`)?.addEventListener('click', async () => {
+    // There is no Save button - genericEntity.js debounces a save after every
+    // change and fires 'entity-autosave-due' when one is due, whether that is
+    // the debounce timer, a switch to another record, or the editor closing.
+    // This is that same save, just no longer behind a click.
+    const performAutoSave = async () => {
       try {
         // Null before the save means this was a create, not an edit.
         const wasCreate = GenericEntity.getCurrentEntityId() === null;
         const saved = await GenericEntity.save();
-        app.notify('Saved successfully', 'success');
+        // No "Saved" toast - autosave fires often enough (every debounced
+        // change) that one would be constant noise. A failure still notifies,
+        // in the catch below, since that's the one autosave outcome worth
+        // interrupting for.
 
         // "New ... inside" from the context menu records the row it was
         // launched from; the nesting edge can only be written once the child
@@ -2141,7 +2153,7 @@ renderList();
         if (wasCreate && saved?.id && pendingParentId) {
           const response = await app.fetchRaw(`/api/entities/${typeSlug}/${saved.id}/relationships`, {
             method: 'POST',
-            
+
             body: JSON.stringify({ parentEntityId: pendingParentId, childEntityId: saved.id, relationshipKind: 'hierarchy' })
           });
           if (!response.ok) {
@@ -2154,8 +2166,8 @@ renderList();
         pendingParentId = null;
 
         // Saving NEVER closes the editor - it stays open on what was just
-        // saved, with Save and Cancel disabled because there is now nothing to
-        // save and nothing to discard. Both re-enable on the next edit.
+        // saved, with Revert disabled because there is nothing left to
+        // discard. It re-enables on the next edit.
         if (wasCreate && saved?.id) {
           // Still reachable from paths that open the editor on an unsaved
           // blank (the context menu's "New ... inside"). No longer closes
@@ -2167,24 +2179,29 @@ renderList();
         } else {
           // markSaved BEFORE the refresh, not after. refreshEntities() is a
           // round trip, and any edit made while it was in flight had already
-          // re-enabled Save - then this landed and disabled it again, with
-          // nothing left to re-enable it. The record was edited, the button
-          // was dead, and the only way out was to click another row and come
-          // back. That is the "save is disabled on every attempt" report, and
-          // it is why the second save in editable-types-comprehensive timed
-          // out: Playwright types faster than the refresh returns.
+          // re-armed Revert - then this landed and disabled it again, with
+          // nothing left to re-enable it.
           GenericEntity.markSaved();
           await refreshEntities();
         }
       } catch (error) {
         app.notify(error.message, 'danger');
       }
+    };
+
+    document.addEventListener('entity-autosave-due', (e) => {
+      if (e.detail?.typeSlug !== typeSlug) return;
+      performAutoSave();
     });
 
     // Revert, not Cancel: it throws away the edits and reloads the record as
     // stored. The editor stays open on it - closing is done by clicking the
     // row again, the same gesture that opened it.
     document.getElementById(`${typeSlug}CloseBtn`)?.addEventListener('click', async () => {
+      // Must run before reading getCurrentEntityId()/close()/populate() below -
+      // it clears hasChanges so none of them mistake this discard for a
+      // record switch and autosave the very thing Revert is throwing away.
+      GenericEntity.discardChanges();
       const id = GenericEntity.getCurrentEntityId();
       if (id == null) {
         // Nothing saved yet (a new item): there is no stored version to go back

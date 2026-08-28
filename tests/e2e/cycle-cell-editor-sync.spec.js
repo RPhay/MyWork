@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { flushAutosave } from './editor-gestures.js';
 
 // The cell controls this spec clicks live in columns that DROP rather than
 // collapse when the pane is too narrow (genericEntity.fitColumns), and the
@@ -22,7 +23,7 @@ async function makeRow(page, title) {
   const t = page.locator('#entity-editor-form input[name="title"]');
   await t.fill(title);
   await t.dispatchEvent('input');
-  await page.click(`#${TYPE}SaveBtn`);
+  await flushAutosave(page);
   await page.waitForTimeout(1200);
 }
 

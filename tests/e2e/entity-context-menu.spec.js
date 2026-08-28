@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { flushAutosave } from './editor-gestures.js';
 
 /**
  * The context menu is built from the type's own definition - never from its
@@ -83,7 +84,7 @@ test.describe('Generic entity context menu', () => {
     await expect(title).toBeVisible();
     await title.fill(`${PREFIX} nested folder`);
     await title.dispatchEvent('input');
-    await page.click('#categorySaveBtn');
+    await flushAutosave(page);
     await page.waitForTimeout(1200);
 
     const rels = (await api(page, '/api/entities/category/relationships?kind=hierarchy')).body.data;

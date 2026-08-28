@@ -45,16 +45,12 @@
                   title="Add a daily to group work under. Records can also sit on the day on their own.">+ Daily</button>
         </div>
 
-        <div class="work-item-tree-header text-muted small fw-bold border-bottom pb-1 mb-2">
-          <span title="What the work is. Click a row to expand what is linked to it; double-click to edit.">Title</span>
-          <span title="Oh! - flag this as something that came up unexpectedly, rather than planned work">Oh!</span>
-          <span title="When the work is scheduled to start">Time</span>
-          <span title="Not Started, In Progress or Complete. Click the badge on a row to cycle it.">Status</span>
-          <span title="How long you intend to spend on this, in hours. Totals for the day show beside the date.">Time Box</span>
-          <span title="Whether AI was used on this item. Click the icon on a row to toggle it.">AI</span>
-          <span title="Your own notes for this item">Notes</span>
-          <span title="Remove this item from the day">Actions</span>
-        </div>
+        <%# Filled by renderRailHeader() in dailies-items.js from the daily
+            type's own field definitions - show_in_row, show_column_label and
+            display_order decide what appears here, the same rules as every
+            typed tab. Hardcoded spans stood here before, which is why the
+            Settings toggles for the daily type never changed this rail. %>
+        <div class="work-item-tree-header text-muted small fw-bold border-bottom pb-1 mb-2" hidden></div>
 
         <%# Appears once two or more rows are selected, like the typed pages. %>
         <div id="dailiesSelectionBar" class="entity-selection-bar" hidden>
@@ -85,9 +81,12 @@
         <div class="split-pane-editor">
           <div class="editor-actions-home" style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
             <div class="editor-actions-bar">
+              <%# Changes save automatically a moment after you stop typing -
+                  the same autosave every row editor has (see dailies.js's
+                  entity-autosave-due listener). Revert discards what hasn't
+                  saved yet and closes the editor. %>
               <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="dailyCloseBtn" title="Discard your changes and close the editor">Revert</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="dailySaveBtn" disabled title="Save your changes. Stays disabled until you change something.">Save</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="dailyCloseBtn" title="Discard changes not yet saved and close the editor">Revert</button>
               </div>
             </div>
           </div>
@@ -372,8 +371,8 @@
         <textarea id="workNotesModalText" class="form-control" rows="6" placeholder="Add your notes here..."></textarea>
       </div>
       <div class="modal-footer border-top">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveWorkNotesBtn" title="Save these notes to the work item">Save</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-outline-success" id="saveWorkNotesBtn" title="Save these notes to the work item">Save</button>
       </div>
     </div>
   </div>

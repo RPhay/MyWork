@@ -196,8 +196,14 @@ alternation stable instead of drifting after a few clicks.
 From `CLAUDE.md`. Read before touching row rendering, the entity editor, or
 the focus bar — each rule below came from a specific regression.
 
-- **One click expands a row; two open the editor.** The editor used to be one
-  click away, so you could not look inside a folder without loading it.
+- **A row's chevron expands it; a click selects it and, if an editor is
+  already open on something, redirects that editor to it.** Expand and select
+  used to share the same click, disambiguated from opening the editor by a
+  double-click and a timer - removed because a genuine double click (open one
+  row, then the next) was landing inconsistently. A click never opens a
+  CLOSED editor by itself, only redirects one already open - the pencil icon
+  is what opens one from nothing, so a click on the list stays safe to make
+  without committing to editing something.
 - **A folder's cells are ROLL-UPS of what is inside it**, at any depth, and
   failed dominates. They are summaries, not controls: clicking one does nothing
   to the editor. A folder shows Worked Time in its editor and nothing else it

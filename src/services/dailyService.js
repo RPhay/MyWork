@@ -95,6 +95,13 @@ function toLegacyShape(entity, fields) {
     context_id: entity.context_id,
     created_at: entity.created_at,
     updated_at: entity.updated_at,
+    // The raw field map, alongside the flat keys above. The rail's columns
+    // render from the daily type's own field definitions now, and those are
+    // keyed by field_key - the flat shape both renames keys (time_box ->
+    // time_box_minutes) and omits fields it never carried (priority,
+    // focus_seconds), so it cannot drive a schema-driven renderer. The flat
+    // keys stay for the six legacy consumers and the reports.
+    fields,
   };
 }
 

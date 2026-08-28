@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { dblclick } from './dblclick.js';
+import { flushAutosave, openEditor } from './editor-gestures.js';
 
 // Column order and editor field order are ONE value (entity_type_fields.
 // display_order) shown in two places. Dragging a column header used to move the
@@ -68,7 +68,7 @@ test('dragging a column header reorders the open editor immediately', async ({ p
   const title = page.locator('#entity-editor-form input[name="title"]');
   await title.fill('ZZZ colsync');
   await title.dispatchEvent('input');
-  await page.click(`#${TYPE}SaveBtn`);
+  await flushAutosave(page);
   await page.waitForTimeout(1200);
 
   const before = await fieldOrder(page);
@@ -94,12 +94,13 @@ test('dragging a column header reorders the open editor immediately', async ({ p
   expect(afterFields.filter(k => editorCols.includes(k)),
     'open editor should match the new column order').toEqual(editorCols);
 
-  // ...and it survives a reopen, which is what the missing sort broke.
-  await dblclick(page.locator(`#${TYPE}EntityList .entity-row`)
-    .filter({ hasText: 'ZZZ colsync' }).first().locator('.entity-cell-title'));
+  // ...and it survives a reopen, which is what the missing sort broke. The
+  // pencil toggles: first click closes the open editor, second reopens it.
+  await openEditor(page.locator(`#${TYPE}EntityList .entity-row`)
+    .filter({ hasText: 'ZZZ colsync' }).first());
   await page.waitForTimeout(400);
-  await dblclick(page.locator(`#${TYPE}EntityList .entity-row`)
-    .filter({ hasText: 'ZZZ colsync' }).first().locator('.entity-cell-title'));
+  await openEditor(page.locator(`#${TYPE}EntityList .entity-row`)
+    .filter({ hasText: 'ZZZ colsync' }).first());
   await page.waitForTimeout(800);
   expect((await fieldOrder(page)).filter(k => editorCols.includes(k)),
     'reopened editor should still match').toEqual(editorCols);

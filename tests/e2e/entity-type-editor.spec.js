@@ -47,24 +47,30 @@ test('type editor opens and shows all fields with correct types', async ({ page 
 });
 
 // A daily is never a child of anything and is implicitly a parent of
-// everything, so offering it in either list is wrong or a no-op. Outlook
-// Calendar is an import source, not a type you author rules against.
-test('relationship lists exclude dailies and import types', async ({ page }) => {
+// everything, so offering it in the list is wrong or a no-op. Outlook
+// Calendar is an import source, not a type you author rules against. A
+// template becomes a daily by being dragged onto the Dailies page, not by a
+// hierarchy rule - nothing may hold a Template (see CLAUDE.md).
+//
+// "Can have parents" was removed: it and "Can have children" were always two
+// views onto the same entity_type_relationships row (see
+// saveTypeRelationships in entity-type-editor.js), so the fact a row encodes
+// is now only editable from the parent type's own "children" list - there is
+// one list left, not two to keep excluding dailies/imports/templates from.
+test('children list excludes dailies, import types and templates', async ({ page }) => {
   await page.goto('/settings?tab=entity-types');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1800);
   await page.locator('text=Projects').first().click();
   await page.waitForTimeout(1200);
 
-  const parents  = await page.locator('#parentTypesList .form-check-label').allTextContents();
   const children = await page.locator('#childTypesList .form-check-label').allTextContents();
 
-  for (const list of [parents, children]) {
-    expect(list).not.toContain('Work Items');
-    expect(list).not.toContain('Daily');
-    expect(list).not.toContain('Outlook Calendar');
-  }
-  expect(parents).toContain('Categories');
+  expect(children).not.toContain('Work Items');
+  expect(children).not.toContain('Daily');
+  expect(children).not.toContain('Templates');
+  expect(children).not.toContain('Outlook Calendar');
+  expect(children.length).toBeGreaterThan(0);
 });
 
 test('the type editor offers every field type the renderer supports', async ({ page }) => {

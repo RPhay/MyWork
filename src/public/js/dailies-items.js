@@ -25,6 +25,79 @@ function statusRoleClass(status) {
   return "status-role-todo";
 }
 
+// ---- Schema-driven columns -------------------------------------------------
+//
+// The daily type's own field definitions are the source of truth for what the
+// rail shows - the same show_in_row / show_column_label / display_order rules
+// as every typed tab, via the same GenericEntity functions. The rail used to
+// hardcode eight columns in dailies.ejs and here, so the Settings toggles for
+// the daily type changed the editor and changed nothing on the rail.
+//
+// Filled by loadWorkItems() before the first render; null until then, and the
+// renderer falls back to nothing rather than guessing.
+let dailyRailSchema = null;
+
+// Track widths by field type, chosen to match what the old fixed grid gave
+// the same content. Anything unlisted gets a middling default.
+const RAIL_COL_WIDTH = {
+  emoji: '40px', status: '100px', timebox: '70px', worked_with_claude: '40px',
+  notes: '40px', priority: '56px', date: '92px', duration: '70px',
+  number: '64px', checkbox: '40px', emojis: '40px',
+};
+
+function dailyRailColumns() {
+  if (!dailyRailSchema) return [];
+  return GenericEntity.orderedColumns(dailyRailSchema).filter(c => !c.isTitle);
+}
+
+function railGridTracks(cols) {
+  return ['minmax(0, 1fr)', ...cols.map(c => RAIL_COL_WIDTH[c.field.field_type] || '80px'), '84px'].join(' ');
+}
+
+// The header is rebuilt from the schema on every list render - Title and
+// Actions are structural (always present, not fields), everything between
+// them is a visible field, its label shown or withheld per show_column_label.
+function renderRailHeader(cols) {
+  const headerEl = document.querySelector('.work-item-tree-header');
+  if (!headerEl) return;
+  headerEl.style.gridTemplateColumns = railGridTracks(cols);
+  headerEl.innerHTML =
+    '<span title="What the work is. Click a row to expand what is linked to it; the pencil opens its editor.">Title</span>' +
+    cols.map(c => {
+      const f = c.field;
+      const showLabel = f.show_column_label !== 0 && f.show_column_label !== false;
+      return `<span title="${app.escapeHtml(f.label)}">${showLabel ? app.escapeHtml(f.label) : ''}</span>`;
+    }).join('') +
+    '<span title="Edit or remove this item">Actions</span>';
+}
+
+// One cell for one visible field on a daily row. The fields the rail has live
+// controls for keep their existing markup and data-actions - the wiring in
+// dailies-list-events.js stays untouched; they simply became these columns.
+// Anything else renders through the generic cell renderer, inert (the rail's
+// click handler doesn't speak the generic tab's cell actions).
+function renderDailyRailCell(item, col) {
+  const f = col.field;
+  switch (f.field_key) {
+    case 'emoji':
+      return `<span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || "")}</span>`;
+    case 'status':
+      return `<span class="status-cell work-item-status-badge ${statusRoleClass(item.status)}" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>`;
+    case 'time_box':
+      return `<span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${formatTimeBox(item.time_box_minutes)}</span>`;
+    case 'worked_with_claude':
+      return `<span class="work-item-claude-toggle" data-action="toggle-claude" data-id="${item.id}" title="Toggle: AI used" style="text-align: center; cursor: pointer; font-size: 18px;"><i class="bi bi-robot" style="color: ${item.worked_with_claude ? "#FFA500" : "#ddd"}; opacity: ${item.worked_with_claude ? "1" : "0.5"};"></i></span>`;
+    case 'notes':
+      return `<span class="work-item-notes-cell" data-action="edit-notes" data-id="${item.id}" style="cursor: pointer; text-align: center;" title="${item.notes ? 'Has notes - double-click to edit' : 'No notes - double-click to add'}"><i class="bi bi-sticky-fill" style="color: ${item.notes ? '#ffd43b' : '#dee2e6'};"></i></span>`;
+    case 'start_time':
+      return `<span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>`;
+    default: {
+      const value = item.fields ? item.fields[f.field_key] : undefined;
+      return `<span class="work-item-cell" data-field-key="${app.escapeHtml(f.field_key)}">${GenericEntity.renderCellValue({ id: item.id, fields: item.fields || {} }, f, value, true)}</span>`;
+    }
+  }
+}
+
 // `roots` are records put on the day with no work item wrapped round them.
 // They render with the same renderChildItem() a work item's contents use, so a
 // record looks the same wherever it sits - the only difference is what removing
@@ -44,6 +117,10 @@ function renderWorkItemsList(items, roots = []) {
       '<p class="text-center text-muted">Nothing on this day yet - drag a type or a template in, or add a daily to group them.</p>';
     return;
   }
+
+  const cols = dailyRailColumns();
+  const gridTracks = railGridTracks(cols);
+  renderRailHeader(cols);
 
   let html = '';
 
@@ -65,22 +142,21 @@ function renderWorkItemsList(items, roots = []) {
     const childCount = item.entities?.length || 0;
     const hasChildren = childCount > 0;
 
-    // Render work item row
+    // Render work item row. Title and Actions are structural; the cells
+    // between them are the daily type's visible fields, in its own order -
+    // the inline grid keeps daily rows on the schema's tracks while child
+    // rows (three spans, their own type) stay on the stylesheet's default.
     html += `
       <div class="work-item ${isExpanded ? "expanded" : ""}" data-work-id="${item.id}" data-has-children="${hasChildren}">
-        <div class="work-item-header" draggable="true" data-status="${item.status}" title="${hasChildren ? "Click to expand/collapse, double-click to edit; drag to reorder" : "Click to change status, double-click to edit; drag to reorder"}">
+        <div class="work-item-header" draggable="true" data-status="${item.status}" style="grid-template-columns: ${gridTracks};" title="${hasChildren ? "Click to expand/collapse; drag to reorder" : "Click to select; drag to reorder"}">
           <span class="work-item-title-cell">
             <i class="bi bi-chevron-right work-item-toggle" data-action="toggle-expand" title="Expand/collapse"></i>
             <i class="bi ${APP_ICONS.workItem} text-muted" title="Daily"></i>
             <span class="work-item-title">${app.escapeHtml(item.title)}</span>${app.childCountBadge(childCount)}
           </span>
-          <span class="work-item-emoji" data-action="pick-emoji" data-id="${item.id}" title="Oh! Click to pick an emoji">${app.escapeHtml(item.emoji || "")}</span>
-          <span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>
-          <span class="status-cell work-item-status-badge ${statusRoleClass(item.status)}" data-action="cycle-status" data-id="${item.id}" title="Click to change status">${item.status}</span>
-          <span class="badge bg-light text-dark border work-item-timebox-badge" data-action="cycle-timebox" data-id="${item.id}" data-minutes="${item.time_box_minutes || ""}" title="Click to change time box">${formatTimeBox(item.time_box_minutes)}</span>
-          <span class="work-item-claude-toggle" data-action="toggle-claude" data-id="${item.id}" title="Toggle: AI used" style="text-align: center; cursor: pointer; font-size: 18px;"><i class="bi bi-robot" style="color: ${item.worked_with_claude ? "#FFA500" : "#ddd"}; opacity: ${item.worked_with_claude ? "1" : "0.5"};"></i></span>
-          <span class="work-item-notes-cell" data-action="edit-notes" data-id="${item.id}" style="cursor: pointer; text-align: center;" title="${item.notes ? 'Has notes - double-click to edit' : 'No notes - double-click to add'}"><i class="bi bi-sticky-fill" style="color: ${item.notes ? '#ffd43b' : '#dee2e6'};"></i></span>
+          ${cols.map(c => renderDailyRailCell(item, c)).join('')}
           <span class="work-item-actions">
+            <button class="btn btn-sm btn-primary" data-action="edit-work-item" data-id="${item.id}" title="Open the editor for this daily" aria-label="Edit"><i class="bi bi-pencil"></i></button>
             <button class="btn btn-sm btn-danger" data-action="delete" data-id="${item.id}" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></button>
           </span>
         </div>
@@ -187,11 +263,15 @@ async function loadWorkItems() {
 
   try {
     // The day's work items and whatever sits on the day beside them. Both, or
-    // the list is drawn twice and flickers.
-    const [response, rootsResponse] = await Promise.all([
+    // the list is drawn twice and flickers. The daily type's schema rides
+    // along (cached after the first load) - the rail's columns render from
+    // its field definitions, so the renderer must have it in hand.
+    const [response, rootsResponse, schema] = await Promise.all([
       fetch(`/api/dailies/date/${date}`),
       fetch(`/api/dailies/date/${date}/roots`),
+      dailyTypeSchema(),
     ]);
+    dailyRailSchema = schema;
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
     // A day with no root records is the common case and not a failure, so this

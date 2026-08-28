@@ -1098,6 +1098,15 @@ export async function createMssqlSchema(pool) {
      WHERE slug = 'template' AND type_category = 'editable'
   `);
 
+  // Templates' capability flags - the twin of the block in mysqlSchema.js:
+  // READ-ONLY in Settings, so a wrong value is drift, never a choice.
+  // Templates nest freely and hold no folders.
+  await pool.request().query(`
+    UPDATE [MyWork].[entity_types] SET supports_hierarchy = 1, supports_folders = 0
+     WHERE slug = 'template' AND type_category = 'template'
+       AND (supports_hierarchy <> 1 OR supports_folders <> 0)
+  `);
+
   // Nothing may CONTAIN a template - the twin of the block in mysqlSchema.js.
   await pool.request().query(`
     DELETE r FROM [MyWork].[entity_type_relationships] r
@@ -1129,6 +1138,77 @@ export async function createMssqlSchema(pool) {
       JOIN [MyWork].[entity_types] t ON t.id = f.entity_type_id
      WHERE t.slug = 'daily' AND f.field_key = 'time_box_minutes'
   `);
+
+  // The AI toggle's field key forked - the twin of the block in
+  // mysqlSchema.js, which carries the full story: a type-editor rebuild
+  // rekeyed the field to 'ai' (key derived from the label) while dailyService
+  // kept writing 'worked_with_claude'. Repaired toward the seed's key.
+  //
+  // 1. Both definitions exist: the seed-keyed row wins, carrying the 'ai'
+  //    row's display settings; then the 'ai' definition goes.
+  await pool.request().query(`
+    UPDATE wc SET wc.show_in_row = ai.show_in_row,
+                  wc.show_column_label = ai.show_column_label,
+                  wc.display_order = ai.display_order
+      FROM [MyWork].[entity_type_fields] wc
+      JOIN [MyWork].[entity_types] t ON t.id = wc.entity_type_id
+      JOIN [MyWork].[entity_type_fields] ai
+        ON ai.entity_type_id = wc.entity_type_id
+       AND ai.field_key = 'ai' AND ai.field_type = 'worked_with_claude'
+     WHERE t.slug = 'daily' AND wc.field_key = 'worked_with_claude'
+  `);
+  await pool.request().query(`
+    DELETE ai FROM [MyWork].[entity_type_fields] ai
+      JOIN [MyWork].[entity_types] t ON t.id = ai.entity_type_id
+     WHERE t.slug = 'daily' AND ai.field_key = 'ai'
+       AND ai.field_type = 'worked_with_claude'
+       AND EXISTS (
+         SELECT 1 FROM [MyWork].[entity_type_fields] f
+          WHERE f.entity_type_id = ai.entity_type_id
+            AND f.field_key = 'worked_with_claude')
+  `);
+  // 2. Only 'ai' exists: rename the definition in place.
+  await pool.request().query(`
+    UPDATE f SET f.field_key = 'worked_with_claude'
+      FROM [MyWork].[entity_type_fields] f
+      JOIN [MyWork].[entity_types] t ON t.id = f.entity_type_id
+     WHERE t.slug = 'daily' AND f.field_key = 'ai'
+       AND f.field_type = 'worked_with_claude'
+       AND NOT EXISTS (
+         SELECT 1 FROM [MyWork].[entity_type_fields] x
+          WHERE x.entity_type_id = f.entity_type_id
+            AND x.field_key = 'worked_with_claude')
+  `);
+  // 3. Values: newer write wins on conflict, then rekey, then sweep. Guarded
+  //    the same way the recurrence cleanup below is, and for the same reason.
+  if (await tableExists(pool, "entity_field_values")) {
+    await pool.request().query(`
+      DELETE wc FROM [MyWork].[entity_field_values] wc
+        JOIN [MyWork].[entities] e ON e.id = wc.entity_id
+        JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
+        JOIN [MyWork].[entity_field_values] ai
+          ON ai.entity_id = wc.entity_id AND ai.field_key = 'ai'
+       WHERE t.slug = 'daily' AND wc.field_key = 'worked_with_claude'
+         AND ai.updated_at >= wc.updated_at
+    `);
+    await pool.request().query(`
+      UPDATE v SET v.field_key = 'worked_with_claude'
+        FROM [MyWork].[entity_field_values] v
+        JOIN [MyWork].[entities] e ON e.id = v.entity_id
+        JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
+       WHERE t.slug = 'daily' AND v.field_key = 'ai'
+         AND NOT EXISTS (
+           SELECT 1 FROM [MyWork].[entity_field_values] x
+            WHERE x.entity_id = v.entity_id
+              AND x.field_key = 'worked_with_claude')
+    `);
+    await pool.request().query(`
+      DELETE v FROM [MyWork].[entity_field_values] v
+        JOIN [MyWork].[entities] e ON e.id = v.entity_id
+        JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
+       WHERE t.slug = 'daily' AND v.field_key = 'ai'
+    `);
+  }
 
   // Remove the orphaned `recurrence` field definitions - the twin of the block
   // in mysqlSchema.js. Guarded on having no stored values, so it can only ever

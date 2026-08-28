@@ -100,7 +100,7 @@ export const SYSTEM_ENTITY_TYPES = [
   {
     slug: 'priority',
     label: 'Projects',
-    label_singular: 'Priority',
+    label_singular: 'Project',
     icon: '📍',
     supports_hierarchy: true,
     is_system: true,
@@ -658,7 +658,13 @@ export function upgradedStatusOptions(storedRaw, seeded) {
   } catch {
     return null;
   }
-  if (!stored || !Array.isArray(stored.values)) return null;
+  // NO stored options at all is the strongest case for the seed, not a reason
+  // to bail: a status field with a null value list classifies nothing - no
+  // done, no failed - and "upgrade only when nothing would be lost" is
+  // trivially met when nothing is stored. A rebuilt-by-hand Status field
+  // arrived exactly this way (the type editor saves a bare status with no
+  // options), and entity-type-integrity.spec is what caught it.
+  if (!stored || !Array.isArray(stored.values) || stored.values.length === 0) return seeded;
 
   // Already upgraded.
   if (Array.isArray(stored.failedValues) && stored.failedValues.length > 0) return null;

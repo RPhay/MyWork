@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { flushAutosave } from './editor-gestures.js';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
 
 // dashboard.ejs renders EVERY tab's rows into the DOM at once, so a bare
@@ -61,8 +62,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await titleInput.fill(`ZZZ New ${type.label}`);
 
         // Save
-        const saveBtn = page.locator(`#${type.slug}SaveBtn`);
-        await saveBtn.click();
+        await flushAutosave(page);   // autosave: no Save button on row editors
 
         // Wait for page reload and verify item appears
         await page.waitForLoadState('networkidle');
@@ -82,8 +82,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await expect(form).toBeVisible();
         const titleInput = form.locator('input[name="title"]');
         await titleInput.fill(`ZZZ Edit ${type.label}`);
-        const saveBtn = page.locator(`#${type.slug}SaveBtn`);
-        await saveBtn.click();
+        await flushAutosave(page);   // autosave: no Save button on row editors
         await page.waitForLoadState('networkidle');
 
         // The editor is ALREADY open on what was just saved - "the editor stays
@@ -103,8 +102,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await titleInputEdit.fill(`${currentTitle} (edited)`);
 
         // Save
-        const saveBtnEdit = page.locator(`#${type.slug}SaveBtn`);
-        await saveBtnEdit.click();
+        await flushAutosave(page);   // autosave: no Save button on row editors
         await page.waitForLoadState('networkidle');
 
         // ...and check the row we edited, not whichever one sorts first.
@@ -137,8 +135,7 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         await expect(form).toBeVisible();
         const titleInput = form.locator('input[name="title"]');
         await titleInput.fill('ZZZ Parent Item');
-        const saveBtn = page.locator(`#${type.slug}SaveBtn`);
-        await saveBtn.click();
+        await flushAutosave(page);   // autosave: no Save button on row editors
         await page.waitForLoadState('networkidle');
 
         // Check that expand/collapse buttons exist
@@ -175,16 +172,17 @@ test.describe('Editable Types - Comprehensive Functionality', () => {
         const form = page.locator('#entity-editor-form');
         await expect(form).toBeVisible();
 
-        // Check save button is disabled initially
-        const saveBtn = page.locator(`#${type.slug}SaveBtn`);
-        await expect(saveBtn).toBeDisabled();
+        // Autosave: Revert is the one manual control left, and its enablement
+        // is what tracks "the form is dirty" now that Save is gone.
+        const revertBtn = page.locator(`#${type.slug}CloseBtn`);
+        await expect(revertBtn).toBeDisabled();
 
         // Make a change
         const titleInput = form.locator('input[name="title"]');
         await titleInput.fill('ZZZ New Item');
 
-        // Check save button is now enabled
-        await expect(saveBtn).toBeEnabled();
+        // Check Revert is now enabled
+        await expect(revertBtn).toBeEnabled();
       });
     });
   });

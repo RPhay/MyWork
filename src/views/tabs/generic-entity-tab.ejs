@@ -65,9 +65,12 @@
             for the buttons to be spaced against. %>
         <div class="editor-actions-home" style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
           <div class="editor-actions-bar">
+            <%# Changes save automatically a moment after you stop typing - see
+                genericEntity.js's AUTO_SAVE_DELAY_MS. Revert is the only
+                manual control left: it discards whatever hasn't saved yet
+                and reloads the record as stored. %>
             <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>CloseBtn" title="Discard your changes and close the editor">Revert</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>SaveBtn" disabled title="Save your changes. Stays disabled until you change something.">Save</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="<%= typeSlug %>CloseBtn" disabled title="Discard changes not yet saved and reload this record">Revert</button>
             </div>
           </div>
         </div>

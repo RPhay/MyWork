@@ -149,8 +149,8 @@ function loginWithCredentials(sourceId) {
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" onclick="window.DSAuth.saveCredentials(${sourceId})">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="window.DSAuth.saveCredentials(${sourceId})">
               Save & Login
             </button>
           </div>

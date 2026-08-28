@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
-import { dblclick } from './dblclick.js';
+import { openEditor } from './editor-gestures.js';
 
 const TYPE = 'to_do';
 
@@ -26,11 +26,10 @@ test('right-clicking a row makes it the selected row', async ({ page }) => {
   const rowA = page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${a.id}"]`);
   const rowB = page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${b.id}"]`);
 
-  // Select A the usual way. The click is what applies selection - dblclick()
-  // is dispatched (see dblclick.js) and deliberately does not fire the clicks,
-  // so this test states the one it depends on instead of relying on it.
-  await rowA.locator('.entity-cell-title').click();
-  await dblclick(rowA.locator('.entity-cell-title'));
+  // `selected` means "open in the editor" (multi-selected is the click-
+  // selection, a different signal) - so open A's editor via its pencil, the
+  // gesture that now owns opening.
+  await openEditor(rowA);
   await page.waitForTimeout(700);
   // classList.contains, not toHaveClass(/selected/): that regex also matches
   // `multi-selected`, which is a different signal entirely - one row can carry
@@ -90,7 +89,7 @@ test("clicking a folder's rolled-up status leaves the editor alone", async ({ pa
     'a rolled-up status is not a control - it must not open the editor').toBe(0);
 
   // Editor open on something else: clicking the roll-up must not switch it.
-  await dblclick(page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${kid.id}"] .entity-cell-title`));
+  await openEditor(page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${kid.id}"]`));
   await page.waitForTimeout(800);
   const before = await page.locator('#entity-editor-form input[name="title"]').inputValue();
   await cell.click();
@@ -99,10 +98,12 @@ test("clicking a folder's rolled-up status leaves the editor alone", async ({ pa
   expect(after, 'the editor stays on what it was showing').toBe(before);
 });
 
-// One click opens and closes a row; TWO open and close the editor. The editor
-// used to be one click away, so you could not look inside a folder without
-// loading its editor, and a stray click on a list was a state change.
-test('one click expands a row, two open the editor', async ({ page }) => {
+// A click SELECTS a row - it neither expands it (the chevron does that) nor
+// opens a closed editor (the pencil does that), and a double-click means
+// nothing at all. The old model - one click expands, two open the editor -
+// was removed on 2026-08-28 because a genuine double click (open one row,
+// then the next) landed inconsistently.
+test('a click selects; the chevron expands; the pencil opens; double-click is nothing', async ({ page }) => {
   await page.goto(`/?tab=${TYPE}`, { waitUntil: 'networkidle' });
   const folder = (await api(page, `/api/entities/${TYPE}`, { method: 'POST', body: JSON.stringify({ title: 'ZZZ click folder', is_folder: true }) })).data;
   const kid = (await api(page, `/api/entities/${TYPE}`, { method: 'POST', body: JSON.stringify({ title: 'ZZZ click kid' }) })).data;
@@ -114,26 +115,37 @@ test('one click expands a row, two open the editor', async ({ page }) => {
   await page.waitForTimeout(1900);
 
   const node = page.locator(`#${TYPE}EntityList .entity-node[data-entity-id="${folder.id}"]`);
-  const title = page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${folder.id}"] .entity-cell-title`);
+  const row = page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${folder.id}"]`);
+  const title = row.locator('.entity-cell-title');
   const wasExpanded = await node.evaluate(el => el.classList.contains('expanded'));
 
-  // One click: the row opens or closes, and the editor stays as it was.
+  // One click: selects, expands nothing, opens nothing.
   await title.click();
   await page.waitForTimeout(600);
   expect(await node.evaluate(el => el.classList.contains('expanded')),
-    'a single click toggles the row').toBe(!wasExpanded);
+    'a single click must not toggle the row').toBe(wasExpanded);
+  expect(await row.evaluate(el => el.classList.contains('multi-selected')),
+    'a single click selects the row').toBe(true);
   expect(await page.locator('#entity-editor-form').count(),
     'a single click must not open the editor').toBe(0);
 
-  // Two clicks: the editor, and the row is not left flapping.
+  // The chevron is what expands.
+  await row.locator('[data-action="toggle-expand"]').click();
+  await page.waitForTimeout(400);
+  expect(await node.evaluate(el => el.classList.contains('expanded')),
+    'the chevron toggles the row').toBe(!wasExpanded);
+
+  // A double-click does nothing: no editor, no expand flip.
   const beforeDouble = await node.evaluate(el => el.classList.contains('expanded'));
-  // The click is what SCHEDULES the deferred expand; without it there is
-  // nothing for the double-click to cancel and the assertion below would pass
-  // vacuously. dblclick() is dispatched and fires no clicks of its own.
-  await title.click();
-  await dblclick(title);
+  await title.dispatchEvent('dblclick');
+  await page.waitForTimeout(700);
+  expect(await page.locator('#entity-editor-form').count(),
+    'a double-click must not open the editor').toBe(0);
+  expect(await node.evaluate(el => el.classList.contains('expanded')),
+    'a double-click must not toggle the row').toBe(beforeDouble);
+
+  // The pencil is what opens the editor.
+  await openEditor(row);
   await page.waitForTimeout(900);
   await expect(page.locator('#entity-editor-form input[name="title"]')).toHaveValue('ZZZ click folder');
-  expect(await node.evaluate(el => el.classList.contains('expanded')),
-    'the pending expand is cancelled by the second click').toBe(beforeDouble);
 });

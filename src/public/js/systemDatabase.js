@@ -170,12 +170,12 @@ function showSystemDbEditForm(dbType, config) {
             <button type="button" class="btn btn-sm btn-secondary me-2" id="testSystemDbBtn">
               <i class="bi bi-plug"></i> Test Connection
             </button>
-            <button type="button" class="btn btn-sm btn-danger" id="cancelSystemDbBtn">Cancel</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="cancelSystemDbBtn">Cancel</button>
             <span id="systemDbTestStatus" class="ms-2"></span>
           </div>
         </form>
         <div id="systemDbTestResult" class="alert d-none"></div>
-        <button type="button" class="btn btn-primary" id="saveSystemDbBtn" disabled>
+        <button type="button" class="btn btn-sm btn-outline-success" id="saveSystemDbBtn" disabled>
           <i class="bi bi-check"></i> Save Configuration
         </button>
       </div>

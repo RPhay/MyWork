@@ -122,7 +122,18 @@
       e.preventDefault();
       e.stopPropagation();
 
-      resolveSaveButton()?.click();
+      const btn = resolveSaveButton();
+      if (btn) {
+        btn.click();
+      } else if (typeof GenericEntity !== 'undefined') {
+        // Row editors (Categories, Goals, Todos, ...) autosave and have no
+        // Save button for resolveSaveButton() to find - flush whatever is
+        // still pending instead. A no-op when there is nothing to flush.
+        // Guarded: GenericEntity is a bare top-level const, not a window
+        // property, and this file also loads on pages that never load it
+        // (Settings, which has its own entity-type-editor.js instead).
+        GenericEntity.flushAutoSave();
+      }
     },
     true
   );

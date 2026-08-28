@@ -1,12 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-import { dblclick } from './dblclick.js';
-
-// The TITLE cell, not the row's centre: a folder's centre is a rolled-up value,
-// which deliberately swallows the event, because a roll-up summarises what is
-// inside and is not a control. Why this dispatches rather than driving the
-// pointer is in dblclick.js.
-const openEditor = (row) => dblclick(row.locator('.entity-cell-title'));
+import { openEditor, flushAutosave } from './editor-gestures.js';
 const OUT='/private/tmp/claude-501/-Users-aslynn-git-github-MyWork/825c4ea0-f3d3-4db7-9c88-97ad8e82c12e/scratchpad';
 
 for (const kind of ['item','folder']) {
@@ -17,15 +11,16 @@ for (const kind of ['item','folder']) {
 
     await page.click(kind === 'folder' ? '#addpriorityFolderBtn' : '#addpriorityBtn');
 
-    // Save must start disabled - nothing has changed yet
-    await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
+    // Revert must start disabled - nothing has changed yet. (Save is gone:
+    // row editors autosave, and Revert is the one manual control left.)
+    await expect(page.locator('#priorityCloseBtn')).toBeDisabled();
 
     const ti = page.locator('#entity-editor-form input[name="title"]');
     await ti.fill(`ZZZ keep ${kind}`);
     await ti.dispatchEvent('input');
-    await expect(page.locator('#prioritySaveBtn')).toBeEnabled();
+    await expect(page.locator('#priorityCloseBtn')).toBeEnabled();
 
-    await page.click('#prioritySaveBtn');
+    await flushAutosave(page);
     await page.waitForTimeout(1200);
 
     // Editor stays open, showing the item just created, and it is selected
@@ -33,8 +28,8 @@ for (const kind of ['item','folder']) {
     await expect(page.locator('#entity-editor-form input[name="title"]')).toHaveValue(`ZZZ keep ${kind}`);
     const row = page.locator('.entity-row', {hasText:`ZZZ keep ${kind}`}).first();
     await expect(row).toHaveClass(/selected/);
-    // and Save is disabled again - nothing changed since the save
-    await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
+    // and Revert is disabled again - nothing changed since the save
+    await expect(page.locator('#priorityCloseBtn')).toBeDisabled();
 
     await page.screenshot({path:`${OUT}/keepopen-${kind}.png`});
 
@@ -47,7 +42,7 @@ for (const kind of ['item','folder']) {
   });
 }
 
-test('save stays disabled across reopening different items', async ({ page }) => {
+test('revert stays disabled across reopening different items', async ({ page }) => {
   await page.goto('/?tab=priority');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1400);
@@ -66,15 +61,27 @@ test('save stays disabled across reopening different items', async ({ page }) =>
   const rowA = page.locator(`#tab-priority .entity-row[data-entity-id="${idA}"]`);
   const rowB = page.locator(`#tab-priority .entity-row[data-entity-id="${idB}"]`);
 
+  const titleA = await rowA.locator('.entity-title').innerText();
   await openEditor(rowA);
-  await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
+  await expect(page.locator('#priorityCloseBtn')).toBeDisabled();
   // make a change -> enabled
   const ti = page.locator('#entity-editor-form input[name="title"]');
   await ti.fill('temporary edit'); await ti.dispatchEvent('input');
-  await expect(page.locator('#prioritySaveBtn')).toBeEnabled();
-  // open a different item without saving -> must be disabled again
+  await expect(page.locator('#priorityCloseBtn')).toBeEnabled();
+  // Open a different item. The pending edit AUTOSAVES on the way out (switching
+  // records flushes the debounce rather than losing the keystrokes), so the
+  // fresh editor starts clean: Revert disabled again.
   await openEditor(rowB);
-  await expect(page.locator('#prioritySaveBtn')).toBeDisabled();
+  await expect(page.locator('#priorityCloseBtn')).toBeDisabled();
+  // Put rowA's title back - the switch-flush above really saved 'temporary edit'.
+  await page.evaluate(async ({ id, title }) => {
+    const t = document.body.dataset.csrfToken;
+    await fetch(`/api/entities/priority/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+      body: JSON.stringify({ title }),
+    });
+  }, { id: idA, title: titleA });
 });
 
 // The two column toggles are labelled once, by a legend above the switch
@@ -88,8 +95,21 @@ test('each field shows its name once, in the gutter, with labelled toggles', asy
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
+  // The spec makes its own row rather than borrowing whatever the database
+  // happens to hold - it timed out on a database with no ideas at all.
+  await page.evaluate(async () => {
+    const t = document.body.dataset.csrfToken || window.APP_CONFIG?.csrfToken;
+    await fetch('/api/entities/idea', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+      body: JSON.stringify({ title: 'ZZZ gutter row' }),
+    });
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+
   // Must be an ITEM: a folder gets a title-only editor with no fields.
-  await openEditor(page.locator('#ideaEntityList .entity-row:not([data-is-folder="1"])').first());
+  await openEditor(page.locator('#ideaEntityList .entity-row', { hasText: 'ZZZ gutter row' }).first());
   await page.waitForTimeout(800);
 
   const fields = page.locator('#entity-editor-form .editor-field');
@@ -141,4 +161,14 @@ test('each field shows its name once, in the gutter, with labelled toggles', asy
   // which is what keeps its rounded corner flush with the row's own.
   expect(bar.barH, 'drag bar spans the row height').toBeGreaterThanOrEqual(bar.rowH - 3);
   expect(bar.minOtherLeft, 'everything else sits right of the bar').toBeGreaterThanOrEqual(bar.barRight - 1);
+
+  // Both calls, or the soft-deleted row still counts against the idea list.
+  await page.evaluate(async () => {
+    const t = document.body.dataset.csrfToken || window.APP_CONFIG?.csrfToken;
+    const all = (await (await fetch('/api/entities/idea')).json()).data || [];
+    for (const e of all.filter(x => (x.title || '') === 'ZZZ gutter row')) {
+      await fetch(`/api/entities/idea/${e.id}`, { method: 'DELETE', headers: { 'X-CSRF-Token': t } });
+      await fetch(`/api/trash/${e.id}`, { method: 'DELETE', headers: { 'X-CSRF-Token': t } });
+    }
+  });
 });

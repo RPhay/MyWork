@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
-import { dblclick } from './dblclick.js';
 import { ensureTestsType } from './helpers/fixtures.js';
+import { flushAutosave, openEditor } from './editor-gestures.js';
 
 // The `tests` type is a fixture, not something the app seeds - see
 // helpers/fixtures.js. Without it every POST below returns no data and the
@@ -59,12 +59,12 @@ test('renaming a record updates the template referencing it, live', async ({ pag
   await expect(inTemplate).toHaveText('ZZZ before rename');
 
   // Rename it on its OWN page - the template must follow without a reload.
-  await dblclick(page.locator(`#testsEntityList .entity-row[data-entity-id="${row.id}"] .entity-cell-title`));
+  await openEditor(page.locator(`#testsEntityList .entity-row[data-entity-id="${row.id}"]`));
   await page.waitForTimeout(800);
   const title = page.locator('#entity-editor-form input[name="title"]');
   await title.fill('ZZZ after rename');
   await title.dispatchEvent('input');
-  await page.click('#testsSaveBtn');
+  await flushAutosave(page);
   await page.waitForTimeout(1600);
 
   await expect(inTemplate, 'the reference shows the new name without a reload')

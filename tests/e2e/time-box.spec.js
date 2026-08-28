@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
-import { dblclick } from './dblclick.js';
+import { flushAutosave, openEditor } from './editor-gestures.js';
 
 // Every type can carry a Time Box - how long something is MEANT to take, as
 // against Worked Time, which is how long it has taken. One ladder everywhere:
@@ -48,7 +48,7 @@ test('a Time Box can be set and comes back', async ({ page }) => {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
 
-  await dblclick(page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"] .entity-cell-title`));
+  await openEditor(page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"]`));
   await page.waitForTimeout(900);
 
   // Every option at once with a box round the current one, like status. The
@@ -69,7 +69,7 @@ test('a Time Box can be set and comes back', async ({ page }) => {
   await page.waitForTimeout(300);
   await expect(group.locator('.option-choice.selected'), 'the mark moves').toHaveText('1.5h');
 
-  await page.click(`#${TYPE}SaveBtn`);
+  await flushAutosave(page);
   await page.waitForTimeout(1300);
 
   const stored = (await api(page, `/api/entities/${TYPE}/${made.id}`)).data?.fields?.time_box;

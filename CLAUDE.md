@@ -257,8 +257,10 @@ routes → error handler. Full order: `CLAUDE_REFERENCE.md`.
 ## Rows, editors and the focus bar
 
 Behaviour that is easy to undo by accident, because each rule came from a
-specific failure — **one click expands a row, two open the editor**; **a
-folder's cells are roll-ups**, not controls; **status is one vocabulary for
+specific failure — **a click selects a row and redirects an already-open
+editor to it, but never opens a closed one** (the chevron expands, the pencil
+icon opens); **a folder's cells are roll-ups**, not controls; **status is one
+vocabulary for
 every type that has one** - Ideas is the exception, running
 Raw/Developing/Ready, and Categories have no status at all; **Worked Time is on every type except Templates, and cannot be removed**. Full
 list before touching row rendering, the editor, or the focus bar:
@@ -275,7 +277,9 @@ read that same rule. Do not add a second test.
 - **Outlook Calendar** and **Azure DevOps Work Items** (`type_category:
   'external'`) mirror a shape another system owns. Editing them here would only
   let the two disagree. `canBeRelated()` also keeps `'external'` types out of
-  the hand-authored parent/child lists.
+  the hand-authored children list — the only hand-authored relationship list
+  there is, since "Can have parents" was removed as a redundant second view of
+  the same `entity_type_relationships` row "Can have children" already edits.
 - **Templates** (`type_category: 'template'`) must stay in step with Dailies,
   because dropping a template on a day produces a **daily** carrying whatever
   the template held - so a property added to one and not the other is a property

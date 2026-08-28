@@ -33,10 +33,12 @@ function initWorkItemsListEventListeners() {
 
   container.addEventListener("click", async (e) => {
     const actionBtn = e.target.closest(
-      '[data-action="delete"], [data-action="unlink"], [data-action="unroot"], [data-action="delete-child"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"], [data-action="toggle-claude"]',
+      '[data-action="edit-work-item"], [data-action="delete"], [data-action="unlink"], [data-action="unroot"], [data-action="delete-child"], [data-action="cycle-status"], [data-action="cycle-timebox"], [data-action="pick-emoji"], [data-action="toggle-claude"]',
     );
     if (actionBtn) {
-      if (actionBtn.dataset.action === "delete") {
+      if (actionBtn.dataset.action === "edit-work-item") {
+        editWorkItem(actionBtn.dataset.id);
+      } else if (actionBtn.dataset.action === "delete") {
         deleteWorkItem(actionBtn.dataset.id);
       } else if (actionBtn.dataset.action === "unroot") {
         // On the DAY rather than inside a work item, so it comes off the day.
@@ -107,13 +109,11 @@ function initWorkItemsListEventListeners() {
 
     const workItemEl = header.closest(".work-item");
 
-    // Same gestures as every typed page: ONE click opens and closes the row,
-    // TWO open the editor. A single click used to open the editor here, so
-    // there was no way to look inside an item without loading it - and it was
-    // inconsistent with the rest of the app.
-    //
-    // The expand is deferred so a double click does not toggle the row open and
-    // shut on its way to the editor.
+    // A click expands/collapses a daily that has children - deferred so a
+    // rapid double click (which no longer means anything special for a daily
+    // row, see the dblclick handler below) does not also toggle it twice on
+    // its way through. Child items keep the double-click-to-edit gesture
+    // below, which is why the deferred expand still needs cancelling there.
     if (!workItemEl.classList.contains("child-item-row")) {
       if (handleDailiesSelectionClick(e, workItemEl)) return;   // modifier: selection only
     }
@@ -149,13 +149,16 @@ function initWorkItemsListEventListeners() {
     if (e.target.closest("[data-action]")) return;
     const header = e.target.closest(".work-item-header");
     if (!header) return;
-    clearTimeout(dailiesClickTimer);          // cancel the pending expand
 
+    // A daily's own row does nothing on double-click any more, open or closed
+    // - the pencil icon opens it now (data-action="edit-work-item"), the same
+    // as every other row in the app. Only a CHILD item (a Project, Category,
+    // etc. dropped onto the day) still opens this way; it has no pencil icon
+    // of its own here.
     const workItemEl = header.closest(".work-item");
     if (workItemEl.classList.contains("child-item-row")) {
+      clearTimeout(dailiesClickTimer);          // cancel the pending expand
       editChildItem(workItemEl.dataset.itemType, workItemEl.dataset.workId);
-    } else {
-      editWorkItem(workItemEl.dataset.workId);
     }
   });
 

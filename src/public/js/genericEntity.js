@@ -6,7 +6,37 @@
 const GenericEntity = (() => {
   let currentTypeSlug, typeSchema, currentEntityId, hasChanges, currentIsFolder = false, currentSaveSlug = null, allEntities = [];
   const splitPanesByType = {}; // Store splitPane instances per type
-  let currentSaveBtn = null; // Track current save button element
+
+  // Row editors have no Save button - a change autosaves this long after the
+  // last keystroke, so a burst of typing lands one request, not one per key.
+  const AUTO_SAVE_DELAY_MS = 800;
+  let autoSaveTimer = null;
+
+  // The one place that actually fires a save outside of a debounce tick:
+  // switching records, closing the editor, or the timer itself all funnel
+  // through this. Revert is the sole exception - it calls discardChanges()
+  // first, which empties hasChanges before this would ever see it.
+  function flushPendingAutoSave() {
+    if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+    if (!hasChanges) return;
+    // hasChanges is NOT cleared here - GenericEntity.save() clears it once the
+    // request actually succeeds. Clearing it up front looked done the instant
+    // this fired, so a failed save (a stale CSRF token, the network) silently
+    // threw the edit away: Revert disabled itself and the row's unsaved mark
+    // vanished even though nothing had reached the server.
+    //
+    // generic-entity-init.js owns the actual save (create-vs-update, linking
+    // a pending parent, refreshing the list) - this only signals that it is
+    // due, the same way 'entity-saved' and 'entity-structure-changed' do.
+    document.dispatchEvent(new CustomEvent('entity-autosave-due', {
+      detail: { typeSlug: currentTypeSlug, entityId: currentEntityId },
+    }));
+  }
+
+  function scheduleAutoSave() {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(flushPendingAutoSave, AUTO_SAVE_DELAY_MS);
+  }
 
   // Field values are user text and land inside HTML attributes and markup, so
   // they're escaped rather than interpolated raw.
@@ -1281,6 +1311,7 @@ const GenericEntity = (() => {
         <div class="entity-row-content">
           ${cells}
           <div class="entity-actions">
+            <button class="btn btn-sm btn-primary" data-action="edit-row" data-entity-id="${entity.id}" title="Open the editor for this row" aria-label="Edit"><i class="bi bi-pencil"></i></button>
             ${origin === 'reference'
               ? `<button class="btn btn-sm btn-danger" data-action="unlink" data-entity-id="${entity.id}" title="Remove it from here - the record itself is untouched" aria-label="Remove"><i class="bi bi-x-lg"></i></button>`
               : `<button class="btn btn-sm btn-danger" data-action="delete" data-entity-id="${entity.id}" title="${origin === 'copy' ? 'Delete this copy and everything inside it' : 'Delete'}" aria-label="Delete"><i class="bi bi-trash"></i></button>`}
@@ -1472,7 +1503,7 @@ const GenericEntity = (() => {
     // shows an edited value indistinguishable from a persisted one, and closing
     // the editor would silently revert it.
     row.classList.add('entity-row-unsaved');
-    row.title = 'Unsaved changes - save the editor to keep them';
+    row.title = 'Unsaved changes - saving automatically';
 
     const titleEl = row.querySelector('.entity-title');
     const titleInput = form.querySelector('[name="title"]');
@@ -1486,9 +1517,24 @@ const GenericEntity = (() => {
     for (const f of visibleColumns(typeSchema)) {
       const cell = row.querySelector(`.entity-cell[data-col="${CSS.escape(f.field_key)}"]`);
       if (!cell) continue;
-      cell.innerHTML = renderCellValue(entity || { id: currentEntityId }, f, values[f.field_key], false);
+      // Only write a cell whose content actually changed. This mirror runs on
+      // every input AND change event - including the change a blur fires when
+      // focus leaves a dirty field for a cell control - and rewriting an
+      // unchanged cell's innerHTML detaches the very node the mouse is going
+      // down on, so the click the user is mid-way through never happens.
+      // Their first click on any cell control after typing simply vanished.
+      //
+      // Compared through a <template> so both sides are the BROWSER's
+      // serialization - the raw template literal (indentation, attribute
+      // spelling) never string-equals what innerHTML reads back, so a direct
+      // comparison rewrote every cell every time and fixed nothing.
+      const html = renderCellValue(entity || { id: currentEntityId }, f, values[f.field_key], false);
+      mirrorScratch.innerHTML = html;
+      if (cell.innerHTML !== mirrorScratch.innerHTML) cell.innerHTML = html;
     }
   }
+  // Detached scratch node for the comparison above; never in the document.
+  const mirrorScratch = document.createElement('div');
 
   // Row -> editor. Called after a row-side change has been persisted, so the
   // editor is updated without being marked dirty - the value is already saved.
@@ -1742,12 +1788,11 @@ const GenericEntity = (() => {
 
   function markChanged() {
     hasChanges = true;
-    if (currentSaveBtn) {
-      currentSaveBtn.disabled = false;
-    }
-    // Revert is enabled alongside Save the moment anything changes.
+    // Revert enables the moment anything changes - it is the only manual
+    // control left on this bar, autosave owns Save's old job.
     const revertBtn = document.getElementById(`${currentTypeSlug}CloseBtn`);
     if (revertBtn) revertBtn.disabled = false;
+    scheduleAutoSave();
   }
 
   // Repaints the priority meter in the editor to show `value`. Both directions
@@ -1897,14 +1942,18 @@ const GenericEntity = (() => {
       // Pressing Enter in a form field can submit the form natively
       // (navigating to the current URL with every field as a query param,
       // losing the tab/editor state) - the onsubmit="return false" on the
-      // <form> guards against that, but Enter should still act like Save,
-      // not silently do nothing. Handled on keydown rather than relying on
-      // the 'submit' event, which isn't dispatched consistently for a form
-      // with only one text field in every environment.
+      // <form> guards against that, but Enter should still mean "save NOW",
+      // not silently do nothing. With autosave that means flushing the
+      // pending debounce rather than clicking a Save button that no longer
+      // exists - which is exactly what this handler kept doing after the
+      // button went, so Enter was a no-op until the debounce fired anyway.
+      // Handled on keydown rather than relying on the 'submit' event, which
+      // isn't dispatched consistently for a form with only one text field in
+      // every environment.
       form.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
           e.preventDefault();
-          document.getElementById(`${currentTypeSlug}SaveBtn`)?.click();
+          flushPendingAutoSave();
         }
       });
     }
@@ -1947,6 +1996,12 @@ const GenericEntity = (() => {
     renderRow: renderEntityRow,
     renderFlatList,
     orderedColumns,
+    // The Dailies rail renders its daily rows' columns from the daily type's
+    // own field list now - same rules as every tab - but keeps its own row
+    // structure (expand/drag/multi-select are rail machinery, not the generic
+    // tree's). It needs the column list and the cell renderer, nothing else.
+    visibleColumns,
+    renderCellValue,
     fitColumns,
     syncEditorFromRow,
     cellChoices,
@@ -1986,6 +2041,13 @@ const GenericEntity = (() => {
         GenericEntity.close();
         return;
       }
+
+      // Leaving whatever was open. Autosave already covers a normal pause in
+      // typing, but switching records can land inside that debounce window -
+      // flush now rather than losing the last few keystrokes. Revert is
+      // unaffected: it calls discardChanges() before this runs, so hasChanges
+      // is already false by the time populate() gets here.
+      if (hasChanges) flushPendingAutoSave();
 
       currentEntityId = entityId;
       hasChanges = false;
@@ -2030,14 +2092,9 @@ const GenericEntity = (() => {
       const actionsSlot = editorPane.querySelector('.entity-title-actions');
       if (actionsBar && actionsSlot) actionsSlot.appendChild(actionsBar);
 
-      // Track the save button for this type
-      currentSaveBtn = document.getElementById(`${typeSlugToUse}SaveBtn`);
-      // Nothing has been edited yet, so there is nothing to save. Without this
-      // the button kept whatever state it was left in - once any edit enabled
-      // it, it stayed enabled for every item opened afterwards.
-      if (currentSaveBtn) currentSaveBtn.disabled = true;
-      // Revert is disabled until there is something to revert - the same rule
-      // Save follows.
+      // Nothing has been edited yet, so there is nothing to revert. Without
+      // this the button kept whatever state it was left in - once any edit
+      // enabled it, it stayed enabled for every item opened afterwards.
       const revertBtnOnOpen = document.getElementById(`${typeSlugToUse}CloseBtn`);
       if (revertBtnOnOpen) revertBtnOnOpen.disabled = true;
       trackFormChanges();
@@ -2093,9 +2150,24 @@ const GenericEntity = (() => {
       }
     },
 
-    // After a successful save there is nothing to save and nothing to discard,
-    // so both buttons are disabled until the next edit. markChanged() re-enables
-    // them together.
+    // Cmd/Ctrl+S's fallback for a row editor - there is no Save button to
+    // click there any more, so save-shortcut.js calls this instead. A no-op
+    // when there is nothing pending.
+    flushAutoSave: () => flushPendingAutoSave(),
+
+    // The one place that discards rather than saves: Revert. Called before
+    // close()+populate() reload the stored record, so those see hasChanges
+    // already false and never flush what this just threw away.
+    discardChanges: () => {
+      if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+      hasChanges = false;
+      const revertBtn = document.getElementById(`${currentTypeSlug}CloseBtn`);
+      if (revertBtn) revertBtn.disabled = true;
+    },
+
+    // After a successful save there is nothing left to save and nothing to
+    // discard, so Revert is disabled until the next edit re-arms it via
+    // markChanged().
     markSaved: () => {
       // An edit made since the save started must survive it. Ordering alone
       // fixes the known caller, but any late or duplicated call could still
@@ -2103,7 +2175,6 @@ const GenericEntity = (() => {
       // itself decides, not the timing.
       if (hasChanges) return;
       hasChanges = false;
-      if (currentSaveBtn) currentSaveBtn.disabled = true;
       const revertBtn = document.getElementById(`${currentTypeSlug}CloseBtn`);
       if (revertBtn) revertBtn.disabled = true;
       const row = rowEl(currentEntityId);
@@ -2114,6 +2185,12 @@ const GenericEntity = (() => {
     },
 
     close: () => {
+      // Same reasoning as the switch-record flush in populate(): closing
+      // without saving would otherwise lose anything still inside the
+      // debounce window. Revert avoids this by calling discardChanges()
+      // first, which leaves hasChanges false by the time close() runs.
+      if (hasChanges) flushPendingAutoSave();
+
       // Any unsaved preview written into a row by mirrorEditorToRow() is
       // discarded here: the tab listens for this and re-renders from the
       // persisted entities.

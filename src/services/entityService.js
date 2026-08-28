@@ -267,6 +267,10 @@ export async function createEntity(entityTypeSlug, data, contextId = null) {
     }
   }
 
+  // Every key written must be a field the type actually defines - see
+  // assertKnownFieldKeys. Writing unknown keys used to succeed silently.
+  assertKnownFieldKeys(fields, data.fields, type.slug);
+
   // Compute order_index if not provided
   let orderIndex = data.order_index;
   if (orderIndex === undefined) {
@@ -298,6 +302,25 @@ export async function createEntity(entityTypeSlug, data, contextId = null) {
   return entity;
 }
 
+// A field key nobody declared is a FAILURE, not a fallback. This function
+// used to accept any key verbatim, and that silence is how the Dailies AI
+// field forked: a type-editor rebuild rekeyed the field to `ai` while
+// dailyService kept writing `worked_with_claude`, and both writes "worked" -
+// into two separate value rows for one concept, neither ever read by the
+// other's reader. Rejecting loudly here is what would have surfaced that the
+// day it happened. (The schema files carry the one-time repair.)
+function assertKnownFieldKeys(typeFields, dataFields, typeSlug) {
+  if (!dataFields) return;
+  const known = new Set(typeFields.map(f => f.field_key));
+  const unknown = Object.keys(dataFields).filter(k => !known.has(k));
+  if (unknown.length > 0) {
+    throw new ValidationError(
+      `Unknown field key${unknown.length === 1 ? '' : 's'} for type '${typeSlug}': ${unknown.join(', ')}. ` +
+      'The type does not define this field - a rename or deletion in the type editor may have left this caller behind.'
+    );
+  }
+}
+
 // Update an entity
 export async function updateEntity(entityId, data, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
@@ -306,7 +329,13 @@ export async function updateEntity(entityId, data, contextId = null) {
   // what stops an update to a deleted or foreign-context row from silently
   // no-oping. It used to be read by the recurrence hook below it; that hook is
   // gone, the guard is not.
-  await getEntityById(entityId, contextId);
+  const existing = await getEntityById(entityId, contextId);
+
+  if (data.fields) {
+    const typeFields = await entityTypeService.getEntityTypeFields(existing.entity_type_id);
+    const typeRow = await queryPool('SELECT slug FROM entity_types WHERE id = ?', [existing.entity_type_id]);
+    assertKnownFieldKeys(typeFields, data.fields, typeRow[0]?.slug || String(existing.entity_type_id));
+  }
 
   const updates = [];
   const values = [];

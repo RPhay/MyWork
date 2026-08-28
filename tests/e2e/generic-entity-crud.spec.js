@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { dblclick } from './dblclick.js';
+import { flushAutosave, openEditor } from './editor-gestures.js';
 
 // Every entity type driven by the generic entity engine (generic-entity-init.js
 // + genericEntity.js). Parameterized so a fix/regression in the shared engine
@@ -96,9 +96,10 @@ for (const type of TYPES) {
       const titleInput = page.locator('#entity-editor-form input[name="title"]');
       await titleInput.fill(title);
       await titleInput.dispatchEvent('input');
-      await expect(page.locator(`#${type.slug}SaveBtn`)).toBeEnabled();
+      // Autosave: the enabled Revert is what says the form is dirty now.
+      await expect(page.locator(`#${type.slug}CloseBtn`)).toBeEnabled();
 
-      await page.click(`#${type.slug}SaveBtn`);
+      await flushAutosave(page);
 
       // Must show up in the live list without a page reload/navigation.
       await expect(page.locator('.entity-row', { hasText: title })).toBeVisible({ timeout: 5000 });
@@ -130,6 +131,10 @@ for (const type of TYPES) {
       await expect(page).toHaveURL(new RegExp(`tab=${type.slug}$`));
       await expect(page.locator(`button[data-tab="${type.slug}"]`)).toHaveClass(/\bactive\b/);
 
+      // Enter flushes the autosave, which only STARTS the save - the row shows
+      // the title as an unsaved preview before the PUT lands, so give the
+      // round trip a beat before asking the server (see editor-gestures.js).
+      await page.waitForTimeout(900);
       await expect(page.locator('.entity-row', { hasText: title })).toBeVisible({ timeout: 5000 });
       const stored = await page.evaluate(
         async ({ slug, title }) => {
@@ -158,13 +163,13 @@ for (const type of TYPES) {
       // The title rather than the row centre: control cells (status badge, date
       // picker) deliberately do not open the editor, and the centre of a wide row
       // can land on one.
-      await dblclick(page.locator('.entity-row', { hasText: original.title }).locator('.entity-title'));
+      await openEditor(page.locator('.entity-row', { hasText: original.title }));
       await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
       const titleInput = page.locator('#entity-editor-form input[name="title"]');
       await titleInput.fill(updated);
       await titleInput.dispatchEvent('input');
-      await page.click(`#${type.slug}SaveBtn`);
+      await flushAutosave(page);
 
       await expect(page.locator('.entity-row', { hasText: updated })).toBeVisible({ timeout: 5000 });
       // The row showing the new title no longer proves it was saved: the editor
@@ -289,7 +294,7 @@ for (const type of TYPES) {
         const titleInput = page.locator('#entity-editor-form input[name="title"]');
         await titleInput.fill(title);
         await titleInput.dispatchEvent('input');
-        await page.click(`#${type.slug}SaveBtn`);
+        await flushAutosave(page);
 
         const row = page.locator('.entity-row', { hasText: title });
         await expect(row).toBeVisible({ timeout: 5000 });
@@ -444,14 +449,14 @@ for (const type of TYPES) {
 
       // Double click - one click only expands. Same stale-single-click fault as
       // 'edits an existing item' above; see the note there.
-      await dblclick(page.locator('.entity-row', { hasText: item.title }).locator('.entity-title'));
+      await openEditor(page.locator('.entity-row', { hasText: item.title }));
       await expect(page.locator(`#${type.slug}EditorPane`)).toBeVisible();
 
       const notes = page.locator('#entity-editor-form [name="notes"]');
       await expect(notes).toBeVisible();
       await notes.fill('ZZZ persisted note');
       await notes.dispatchEvent('input');
-      await page.click(`#${type.slug}SaveBtn`);
+      await flushAutosave(page);
       await page.waitForTimeout(600);
 
       const stored = await apiGet(page, type.slug, item.id);
