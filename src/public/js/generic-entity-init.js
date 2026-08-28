@@ -228,9 +228,26 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // Re-fetch and re-render in place after a create/edit/delete/move, instead
     // of location.reload() - which was slow, jarring, and made a successful
     // save look like it had done nothing until the reload caught up.
+    // Two refreshes in flight at once can come back in either order, and the
+    // one that lands LAST wins whether or not it is the newest. Every cell
+    // control refreshes after its write, so clicking along a row starts one
+    // per click - and a response fetched before a write, arriving after it,
+    // put `entities` back to how they were and repainted the row with the old
+    // value. The editor had the new one (it is updated directly), so the two
+    // disagreed, differently on each run: the cell that lost the race moved
+    // around between select, checkbox, radio and emojis.
+    //
+    // Stamp each refresh and let only the newest apply. An older response is
+    // dropped rather than rendered; the newer one it lost to is already on its
+    // way with the same data plus whatever happened since.
+    let refreshSeq = 0;
     async function refreshEntities() {
-      entities = await fetchAllEntities();
-      relationships = await fetchRelationships();
+      const mine = ++refreshSeq;
+      const fetched = await fetchAllEntities();
+      const fetchedRelationships = await fetchRelationships();
+      if (mine !== refreshSeq) return;   // superseded while we were waiting
+      entities = fetched;
+      relationships = fetchedRelationships;
       GenericEntity.setEntities(entities);
       renderList();
     }

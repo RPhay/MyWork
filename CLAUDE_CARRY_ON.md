@@ -2,7 +2,7 @@
 
 What is in flight and what is planned next. **Not** a place for specification,
 standards, or architecture — those belong in `CLAUDE.md`, `UI_STANDARDS.md`,
-`CLAUDE_TESTING.md`, and code comments next to the thing they describe.
+`CLAUDE_PROJECT_TESTS.md`, and code comments next to the thing they describe.
 
 Last updated: 2026-08-27.
 
@@ -11,7 +11,7 @@ Last updated: 2026-08-27.
 Everything is committed and pushed to **`main`**. `npm run dev` ->
 http://localhost:3000, after copying `.env.example` to `.env.local`.
 
-**Testing rules are in `CLAUDE_TESTING.md`.** The one that matters most: e2e
+**Testing rules are in `CLAUDE_PROJECT_TESTS.md`.** The one that matters most: e2e
 runs write to the user's REAL database, so they leave rows in the app the user
 is looking at. The baseline is **304 entities** - anything above that after a
 run is residue. (It was 340 until 2026-08-27, when 36 rows of older spec
@@ -25,7 +25,7 @@ a leaked `tests` entity TYPE that had been rendering as a real tab.) `global-tea
 
 **The full suite is green: 353 tests in 69 files, 26 minutes, exit 0.** That is
 new. It could not run AT ALL the previous morning, and the first run that could
-reported 168 failures. `CLAUDE_TESTING.md` carries the baseline and, more
+reported 168 failures. `CLAUDE_PROJECT_TESTS.md` carries the baseline and, more
 usefully, the four shapes those 168 turned out to be.
 
 The guard set was rebuilt around what actually catches defects: 24 specs, 121
@@ -412,7 +412,7 @@ those rules to bend.
 
 ## 4. Test suite triage
 
-**The guard set lives in `CLAUDE_TESTING.md`** — it is not repeated here. It
+**The guard set lives in `CLAUDE_PROJECT_TESTS.md`** — it is not repeated here. It
 used to be, which is how the project ended up with two different guard lists
 that overlapped on one spec. This file tracks what is in flight; the standing
 list of what to run is testing documentation.

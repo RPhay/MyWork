@@ -103,7 +103,7 @@ test('REAL drag: template -> a day', async ({ page }) => {
   // daily on the day, whoever made it - it took a real record out of the
   // user's database on 2026-08-27. The drop instantiates the ZZZ-prefixed
   // template, so the row it creates carries that name; anything else on the
-  // day belongs to someone else. See CLAUDE_TESTING.md: delete by id, never
+  // day belongs to someone else. See CLAUDE_PROJECT_TESTS.md: delete by id, never
   // by "everything that happens to be here".
   const before = new Set(dailiesBeforeDrag.map(w => String(w.id)));
   for (const w of items.filter(w => !before.has(String(w.id)))) {

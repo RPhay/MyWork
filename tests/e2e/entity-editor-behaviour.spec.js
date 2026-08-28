@@ -53,7 +53,7 @@ test('revert stays disabled across reopening different items', async ({ page }) 
 
   // Pin the two rows by ENTITY ID, not by position. A position is only
   // meaningful for as long as the list does not re-render, and other specs add
-  // and remove priority rows (CLAUDE_TESTING.md, "A row locator built from TEXT
+  // and remove priority rows (CLAUDE_PROJECT_TESTS.md, "A row locator built from TEXT
   // can match an ancestor" - the same reasoning).
   const ids = await rows.evaluateAll(els => els.map(e => e.dataset.entityId));
   test.skip(ids.length < 2, 'needs at least two priority rows');

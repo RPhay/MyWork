@@ -2153,6 +2153,25 @@ const GenericEntity = (() => {
 
     save: async () => {
       const data = collectFormValues(typeSchema, currentIsFolder);
+
+      // Send only what the EDITOR changed. Autosave used to PUT the whole form
+      // every time, and the form is a snapshot taken when the record was
+      // opened - so a value changed from its ROW cell in the meantime was
+      // written straight back to what the editor still believed it was. The
+      // row wrote "In Progress"; the editor's next autosave, fired by an edit
+      // to some other field, put "Not Started" back. Both requests returned
+      // 200 and the change simply undid itself a second later.
+      //
+      // Only on an UPDATE, and only when there is a baseline to compare with:
+      // a create has to carry the whole record.
+      if (currentEntityId && savedFormSnapshot) {
+        const wasFields = (JSON.parse(savedFormSnapshot).fields) || {};
+        const changed = {};
+        for (const [k, v] of Object.entries(data.fields || {})) {
+          if (JSON.stringify(v) !== JSON.stringify(wasFields[k])) changed[k] = v;
+        }
+        data.fields = changed;
+      }
       const slug = currentSaveSlug || currentTypeSlug;
       const url = currentEntityId
         ? `/api/entities/${slug}/${currentEntityId}`

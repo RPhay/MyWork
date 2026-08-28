@@ -19,7 +19,7 @@
  * the guard set on 2026-08-21.
  *
  * The handler receives the same event either way, so nothing about what is
- * being tested changes. This is the same reasoning CLAUDE_TESTING.md already
+ * being tested changes. This is the same reasoning CLAUDE_PROJECT_TESTS.md already
  * records for drag ("A pointer drag cannot always reach its target. Drive
  * nesting with drag EVENTS; the drop handler receives the same thing either
  * way").

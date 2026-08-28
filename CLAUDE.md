@@ -100,11 +100,11 @@ and Dailies cannot be the landing tab.** Full consequences before touching
 
 All testing guidance — the guard set, commands, the headed-mode requirement,
 how to read a run, and the rule that you delete the rows your testing creates —
-lives in `CLAUDE_TESTING.md` and is imported here. Do not restate any of it in
+lives in `CLAUDE_PROJECT_TESTS.md` and is imported here. Do not restate any of it in
 this file: two copies is how the guard set came to be listed twice, in two
 places, with two different sets of specs.
 
-@CLAUDE_TESTING.md
+@CLAUDE_PROJECT_TESTS.md
 
 ## Profiles are a view, not a login
 
