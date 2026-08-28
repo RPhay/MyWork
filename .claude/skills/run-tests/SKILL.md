@@ -108,8 +108,13 @@ and the estimate says which one is in flight instead of just reading long.
 sitreps without waiting three minutes for the next message:
 
 ```
-tests ▏ worked-time.spec.js · 130/4 · 130/0 ████████████████████████░ 97% · ~1m
+⚡2 ▏ tests ▏ worked-time.spec.js · 130/4 · 130/0 ██████████████████░ 97% · ~1m
 ```
+
+The `⚡` count at the far left is background agents currently RUNNING, and it is
+independent of the tests: it shows on its own when agents are working and no run
+is armed, the tests line shows on its own when no agents are, and when neither is
+true the second row is not printed at all.
 
 The spec in flight, then two pairs - completed/REMAINING (130/4, not
 130/134) and successful/failed (130/0) - colour-coded (green for
@@ -118,12 +123,23 @@ non-zero), a bar sized to whatever is left of the terminal width, and the
 estimate last. `statusline.sh` beside this file renders it, and
 `.claude/settings.json` points the `statusLine` command at it.
 
-Four properties it must keep:
+Five properties it must keep:
 
 - **It prints NOTHING when no run is armed.** A status line that grew a
   permanent empty row would be worse than not having the feature. `watch` arms
   it, and disarms on ANY exit via a trap — a stale pointer file would leave a
   finished run on screen for the rest of the session.
+- **A running agent is identified by transcript SHAPE, not by mtime.** Nothing
+  on disk says an agent is alive: `meta.json` is written once at spawn and never
+  updated, and no per-agent completion marker lands in the parent transcript. A
+  finished agent's own transcript ends on an assistant message carrying only
+  text — its final answer; a running one ends mid-flight, on an outstanding
+  `tool_use` or the `tool_result` answering it. Confirmed against a live agent:
+  it read `user/[tool_result]` while working and flipped the instant it
+  finished. An mtime freshness check is the tempting shortcut and it is wrong in
+  both directions — an agent that is thinking looks finished, one that just
+  exited looks alive. The count is cached for a few seconds because this runs on
+  every repaint and the scan costs a process: ~150ms cold, nothing warm.
 - **A watch only disarms a pointer it still OWNS.** Tiers run back to back, so
   two watches overlap routinely, and an unconditional `rm` in the exit trap
   means the FIRST one blanks the status line of the run actually in flight —
