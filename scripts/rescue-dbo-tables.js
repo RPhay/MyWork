@@ -40,10 +40,13 @@
  *   node scripts/rescue-dbo-tables.js --force --apply
  *   node scripts/rescue-dbo-tables.js --drop-dbo-tables --apply
  *
- * --drop-dbo-tables copies NOTHING. Every dbo table is dumped and dropped, treating
- * [MyWork] as already correct. The blunt option, and the right one when the
- * dbo copies are known to be worthless - but it discards their rows, so read
- * the previews before using it.
+ * --drop-dbo-tables copies NOTHING and covers EVERY dbo table, twin or not.
+ * The app never reads dbo, so a table there is either a duplicate the
+ * unqualified writes created or something older that predates the migration;
+ * neither is worth preserving in place. Each is dumped to
+ * data/dbo-rescue-<table>.json first, and a table with no [MyWork] twin is
+ * called out separately before anything runs - that is the only category
+ * whose rows exist nowhere else.
  *
  * --force resolves an id CLASH by keeping [MyWork]'s row and discarding
  * dbo's. Rows whose ids do not clash are still copied, so only the contested
@@ -200,18 +203,25 @@ async function main() {
 
     let action;
     let verdict;
-    if (!twin && !INCLUDE_ORPHANS) {
-      action = "SKIP (no twin)";
-      verdict = `KEEP dbo.${t} - not a duplicate, so not the bug (--include-orphans to move it)`;
-    } else if (!twin) {
-      action = "TRANSFER";
-      verdict = `MOVE dbo.${t} into [MyWork] (${count} rows, table moved whole)`;
-    } else if (DROP_DBO_TABLES) {
+    // --drop-dbo-tables means every dbo table, twin or not. The app never
+    // reads dbo under any schema, so a table sitting there is not something
+    // to preserve in place - it is either a duplicate the unqualified writes
+    // created, or something older that predates the migration. Both are
+    // dumped to disk before they go.
+    if (DROP_DBO_TABLES) {
       action = "DROP";
       verdict =
         count === 0
           ? `DROP dbo.${t} - empty, nothing lost`
-          : `DROP dbo.${t} - ${count} row(s) DISCARDED, none copied`;
+          : twin
+            ? `DROP dbo.${t} - ${count} row(s) DISCARDED, none copied ([MyWork] has ${twinCount})`
+            : `DROP dbo.${t} - ${count} row(s) DISCARDED, NO [MyWork] twin (dumped to data/)`;
+    } else if (!twin && !INCLUDE_ORPHANS) {
+      action = "SKIP (no twin)";
+      verdict = `KEEP dbo.${t} - not a duplicate, so not the bug (--include-orphans to move it, --drop-dbo-tables to delete it)`;
+    } else if (!twin) {
+      action = "TRANSFER";
+      verdict = `MOVE dbo.${t} into [MyWork] (${count} rows, table moved whole)`;
     } else if (count === 0) {
       action = "DROP";
       verdict = `DROP dbo.${t} - empty, nothing lost`;
@@ -249,6 +259,24 @@ async function main() {
   line();
 
   if (DROP_DBO_TABLES) {
+    // An orphan holding rows is the ONLY category with no copy anywhere else:
+    // a twin's data also exists in [MyWork], but a table with no twin exists
+    // once. The dump is what makes dropping it recoverable, so it is named
+    // separately rather than folded into a total.
+    const orphansWithRows = plan.filter(
+      (p) => p.action === "DROP" && p.count > 0 && !p.twin,
+    );
+    if (orphansWithRows.length) {
+      console.log(
+        "\n** These have NO [MyWork] twin and hold rows - dropping them removes\n" +
+          "   the only copy in the database:\n" +
+          orphansWithRows
+            .map((p) => `     ${p.table} (${p.count} rows) -> data/dbo-rescue-${p.table}.json`)
+            .join("\n") +
+          "\n   Check the previews above before applying. **",
+      );
+    }
+
     const losing = plan.filter((p) => p.action === "DROP" && p.count > 0);
     console.log(
       "\n** --drop-dbo-tables: nothing is copied. " +
