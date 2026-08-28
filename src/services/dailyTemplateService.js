@@ -24,7 +24,11 @@
 // children means entityService.instantiateTemplate - which clones a template's
 // hierarchy children - stamps them out with no special case.
 import { NotFoundError, ValidationError } from '../config/errors.js';
-import { normalizeTimeBox } from './dailyService.js';
+// Templates carry a time box exactly as Dailies does, so they convert the
+// same way - a `timebox` field stores a ladder rung ('30m'), while the flat
+// shape this shim returns speaks minutes. Writing minutes straight into the
+// field, as this did, put a value there that no editor could display.
+import { timeBoxToMinutes, minutesToTimeBox } from './dailyService.js';
 import { buildPathMap } from '../utils/hierarchyPath.js';
 import * as entityService from './entityService.js';
 import * as entityRelationshipService from './entityRelationshipService.js';
@@ -68,7 +72,7 @@ async function toLegacyShape(entity, contextId, paths) {
     emoji: f.emoji ?? null,
     status: f.status ?? 'Not Started',
     start_time: f.start_time ?? null,
-    time_box_minutes: f.time_box ?? null,
+    time_box_minutes: timeBoxToMinutes(f.time_box),
     source_id: null,                              // sources never became entities
     categories: assoc.category.map(name),
     goals: assoc.goal.map((e) => ({ id: e.id, name: e.title })),
@@ -127,7 +131,7 @@ export async function createTemplate(data, contextId) {
       emoji: emoji ?? null,
       status: status || 'Not Started',
       start_time: start_time || null,
-      time_box: normalizeTimeBox(time_box_minutes),
+      time_box: minutesToTimeBox(time_box_minutes),
     },
   }, contextId);
 
@@ -148,7 +152,7 @@ export async function updateTemplate(id, data, contextId = null) {
   if (data.emoji !== undefined) fields.emoji = data.emoji || null;
   if (data.status !== undefined) fields.status = data.status || 'Not Started';
   if (data.start_time !== undefined) fields.start_time = data.start_time || null;
-  if (data.time_box_minutes !== undefined) fields.time_box = normalizeTimeBox(data.time_box_minutes);
+  if (data.time_box_minutes !== undefined) fields.time_box = minutesToTimeBox(data.time_box_minutes);
 
   const patch = {};
   if (data.title !== undefined) patch.title = data.title;

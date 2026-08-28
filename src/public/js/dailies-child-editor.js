@@ -44,7 +44,7 @@ function openChildItemEditor(type, id) {
   childItemEditorId = id;
 
   // Hide work item editor, show child editor
-  const workPane = document.getElementById('workItemEditorPane');
+  const workPane = document.getElementById('dailyEditorPane');
   const childPane = document.getElementById('childItemEditorPane');
   if (workPane) workPane.classList.add('hidden');
   if (childPane) childPane.classList.remove('hidden');
@@ -61,7 +61,7 @@ function closeChildItemEditor() {
   currentEditingChild = null;
   childItemEditorId = null;
   const childPane = document.getElementById('childItemEditorPane');
-  const workPane = document.getElementById('workItemEditorPane');
+  const workPane = document.getElementById('dailyEditorPane');
   if (childPane) childPane.classList.add('hidden');
   if (workPane) workPane.classList.remove('hidden');
   // Falls back to the work item whose children these are, which is still open

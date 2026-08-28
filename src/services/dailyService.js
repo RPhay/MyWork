@@ -18,6 +18,44 @@ export function normalizeTimeBox(value) {
   return minutes;
 }
 
+// `time_box` is a `timebox` field, and a timebox field STORES ONE OF THESE
+// STRINGS - it is the same fixed ladder the editor's buttons and the row's
+// cycling cell offer, on every type. This file used to write a raw MINUTE
+// COUNT into that same field and read it straight back out as one, so a time
+// box set on the Dailies rail wrote `30` where the generic editor and column
+// wrote `'30m'`, and each read the other's value as empty. Nothing caught it
+// because Dailies was the only view that ever wrote the number, and it was
+// also the only view that read it.
+//
+// The flat `/api/dailies` shape still speaks minutes - six frontend files and
+// the reports read `time_box_minutes` - so the conversion lives here, at the
+// boundary, rather than changing what a timebox field means.
+const TIME_BOX_LADDER = [
+  ['15m', 15], ['30m', 30], ['45m', 45], ['1h', 60], ['1.5h', 90], ['2h', 120],
+];
+
+export function timeBoxToMinutes(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const rung = TIME_BOX_LADDER.find(([label]) => label === value);
+  if (rung) return rung[1];
+  // A bare number is a value written before the convergence above, or by a
+  // caller still passing minutes. Read it rather than discarding a real box.
+  const minutes = Number(value);
+  return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null;
+}
+
+// Minutes in, ladder rung out. SNAPPED to the nearest rung, because the ladder
+// is the only vocabulary the control can display: an Outlook event dragged in
+// is whatever length the meeting is, and a 25-minute one stored verbatim would
+// show as "None" in every editor and be cleared by the next save.
+export function minutesToTimeBox(value) {
+  const minutes = normalizeTimeBox(value);
+  if (minutes === null) return null;
+  return TIME_BOX_LADDER.reduce((best, rung) =>
+    Math.abs(rung[1] - minutes) < Math.abs(best[1] - minutes) ? rung : best
+  )[0];
+}
+
 // A day (a "work item") is an `entities` row of type work_item as of Phase 10
 // (scripts/phase10-migrate-work-items.js) - date/description/notes/emoji/
 // status/time_box_minutes/start_time/worked_with_claude
@@ -50,7 +88,7 @@ function toLegacyShape(entity, fields) {
     // and one set from the generic column were two different values on one
     // record. `?? fields.time_box_minutes` reads a value written before the
     // convergence; nothing writes that key any more.
-    time_box_minutes: fields.time_box ?? fields.time_box_minutes ?? null,
+    time_box_minutes: timeBoxToMinutes(fields.time_box ?? fields.time_box_minutes),
     order_index: entity.order_index,
     worked_with_claude: !!fields.worked_with_claude,
     start_time: fields.start_time ?? null,
@@ -219,7 +257,7 @@ export async function createWorkItem(data, contextId) {
       notes: notes ?? null,
       emoji: emoji ?? null,
       status: status || 'Not Started',
-      time_box: normalizeTimeBox(time_box_minutes),
+      time_box: minutesToTimeBox(time_box_minutes),
       start_time: start_time || null,
     },
   }, contextId);
@@ -256,7 +294,7 @@ export async function updateWorkItem(id, data) {
   if (notes !== undefined) fields.notes = notes ?? null;
   if (emoji !== undefined) fields.emoji = emoji || null;
   if (status !== undefined) fields.status = status;
-  if (time_box_minutes !== undefined) fields.time_box = normalizeTimeBox(time_box_minutes);
+  if (time_box_minutes !== undefined) fields.time_box = minutesToTimeBox(time_box_minutes);
   if (start_time !== undefined) fields.start_time = start_time || null;
   if (Object.keys(fields).length > 0) update.fields = fields;
 
@@ -333,7 +371,7 @@ export async function updateWorkItemEmoji(id, emoji) {
 }
 
 export async function updateWorkItemTimeBox(id, timeBoxMinutes) {
-  await entityService.updateEntity(id, { fields: { time_box: normalizeTimeBox(timeBoxMinutes) } });
+  await entityService.updateEntity(id, { fields: { time_box: minutesToTimeBox(timeBoxMinutes) } });
   return getWorkItemById(id);
 }
 

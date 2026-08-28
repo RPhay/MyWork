@@ -73,67 +73,25 @@
       <!-- Divider -->
       <div class="split-pane-divider" id="dailiesDivider"></div>
 
-      <!-- Right Pane: Daily Editor (Hidden by default) -->
-      <div class="split-pane-right hidden" id="workItemEditorPane">
+      <%# Right Pane: Daily Editor. DELIBERATELY EMPTY - the form is built from
+          the type's own field list by GenericEntity.buildForm(), exactly as
+          every other type's editor is. It used to be hard-coded here (title,
+          emoji, description, status, time box) and read no schema at all, so
+          the ten fields `daily` declares showed up as four and nothing done in
+          Settings could reach it. The ids below are the contract populate()
+          expects: `<slug>EditorPane`, `<slug>CloseBtn`, `<slug>SaveBtn` and
+          `<slug>-editor-pane`. %>
+      <div class="split-pane-right hidden" id="dailyEditorPane">
         <div class="split-pane-editor">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <div class="split-pane-editor-title" id="workItemEditorDisplayTitle">Select a work item to edit</div>
+          <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
             <div class="editor-actions-bar">
               <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="closeWorkItemEditorBtn">Revert</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="saveWorkItemEditorBtn" disabled>Save</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="dailyCloseBtn" title="Discard your changes and close the editor">Revert</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="dailySaveBtn" disabled title="Save your changes. Stays disabled until you change something.">Save</button>
               </div>
             </div>
           </div>
-          <form id="workItemEditorForm">
-            <input type="hidden" id="workItemEditorId" name="dailyId">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-
-            <div class="mb-3">
-              <div class="d-flex gap-2 align-items-end">
-                <div class="flex-grow-1">
-                  <label for="workItemEditorTitle" class="form-label">Title *</label>
-                  <input type="text" class="form-control" id="workItemEditorTitle" name="title" required>
-                </div>
-                <div>
-                  <label class="form-label d-block">Oh!</label>
-                  <input type="hidden" id="workItemEditorEmoji" name="emoji">
-                  <button type="button" class="btn btn-outline-secondary emoji-field-btn text-muted" id="workItemEditorEmojiBtn" data-action="pick-emoji-field" data-input="workItemEditorEmoji" title="Choose an emoji to make this item easier to spot in the list">Pick</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="mb-3">
-              <label for="workItemEditorDescription" class="form-label">Description</label>
-              <textarea class="form-control" id="workItemEditorDescription" name="description" rows="3"></textarea>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label">Status</label>
-              <!-- Every value on screen with a box round the current one, the
-                   same control every typed page uses. It was a <select>, whose
-                   options were "", in_progress, blocked and completed - none of
-                   which are values this app stores. dailyService only accepts
-                   'Not Started', 'In Progress' and 'Complete', so picking
-                   anything but the first was rejected. The hidden input is what
-                   the form reads, so the ids the JS drives still resolve. -->
-              <div class="option-choice-row" role="radiogroup" aria-label="Status" data-status-picker="workItemEditorStatus">
-                <button type="button" class="option-choice status-option status-role-todo selected"
-                        data-action="pick-status" data-value="Not Started" role="radio" aria-checked="true">Not Started</button>
-                <button type="button" class="option-choice status-option status-role-active"
-                        data-action="pick-status" data-value="In Progress" role="radio" aria-checked="false">In Progress</button>
-                <button type="button" class="option-choice status-option status-role-done"
-                        data-action="pick-status" data-value="Complete" role="radio" aria-checked="false">Complete</button>
-              </div>
-              <input type="hidden" id="workItemEditorStatus" name="status" value="Not Started">
-            </div>
-
-            <div class="mb-3">
-              <label for="workItemEditorTimeBox" class="form-label">Time Box (hours)</label>
-              <input type="number" class="form-control" id="workItemEditorTimeBox" name="time_box" min="0" step="0.5">
-            </div>
-
-          </form>
+          <div id="daily-editor-pane" style="overflow-y: auto;"></div>
         </div>
       </div>
 

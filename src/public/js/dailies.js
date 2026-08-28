@@ -6,30 +6,10 @@ let currentWorkItems = [];
 let currentDayRootEntities = [];
 let dailiesSplitPane; // Reference to the inner split pane for work items editor
 let currentWorkItemId = null;
-let workItemEditorHasChanges = false;
-
-const markWorkItemEditorChanged = () => {
-  workItemEditorHasChanges = true;
-  const saveBtn = document.getElementById('saveWorkItemEditorBtn');
-  if (saveBtn) saveBtn.disabled = false;
-};
-
-const trackWorkItemFormChanges = () => {
-  const form = document.getElementById('workItemEditorForm');
-  if (!form) return;
-
-  const inputs = form.querySelectorAll('input[type="text"], textarea, input[type="number"], select, input[type="hidden"], input[type="radio"]');
-  inputs.forEach(input => {
-    input.addEventListener('change', markWorkItemEditorChanged);
-    input.addEventListener('input', markWorkItemEditorChanged);
-  });
-};
-
-const resetWorkItemEditorTracking = () => {
-  workItemEditorHasChanges = false;
-  const saveBtn = document.getElementById('saveWorkItemEditorBtn');
-  if (saveBtn) saveBtn.disabled = true;
-};
+// Change tracking, the save-button enablement and the form-input wiring that
+// stood here are all GenericEntity's now - Dailies uses the shared editor, so
+// keeping a second copy meant two answers to "are there unsaved changes?".
+// GenericEntity.hasUnsavedChanges() is the one that counts.
 
 const STATUS_CYCLE = ["Not Started", "In Progress", "Complete"];
 
@@ -229,13 +209,13 @@ async function cycleWorkItemTimeBox(dailyId, currentMinutes) {
       if (workItemEl) {
         const timeboxBtn = workItemEl.querySelector('[data-action="cycle-timebox"]');
         if (timeboxBtn) {
-          if (nextMinutes === null) {
-            timeboxBtn.textContent = '';
-            timeboxBtn.dataset.minutes = '';
-          } else {
-            timeboxBtn.textContent = nextMinutes + 'm';
-            timeboxBtn.dataset.minutes = nextMinutes;
-          }
+          // formatTimeBox(), not a raw minute count: it is what renders this
+          // badge on every draw, so writing `nextMinutes + 'm'` here made a
+          // clicked badge disagree with the same badge after a reload - 60
+          // showed as "60m" until the list redrew it as "1h", and clearing
+          // the box blanked the cell instead of saying "No time box".
+          timeboxBtn.textContent = formatTimeBox(nextMinutes);
+          timeboxBtn.dataset.minutes = nextMinutes === null ? '' : nextMinutes;
         }
       }
       // Update calendar total immediately without full reload
@@ -440,8 +420,11 @@ async function addDaily() {
     }
     await loadWorkItems();
     // Straight into its editor, so it can be named without hunting for it -
-    // the same thing creating a row on a typed page does.
-    editWorkItem(result.data.id);
+    // the same thing creating a row on a typed page does, down to selecting
+    // the placeholder title so typing replaces it rather than appending.
+    await editWorkItem(result.data.id);
+    const titleInput = document.querySelector('#daily-editor-pane input[name="title"]');
+    if (titleInput) { titleInput.focus(); titleInput.select(); }
   } catch (error) {
     console.error("Error adding a daily:", error);
     app.notify("Could not add a daily", "danger");
@@ -859,49 +842,35 @@ function initDailies() {
   outerSplitPane.showRightPane(75);
 
   // Setup inner split-pane (Dailies | Editor)
-  dailiesSplitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "workItemEditorPane", 66.66);
+  dailiesSplitPane = new SplitPane("dailiesSplitPane", "dailiesCenterPane", "dailiesDivider", "dailyEditorPane", 66.66);
 
-  // Setup split-pane editor buttons
-  const saveWorkItemEditorBtn = document.getElementById("saveWorkItemEditorBtn");
-  const closeWorkItemEditorBtn = document.getElementById("closeWorkItemEditorBtn");
+  // populate() finds a type's pane by slug, so the rail has to hand its own
+  // over. Deliberately NOT GenericEntity.init(), which also sets the module's
+  // current type and schema: Dailies initialises alongside whichever entity
+  // tab is on screen, and whichever ran last would win. Registering only the
+  // pane leaves that state to populate(), which sets it per call anyway.
+  GenericEntity.registerSplitPane("daily", dailiesSplitPane);
+
+  // Setup split-pane editor buttons. The handler no longer reads controls by
+  // id and posts a flat body to /api/dailies - it collects whatever fields the
+  // schema put on the form and writes them through the entity API, which is
+  // what makes a field added in Settings actually savable here.
+  const saveWorkItemEditorBtn = document.getElementById("dailySaveBtn");
+  const closeWorkItemEditorBtn = document.getElementById("dailyCloseBtn");
 
   if (saveWorkItemEditorBtn) {
     saveWorkItemEditorBtn.addEventListener("click", async () => {
-      const dailyId = document.getElementById("workItemEditorId").value;
-      const title = document.getElementById("workItemEditorTitle").value;
-      const description = document.getElementById("workItemEditorDescription").value;
-      const status = document.getElementById("workItemEditorStatus").value;
-      const timeBox = document.getElementById("workItemEditorTimeBox").value;
-
-      if (!title.trim()) {
-        app.notify("Title is required", "warning");
-        return;
-      }
-
       try {
-        const response = await app.fetchRaw(`/api/dailies/${dailyId}`, {
-          method: "PUT",
-          
-          body: JSON.stringify({
-            title,
-            description,
-            status: status || "Not Started",
-            time_box_minutes: timeBox ? Math.round(parseFloat(timeBox) * 60) : null
-          })
-        });
-
-        const result = await response.json();
-        if (result.success) {
-          app.notify("Work item updated!", "success");
-          closeWorkItemEditor();
-          loadWorkItems();
-          loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
-        } else {
-          app.notify("Error: " + result.message, "danger");
-        }
+        await GenericEntity.save();
+        GenericEntity.markSaved();
+        app.notify("Daily updated!", "success");
+        // The editor STAYS OPEN. It used to close on every save, so saving a
+        // record you were still working on threw you back to the list.
+        loadWorkItems();
+        loadCalendarDayTotals(calendarViewYear, calendarViewMonth);
       } catch (error) {
         console.error("Error saving work item:", error);
-        app.notify("Error saving work item", "danger");
+        app.notify(error.message || "Error saving work item", "danger");
       }
     });
   }

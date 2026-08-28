@@ -411,70 +411,51 @@ function syncDailiesRowSelection() {
   app.selectRow(row, ".work-item");
 }
 
+// The `daily` type's schema, fetched once. The editor is built from it, so
+// without it there is no form to build - hence a cached promise rather than a
+// cached value: two quick row clicks would otherwise fire two requests.
+let dailyTypeSchemaPromise = null;
+function dailyTypeSchema() {
+  if (!dailyTypeSchemaPromise) {
+    dailyTypeSchemaPromise = app.fetchData('/api/entity-types/daily');
+  }
+  return dailyTypeSchemaPromise;
+}
+
+// Dailies now opens the SAME editor every other type opens, built by
+// GenericEntity.buildForm() from `daily`'s own field list. It used to fill in
+// a hard-coded form in dailies.ejs by element id - five controls against the
+// ten fields the type declares - so Worked Time, Priority, Date, Start Time,
+// Notes and AI existed on the record, were shown in Settings, and could not be
+// edited here. Nothing about that was configurable: the form never read a
+// schema.
 async function editWorkItem(dailyId) {
   try {
-    // Check if clicking on same row that's already open
+    // Clicking the open row again shuts the editor, and unsaved changes hold
+    // it open - the same gesture as everywhere else. Kept here rather than
+    // left to populate()'s own toggle because this function owns
+    // currentWorkItemId, which the rail's row highlighting reads.
     if (currentWorkItemId === dailyId) {
-      if (workItemEditorHasChanges) {
-        return; // Don't close if there are unsaved changes
-      }
+      if (GenericEntity.hasUnsavedChanges()) return;
       closeWorkItemEditor();
       return;
     }
 
-    // Increment request ID to track which request is current
     const requestId = ++workItemEditorRequestId;
+    const [schema, entity] = await Promise.all([
+      dailyTypeSchema(),
+      app.fetchData(`/api/entities/daily/${dailyId}`),
+    ]);
 
-    const response = await fetch(`/api/dailies/${dailyId}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
-
-    // Ignore if a newer request has been made
-    if (requestId !== workItemEditorRequestId) {
-      return;
-    }
-
-    const item = result.data;
-
-    const setFieldValue = (id, value) => {
-      const el = document.getElementById(id);
-      if (el) el.value = value;
-      // A status picker is a hidden input PLUS a row of buttons, so writing the
-      // value alone would leave the box sitting on whatever was chosen last.
-      markStatusChoice(id, value);
-    };
-
-    const setFieldText = (id, value) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = value;
-    };
+    // A newer click has already been made - drop this one rather than letting
+    // a slow response overwrite the editor the user is now looking at.
+    if (requestId !== workItemEditorRequestId) return;
 
     currentWorkItemId = dailyId;
-    resetWorkItemEditorTracking();
-
-    // Make sure form is visible
-    const workItemEditorForm = document.getElementById('workItemEditorForm');
-    if (workItemEditorForm) workItemEditorForm.style.display = 'block';
-
-    setFieldValue("workItemEditorId", item.id);
-    setFieldValue("workItemEditorTitle", item.title);
-    setFieldText("workItemEditorDisplayTitle", item.title);
-    setFieldValue("workItemEditorDescription", item.description);
-    setFieldValue("workItemEditorEmoji", item.emoji || "");
-    setFieldValue("workItemEditorStatus", item.status || "");
-    setFieldValue("workItemEditorTimeBox", item.time_box_minutes ? (item.time_box_minutes / 60).toFixed(1) : "");
-    updateEmojiFieldButton("workItemEditorEmojiBtn", item.emoji || "");
-    trackWorkItemFormChanges();
-
-    // Show split-pane editor
-    if (dailiesSplitPane) {
-      dailiesSplitPane.showRightPane();
-    }
-
-    // An open editor takes the whole screen - every other pane steps aside
-    // until it closes. See tabs.js#focusPaneForEditor.
-    window.tabManager?.focusPaneForEditor('daily');
-
+    // `force` because this means "show me this record". Without it populate()
+    // reads the call as the row-click toggle and closes the editor it was
+    // just asked to open.
+    GenericEntity.populate(dailyId, entity, schema, 'daily', 'daily', { force: true });
     syncDailiesRowSelection();
   } catch (error) {
     console.error("Error loading work item:", error);
@@ -483,13 +464,11 @@ async function editWorkItem(dailyId) {
 }
 
 function closeWorkItemEditor() {
-  resetWorkItemEditorTracking();
   currentWorkItemId = null;
-  if (dailiesSplitPane) {
-    dailiesSplitPane.hideRightPane();
-  }
-  // Bring back whatever rails stepped aside when this editor opened.
-  window.tabManager?.restorePanesAfterEditor();
+  // GenericEntity.close() empties the pane, hides it, and brings back the
+  // rails that stepped aside - all of which this used to do by hand against
+  // its own pane. Doing both would hide the pane twice and clear the wrong one.
+  GenericEntity.close();
   syncDailiesRowSelection();
 }
 

@@ -53,6 +53,14 @@ async function openDailies(page) {
 test.describe('Records on the day itself', () => {
   test.describe.configure({ mode: 'serial' });
 
+  // Ids of rows this spec made that it cannot name. "+ Daily" is titled by the
+  // APP, so the row cannot be ZZZ-prefixed and the global sweep cannot reach
+  // it - but matching on the title instead deleted BY NAME, and "New daily" is
+  // exactly what the user's own unnamed dailies are called. That teardown
+  // hard-deleted a real record (soft delete THEN /api/trash/:id, so it was not
+  // even recoverable from the bin). Record what we create; delete only that.
+  const createdDailyIds = [];
+
   test.afterAll(async ({ browser }) => {
     // afterAll, not the end of a test body: a spec that tidies up on its last
     // line leaks every time an assertion fails earlier.
@@ -60,10 +68,10 @@ test.describe('Records on the day itself', () => {
     await page.goto('/?tab=category', { waitUntil: 'networkidle' });
     const items = (await api(page, `/api/dailies/date/${today()}`)).body?.data || [];
     // BOTH calls: /api/dailies/:id is a SOFT delete, and only /api/trash/:id
-    // removes the row. Soft-deleting alone left "New daily" in the user's trash
-    // after every run - and it cannot be ZZZ-prefixed, because the app names it
-    // when "+ Daily" is clicked, so the global sweep cannot reach it either.
-    for (const w of items.filter(x => (x.title || '').startsWith('ZZZroot') || x.title === 'New daily')) {
+    // removes the row. Soft-deleting alone left the row in the user's trash
+    // after every run.
+    const mine = new Set(createdDailyIds.map(String));
+    for (const w of items.filter(x => (x.title || '').startsWith('ZZZroot') || mine.has(String(x.id)))) {
       await api(page, `/api/dailies/${w.id}`, { method: 'DELETE' });
       await api(page, `/api/trash/${w.id}`, { method: 'DELETE' });
     }
@@ -122,15 +130,24 @@ test.describe('Records on the day itself', () => {
   test('+ Daily creates a daily on the selected day', async ({ page }) => {
     await openDailies(page);
 
-    const before = (await api(page, `/api/dailies/date/${today()}`)).body.data.length;
+    const before = (await api(page, `/api/dailies/date/${today()}`)).body.data;
     await page.click('#addDailyBtn');
     await page.waitForTimeout(1800);
 
     const after = (await api(page, `/api/dailies/date/${today()}`)).body.data;
-    expect(after.length, 'one more daily on the day').toBe(before + 1);
+    expect(after.length, 'one more daily on the day').toBe(before.length + 1);
+
+    // Remember the id so teardown removes THIS row and nothing else that
+    // happens to share its app-assigned name.
+    const seen = new Set(before.map(w => String(w.id)));
+    for (const w of after) if (!seen.has(String(w.id))) createdDailyIds.push(w.id);
 
     // Straight into its editor, so it can be named without hunting for it.
-    await expect(page.locator('#workItemEditorPane, #workItemEditorTitle').first())
+    // The Dailies editor is the shared entity editor now - built from the
+    // `daily` type's field list rather than hard-coded markup - so the pane
+    // and the title input follow the same naming every other type uses.
+    await expect(page.locator('#dailyEditorPane')).toBeVisible({ timeout: 6000 });
+    await expect(page.locator('#daily-editor-pane input[name="title"]'))
       .toBeVisible({ timeout: 6000 });
   });
 

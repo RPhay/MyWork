@@ -41,7 +41,14 @@ Rules:
    real `New <Type>` row behind even if it never saves. Those are not
    `ZZZ`-prefixed, so `global-teardown.js` does not sweep them; a spec that
    clicks + must delete what it made.
-4. **Back up before a bulk delete.** Dump the affected `entities`,
+4. **Delete by ID, never by NAME.** The obvious fix to rule 3 is to sweep
+   anything titled `New <Type>` - and that is how `dailies-root.spec.js`
+   hard-deleted a daily the USER had made, on 2026-08-27. The app assigns that
+   title, so the user's own unnamed rows carry it too, and the teardown did
+   both calls (`/api/dailies/:id` then `/api/trash/:id`), so it was not even
+   left in the bin to restore. Record the ids you create - diff the list
+   before and after - and delete only those.
+5. **Back up before a bulk delete.** Dump the affected `entities`,
    `entity_field_values` and `entity_relationships` rows to
    `data/entity-backup-<timestamp>.json` first (`data/` is gitignored).
 

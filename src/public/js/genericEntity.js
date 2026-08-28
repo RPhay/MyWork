@@ -1925,6 +1925,15 @@ const GenericEntity = (() => {
       splitPanesByType[typeSlug] = splitPaneInstance; // Store per-type reference
     },
 
+    // Just the pane, without claiming to be the current type. The Dailies rail
+    // needs this: it is on screen at the same time as an entity tab, and
+    // init()'s two other assignments would make whichever initialised last own
+    // the module's state. populate() sets both per call, so the pane lookup is
+    // the only part a co-resident view actually needs to register.
+    registerSplitPane: (typeSlug, splitPaneInstance) => {
+      splitPanesByType[typeSlug] = splitPaneInstance;
+    },
+
     renderRow: renderEntityRow,
     renderFlatList,
     orderedColumns,
@@ -2031,10 +2040,15 @@ const GenericEntity = (() => {
       }
 
       // An open editor takes the whole screen - every rail steps aside until
-      // it closes. 'template' edits inside its own rail; every other type is
-      // the CONTENT pane, since only one type tab is ever current. See
+      // it closes. 'template' and 'daily' edit inside their OWN rails, so they
+      // name themselves; every other type is the CONTENT pane, since only one
+      // type tab is ever current. Naming 'content' for a rail would collapse
+      // the rail holding the editor that had just been opened. See
       // tabs.js#focusPaneForEditor.
-      window.tabManager?.focusPaneForEditor(typeSlugToUse === 'template' ? 'template' : 'content');
+      const RAIL_SLUGS = ['template', 'daily'];
+      window.tabManager?.focusPaneForEditor(
+        RAIL_SLUGS.includes(typeSlugToUse) ? typeSlugToUse : 'content'
+      );
 
       syncRowSelection(typeSlugToUse);
     },
