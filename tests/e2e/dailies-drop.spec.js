@@ -81,7 +81,19 @@ test.describe('Dropping onto Dailies', () => {
       // Every typed-row drop now asks copy or reference; take reference, which
       // is the behaviour these cases were written against.
       await page.locator('#copyOrReferenceRefBtn').click();
-      await page.waitForTimeout(1400);
+
+      // POLL for the row rather than sleeping a fixed 1400ms. The drop is a
+      // write plus a re-read, and under a full-suite load that round trip can
+      // take longer than any constant chosen here - which is exactly how this
+      // case failed once in a 378-test run on 2026-08-28 and then passed 9/9
+      // on its own, reporting a defect that was not there. The condition being
+      // waited for is the assertion itself, so a slow machine waits and a
+      // genuine regression still fails at the timeout.
+      await expect.poll(
+        async () => (await api(page, `/api/dailies/date/${today()}/roots`))
+          .body.data.some(r => r.id === entity.id && r.depth === 0),
+        { message: `dropping a ${type.slug} should put it on the day`, timeout: 10000 },
+      ).toBe(true);
 
       // On the DAY. These cases were written when a drop on empty space
       // invented a work item named after the record; it no longer does, because
@@ -92,10 +104,6 @@ test.describe('Dropping onto Dailies', () => {
       const items = (await api(page, `/api/dailies/date/${today()}`)).body.data;
       expect(items.find(w => w.title === `ZZZ drop ${type.slug}`),
         `dropping a ${type.slug} must not invent a work item`).toBeFalsy();
-
-      const roots = (await api(page, `/api/dailies/date/${today()}/roots`)).body.data;
-      expect(roots.some(r => r.id === entity.id && r.depth === 0),
-        `dropping a ${type.slug} should put it on the day`).toBe(true);
     });
   }
 

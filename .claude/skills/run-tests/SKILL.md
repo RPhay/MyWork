@@ -85,24 +85,77 @@ line every 180s, and answer each one with this table — nothing else:
 | **Elapsed** | 6m |
 | **Est. remaining** | ~7m |
 
-Read them from the log:
+**Do not rebuild that table by hand.** `report.sh`, beside this file, prints
+it. Point a `Monitor` at its `watch` mode and each event IS the table, already
+formatted — it exits on its own when the run ends:
 
 ```bash
-grep -oE '^\[[0-9]+/[0-9]+\]' run.log | tail -1        # progress
-grep -cE '^  [0-9]+\) \[chromium\]' run.log            # failures so far
-grep -E '^\[[0-9]+/[0-9]+\]' run.log | tail -1         # what is running
+.claude/skills/run-tests/report.sh watch <scratchpad>/run.log <start-epoch> 180
 ```
 
-Estimate remaining as `elapsed / completed * (total - completed)`, and say it
-is an estimate. It reads long near the start and whenever the queue reaches a
-known-slow file — `CLAUDE_PROJECT_TESTS.md` names those; put the file in the
-row rather than letting the number look wrong.
+Or print one on demand:
 
-Report a failure the moment it appears; do not save it for the end. Anchor the
-match on the runner's numbered failure lines (`^  N) [chromium]`) — matching
-the word "failed" catches it inside test NAMES and cries wolf.
+```bash
+.claude/skills/run-tests/report.sh sitrep <scratchpad>/run.log <start-epoch>
+```
+
+Set `RUN_TESTS_SLOW_SPECS` to the slow files `CLAUDE_PROJECT_TESTS.md` names,
+and the estimate says which one is in flight instead of just reading long.
+
+### The status line carries it too
+
+`watch` also ARMS a third status-line row, so progress is visible between
+sitreps without waiting three minutes for the next message:
+
+```
+tests ▏ worked-time.spec.js · 130/134 · ~1m ████████████████████████░ 97%
+```
+
+The spec in flight, N of M, minutes remaining, and a bar sized to whatever is
+left of the terminal width. `statusline.sh` beside this file renders it, and
+`.claude/settings.json` points the `statusLine` command at it.
+
+Three properties it must keep:
+
+- **It prints NOTHING when no run is armed.** A status line that grew a
+  permanent empty row would be worse than not having the feature. `watch` arms
+  it, and disarms on ANY exit via a trap — a stale pointer file would leave a
+  finished run on screen for the rest of the session.
+- **It DELEGATES rather than replaces.** Whatever `statusLine` was already
+  configured (`$RUN_TESTS_STATUSLINE_DELEGATE`, else
+  `~/.claude/statusline-command.sh`) still runs, gets the JSON payload on
+  stdin, and keeps its own rows; ours is appended below.
+- **It reads the log, not a cached figure**, so it is current on every render
+  rather than 3 minutes stale — but only `tail -n 400`, because a full-suite
+  log is hundreds of KB and this runs on every status-line repaint.
+
+To drive it without `watch`: `report.sh arm <log> <start-epoch>`, and
+`report.sh disarm` when done.
+
+**Do not edit `report.sh` or `statusline.sh` while a run is being watched.**
+Bash reads a script incrementally by byte offset, so editing one that is
+already executing shifts the file underneath the running process and it dies
+mid-line — this happened on 2026-08-28 and the watcher exited 2 looking for all
+the world like a bug in the parser. It is the same rule as not editing
+application source under a run, one level up.
+
+The estimate is `elapsed / completed * (total - completed)` and the script
+says so is an estimate, because it reads long early and on a slow file. Always
+present it as one.
+
+**Report a failure the moment it appears; do not save it for the end.** The
+count comes from the runner's numbered failure lines — grepping for the word
+"failed" instead catches it inside test NAMES and cries wolf, which is why the
+script anchors on `^  N)` and you should not "simplify" that.
 
 ## 5. Final results, as a table
+
+`report.sh` prints both tables from the log — one call per tier, so the shape
+is the same every run:
+
+```bash
+.claude/skills/run-tests/report.sh final "Guard set" <scratchpad>/run.log
+```
 
 ```
 | Tier | Result | Time |
@@ -111,13 +164,21 @@ the word "failed" catches it inside test NAMES and cries wolf.
 | Guard set | 128 passed, 2 failed, 4 skipped | 8.7m |
 ```
 
-Then one row per failure:
+Then one row per failure, which it also prints:
 
 ```
 | Spec | Error | Verdict |
 |---|---|---|
 | `row-icon-sizing.spec.js:10` | timeout waiting for a row | tab is empty - spec assumes data exists |
 ```
+
+**It leaves the Verdict cell blank, and that is deliberate** — whether a failure
+is the change in hand or a stale spec comes from re-running it, not from the
+log. Fill the column in yourself; do not delete it.
+
+Two things it will not do, because both are how a bad run gets read as a good
+one: it never prints a pass count without the failure count beside it, and a log
+with no summary line reports `run did not complete` rather than a total.
 
 **Read both numbers before calling a run green.** The line reporter prints
 `N failed` ABOVE `N passed`, so a truncated log shows only the pass count and a

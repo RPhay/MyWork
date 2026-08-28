@@ -104,8 +104,14 @@ npx playwright test \
   tests/e2e/ui-check.spec.js
 ```
 
-**~8 minutes.** The full suite is 26 and green, so this tier exists to be fast
-enough to run without thinking about it - not to be a substitute for the suite.
+**~9 minutes** - measured 2026-08-28: 42 unit tests in 2.6s, then 130 e2e
+passed and 4 skipped in 8.6m. This tier exists to be fast enough to run without
+thinking about it, not to be a substitute for the suite (~29m).
+
+That figure was written down twice and wrongly both times - `~8 minutes` here
+and `~13m` in the tiers table - which is how it went unnoticed that neither had
+been measured since the set was re-chosen. It is measured now, and it lives in
+BOTH places only because the table is a summary; change one, change the other.
 
 ### Why this list and not the old one
 
@@ -188,9 +194,9 @@ Times are wall-clock on this machine. **Measured** = observed in a real run;
 | 3 | Targeted | The 1-3 specs covering the change | 5-30s | **The default while working.** `column-reorder-editor-sync` alone is 7s |
 | 4 | Editor / engine | `entity-editor-behaviour`, `entity-type-integrity`, `entity-field-types`, `column-reorder-editor-sync`, `row-icon-sizing` | ~1m (est.) | Editor, field types, row rendering, the generic engine |
 | 5 | Drag | `drag-protocol`, `real-drag-drop`, `template-drops`, `dailies-drop`, `dailies-any-type`, `priorities-rail` | **~1.2m** | Anything touching drag sources, drop targets or `dragDropUtils.js` |
-| 6 | Guard set | The 15 specs above + `npm run test:unit` | **~13m** | Before a commit or push |
-| 7 | Guard + headed | Tier 6 + `editable-types --headed` | ~8m (est.) | Editable type pages or their engine — see "Editable types" |
-| 8 | Full suite | `npx playwright test` | **~27m** | It is GREEN and it is worth running. See the baseline below |
+| 6 | Guard set | The 26 specs above + `npm run test:unit` | **~9m** | Before a commit or push |
+| 7 | Guard + headed | Tier 6 + `editable-types --headed` | **~9.5m** | Editable type pages or their engine — see "Editable types" |
+| 8 | Full suite | `npx playwright test` | **~29m** | It is GREEN and it is worth running. See the baseline below |
 
 Tiers 4 and 5 deliberately overlap — a generic-engine change is usually both.
 
@@ -245,23 +251,33 @@ to do: the **Reference** half of this file.
 The guard set above is the list to trust; everything else is triage against a
 large stale baseline. Snapshot: the **Reference** half of this file.
 
-### Baseline, measured 2026-08-26
+### Baseline, measured 2026-08-28
 
-**354 tests in 71 files, 26.5 minutes, exit 0: 353 passed, 0 failed, 1 skipped.**
+**378 tests in 73 files, 29.2 minutes: 371 passed, 1 failed, 4 skipped, 2 did
+not run.**
 
-The full suite is green. That is new, and it is the number to defend: any
-failure now is something the change in hand did, which is exactly what the
-count could never mean before.
+The one failure was `dailies-drop.spec.js:58` (`task`), and it was NOT a defect
+- it passed 9/9 run on its own against the same commit. It is recorded here
+because of what it cost to establish that, and because the shape recurs: a
+fixed `waitForTimeout` is long enough on an idle machine and short enough under
+378 tests. It has since been replaced with an `expect.poll` on the assertion
+itself. **The "2 did not run" are its siblings** - that describe is
+`mode: 'serial'`, so one failure abandons the rest of the file, and a summary
+read without that line looks like a smaller run than it was.
+
+So the number to defend is still zero REAL failures. Read `did not run`
+alongside `failed`; `.claude/skills/run-tests/report.sh` prints both, which is
+why it exists.
 
 How it got here, from the first full run that could execute at all
 (2026-08-25: 453 tests in 101 files, 1.8h, exit 1, 271 passed / 168 failed):
 
-| | 2026-08-25 | 2026-08-26 |
-|---|---|---|
-| passed | 271 | **353** |
-| failed | **168** | **0** |
-| duration | 1.8h | **26.5m** |
-| files | 101 | 71 (+48 retired) |
+| | 2026-08-25 | 2026-08-26 | 2026-08-28 |
+|---|---|---|---|
+| passed | 271 | **353** | **371** |
+| failed | **168** | **0** | 1 (a flake, since fixed) |
+| duration | 1.8h | **26.5m** | 29.2m |
+| files | 101 | 71 (+48 retired) | 73 |
 
 Most of the 1.8h was failures waiting out a 30-second timeout, so fixing them
 took two thirds off the clock. `editable-types-comprehensive` alone went 8.8m
