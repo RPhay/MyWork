@@ -411,10 +411,19 @@ Calling `deleteEntity` alone fails for any nested row with
 keys `ON DELETE NO ACTION`. `deleteEntity` clears the legacy↔entity bridge
 junctions but not the relationship edges.
 
-Note that Templates still live in a **legacy table** (`work_item_templates`),
-not in `entities`, so clearing the entity types does not touch them — and
-clearing them needs its own pass. Dailies no longer have this problem: they are
-entities of type `daily` and the `work_items` table was dropped on 2026-08-25.
+Templates need no separate pass. They are entities of type `template`, like
+everything else, so clearing entity rows clears them too. Dailies are the same:
+entities of type `daily`, with `work_items` dropped on 2026-08-25.
+
+This paragraph used to say Templates still lived in a legacy
+`work_item_templates` table that a sweep would miss. **That table does not
+exist** - checked on 2026-08-28, `ER_NO_SUCH_TABLE` - so the warning sent you
+looking for a second pass there is nothing to do, and worse, implied a sweep of
+`entities` was incomplete when it is not. The tables that actually reference
+`entities`, and therefore the order a delete has to follow, are the five above:
+`entity_relationships` (both `parent_entity_id` and `child_entity_id`),
+`daily_entities`, `work_entity_associations`, then `entity_field_values`, then
+`entities`.
 
 ## "The count went down" - how to tell a lost row from a swept one
 
