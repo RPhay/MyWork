@@ -39,6 +39,28 @@ test('a hard refresh leaves the open editor open, on the same record', async ({ 
 // could not resolve a form, which made the editor unusable.
 test('never more than one editor, whatever is remembered', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
+
+  // This test needs a row on each of those three tabs, and it used to assume
+  // the user had some. Projects emptied on 2026-08-27 - every row it held was
+  // test residue - and the assertion below then timed out waiting for a pencil
+  // on a row that does not exist, which reads like a broken editor rather than
+  // an empty tab. Make the row rather than hoping for it.
+  const madeHere = await page.evaluate(async () => {
+    const t = document.body.dataset.csrfToken || '';
+    const made = [];
+    for (const slug of ['priority', 'idea', 'to_do']) {
+      const b = await (await fetch(`/api/entities/${slug}`)).json().catch(() => ({}));
+      if ((b.data || []).some(x => !x.is_folder && !x.deleted_at)) continue;
+      const r = await (await fetch(`/api/entities/${slug}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+        body: JSON.stringify({ title: `ZZZ editor-open ${slug}` }),
+      })).json().catch(() => ({}));
+      if (r?.data?.id) made.push({ slug, id: r.data.id });
+    }
+    return made;
+  });
+
   await page.evaluate(async () => {
     // The pre-fix per-type shape, as a browser may still hold it.
     const out = {};
@@ -61,6 +83,16 @@ test('never more than one editor, whatever is remembered', async ({ page }) => {
   await page.waitForTimeout(1000);
   expect((await page.locator('#entity-editor-form input[name="title"]').inputValue()).length,
     'clicking a row must open its editor').toBeGreaterThan(0);
+
+  // By id, and both calls - /api/entities/:type/:id only soft-deletes.
+  await page.evaluate(async (made) => {
+    const t = document.body.dataset.csrfToken || '';
+    const h = { 'Content-Type': 'application/json', 'X-CSRF-Token': t };
+    for (const { slug, id } of made) {
+      await fetch(`/api/entities/${slug}/${id}`, { method: 'DELETE', headers: h });
+      await fetch(`/api/trash/${id}`, { method: 'DELETE', headers: h });
+    }
+  }, madeHere);
 });
 
 test('an editor closed on purpose stays closed across a refresh', async ({ page }) => {

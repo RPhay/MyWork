@@ -1786,7 +1786,36 @@ const GenericEntity = (() => {
     return data;
   }
 
+  // What the form looked like when it was last LOADED or SAVED. markChanged()
+  // compares against it rather than trusting the event that woke it.
+  let savedFormSnapshot = null;
+
+  function formSnapshot() {
+    if (!document.getElementById('entity-editor-form') || !typeSchema) return null;
+    try {
+      return JSON.stringify(collectFormValues(typeSchema, currentIsFolder));
+    } catch {
+      return null;
+    }
+  }
+
+  function rememberFormAsSaved() {
+    savedFormSnapshot = formSnapshot();
+  }
+
   function markChanged() {
+    // A text input fires `change` when it loses focus if it was edited since
+    // gaining it - even when autosave has ALREADY stored that exact value. So
+    // clicking the pencil to close an editor you had just typed in re-armed
+    // hasChanges on the way out, and populate()'s toggle-close refuses to run
+    // while there are unsaved changes: the click did nothing at all, and the
+    // next one did nothing either. Only the create-then-type path hit it,
+    // because it is the only one that leaves an edited input focused.
+    //
+    // Compare with what was last loaded or saved instead of believing the
+    // event. Typing something and typing it back also stops arming Revert.
+    const now = formSnapshot();
+    if (savedFormSnapshot !== null && now !== null && now === savedFormSnapshot) return;
     hasChanges = true;
     // Revert enables the moment anything changes - it is the only manual
     // control left on this bar, autosave owns Save's old job.
@@ -2098,6 +2127,8 @@ const GenericEntity = (() => {
       const revertBtnOnOpen = document.getElementById(`${typeSlugToUse}CloseBtn`);
       if (revertBtnOnOpen) revertBtnOnOpen.disabled = true;
       trackFormChanges();
+      // The baseline every later change is measured against.
+      rememberFormAsSaved();
       // Use the correct SplitPane for this type
       const typeSplitPane = splitPanesByType[typeSlugToUse];
       if (typeSplitPane) {
@@ -2137,6 +2168,8 @@ const GenericEntity = (() => {
       const result = await response.json();
       if (result.success) {
         hasChanges = false;
+        // What is on screen IS what is stored now, so it becomes the baseline.
+        rememberFormAsSaved();
         // The same record can be on screen more than once - referenced inside a
         // template while also listed on its own page. A reference IS the
         // original, so an edit here has already changed it there; tell the other
@@ -2161,6 +2194,7 @@ const GenericEntity = (() => {
     discardChanges: () => {
       if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
       hasChanges = false;
+      savedFormSnapshot = null;   // the form is about to be rebuilt from store
       const revertBtn = document.getElementById(`${currentTypeSlug}CloseBtn`);
       if (revertBtn) revertBtn.disabled = true;
     },

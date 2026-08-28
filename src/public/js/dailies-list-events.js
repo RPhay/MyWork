@@ -336,7 +336,15 @@ function initWorkItemsListEventListeners() {
           "drop-indicator-after",
         );
         if (type === "template") {
-          linkChild(workItemEl.dataset.workId, type, id);
+          // A template is never filed UNDER anything. linkChild() here made
+          // the daily HOLD the template as a reference - the one arrangement
+          // the data model forbids ("Nothing may hold a Template" in
+          // CLAUDE.md): no type declares `template` as a hierarchy child, and
+          // a reference means editing the day's copy edits the template every
+          // other day was built from. Dropping a template anywhere on this
+          // rail means the same thing it means on empty space - instantiate
+          // it onto the day, as an independent copy.
+          instantiateTemplateOnDate(id, dropDate());
           return;
         }
         const choice = await app.askCopyOrReference(e.dataTransfer.getData("name"));
@@ -347,8 +355,7 @@ function initWorkItemsListEventListeners() {
       }
 
       // Dropped on empty space (not on an existing item)
-      const dateInput = document.getElementById("selectedDate");
-      const date = dateInput?.value || new Date().toISOString().split("T")[0];
+      const date = dropDate();
 
       if (type === "template") {
         // A template dropped on a day is always a full copy, including its
@@ -443,6 +450,12 @@ function initWorkItemsListEventListeners() {
   });
 }
 
+
+// Which day a drop lands on: whatever the rail is showing.
+function dropDate() {
+  const dateInput = document.getElementById("selectedDate");
+  return dateInput?.value || new Date().toISOString().split("T")[0];
+}
 
 // What counts as calendar data, wherever it came from - a text/plain payload,
 // a named calendar flavour, or the contents of a dropped .ics file.
