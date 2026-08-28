@@ -32,6 +32,12 @@
  *   node scripts/rescue-dbo-tables.js --apply
  *   node scripts/rescue-dbo-tables.js --include-orphans --apply
  *   node scripts/rescue-dbo-tables.js --force --apply
+ *   node scripts/rescue-dbo-tables.js --drop-dbo --apply
+ *
+ * --drop-dbo copies NOTHING. Every dbo table is dumped and dropped, treating
+ * [MyWork] as already correct. The blunt option, and the right one when the
+ * dbo copies are known to be worthless - but it discards their rows, so read
+ * the previews before using it.
  *
  * --force resolves an id CLASH by keeping [MyWork]'s row and discarding
  * dbo's. Rows whose ids do not clash are still copied, so only the contested
@@ -54,6 +60,10 @@ const INCLUDE_ORPHANS = process.argv.includes("--include-orphans");
 // Non-clashing rows are still copied; the clashing ones are DISCARDED, and
 // [MyWork]'s version of that id is the one that survives.
 const FORCE = process.argv.includes("--force");
+// Copy NOTHING. Dump every dbo table and drop it, treating [MyWork] as
+// already correct. The blunt option, for when the dbo copies are known to be
+// worthless and the only thing wanted is them gone.
+const DROP_DBO = process.argv.includes("--drop-dbo");
 
 
 // Nothing in dbo is dropped before its rows are on disk.
@@ -169,13 +179,17 @@ async function main() {
       twinCount = Number(tw[0].c);
     }
 
-    const action = !twin
-      ? INCLUDE_ORPHANS
-        ? "TRANSFER"
-        : "SKIP (no twin)"
-      : count === 0
-        ? "DROP"
-        : "COPY-THEN-DROP";
+    const action = DROP_DBO
+      ? !twin && !INCLUDE_ORPHANS
+        ? "SKIP (no twin)"
+        : "DROP"
+      : !twin
+        ? INCLUDE_ORPHANS
+          ? "TRANSFER"
+          : "SKIP (no twin)"
+        : count === 0
+          ? "DROP"
+          : "COPY-THEN-DROP";
 
     plan.push({ table: t, count, twin, twinCount, action });
     console.log(
@@ -195,6 +209,19 @@ async function main() {
     console.log("");
   }
   line();
+
+  if (DROP_DBO) {
+    const losing = plan.filter((p) => p.action === "DROP" && p.count > 0);
+    console.log(
+      "\n** --drop-dbo: nothing is copied. " +
+        (losing.length
+          ? losing.map((p) => `${p.table} (${p.count} rows)`).join(", ") +
+            " will be dumped and DISCARDED."
+          : "All the dbo copies are empty, so nothing is lost.") +
+        "\n   [MyWork] is treated as already correct. Every dbo table is still" +
+        "\n   dumped to data/dbo-rescue-<table>.json first. **",
+    );
+  }
 
   const skipped = plan.filter((p) => p.action.startsWith("SKIP"));
   if (skipped.length) {
@@ -299,7 +326,7 @@ async function main() {
         const dump = await dumpBeforeDrop(p.table);
         await query(`DROP TABLE [dbo].[${p.table}]`);
         console.log(
-          `  dropped empty dbo.${p.table} (dumped ${dump.count} row(s) to ${dump.file})`,
+          `  dropped dbo.${p.table} - ${dump.count} row(s) NOT copied, dumped to ${dump.file}`,
         );
         continue;
       }
