@@ -995,3 +995,31 @@ footer {
 
 .focus-swatch-row { cursor: pointer; }
 .focus-swatch-label { white-space: nowrap; }
+
+
+/* Revert and Save sit on the title's line, right-justified, rather than
+   pinned to the bottom of the pane. populate() moves the buttons here; the
+   rules below undo the absolute positioning they carry for that old home,
+   which is still used when no form is rendered. */
+.entity-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.entity-title-row > label {
+  margin-bottom: 0;
+}
+
+.entity-title-actions {
+  flex: 0 0 auto;
+}
+
+.entity-title-row .editor-actions-bar {
+  position: static;
+  padding: 0;
+  background: transparent;
+  border-top: none;
+}

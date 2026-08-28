@@ -1642,7 +1642,10 @@ const GenericEntity = (() => {
     return `
       <form id="entity-editor-form" class="entity-editor-form" onsubmit="return false;">
         <div class="form-group">
-          <label>${entity.is_folder ? 'Folder Name' : 'Title'} *</label>
+          <div class="entity-title-row">
+            <label>${entity.is_folder ? 'Folder Name' : 'Title'} *</label>
+            <div class="entity-title-actions"></div>
+          </div>
           <input type="text" name="title" value="${entity.title || ''}" class="form-control" required>
         </div>
 
@@ -1989,7 +1992,25 @@ const GenericEntity = (() => {
         console.error(`[GenericEntity] editor pane not found: #${editorPaneId}`);
         return;
       }
+      // Revert and Save belong on the title line, right-justified, and the
+      // existing NODE is moved there rather than re-rendered: their click
+      // handlers are bound once when the tab initialises, so rebuilding them
+      // inside the form would produce buttons that look right and do nothing.
+      //
+      // DETACHED FIRST, because after the first open the bar lives inside
+      // this pane - and `editorPane.innerHTML = ...` would destroy it along
+      // with the old form. The second item opened then had no buttons at all.
+      // Holding the reference across the rewrite is what keeps them alive.
+      const actionsBar = document
+        .getElementById(`${typeSlugToUse}EditorPane`)
+        ?.querySelector('.editor-actions-bar');
+      if (actionsBar) actionsBar.remove();
+
       editorPane.innerHTML = formHtml;
+
+      const actionsSlot = editorPane.querySelector('.entity-title-actions');
+      if (actionsBar && actionsSlot) actionsSlot.appendChild(actionsBar);
+
       // Track the save button for this type
       currentSaveBtn = document.getElementById(`${typeSlugToUse}SaveBtn`);
       // Nothing has been edited yet, so there is nothing to save. Without this

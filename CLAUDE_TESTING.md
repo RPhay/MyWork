@@ -36,6 +36,11 @@ Rules:
    sort to the bottom.
 3. **After any manual or ad-hoc browser verification, delete the rows you
    created.** Check each typed tab, not just the one you were working in.
+   **Clicking "+ <Type>" now CREATES a row**, as of 2026-08-27 - it used to
+   open the editor on an unsaved blank - so a spec that clicks it leaves a
+   real `New <Type>` row behind even if it never saves. Those are not
+   `ZZZ`-prefixed, so `global-teardown.js` does not sweep them; a spec that
+   clicks + must delete what it made.
 4. **Back up before a bulk delete.** Dump the affected `entities`,
    `entity_field_values` and `entity_relationships` rows to
    `data/entity-backup-<timestamp>.json` first (`data/` is gitignored).
