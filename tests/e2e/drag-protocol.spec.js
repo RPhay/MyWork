@@ -1,13 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { watchConsole } from './consoleErrors.js';
 
 // The drag protocol is a set of globals shared across classic scripts; a page
 // that drags but never loads dragDropUtils.js throws only when a drag starts,
 // so assert the bindings resolve on each page that uses them.
 for (const [name, url] of [['dashboard', '/'], ['settings', '/settings']]) {
   test(`${name}: drag protocol resolves, no console errors`, async ({ page }) => {
-    const errors = [];
-    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-    page.on('pageerror', e => errors.push(String(e)));
+    const seen = watchConsole(page);
     await page.goto(url, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1200);
 
@@ -30,7 +29,11 @@ for (const [name, url] of [['dashboard', '/'], ['settings', '/settings']]) {
       showDropZone: 'function',
     });
 
-    const real = errors.filter(e => !/favicon|net::ERR/i.test(e));
-    expect(real, `console errors on ${name}: ${real.join(' | ')}`).toHaveLength(0);
+    // Deliberately AFTER the assertion above: the globals do not come from the
+    // network, so a CDN outage must not excuse them. Only the console claim
+    // stands down, because an outage means the page's dependencies never
+    // arrived and whatever it logged is not the app's doing.
+    test.skip(seen.offline, `network unreachable: ${seen.requestFailures[0] ?? ''}`);
+    expect(seen.real, `console errors on ${name}: ${seen.real.join(' | ')}`).toHaveLength(0);
   });
 }
