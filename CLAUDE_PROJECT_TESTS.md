@@ -253,17 +253,25 @@ large stale baseline. Snapshot: the **Reference** half of this file.
 
 ### Baseline, measured 2026-08-28
 
-**378 tests in 73 files, 29.2 minutes: 371 passed, 1 failed, 4 skipped, 2 did
-not run.**
+**378 tests in 73 files, 30.3 minutes: 372 passed, 2 failed, 4 skipped, 0 did
+not run.** Re-measured later the same day; the run below it is kept because the
+two records together are the evidence that the flake fix worked.
 
-The one failure was `dailies-drop.spec.js:58` (`task`), and it was NOT a defect
-- it passed 9/9 run on its own against the same commit. It is recorded here
-because of what it cost to establish that, and because the shape recurs: a
-fixed `waitForTimeout` is long enough on an idle machine and short enough under
-378 tests. It has since been replaced with an `expect.poll` on the assertion
-itself. **The "2 did not run" are its siblings** - that describe is
-`mode: 'serial'`, so one failure abandons the rest of the file, and a summary
-read without that line looks like a smaller run than it was.
+**`did not run` is 0, and that is the result to read first.** The previous run
+ended 371 passed / 1 failed / **2 did not run**: `dailies-drop.spec.js:58`
+(`task`) failed, and because that describe is `mode: 'serial'` one failure
+abandoned the rest of the file. It was NOT a defect - it passed 9/9 on its own
+against the same commit - and the shape recurs: a fixed `waitForTimeout` is long
+enough on an idle machine and short enough under 378 tests. Replacing it with an
+`expect.poll` on the assertion itself both fixed it and let its two siblings
+execute, which is exactly the +1 passed and -2 did-not-run above.
+
+The two failures in THIS run were environmental, not defects, and both passed on
+re-run within the minute: the machine briefly lost connectivity, so the Chart.js
+CDN script behind `reporting.ejs` never arrived and the page threw
+`ReferenceError: Chart is not defined`. `debug-errors.spec.js` timed out from the
+same stall. Both specs now stand down instead of failing when a network outage is
+observed - see `consoleErrors.js` - so this pair should not recur.
 
 So the number to defend is still zero REAL failures. Read `did not run`
 alongside `failed`; `.claude/skills/run-tests/report.sh` prints both, which is
@@ -272,12 +280,13 @@ why it exists.
 How it got here, from the first full run that could execute at all
 (2026-08-25: 453 tests in 101 files, 1.8h, exit 1, 271 passed / 168 failed):
 
-| | 2026-08-25 | 2026-08-26 | 2026-08-28 |
-|---|---|---|---|
-| passed | 271 | **353** | **371** |
-| failed | **168** | **0** | 1 (a flake, since fixed) |
-| duration | 1.8h | **26.5m** | 29.2m |
-| files | 101 | 71 (+48 retired) | 73 |
+| | 2026-08-25 | 2026-08-26 | 2026-08-28 | 2026-08-28 (later) |
+|---|---|---|---|---|
+| passed | 271 | **353** | 371 | **372** |
+| failed | **168** | **0** | 1 (a flake, since fixed) | 2 (both network) |
+| did not run | - | - | 2 | **0** |
+| duration | 1.8h | **26.5m** | 29.2m | 30.3m |
+| files | 101 | 71 (+48 retired) | 73 | 73 |
 
 Most of the 1.8h was failures waiting out a 30-second timeout, so fixing them
 took two thirds off the clock. `editable-types-comprehensive` alone went 8.8m
@@ -471,6 +480,14 @@ From "The guard set" in `CLAUDE_PROJECT_TESTS.md`. Read before writing a new
 Playwright spec, or when a result looks surprising — most of these read as an
 app bug on first sight and are not one.
 
+- **A spec that asserts NOTHING cannot fail, and reads as coverage anyway.**
+  `debug.spec.js` sat in the guard set with the table claiming it guarded "CSP
+  and console errors" while containing zero `expect(` - it collected errors,
+  printed them, and ended. `debug-errors.spec.js` was the same. Neither could
+  fail however badly the page broke; the only failure either could produce was a
+  timeout, which is how one of them reported a network outage as a defect on
+  2026-08-28. Both assert now. When triaging, `grep -c 'expect(' <spec>` before
+  trusting a green tick - the count is the coverage.
 - **A spec that clicks `.entity-row` first gets a folder.** Folders have
   title-only editors with no field rows, so anything asserting about fields,
   legends or toggles fails on a row that was never in scope. Scope to
