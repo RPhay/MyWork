@@ -3,9 +3,24 @@ import * as focusMonitorsService from '../../services/focusMonitorsService.js';
 import * as focusService from '../../services/focusService.js';
 import * as activeContextService from '../../services/activeContextService.js';
 import { ValidationError } from '../../config/errors.js';
+import { broadcastFocusChange } from '../../services/focusEvents.js';
 import logger from '../../utils/logger.js';
 
 const router = express.Router();
+
+// Same rule as focus.js: polled state must never be served from a cache -
+// WKWebView (the desktop wrapper's engine) serves cached bodies without
+// revalidating, leaving floating windows blind to changes.
+router.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  // Layout/label changes must reach every view too - same bell as focus.js.
+  if (req.method !== 'GET') {
+    res.on('finish', () => {
+      if (res.statusCode < 400) broadcastFocusChange();
+    });
+  }
+  next();
+});
 
 const send = (res, promise) => promise
   .then(data => res.json({ success: true, data }))

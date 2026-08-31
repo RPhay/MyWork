@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Focus monitors</title>
+  <%# The focus bar's chips are styled by the app's own stylesheet; bootstrap
+      supplies the base its classes assume, and bootstrap-icons any icon a
+      chip renders. Same CDN pins as dashboard.ejs. %>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    /* A transparent chromeless always-on-top window: the ONLY painted pixels
+       are the monitor square itself - the window (desktop/main.rs) is
+       transparent and shadowless, and the page paints no background, so on
+       screen there is just the monitor, floating. */
+    html, body { background: transparent; }
+    body { margin: 0; padding: 0; overflow: hidden; user-select: none; }
+    /* Shrink-to-fit: the wrapper sizes its window to #pipRoot, so nothing
+       here may stretch to the viewport. Two rules in main.css fight that:
+       body is a flex COLUMN (sticky footer), which stretches children to
+       full width - width:max-content + align-self opt this one out - and
+       .focus-bar carries `flex: 1 1 auto` for the navbar's sake. */
+    #pipRoot {
+      display: inline-flex; align-items: stretch;
+      width: max-content; align-self: flex-start;
+    }
+    /* Monitors read VERTICALLY out here: popping all of them gives a column
+       of monitor squares, one per row - not the navbar's horizontal strip.
+       The gap only matters in that group case; a single monitor's window is
+       exactly its square. */
+    #pipRoot #focusBar {
+      flex: 0 0 auto; margin-left: 0; padding: 0; gap: 4px;
+      flex-direction: column;
+    }
+    #focusBar { display: flex; flex-wrap: nowrap; }
+    /* In the navbar the monitor square looks dark because the NAVBAR behind
+       it is dark - the zone itself paints no background. Floating over a
+       transparent window there is nothing behind it, which left a 1px light
+       border and a white chip: invisible on a light desktop. Out here the
+       square carries the navbar's colour itself, so it looks like the
+       monitor and nothing else. */
+    #focusBar .focus-monitor { background: #212529; }
+    /* An open stack rolls out DOWNWARD, below the top item. In the navbar
+       the rest is an absolute overlay hanging under the box; here it joins
+       the flow (or it would fall outside the window) - and its container
+       must become a column, or the row flow puts it to the RIGHT instead. */
+    .focus-monitor[data-layout="stacked"] .focus-monitor-items {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    /* ...and it sheds the overlay costume: in the navbar the rest is a
+       dropdown floating over page content, so it carries its own opaque
+       background, border and rounded bottom - INSIDE the square all of that
+       reads as a second box with a seam. Here the zone's own background and
+       border are the only chrome. */
+    .focus-monitor[data-layout="stacked"] .focus-monitor-stack-rest {
+      position: static;
+      margin-top: 4px;
+      padding: 0;
+      background: none;
+      border: 0;
+      border-radius: 0;
+    }
+  </style>
+</head>
+<body
+  data-csrf-token="<%= csrfToken %>"
+  data-version="<%= version %>"
+  data-monitor="<%= monitor || '' %>"
+  data-current-year="<%= currentYear %>"
+>
+  <%# Nothing but the monitor square. Right-press-and-move drags the window,
+      a quick right-click opens the close-all menu, the timer's click starts
+      and stops the clock, and a stacked monitor opens on its icon - all in
+      focus-desktop.js; every other gesture is blocked there. %>
+  <div id="pipRoot">
+    <div id="focusBar" class="focus-bar" role="toolbar" aria-label="Focus monitors"></div>
+  </div>
+  <script src="/js/main.js"></script>
+  <script src="/js/focus-bar.js"></script>
+  <script src="/js/focus-desktop.js"></script>
+</body>
+</html>

@@ -27,6 +27,15 @@ if (config.security.helmet) {
           "style-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
           "connect-src": ["'self'", "https://cdn.jsdelivr.net"],
           "font-src": ["'self'", "https://cdn.jsdelivr.net"],
+          // Helmet's default set includes upgrade-insecure-requests, which
+          // WebKit - the engine inside the desktop wrapper's windows
+          // (desktop/) - honours even for http://localhost: every
+          // subresource gets upgraded to https://localhost:3000, nothing
+          // answers there, and the page arrives with no CSS, no JS and no
+          // data. Chrome exempts localhost, which is why the dashboard never
+          // showed it. The app is served over plain http on localhost only,
+          // so the directive protects nothing here.
+          "upgrade-insecure-requests": null,
         },
       },
     }),

@@ -9,7 +9,12 @@
 
 (function () {
   const TICK_MS = 1000;
-  const REFRESH_MS = 60000;
+  // How closely every view of the bar tracks the others. The navbar and the
+  // desktop wrapper's floating windows (/pip) each run their own copy of this
+  // file, and starting a clock in one reaches the rest only by re-reading -
+  // so this is the most one view can lag another. Cheap to hold this tight:
+  // the poll re-renders only when the state actually changed (see syncKey).
+  const SYNC_MS = 2000;
 
   let items = [];
   // count: 0 until the first refresh() lands the server-derived value - never
@@ -364,6 +369,66 @@
     // the bar's own empty space (below) is the only way to make one - the
     // monitor and its first pin arrive together.
 
+    // Pop-out: float a monitor (or all of them) in the desktop wrapper's
+    // frameless always-on-top windows, draggable to any screen. A web page
+    // cannot start a local app, so the server - which runs on this same
+    // machine - spawns it (POST /api/pip-window, see pipWindowService.js).
+    // Not shown on the /pip page itself: there focus-desktop.js appends its
+    // own window entries instead (float one monitor, close this window).
+    if (!document.getElementById('pipRoot')) {
+      // Every pop-out is its OWN window, one per monitor, each movable to
+      // any screen on its own - "pop out all" just pops each monitor.
+      // The windows must appear ON THIS SCREEN, on top of the very monitors
+      // they mirror - the wrapper cannot know where the browser is, so each
+      // zone's screen position rides along. The vertical browser chrome
+      // (tab strip, address bar) is outerHeight minus innerHeight;
+      // outerHeight is transiently 0 right after a load, which once sent a
+      // window to y=-882 - clamp the offset to sane bounds rather than
+      // trusting it.
+      const zoneScreenPos = (zone) => {
+        const rect = zone.getBoundingClientRect();
+        const chromeOffset = Math.min(200, Math.max(0, window.outerHeight - window.innerHeight));
+        return {
+          x: Math.round(window.screenX + rect.left),
+          y: Math.round(window.screenY + chromeOffset + rect.top),
+        };
+      };
+      const popOut = async (which) => {
+        closeMenu();
+        const zones = which
+          ? [document.querySelector(`.focus-monitor[data-monitor="${which}"]`)]
+          : [...document.querySelectorAll('#focusBar .focus-monitor')];
+        const monitors = zones.filter(Boolean).map((zone) => ({
+          monitor: Number(zone.dataset.monitor),
+          ...zoneScreenPos(zone),
+        }));
+        if (!monitors.length) return;
+        try {
+          const data = await app.fetchData('/api/pip-window', {
+            method: 'POST', body: JSON.stringify({ monitors }),
+          });
+          if (data.launched.length === 0) app.notify('Already floating - look for the windows', 'info');
+        } catch (error) {
+          app.notify(error.message || 'Could not open the floating window', 'danger');
+        }
+      };
+      if (monitor) {
+        const popOneBtn = document.createElement('button');
+        popOneBtn.type = 'button';
+        popOneBtn.className = 'context-menu-item';
+        popOneBtn.innerHTML = '<span>⧉</span><span>Pop out this monitor</span>';
+        popOneBtn.addEventListener('click', () => popOut(monitor));
+        menuEl.appendChild(popOneBtn);
+      }
+      const popAllBtn = document.createElement('button');
+      popAllBtn.type = 'button';
+      popAllBtn.className = 'context-menu-item';
+      popAllBtn.innerHTML = '<span>⧉</span><span>Pop out all monitors</span>';
+      popAllBtn.addEventListener('click', () => popOut(null));
+      menuEl.appendChild(popAllBtn);
+      menuEl.insertAdjacentHTML('beforeend', '<hr style="margin:4px 0;">');
+    }
+
     if (monitor) {
       const removeMonitorBtn = document.createElement('button');
       removeMonitorBtn.type = 'button';
@@ -409,21 +474,57 @@
 
     document.body.appendChild(menuEl);
     const rect = menuEl.getBoundingClientRect();
-    menuEl.style.left = `${Math.min(x, window.innerWidth - rect.width - 8)}px`;
-    menuEl.style.top = `${Math.min(y, window.innerHeight - rect.height - 8)}px`;
+    menuEl.style.left = `${Math.max(0, Math.min(x, window.innerWidth - rect.width - 8))}px`;
+    menuEl.style.top = `${Math.max(0, Math.min(y, window.innerHeight - rect.height - 8))}px`;
   }
 
+  // What must be IDENTICAL across windows for them to count as in sync:
+  // pins, monitors, order, colours, layout, and each clock's running state
+  // and start time. Deliberately NOT `seconds` - a running clock's total
+  // grows on every read, tick() already displays it live from startedAt, and
+  // including it would make every poll look like a change and re-render the
+  // bar under the pointer twice a second for nothing.
+  let lastSyncKey = null;
+  function syncKey(freshItems, freshSettings) {
+    return JSON.stringify([
+      (freshItems || []).map(({ seconds: _seconds, ...rest }) => rest),
+      freshSettings,
+    ]);
+  }
+
+  // cache:'no-store' on every read of bar state: the server marks these
+  // responses no-store too, but WKWebView (the desktop wrapper's engine)
+  // keeps serving entries it cached BEFORE that header existed, without
+  // revalidating - the client-side option is what forces a real request.
   async function refresh() {
     try {
       const [freshItems, freshSettings] = await Promise.all([
-        call(''),
-        app.fetchData('/api/focus-monitors', {}),
+        call('', { cache: 'no-store' }),
+        app.fetchData('/api/focus-monitors', { cache: 'no-store' }),
       ]);
+      lastSyncKey = syncKey(freshItems, freshSettings);
       if (freshSettings) monitorSettings = freshSettings;
       setItems(freshItems);
     } catch (error) {
       console.error('Could not load the focus bar:', error);
     }
+  }
+
+  // The polling variant: re-read, but touch the DOM only when something
+  // actually changed. This is what keeps a clock started in the navbar
+  // showing as running in a floating window (and vice versa) within SYNC_MS.
+  async function syncFromServer() {
+    try {
+      const [freshItems, freshSettings] = await Promise.all([
+        call('', { cache: 'no-store' }),
+        app.fetchData('/api/focus-monitors', { cache: 'no-store' }),
+      ]);
+      const key = syncKey(freshItems, freshSettings);
+      if (key === lastSyncKey) return;
+      lastSyncKey = key;
+      if (freshSettings) monitorSettings = freshSettings;
+      setItems(freshItems);
+    } catch { /* transient - the next poll retries */ }
   }
 
   function init() {
@@ -766,8 +867,29 @@
     document.addEventListener('focus-changed', refresh);
     document.addEventListener('focus-monitors-changed', refresh);
 
-    // A long-lived page drifts from the server (another tab, another device).
-    setInterval(refresh, REFRESH_MS);
+    // Every other view of this bar - the navbar, a floating desktop window -
+    // is a separate page whose actions arrive here only by re-reading.
+    // The PUSH is what keeps that prompt: the browser throttles a hidden
+    // tab's timers to once a minute, so a poll alone left the navbar of a
+    // backgrounded tab a minute behind a pop-out - but network events are
+    // not throttled, and the server rings /api/focus/events on every
+    // mutation. The poll stays as the fallback (it also self-heals a
+    // dropped stream); the quiet variant leaves the DOM alone unless
+    // something really changed, so the pair costs nothing extra.
+    if (window.EventSource) {
+      const stream = new EventSource('/api/focus/events');
+      stream.onmessage = () => syncFromServer();
+    }
+    setInterval(syncFromServer, SYNC_MS);
+
+    // A tab coming back from the throttled background snaps current
+    // immediately instead of waiting out whatever the throttle left.
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        syncFromServer();
+        tick();
+      }
+    });
 
     refresh();
   }
@@ -781,6 +903,12 @@
       return data;
     },
     has(entityId) { return items.some(i => String(i.id) === String(entityId)); },
+    // For focus-desktop.js (the /pip page in the desktop wrapper): the
+    // pop-out opens this SAME menu - one implementation of what right-click
+    // means - and appends its own window entries to it, so it needs to open
+    // and dismiss it from outside this file.
+    openContextMenu,
+    closeMenu,
   };
 
   if (document.readyState === 'loading') {

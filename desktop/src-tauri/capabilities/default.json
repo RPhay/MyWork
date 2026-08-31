@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "pip-windows",
+  "description": "Lets the /pip page (served by the local MyWork app) size, float, focus, drag and close the wrapper's windows",
+  "windows": ["*"],
+  "remote": {
+    "urls": ["http://localhost:3000"]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-size",
+    "core:window:allow-close",
+    "core:window:allow-set-visible-on-all-workspaces"
+  ]
+}

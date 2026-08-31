@@ -30,6 +30,7 @@ import entitiesRouter from "./api/entities.js";
 import priorityBoardRouter from "./api/priorityBoard.js";
 import focusRouter from "./api/focus.js";
 import focusMonitorsRouter from "./api/focusMonitors.js";
+import pipWindowsRouter from "./api/pipWindows.js";
 import searchRouter from "./api/search.js";
 import trashRouter from "./api/trash.js";
 import statusDigestRouter from "./api/statusDigest.js";
@@ -130,6 +131,7 @@ router.use("/api/entities", entitiesRouter);
 router.use("/api/priority-board", priorityBoardRouter);
 router.use("/api/focus", focusRouter);
 router.use("/api/focus-monitors", focusMonitorsRouter);
+router.use("/api/pip-window", pipWindowsRouter);
 router.use("/api/search", searchRouter);
 router.use("/api/trash", trashRouter);
 router.use("/api/status-digest", statusDigestRouter);
@@ -220,6 +222,21 @@ router.get("/", async (req, res) => {
 // Redirect /dashboard to /
 router.get("/dashboard", (req, res) => {
   res.redirect("/?tab=" + (req.query.tab || "priority"));
+});
+
+// The focus monitors alone, chrome-free - what the desktop wrapper
+// (desktop/) loads into its frameless always-on-top windows. ?monitor=N
+// narrows the page to one monitor; without it, every monitor shows.
+// It is a live view of the same bar, not a copy: focus-bar.js runs here
+// exactly as it does in the navbar, against the same /api/focus.
+router.get("/pip", (req, res) => {
+  const monitor = Number(req.query.monitor) || null;
+  res.render("pages/pip", {
+    title: "Focus monitors",
+    monitor,
+    version: readVersion(),
+    currentYear: new Date().getFullYear(),
+  });
 });
 
 // Settings page

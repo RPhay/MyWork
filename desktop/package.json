@@ -1,0 +1,13 @@
+{
+  "name": "mywork-monitors",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Frameless always-on-top windows for the MyWork focus monitors (loads them from the running app at localhost:3000)",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
