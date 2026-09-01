@@ -1294,7 +1294,7 @@ const GenericEntity = (() => {
             ${hasChildren ? `<span class="entity-toggle" data-action="toggle-expand">▶</span>` : '<span class="entity-toggle-spacer"></span>'}
             ${icon ? `<span class="entity-row-icon">${icon}</span>` : ''}
           ${originBadge}
-            <span class="entity-title" title="Double-click to rename">${entity.title}</span>${app.childCountBadge(childCount)}
+            <span class="entity-title" title="Double-click to rename">${escapeHtml(entity.title)}</span>${app.childCountBadge(childCount)}
           </div>`;
       }
       const f = c.field;
@@ -1692,6 +1692,46 @@ const GenericEntity = (() => {
     if (bar && home && bar.parentElement !== home) home.appendChild(bar);
   }
 
+  // Empty one type's editor pane and hide it, leaving its Revert bar parked in
+  // the pane header where populate() expects to find it. Shared by close() and
+  // by the sweep below, so there is one definition of "this pane holds no
+  // editor now" rather than two that can drift.
+  function clearEditorPane(typeSlug) {
+    if (!typeSlug) return;
+    returnActionsBarHome(typeSlug);
+    const pane = document.getElementById(`${typeSlug}-editor-pane`);
+    if (pane) pane.innerHTML = '';
+    splitPanesByType[typeSlug]?.hideRightPane();
+  }
+
+  // THERE IS ONE EDITOR, and its form carries a fixed id - so a form left
+  // behind in another type's pane is a second #entity-editor-form, and
+  // document.getElementById() then answers with whichever comes FIRST in the
+  // document rather than the one on screen.
+  //
+  // close() empties the pane it owns, but populate() on a DIFFERENT type never
+  // closed anything: it just wrote into the new pane and left the old form
+  // sitting there. Switching from a type whose pane comes earlier in the DOM -
+  // the Templates and Dailies rails come before every content tab, so any
+  // template edit did it - wired trackFormChanges(), collectFormValues() and
+  // mirrorEditorToRow() to the INVISIBLE form. Typing a title then changed
+  // nothing in the row, nothing was marked dirty, and autosave never fired.
+  // With no Save button left to fall back on, the edit was simply lost, and it
+  // depended on tab order, so it looked intermittent and machine-specific.
+  //
+  // Sweeping here is what keeps that id a singleton, which is what every
+  // getElementById('entity-editor-form') in this file already assumes.
+  function clearForeignEditorPanes(keepTypeSlug) {
+    for (const form of document.querySelectorAll('form.entity-editor-form')) {
+      const pane = form.closest('[id$="-editor-pane"]');
+      // Not in a pane at all - it cannot be reached or saved, so it is debris.
+      if (!pane) { form.remove(); continue; }
+      const slug = pane.id.slice(0, -'-editor-pane'.length);
+      if (slug === keepTypeSlug) continue;
+      clearEditorPane(slug);
+    }
+  }
+
   function buildForm(typeSchema, entity = {}) {
     // A folder only organizes - it has no field values of its own, so its
     // editor is the name and nothing else, for every type alike.
@@ -1719,7 +1759,7 @@ const GenericEntity = (() => {
             <label>${entity.is_folder ? 'Folder Name' : 'Title'} *</label>
             <div class="entity-title-actions"></div>
           </div>
-          <input type="text" name="title" value="${entity.title || ''}" class="form-control" required>
+          <input type="text" name="title" value="${escapeAttr(entity.title || '')}" class="form-control" required>
         </div>
 
         ${fields.map(field => {
@@ -2150,6 +2190,10 @@ const GenericEntity = (() => {
         console.error(`[GenericEntity] editor pane not found: #${editorPaneId}`);
         return;
       }
+      // Before anything is written: whatever the last editor left in ANOTHER
+      // type's pane has to go, or this one is the second #entity-editor-form in
+      // the document and every lookup in this file finds the wrong one.
+      clearForeignEditorPanes(typeSlugToUse);
       // Revert and Save belong on the title line, right-justified, and the
       // existing NODE is moved there rather than re-rendered: their click
       // handlers are bound once when the tab initialises, so rebuilding them
@@ -2301,8 +2345,6 @@ const GenericEntity = (() => {
       currentIsFolder = false;
       rememberOpenEditor(currentTypeSlug, null);   // closed on purpose - stay closed
       // Clear the editor content
-      const editorPaneId = `${currentTypeSlug}-editor-pane`;
-      const editorPane = document.getElementById(editorPaneId);
       // Revert and Save live INSIDE the form now (populate moves them onto the
       // title line), so emptying this pane would destroy them - and they are
       // never rebuilt, because their click handlers are bound once at init and
@@ -2311,13 +2353,14 @@ const GenericEntity = (() => {
       //
       // Every close-then-populate path hit it: the context menu's "New ...
       // inside" and "Edit", and Revert itself. "+ Folder" did not, which is
-      // why it looked fine by hand. Send the bar home first; populate finds it
-      // there and moves it back onto the next title line.
-      returnActionsBarHome(currentTypeSlug);
-      if (editorPane) editorPane.innerHTML = '';
-      // Hide the pane
-      const typeSplitPane = splitPanesByType[currentTypeSlug];
-      if (typeSplitPane) typeSplitPane.hideRightPane();
+      // why it looked fine by hand. clearEditorPane() sends the bar home
+      // first; populate finds it there and moves it back onto the next title
+      // line.
+      clearEditorPane(currentTypeSlug);
+      // A stale form in some OTHER pane is just as invisible and just as able
+      // to answer getElementById('entity-editor-form') next time. Closing is
+      // the moment to be sure none is left.
+      clearForeignEditorPanes(null);
       // Bring back whatever rails stepped aside when this editor opened.
       window.tabManager?.restorePanesAfterEditor();
       syncRowSelection(currentTypeSlug);
