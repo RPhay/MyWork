@@ -243,8 +243,16 @@ async function initGenericEntityTab(typeSlug, typeName) {
     let refreshSeq = 0;
     async function refreshEntities() {
       const mine = ++refreshSeq;
-      const fetched = await fetchAllEntities();
-      const fetchedRelationships = await fetchRelationships();
+      // Together, not one after the other. Neither read depends on the other,
+      // so awaiting them in sequence spent two round trips' latency where one
+      // would do - and this sits on the path of every create, every delete and
+      // every cell click, behind which nothing is painted at all. Cheap on a
+      // local MySQL socket; the whole delay on a machine talking to a SQL
+      // Server across a network.
+      const [fetched, fetchedRelationships] = await Promise.all([
+        fetchAllEntities(),
+        fetchRelationships(),
+      ]);
       if (mine !== refreshSeq) return;   // superseded while we were waiting
       entities = fetched;
       relationships = fetchedRelationships;
@@ -2297,7 +2305,8 @@ renderList();
           // throughout instead of blinking shut and open again.
           await refreshEntities();
           GenericEntity.populate(saved.id, saved, typeSchema, typeSlug, undefined, { force: true });
-          renderList(); // re-render so the new row paints as selected
+          // Same as createAndOpen(): refreshEntities() has already rendered,
+          // and populate() marks the row selected without rebuilding the list.
         } else {
           // markSaved BEFORE the refresh, not after. refreshEntities() is a
           // round trip, and any edit made while it was in flight had already
@@ -2385,7 +2394,12 @@ renderList();
         // create again reuses nothing, but a reopened editor might), and
         // without it populate would read the request as "close".
         GenericEntity.populate(result.data.id, result.data, typeSchema, typeSlug, undefined, { force: true });
-        renderList(); // paints the new row as the selected one
+        // NO second renderList() here. refreshEntities() above ends in one, so
+        // this was rebuilding all 126 rows a second time - and re-running
+        // fitColumns over every cell with them - purely to paint one row as
+        // selected. populate() already does that through syncRowSelection(),
+        // which marks the row in place; the re-render was the more expensive
+        // half of a click that shows nothing until all of it finishes.
 
         // Select the placeholder rather than clearing it: the row already
         // exists and needs SOME title, so leaving the box empty would save an
