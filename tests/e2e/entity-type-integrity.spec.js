@@ -129,12 +129,29 @@ test('a type that allows children supports hierarchy', async ({ page }) => {
   const types = await page.evaluate(async () => (await (await fetch('/api/entity-types')).json()).data);
   const byId = new Map(types.map(t => [t.id, t]));
 
-  const rels = await page.evaluate(async () => (await (await fetch('/api/entity-types/relationships')).json()).data)
-    .catch(() => null);
+  // The relationships have to actually be here, and that is asserted rather
+  // than coped with. This read used to be
+  //   (t.relationships || rels || [])
+  // where `rels` came from /api/entity-types/relationships - a URL that matches
+  // the :idOrSlug route and 404s. The list endpoint did not return
+  // `relationships` at the time, so every type fell through to [], nothing was
+  // ever examined, and this test could not fail from the day it was written.
+  // It went green through the entire period `outlook_calendar` was declared the
+  // parent of eight types while carrying supports_hierarchy = 0 - the exact
+  // fault the comment above describes.
+  //
+  // An empty array is a legitimate answer for a type with no children; a
+  // MISSING array means the endpoint stopped saying, and that must be loud.
+  const withoutRelationships = types.filter(t => !Array.isArray(t.relationships)).map(t => t.slug);
+  expect(
+    withoutRelationships,
+    `/api/entity-types returned no relationships for: ${withoutRelationships.join(', ')} - ` +
+      'without them this test examines nothing and passes regardless'
+  ).toEqual([]);
 
   const broken = [];
   for (const t of types) {
-    const kids = (t.relationships || rels || [])
+    const kids = t.relationships
       .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id === t.id);
     if (kids.length > 0 && !t.supports_hierarchy) {
       broken.push(`${t.slug} allows ${kids.map(k => byId.get(k.child_type_id)?.slug || k.child_type_id).join(', ')} but does not support hierarchy`);
