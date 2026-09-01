@@ -737,8 +737,18 @@ class TabManager {
     // behind `typeof x !== 'undefined'` guards.
     //
     // The typed pages (Categories, Goals, Todos, Tasks, Tickets, Ideas,
-    // Projects) are absent on purpose: generic-entity-init.js owns their
-    // fetching. Only the hand-written tabs need an entry.
+    // Projects) are absent from the switch on purpose: generic-entity-init.js
+    // owns their fetching. They no longer fetch at page load though - a typed
+    // pane loads its rows the first time it is shown - so this is where that
+    // first show gets told. It is a no-op once the tab has loaded, and for a
+    // tab name that is not a type.
+    //
+    // The pane's own IntersectionObserver would catch this a frame later and
+    // covers every other way a pane becomes visible (rail toggles, pop-outs).
+    // Saying so here just starts the fetch on the click instead of after the
+    // next paint.
+    window.GenericEntityTabs?.activate?.(tabName);
+
     switch (tabName) {
       case 'priority-board':
         if (typeof loadBoard !== 'undefined') loadBoard();

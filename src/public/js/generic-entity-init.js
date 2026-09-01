@@ -28,6 +28,35 @@ const SLUG_FROM_DROP_TYPE = Object.fromEntries(
 // Track which types have been initialized to avoid re-initialization
 const initializedTypes = new Set();
 
+// `/api/entity-types` returns EVERY type's whole schema - the same ~45KB - and
+// every tab was asking for it on its own: once to work out which types may nest
+// inside it, and a SECOND time for the types that can hold other types. Nine
+// type tabs plus the three rails made that 16 identical requests, each parsed
+// separately, on a single page load.
+//
+// One promise, shared: the first caller fetches and everyone else awaits the
+// same result. Cleared on failure so a later caller can try again rather than
+// inheriting one bad response for the life of the page.
+//
+// The array is shared rather than copied per caller, which is safe because
+// nothing mutates it. A tab's OWN live schema never comes from here - that is
+// the separate `/api/entity-types/:slug` fetch, and it is the object the
+// column-header drag renumbers. See the schemaByTypeId comment below, which
+// depends on those being two different objects.
+let allEntityTypesPromise = null;
+function fetchAllEntityTypes() {
+  if (!allEntityTypesPromise) {
+    allEntityTypesPromise = app.fetchRaw('/api/entity-types', {})
+      .then((r) => r.json())
+      .then((j) => j.data || [])
+      .catch((error) => {
+        allEntityTypesPromise = null;
+        throw error;
+      });
+  }
+  return allEntityTypesPromise;
+}
+
 // Wait for GenericEntity to be defined, then initialize
 function waitForGenericEntity() {
   if (typeof GenericEntity !== 'undefined') {
@@ -76,8 +105,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // rules, so a user who allows Projects inside Categories gets that too.
     let allowedChildSlugs = new Set();
     try {
-      const allTypesRes = await app.fetchRaw('/api/entity-types', {});
-      const allTypes = (await allTypesRes.json()).data || [];
+      const allTypes = await fetchAllEntityTypes();
       const slugById = new Map(allTypes.map(t => [t.id, t.slug]));
       allowedChildSlugs = new Set(
         (typeSchema.relationships || [])
@@ -120,8 +148,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     const schemaByTypeId = new Map([[typeSchema.id, typeSchema]]);
     if (containsOtherTypes) {
       try {
-        const res = await app.fetchRaw('/api/entity-types', {});
-        for (const t of ((await res.json()).data || [])) {
+        for (const t of await fetchAllEntityTypes()) {
           // NEVER replace the page's own schema with this snapshot.
           //
           // Line above seeds the map with the LIVE `typeSchema` - the object the
@@ -142,7 +169,14 @@ async function initGenericEntityTab(typeSlug, typeName) {
       } catch { /* fall back to the page's own schema */ }
     }
     const schemaForEntity = (entity) => schemaByTypeId.get(entity?.entity_type_id) || typeSchema;
-    let entities = await fetchAllEntities();
+
+    // NOT fetched here. Nine type tabs and three rails all render into the DOM
+    // up front - that is what makes switching instant - but only one type pane
+    // and its rails are ever ON SCREEN, and every one of the others was
+    // fetching its full row set and hierarchy at page load anyway. See
+    // ensureLoaded() below: the rows are fetched the first time this pane is
+    // actually shown, and never for a tab nobody opens.
+    let entities = [];
 
     // Hierarchy (parent/child) lives entirely in entity_relationships - the
     // entities table itself has no parent column - so hierarchy types need a
@@ -154,7 +188,6 @@ async function initGenericEntityTab(typeSlug, typeName) {
       const result = await r.json();
       return result.success ? result.data : [];
     }
-    relationships = await fetchRelationships();
 
     // Initialize split pane
     const splitPane = new SplitPane(
@@ -273,10 +306,41 @@ async function initGenericEntityTab(typeSlug, typeName) {
         if (fn) return fn();
         console.warn(`GenericEntityTabs.refresh: no tab for "${slug}"`);
       },
+      // Refreshing a tab that has never been shown would fetch its rows to
+      // repaint a pane nobody is looking at - and would put back exactly the
+      // page-load fetching ensureLoaded() exists to avoid. It has nothing
+      // stale to correct, because it has nothing; it loads fresh when opened.
+      activate(slug) {
+        return this._activate[slug]?.();
+      },
       _bySlug: {},
-    })._bySlug[typeSlug] = refreshEntities;
+      _activate: {},
+    });
+    window.GenericEntityTabs._bySlug[typeSlug] = () => (loaded ? refreshEntities() : undefined);
+    window.GenericEntityTabs._activate[typeSlug] = ensureLoaded;
 
-renderList();
+    // The rows are fetched the first time this pane is on screen, and once.
+    //
+    // `loaded` is what every other path checks; `loadingPromise` is what makes
+    // a second trigger during the fetch await the first rather than start a
+    // second one - the observer below and tabs.js#loadTabData can both fire for
+    // the same switch.
+    let loaded = false;
+    let loadingPromise = null;
+    async function ensureLoaded() {
+      if (loaded) return;
+      if (loadingPromise) return loadingPromise;
+      loadingPromise = (async () => {
+        await refreshEntities();          // both fetches in parallel, then renders
+        loaded = true;
+        restoreOpenEditor();
+      })();
+      try {
+        await loadingPromise;
+      } finally {
+        loadingPromise = null;
+      }
+    }
 
     // A refresh should not close whatever was open. The record's identity was
     // remembered when the editor opened; if that row is still here, put it back.
@@ -284,15 +348,53 @@ renderList();
     // Only the visible tab restores. A hidden pane opening an editor would put
     // a second #entity-editor-form in the DOM and hand the singleton to a tab
     // nobody is looking at.
-    const pane = document.getElementById(`tab-${typeSlug}`);
-    const isShowing = !!pane && (pane.classList.contains('active') || pane.offsetParent !== null);
-    const reopenId = isShowing ? GenericEntity.recallOpenEditor(typeSlug) : null;
-    if (reopenId != null) {
+    function restoreOpenEditor() {
+      const pane = document.getElementById(`tab-${typeSlug}`);
+      const isShowing = !!pane && (pane.classList.contains('active') || pane.offsetParent !== null);
+      const reopenId = isShowing ? GenericEntity.recallOpenEditor(typeSlug) : null;
+      if (reopenId == null) return;
       const reopen = entities.find(x => String(x.id) === String(reopenId));
       // Gone (deleted elsewhere, or filtered out of this type) - forget it
       // rather than leaving a pointer that can never resolve.
       if (reopen) GenericEntity.populate(reopen.id, reopen, typeSchema, typeSlug);
       else GenericEntity.forgetOpenEditor(typeSlug);
+    }
+
+    // What counts as "shown" is deliberately NOT a list of tab names. A type
+    // pane is on screen when it is the current tab, and a rail (Dailies,
+    // Templates, Priorities) is on screen beside whatever tab is current, and
+    // both can change from a tab click, a rail toggle, a pop-out window or a
+    // restored layout. An IntersectionObserver answers the question the app
+    // actually cares about - is this pane visible - without any of those paths
+    // having to remember to say so.
+    //
+    // Watch the PANE, never the list. An unloaded list is empty and therefore
+    // zero-height, and a zero-area target never reports as intersecting - so
+    // observing it asks "is this visible" of the very element that cannot
+    // become visible until it loads. The Templates rail sat empty on screen
+    // because of exactly that. The pane has size whether or not anything is in
+    // it, and it is display:none when put away, which is the real signal.
+    //
+    // The rails have no `tab-<slug>` pane at all (Dailies and Templates are
+    // rails, not tabs), so the list pane is the one element every type has.
+    const visibilityAnchor =
+      document.getElementById(`${typeSlug}ListPane`) ||
+      document.getElementById(`tab-${typeSlug}`) ||
+      listContainer;
+
+    if (typeof IntersectionObserver !== 'undefined' && visibilityAnchor) {
+      const io = new IntersectionObserver((records) => {
+        if (!records.some(r => r.isIntersecting)) return;
+        io.disconnect();
+        ensureLoaded();
+      });
+      io.observe(visibilityAnchor);
+    }
+
+    // Whatever is already up when the page loads does not wait for the
+    // observer's first callback - it is what the user is looking at.
+    if (visibilityAnchor && visibilityAnchor.offsetParent !== null) {
+      ensureLoaded();
     }
 
     // Another view saved a record. Redraw if this page shows it - either it is
