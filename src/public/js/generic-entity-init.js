@@ -92,11 +92,20 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // One schema, one fetch, one code path - for every type. Folders are rows
     // of this same type carrying is_folder = 1, so there is no second type to
     // look up and nothing here keys off which type slug it happens to be.
-    const typeResponse = await app.fetchRaw(`/api/entity-types/${typeSlug}`, {});
-    if (!typeResponse.ok) throw new Error('Failed to fetch type schema');
-    const typeData = await typeResponse.json();
-    if (!typeData.success) throw new Error(typeData.message);
-    const typeSchema = typeData.data;
+    // Out of the ONE shared list, not a request per tab. `/api/entity-types`
+    // carries every type's fields AND relationships, which is everything the
+    // single-type endpoint returned - so nine tabs each fetching
+    // /api/entity-types/:slug was nine requests re-reading what one response
+    // already held.
+    //
+    // This also means every tab now points at the SAME object for a given
+    // type, which is what the schemaByTypeId comment below wanted all along:
+    // the bug it describes was a stale COPY shadowing the live schema, and
+    // there is no second copy to go stale any more. Column order stays one
+    // value across the page, which is what column-reorder-editor-sync asserts.
+    const allTypes = await fetchAllEntityTypes();
+    const typeSchema = allTypes.find(t => t.slug === typeSlug);
+    if (!typeSchema) throw new Error(`No such entity type: ${typeSlug}`);
 
     // Which types may be nested INSIDE this one, by slug. This is what lets a
     // row dragged from another tab land inside a template: templates declare
@@ -105,7 +114,6 @@ async function initGenericEntityTab(typeSlug, typeName) {
     // rules, so a user who allows Projects inside Categories gets that too.
     let allowedChildSlugs = new Set();
     try {
-      const allTypes = await fetchAllEntityTypes();
       const slugById = new Map(allTypes.map(t => [t.id, t.slug]));
       allowedChildSlugs = new Set(
         (typeSchema.relationships || [])
@@ -148,7 +156,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
     const schemaByTypeId = new Map([[typeSchema.id, typeSchema]]);
     if (containsOtherTypes) {
       try {
-        for (const t of await fetchAllEntityTypes()) {
+        for (const t of allTypes) {
           // NEVER replace the page's own schema with this snapshot.
           //
           // Line above seeds the map with the LIVE `typeSchema` - the object the

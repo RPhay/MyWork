@@ -941,9 +941,18 @@ export async function createMssqlSchema(pool) {
         .input('icon', type.icon)
         .input('typeCategory', type.type_category)
         .input('externalSource', type.external_source ?? null)
+        .input('supportsHierarchy', type.supports_hierarchy ? 1 : 0)
         .query(`INSERT INTO [MyWork].[entity_types] (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index)
-                VALUES (@slug, @label, @labelSingular, @icon, @typeCategory, @externalSource, 0, 1, 0)`);
+                VALUES (@slug, @label, @labelSingular, @icon, @typeCategory, @externalSource, @supportsHierarchy, 1, 0)`);
     }
+    // See the matching note in mysqlSchema.js: reconciled on every run, because
+    // this was a hardcoded 0 and an install that already had the row would
+    // otherwise keep the contradiction forever.
+    await pool.request()
+      .input('slug', type.slug)
+      .input('supportsHierarchy', type.supports_hierarchy ? 1 : 0)
+      .query(`UPDATE [MyWork].[entity_types] SET supports_hierarchy = @supportsHierarchy
+              WHERE slug = @slug AND is_system = 1`);
   }
 
   // See the matching note in mysqlSchema.js. The statement that used to retire

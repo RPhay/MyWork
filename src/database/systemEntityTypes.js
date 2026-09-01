@@ -539,6 +539,20 @@ export const SPECIAL_ENTITY_TYPES = [
     icon: '📆',
     type_category: 'external',
     external_source: 'outlook',
+    // It is declared the PARENT of eight types in SYSTEM_TYPE_RELATIONSHIPS
+    // ("a meeting is a place to gather work of any kind"), so it has to be able
+    // to hold them. Both seeders wrote a literal 0 here and this contradiction
+    // stood: the renderer takes its flat branch, the client never fetches the
+    // edges, and rows dropped into an event arrive with their trees stripped
+    // off - the identical fault Templates shipped with, which is what
+    // entity-type-integrity's "a type that allows children supports hierarchy"
+    // was written to catch. That spec could not see it, because it read
+    // `relationships` off /api/entity-types and the list endpoint did not
+    // return them; it fell through to a URL that 404s and asserted on [].
+    //
+    // ado_work_item is deliberately NOT given this: it goes UNDER everything
+    // and is never a parent, so false is correct there.
+    supports_hierarchy: true,
   },
   {
     // A work item dragged in from an Azure DevOps backlog. External, so

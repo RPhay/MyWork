@@ -642,10 +642,20 @@ export async function createMysqlSchema(connection) {
     );
     if (existing.length === 0) {
       await connection.query(
-        'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index) VALUES (?, ?, ?, ?, ?, ?, 0, 1, 0)',
-        [type.slug, type.label, type.label_singular, type.icon, type.type_category, type.external_source ?? null]
+        'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, supports_hierarchy, is_system, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)',
+        [type.slug, type.label, type.label_singular, type.icon, type.type_category, type.external_source ?? null, type.supports_hierarchy ? 1 : 0]
       );
     }
+    // Reconciled on EVERY run, not only on insert. This was a hardcoded 0, so
+    // outlook_calendar - which is declared the parent of eight types - claimed
+    // not to support hierarchy, and an install that already had the row would
+    // have kept saying so forever. Safe to overwrite because these two types
+    // are `type_category: 'external'` and read-only in Settings: there is no
+    // way for this to be a deliberate user choice, unlike a renamed label.
+    await connection.query(
+      'UPDATE entity_types SET supports_hierarchy = ? WHERE slug = ? AND is_system = 1',
+      [type.supports_hierarchy ? 1 : 0, type.slug]
+    );
   }
 
   // Repair forbidden icons on existing installs. Seeding only inserts, so a

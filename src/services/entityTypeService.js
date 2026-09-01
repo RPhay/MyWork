@@ -45,11 +45,37 @@ export async function getAllEntityTypes(category = null) {
 
   sql += ' ORDER BY order_index, id';
   const rows = await query(sql, params);
+  if (rows.length === 0) return rows;
 
-  // Load fields for each type
+  // Fields and relationships in ONE query each, grouped here - not a query per
+  // type in a loop. This is the list every tab reads to know what the others
+  // are, so on a dashboard with nine types the loop was nineteen statements to
+  // answer one request.
+  //
+  // `relationships` is included because the SINGLE-type endpoint returns it and
+  // the client needs it to work out which types may nest inside which. Without
+  // it here, every tab had to fetch itself separately from
+  // /api/entity-types/:slug just for that one array - nine extra requests to
+  // re-fetch what this response already almost held.
+  const fieldRows = await query(
+    'SELECT * FROM entity_type_fields ORDER BY display_order, id'
+  );
+  const relRows = await query('SELECT * FROM entity_type_relationships');
+
+  const fieldsByType = new Map();
+  for (const f of fieldRows) {
+    if (!fieldsByType.has(f.entity_type_id)) fieldsByType.set(f.entity_type_id, []);
+    fieldsByType.get(f.entity_type_id).push(f);
+  }
+  const relsByParent = new Map();
+  for (const r of relRows) {
+    if (!relsByParent.has(r.parent_type_id)) relsByParent.set(r.parent_type_id, []);
+    relsByParent.get(r.parent_type_id).push(r);
+  }
+
   for (const type of rows) {
-    const fields = await getEntityTypeFields(type.id);
-    type.fields = fields;
+    type.fields = fieldsByType.get(type.id) || [];
+    type.relationships = relsByParent.get(type.id) || [];
   }
 
   return rows;
