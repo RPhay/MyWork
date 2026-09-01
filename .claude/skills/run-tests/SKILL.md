@@ -120,8 +120,15 @@ The spec in flight, then two pairs - completed/REMAINING (130/4, not
 130/134) and successful/failed (130/0) - colour-coded (green for
 completed/successful, cyan for remaining, red for failed only once it's
 non-zero), a bar sized to whatever is left of the terminal width, and the
-estimate last. `statusline.sh` beside this file renders it, and
-`.claude/settings.json` points the `statusLine` command at it.
+estimate last. **`~/.claude/statusline-tests.sh` renders it, and
+`~/.claude/settings.json` points the `statusLine` command at it** - both
+GLOBAL, not in this repo. It used to sit beside this file with the project's
+`.claude/settings.json` claiming `statusLine`, which meant the whole status
+line - licence, spend, feature, clock - was contingent on which repo you
+happened to have open, and one project silently owned a machine-wide display.
+Nothing in it is project-shaped: the armed-run pointer, the agent scan and the
+delegate all live under `$HOME` already. `report.sh` stays here and arms it
+through that pointer file; the two never need to see each other.
 
 Five properties it must keep:
 
@@ -157,7 +164,8 @@ Five properties it must keep:
 To drive it without `watch`: `report.sh arm <log> <start-epoch>`, and
 `report.sh disarm` when done.
 
-**Do not edit `report.sh` or `statusline.sh` while a run is being watched.**
+**Do not edit `report.sh` or `~/.claude/statusline-tests.sh` while a run is
+being watched.**
 Bash reads a script incrementally by byte offset, so editing one that is
 already executing shifts the file underneath the running process and it dies
 mid-line — this happened on 2026-08-28 and the watcher exited 2 looking for all

@@ -123,7 +123,7 @@ sitrep() {
 }
 
 # The status line reads this pointer; no pointer, no extra line. See
-# statusline.sh, which is deliberately silent when nothing is armed.
+# ~/.claude/statusline-tests.sh, which is deliberately silent when nothing is armed.
 POINTER="$HOME/.claude/run-tests-current"
 arm()    { printf '%s\t%s\n' "$1" "$2" > "$POINTER"; }
 disarm() { rm -f "$POINTER"; }
