@@ -35,6 +35,11 @@ window.APP_ICONS = {
 // renders a to-do or task row.
 window.STATUS_CYCLE = ['incomplete', 'complete', 'failed', 'skipped'];
 
+// Pending app.whenVisible() checks - see whenVisible/recheckVisible below.
+// Module-level rather than per-call so tabs.js can re-ask all of them at once
+// when it changes which panes are on screen.
+const pendingVisibilityChecks = new Set();
+
 // Utility functions
 const app = {
   // Format date for display
@@ -177,6 +182,98 @@ const app = {
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
     // window.fetch, not app.fetchRaw: this IS the implementation.
     return window.fetch(url, { ...options, headers });
+  },
+
+  /**
+   * Is this pane actually on screen?
+   *
+   * `offsetParent === null` is true for anything inside a `display: none`
+   * ancestor, which is exactly how a put-away tab or rail is hidden here.
+   */
+  isVisible(target) {
+    const el = typeof target === 'string' ? document.getElementById(target) : target;
+    return !!el && el.offsetParent !== null;
+  },
+
+  /**
+   * Run `fn` ONCE, the first time `target` is on screen - immediately if it
+   * already is.
+   *
+   * Every view in this app renders up front and is shown by un-hiding it, so a
+   * loader wired to DOMContentLoaded fetches for panes nobody is looking at.
+   * That is what had a page load pulling the reporting aggregates, the
+   * priorities board and the whole Dailies rail before you had opened any of
+   * them - and `loadTabData()` fetched them AGAIN on the switch that actually
+   * showed them, so the eager pass was never even the copy you read.
+   *
+   * Anchor on the PANE, not on the list inside it: an unloaded list is empty
+   * and therefore zero-height, and a zero-area target never reports as
+   * intersecting, so observing it asks "are you visible" of the one element
+   * that cannot become visible until it loads.
+   *
+   * A pane becomes visible from a tab click, a rail toggle, a pop-out or a
+   * restored layout; an observer answers all of them without any of those
+   * paths having to remember to say so.
+   */
+  whenVisible(target, fn) {
+    const el = typeof target === 'string' ? document.getElementById(target) : target;
+    // A name that matches nothing must not quietly become "load it eagerly",
+    // which is the behaviour this exists to remove - and is exactly what a
+    // mistyped id did here once, leaving the priorities board still fetching
+    // on every page load while looking gated. Say so, then fail safe.
+    if (!el) {
+      console.warn(`app.whenVisible: no element "${target}" - loading immediately`);
+      return fn();
+    }
+
+    let io = null;
+    const check = () => {
+      if (el.offsetParent === null) return false;   // still put away
+      io?.disconnect();
+      pendingVisibilityChecks.delete(check);
+      fn();
+      return true;
+    };
+
+    // The deterministic half. tabs.js calls app.recheckVisible() every time it
+    // changes which panes are up, so a rail toggle or a tab switch loads its
+    // pane there and then. This is what the observer below cannot be trusted
+    // to do: Chrome delivers no IntersectionObserver callbacks to a page it is
+    // not rendering, so in a background tab the pane would stay empty with
+    // nothing in flight.
+    pendingVisibilityChecks.add(check);
+
+    // The backstop, for a pane made visible by something that does not know to
+    // announce it - a pop-out window, a restored layout, CSS.
+    if (typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver((records) => {
+        if (records.some(r => r.isIntersecting)) check();
+      });
+      io.observe(el);
+    }
+
+    // For being visible ALREADY - deferred, not checked on the spot. Rail and
+    // tab visibility is applied by tabs.js during the same DOMContentLoaded
+    // pass, and a loader that asks before that has run gets the pre-layout
+    // answer: the Dailies rail is briefly up while it initialises, so an
+    // immediate check saw "visible" and fetched the whole rail on a page where
+    // it was put away.
+    const checkAfterLayout = () => setTimeout(check, 0);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', checkAfterLayout);
+    } else {
+      checkAfterLayout();
+    }
+  },
+
+  /**
+   * Re-ask every pending whenVisible() whether its pane is up now.
+   *
+   * Called by tabs.js whenever it changes the layout. Cheap - each check is an
+   * `offsetParent` read, and a check that fires removes itself.
+   */
+  recheckVisible() {
+    for (const check of [...pendingVisibilityChecks]) check();
   },
 
   // Every source the app has ever used for this. body.dataset is what the

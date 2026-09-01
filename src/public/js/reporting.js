@@ -380,8 +380,16 @@ function initReportingDefaults() {
 function initReporting() {
   initReportingDefaults();
   initReportingEventListeners();
-  loadFilterOptions();
-  loadSummary();
+  // Same as the status report below: the defaults and the listeners are wiring
+  // and stay unconditional, but the two READS wait until the Reporting tab is
+  // on screen. loadFilterOptions() pulls the category list and loadSummary()
+  // runs the aggregate - both on every page load, for a tab most loads never
+  // open. The subtab click handler and loadTabData() both reload on the way in.
+  // Only the filter options. The summary itself is loadTabData()'s job - it
+  // reloads the active subtab on every switch to Reporting, the first one
+  // included - so loading it here too just fetched the same aggregate twice on
+  // the way in. The filter dropdowns are not in that path and are needed once.
+  app.whenVisible('tab-reporting', loadFilterOptions);
 }
 
 if (document.readyState === 'loading') {
@@ -543,7 +551,11 @@ function initStatusReport() {
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   });
 
-  loadStatusReport();
+  // Reporting is the most expensive read in the app - it aggregates - and it
+  // was running on every page load whatever tab you opened. loadTabData()
+  // already reloads it on the switch that actually shows it, so the eager
+  // pass was never even the copy you ended up reading.
+  app.whenVisible('tab-reporting', loadStatusReport);
 }
 
 if (document.readyState === 'loading') {

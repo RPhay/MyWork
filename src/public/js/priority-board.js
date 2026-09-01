@@ -283,14 +283,21 @@ function initBoardListeners() {
   // A row edited anywhere else is the same record as the card here, so the
   // board has to reflect it immediately - that is what makes these references
   // rather than copies.
-  document.addEventListener('entity-saved', () => loadBoard());
+  //
+  // Only while the board is on screen. These fire on every save and every
+  // structural change anywhere in the app, so a put-away board was re-fetching
+  // itself all day to repaint nothing. It reloads when it is next shown.
+  document.addEventListener('entity-saved', () => { if (app.isVisible('rail-priority-board')) loadBoard(); });
   // Cards are references, so a tree rearranged elsewhere is this board's news too.
-  document.addEventListener('entity-structure-changed', () => loadBoard());
+  document.addEventListener('entity-structure-changed', () => { if (app.isVisible('rail-priority-board')) loadBoard(); });
 }
 
 function initPriorityBoard() {
   initBoardListeners();
-  loadBoard();
+  // The board is a rail: it is often put away, and it was fetching itself on
+  // every page load regardless. loadTabData() loads it on the switch that
+  // shows it, and the observer covers the rail toggle.
+  app.whenVisible('rail-priority-board', loadBoard);
 }
 
 if (document.readyState === 'loading') {

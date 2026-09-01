@@ -909,9 +909,16 @@ function initDailies() {
   // writing a different set of fields to the same records.
 
   initDailiesEventListeners();
-  renderCalendar();
   updateDateDisplay();
-  loadWorkItems();
+
+  // The wiring above is unconditional - the rail has to be ready to be shown.
+  // The four reads are not: a put-away Dailies rail was still fetching its
+  // month range, the day's highlights, the day itself and that day's roots on
+  // every page load, for a pane that was not on screen.
+  app.whenVisible('rail-daily', () => {
+    renderCalendar();
+    loadWorkItems();
+  });
 }
 
 if (document.readyState === "loading") {

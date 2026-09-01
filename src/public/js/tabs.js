@@ -207,6 +207,11 @@ class TabManager {
       document.body.dataset.activeRails = on.join(',');
       document.body.classList.toggle('rail-open', on.length > 0);
       applyWidth(storedWidth());
+      // Which panes are up has just changed, so anything waiting to load until
+      // it was on screen gets to ask again. This is the deterministic trigger -
+      // the observers in app.whenVisible() are only a backstop, and they do not
+      // fire at all in a tab the browser is not rendering.
+      window.app?.recheckVisible?.();
     };
 
     // One stored width, applied to whichever pane is currently leftmost - the
@@ -401,29 +406,20 @@ class TabManager {
     this.setupTabMenus();
     this.showTab(this.currentTab);
     this.setupUrlSync();
-    this.initializeTabContent();
     this.applyContextTabConfig();
   }
 
-  initializeTabContent() {
-    // Initialize the currently active tab
-    // The rail is always in the DOM, so Dailies initialises on every page load
-    // rather than when its tab is opened.
-    if (typeof renderCalendar !== 'undefined') {
-      renderCalendar();
-      updateDateDisplay();
-      const today = new Date().toISOString().split('T')[0];
-      const dateInput = document.getElementById('selectedDate');
-      if (!dateInput) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.id = 'selectedDate';
-        input.value = today;
-        document.body.appendChild(input);
-      }
-      loadWorkItems();
-    }
-  }
+  // A SECOND copy of the Dailies bootstrap stood here - renderCalendar(),
+  // updateDateDisplay(), the hidden #selectedDate input and loadWorkItems(),
+  // all of which dailies.js#initDailies already does. Two bootstraps meant
+  // every one of the rail's four reads went out TWICE on every page load
+  // (/api/dailies/range, /api/day-highlights/range, /api/dailies/date/:d and
+  // its /roots), and, because initDailies appends #selectedDate without
+  // checking, two elements shared that id whenever this one ran first.
+  //
+  // It also defeated the visibility gate: dailies.js only loads the rail once
+  // the rail is on screen, and this ran regardless. Deleted rather than gated,
+  // because the fix for two implementations of one thing is one implementation.
 
   // Tab order is global, not per context: it is entity_types.order_index, the
   // same value Settings > Entity Types writes when you drag types there. This
@@ -707,6 +703,11 @@ class TabManager {
 
     // Load tab-specific data
     this.loadTabData(tabName);
+
+    // Panes gated on being visible - the Dailies and Priorities rails,
+    // Reporting - load here rather than waiting on their observer, which
+    // never fires in a tab the browser is not rendering.
+    window.app?.recheckVisible?.();
   }
 
   setupUrlSync() {

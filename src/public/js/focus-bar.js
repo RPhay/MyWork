@@ -15,6 +15,10 @@
   // so this is the most one view can lag another. Cheap to hold this tight:
   // the poll re-renders only when the state actually changed (see syncKey).
   const SYNC_MS = 2000;
+  // What the poll costs while the push stream is doing the work. Long enough
+  // to stop being traffic, short enough to still self-heal a stream that died
+  // without firing onerror.
+  const IDLE_SYNC_MS = 30000;
 
   let items = [];
   // count: 0 until the first refresh() lands the server-derived value - never
@@ -876,11 +880,30 @@
     // mutation. The poll stays as the fallback (it also self-heals a
     // dropped stream); the quiet variant leaves the DOM alone unless
     // something really changed, so the pair costs nothing extra.
+    //
+    // The poll's INTERVAL follows the stream. While the stream is connected
+    // every mutation already arrives as a push, so a 2-second poll on top of
+    // it is two requests a second, forever, in every open tab and every
+    // pop-out - and it answered "nothing changed" almost every time. It backs
+    // off to IDLE_SYNC_MS then, and drops straight back to SYNC_MS the moment
+    // the stream errors or there is no EventSource at all, which is the case
+    // the fast poll was really for.
+    let poll = null;
+    const setPollInterval = (ms) => {
+      if (poll) clearInterval(poll);
+      poll = setInterval(syncFromServer, ms);
+    };
+
     if (window.EventSource) {
       const stream = new EventSource('/api/focus/events');
       stream.onmessage = () => syncFromServer();
+      stream.onopen = () => setPollInterval(IDLE_SYNC_MS);
+      // A dropped stream is exactly when the poll has to carry the bar again.
+      stream.onerror = () => setPollInterval(SYNC_MS);
+      setPollInterval(IDLE_SYNC_MS);
+    } else {
+      setPollInterval(SYNC_MS);
     }
-    setInterval(syncFromServer, SYNC_MS);
 
     // A tab coming back from the throttled background snaps current
     // immediately instead of waiting out whatever the throttle left.

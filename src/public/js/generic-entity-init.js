@@ -382,20 +382,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       document.getElementById(`tab-${typeSlug}`) ||
       listContainer;
 
-    if (typeof IntersectionObserver !== 'undefined' && visibilityAnchor) {
-      const io = new IntersectionObserver((records) => {
-        if (!records.some(r => r.isIntersecting)) return;
-        io.disconnect();
-        ensureLoaded();
-      });
-      io.observe(visibilityAnchor);
-    }
-
-    // Whatever is already up when the page loads does not wait for the
-    // observer's first callback - it is what the user is looking at.
-    if (visibilityAnchor && visibilityAnchor.offsetParent !== null) {
-      ensureLoaded();
-    }
+    app.whenVisible(visibilityAnchor, ensureLoaded);
 
     // Another view saved a record. Redraw if this page shows it - either it is
     // one of ours, or it is nested here as a reference. Without this, editing an
