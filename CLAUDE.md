@@ -2,12 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Start of session
-
-Check whether `CLAUDE_CARRY_ON.md` exists in the repo root. If it does, it means work was left mid-stream at the end of a prior session — read it, then ask the user whether they want to carry on with what it describes before starting anything else. Don't assume; the user may want to do something unrelated instead.
-
-This existence check and read are pre-authorized: perform them at session start without asking first, notwithstanding the global "no unsolicited actions" instruction. Asking is still required before acting on the file's contents.
-
 ## Commands
 
 ```bash
@@ -114,7 +108,7 @@ user's contexts and everything inside them; switch, and see somebody else's.
 become anyone. It separates *whose work is on screen*, not *who is allowed to
 look*, which is why the section below still stands unchanged. Do not "finish"
 it by adding a password box: that is real authentication and a different
-decision (see `CLAUDE_CARRY_ON.md`).
+decision.
 
 **Why it is cheap: a context already IS a separate database.** Isolation is not
 a `WHERE user_id = ?` on 131 query sites, it is which database the connection

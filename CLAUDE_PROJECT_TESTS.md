@@ -70,8 +70,8 @@ delete order needed to clean up by hand: the **Reference** half of this file.
 ## The guard set
 
 **Run this after any change you intend to commit, and the FULL SUITE before you
-push.** Lives here and nowhere else - `CLAUDE.md` imports this file, and
-`CLAUDE_CARRY_ON.md` points at it rather than restating it.
+push.** Lives here and nowhere else - `CLAUDE.md` imports this file rather than
+restating it.
 
 ```bash
 npm run test:unit          # the MSSQL translation layer
@@ -469,8 +469,8 @@ from Projects that day were 33 `Test Project for Context Menu` plus `test`,
 From "The guard set" in `CLAUDE_PROJECT_TESTS.md`. Context, not action.
 
 It was previously written down twice — once in this file as a table of "specs
-worth trusting", once in `CLAUDE_CARRY_ON.md` §4 as "the guard set" — and the
-two overlapped on exactly one spec. Neither was wrong so much as partial, and
+worth trusting", once in a since-deleted carry-on document as "the guard set" —
+and the two overlapped on exactly one spec. Neither was wrong so much as partial, and
 having two meant a change could be checked against whichever list happened to
 be read. They are merged into the one list in `CLAUDE_PROJECT_TESTS.md`.
 
@@ -629,5 +629,5 @@ Genuine app-level errors left: **5 CSRF 403s** and **5 scattered
 The guard set above is the list to trust; everything else in the suite is
 triage.
 
-Deciding which of the stale specs to retire and which to rewrite is tracked as
-open work in `CLAUDE_CARRY_ON.md`.
+Deciding which of the stale specs to retire and which to rewrite is still open;
+nothing tracks it now that the carry-on document is gone.
