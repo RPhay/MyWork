@@ -1294,7 +1294,7 @@ const GenericEntity = (() => {
             ${hasChildren ? `<span class="entity-toggle" data-action="toggle-expand">▶</span>` : '<span class="entity-toggle-spacer"></span>'}
             ${icon ? `<span class="entity-row-icon">${icon}</span>` : ''}
           ${originBadge}
-            <span class="entity-title">${entity.title}</span>${app.childCountBadge(childCount)}
+            <span class="entity-title" title="Double-click to rename">${entity.title}</span>${app.childCountBadge(childCount)}
           </div>`;
       }
       const f = c.field;
@@ -1486,28 +1486,41 @@ const GenericEntity = (() => {
   // re-render would rebuild the row the editor is anchored to, and would fight
   // with the caret while typing.
 
-  function rowEl(entityId) {
-    return document.querySelector(
-      `.entity-row[data-entity-type="${currentTypeSlug}"][data-entity-id="${entityId}"]`
-    );
+  // EVERY row showing this record, not one of them. It used to be scoped by
+  // `data-entity-type="${currentTypeSlug}"`, which is the row's OWN type - and
+  // a row nested from another type (an idea inside a template) carries its own
+  // slug while the editor carries the PAGE's, so the selector matched nothing
+  // and nested rows never mirrored what was typed into the editor. Entity ids
+  // are globally unique, so the id alone identifies the record; the same record
+  // legitimately appears more than once (listed on its own page and referenced
+  // inside a template), and both copies should show the edit.
+  function rowEls(entityId) {
+    if (entityId == null) return [];
+    return [...document.querySelectorAll(`.entity-row[data-entity-id="${entityId}"]`)];
   }
 
   // Editor -> row.
   function mirrorEditorToRow() {
     if (currentEntityId == null) return;
-    const row = rowEl(currentEntityId);
+    const rows = rowEls(currentEntityId);
     const form = document.getElementById('entity-editor-form');
-    if (!row || !form) return;
+    if (rows.length === 0 || !form) return;
 
-    // The preview is unsaved state, so the row says so. Without this the list
-    // shows an edited value indistinguishable from a persisted one, and closing
-    // the editor would silently revert it.
-    row.classList.add('entity-row-unsaved');
-    row.title = 'Unsaved changes - saving automatically';
-
-    const titleEl = row.querySelector('.entity-title');
     const titleInput = form.querySelector('[name="title"]');
-    if (titleEl && titleInput) titleEl.textContent = titleInput.value;
+    for (const row of rows) {
+      // The preview is unsaved state, so the row says so. Without this the list
+      // shows an edited value indistinguishable from a persisted one, and
+      // closing the editor would silently revert it.
+      row.classList.add('entity-row-unsaved');
+      row.title = 'Unsaved changes - saving automatically';
+
+      const titleEl = row.querySelector('.entity-title');
+      // Never while it is being renamed in place: that span IS the input, and
+      // rewriting its text under the caret would eat what is being typed.
+      if (titleEl && titleInput && !titleEl.isContentEditable) {
+        titleEl.textContent = titleInput.value;
+      }
+    }
 
     if (currentIsFolder) return;   // a folder's cells are roll-ups, not its own
 
@@ -1515,8 +1528,10 @@ const GenericEntity = (() => {
     const values = collectFormValues(typeSchema, false).fields;
 
     for (const f of visibleColumns(typeSchema)) {
-      const cell = row.querySelector(`.entity-cell[data-col="${CSS.escape(f.field_key)}"]`);
-      if (!cell) continue;
+      const cells = rows
+        .map(row => row.querySelector(`.entity-cell[data-col="${CSS.escape(f.field_key)}"]`))
+        .filter(Boolean);
+      if (cells.length === 0) continue;
       // Only write a cell whose content actually changed. This mirror runs on
       // every input AND change event - including the change a blur fires when
       // focus leaves a dirty field for a cell control - and rewriting an
@@ -1530,7 +1545,9 @@ const GenericEntity = (() => {
       // comparison rewrote every cell every time and fixed nothing.
       const html = renderCellValue(entity || { id: currentEntityId }, f, values[f.field_key], false);
       mirrorScratch.innerHTML = html;
-      if (cell.innerHTML !== mirrorScratch.innerHTML) cell.innerHTML = html;
+      for (const cell of cells) {
+        if (cell.innerHTML !== mirrorScratch.innerHTML) cell.innerHTML = html;
+      }
     }
   }
   // Detached scratch node for the comparison above; never in the document.
@@ -2008,9 +2025,33 @@ const GenericEntity = (() => {
   // ========== PUBLIC API ==========
   return {
     init: (typeSlug, typeConfig, splitPaneInstance) => {
+      splitPanesByType[typeSlug] = splitPaneInstance; // Store per-type reference
+
+      // NEVER over the top of an open editor. Every generic tab calls this
+      // while the page is setting up, so whichever initialised LAST used to own
+      // `currentTypeSlug` and `typeSchema` - and the reopen-after-reload path
+      // runs inside one tab's init, so on every reload the tabs after it stole
+      // the slug out from under an editor that was already open. Ideas is last
+      // in the tab strip, so a Projects editor restored by a refresh was left
+      // believing it was an Ideas one, and four things silently addressed the
+      // wrong tab:
+      //
+      //   - the row lookup asked for a type that row does not have, so
+      //     mirrorEditorToRow() found nothing and typing a title never reached
+      //     the row - the half of the two-way sync that goes editor -> row.
+      //   - collectFormValues() read the WRONG type's field list off a form
+      //     that does not carry those fields, so every value came back null,
+      //     compared equal to the (equally wrong) baseline, and the diff sent
+      //     nothing. Field edits made after a reload did not save at all.
+      //   - markChanged() enabled another tab's Revert button.
+      //   - save() PUT to the wrong type's endpoint.
+      //
+      // dailies.js already sidesteps this by registering only its pane - see
+      // the comment there. Registering the pane is all that is needed here too
+      // while an editor is open: populate() sets the type per call anyway.
+      if (currentEntityId != null) return;
       currentTypeSlug = typeSlug;
       typeSchema = typeConfig;
-      splitPanesByType[typeSlug] = splitPaneInstance; // Store per-type reference
     },
 
     // Just the pane, without claiming to be the current type. The Dailies rail
@@ -2049,6 +2090,13 @@ const GenericEntity = (() => {
     collectFormValues: collectFormValues,
     markChanged: markChanged,
     trackFormChanges: trackFormChanges,
+
+    // "What is on the form IS what is stored" - said from outside, after
+    // something other than the editor has already persisted a value the form
+    // shows. Renaming a row in place is the case: the editor has to show the
+    // new title, but it is saved, so the next keystroke must not diff against
+    // the old one and offer to revert a change that is not pending.
+    resyncBaseline: () => rememberFormAsSaved(),
 
     // `saveTypeSlug` separates WHERE the editor renders from WHAT it saves. On a
     // mixed-type page (a template holding ideas, tickets and so on) the editor
@@ -2230,8 +2278,7 @@ const GenericEntity = (() => {
       hasChanges = false;
       const revertBtn = document.getElementById(`${currentTypeSlug}CloseBtn`);
       if (revertBtn) revertBtn.disabled = true;
-      const row = rowEl(currentEntityId);
-      if (row) {
+      for (const row of rowEls(currentEntityId)) {
         row.classList.remove('entity-row-unsaved');
         row.removeAttribute('title');
       }

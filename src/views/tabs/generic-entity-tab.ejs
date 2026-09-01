@@ -1029,6 +1029,20 @@ span.badge.editor-cycle {
   overflow-wrap: anywhere;
 }
 
+/* Being renamed in place (double-click on the title). It has to LOOK like a
+   box you are typing in, or the caret sitting in a row of plain text reads as
+   the page having glitched rather than as an invitation. */
+.entity-title.entity-title-editing {
+  outline: 2px solid #0d6efd;
+  outline-offset: 1px;
+  border-radius: 3px;
+  background: var(--bs-body-bg, #fff);
+  padding: 0 3px;
+  cursor: text;
+  /* The caret must not wander out of the cell on a long title. */
+  white-space: pre-wrap;
+}
+
 .entity-actions {
   display: flex;
   gap: 4px;

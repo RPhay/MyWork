@@ -28,3 +28,20 @@ export const flushAutosave = async (page) => {
 
 // Open (or toggle) a row's editor via its pencil icon. Pass the row locator.
 export const openEditor = (row) => row.locator('[data-action="edit-row"]').click();
+
+// "Have this row's editor open", rather than "click the pencil".
+//
+// The pencil TOGGLES, and a reload REOPENS whatever editor was open - so a spec
+// that reloads and then calls openEditor() closes the very editor it meant to
+// open. That used to pass anyway: close() emptied the pane named by the
+// module's current type slug, and every tab's init() overwrote that slug during
+// page setup, so it emptied the wrong (already empty) pane and left the real
+// form orphaned in the DOM. The spec found the form it was looking for because
+// closing the editor did not remove it. Now that close() clears the right pane,
+// "click the pencil after a reload" means what it says.
+export const ensureEditorOpen = async (page, row) => {
+  const id = await row.getAttribute('data-entity-id');
+  const open = await page.evaluate(() => GenericEntity.getCurrentEntityId());
+  if (String(open) === String(id)) return;
+  await row.locator('[data-action="edit-row"]').click();
+};

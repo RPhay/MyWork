@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { purgeByTitlePrefix } from './helpers/cleanup.js';
-import { flushAutosave, openEditor } from './editor-gestures.js';
+import { flushAutosave, openEditor, ensureEditorOpen } from './editor-gestures.js';
 
 // Worked Time is on every type, editable by hand, and shares one value with the
 // focus bar's clock - time worked away from the app still counts, so it has to
@@ -58,7 +58,9 @@ test('Worked Time can be typed by hand and is stored as seconds', async ({ page 
   // Reopened, it reads back as time rather than a raw count.
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1800);
-  await openEditor(page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"]`));
+  // The reload reopens it by itself, so the pencil would CLOSE it - see
+  // ensureEditorOpen in editor-gestures.js.
+  await ensureEditorOpen(page, page.locator(`#${TYPE}EntityList .entity-row[data-entity-id="${made.id}"]`));
   await page.waitForTimeout(900);
   await expect(page.locator('#entity-editor-form .duration-input')).toHaveValue('1h 30m');
 });

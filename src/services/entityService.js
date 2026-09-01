@@ -309,32 +309,51 @@ export async function createEntity(entityTypeSlug, data, contextId = null) {
 // into two separate value rows for one concept, neither ever read by the
 // other's reader. Rejecting loudly here is what would have surfaced that the
 // day it happened. (The schema files carry the one-time repair.)
-function assertKnownFieldKeys(typeFields, dataFields, typeSlug) {
-  if (!dataFields) return;
+function unknownFieldKeys(typeFields, dataFields) {
+  if (!dataFields) return [];
   const known = new Set(typeFields.map(f => f.field_key));
-  const unknown = Object.keys(dataFields).filter(k => !known.has(k));
-  if (unknown.length > 0) {
-    throw new ValidationError(
-      `Unknown field key${unknown.length === 1 ? '' : 's'} for type '${typeSlug}': ${unknown.join(', ')}. ` +
-      'The type does not define this field - a rename or deletion in the type editor may have left this caller behind.'
-    );
-  }
+  return Object.keys(dataFields).filter(k => !known.has(k));
+}
+
+function unknownFieldKeyError(unknown, typeSlug) {
+  return new ValidationError(
+    `Unknown field key${unknown.length === 1 ? '' : 's'} for type '${typeSlug}': ${unknown.join(', ')}. ` +
+    'The type does not define this field - a rename or deletion in the type editor may have left this caller behind.'
+  );
+}
+
+function assertKnownFieldKeys(typeFields, dataFields, typeSlug) {
+  const unknown = unknownFieldKeys(typeFields, dataFields);
+  if (unknown.length > 0) throw unknownFieldKeyError(unknown, typeSlug);
 }
 
 // Update an entity
 export async function updateEntity(entityId, data, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
-  // Existence guard, not a value: getEntityById throws NotFoundError, which is
-  // what stops an update to a deleted or foreign-context row from silently
-  // no-oping. It used to be read by the recurrence hook below it; that hook is
-  // gone, the guard is not.
-  const existing = await getEntityById(entityId, contextId);
+  // Existence guard, not a value: this is what stops an update to a deleted or
+  // foreign-context row from silently no-oping. It used to be getEntityById(),
+  // which also loads every field VALUE of the row through a second query - and
+  // none of them are read here, because the response is built from a fresh read
+  // at the end anyway. Two statements per update for nothing, on the path every
+  // cell click takes.
+  const existingRows = await queryPool(
+    'SELECT id, entity_type_id FROM entities WHERE id = ? AND context_id = ? AND deleted_at IS NULL',
+    [entityId, contextId]
+  );
+  if (existingRows.length === 0) throw new NotFoundError(`Entity not found: ${entityId}`);
+  const existing = existingRows[0];
 
   if (data.fields) {
     const typeFields = await entityTypeService.getEntityTypeFields(existing.entity_type_id);
-    const typeRow = await queryPool('SELECT slug FROM entity_types WHERE id = ?', [existing.entity_type_id]);
-    assertKnownFieldKeys(typeFields, data.fields, typeRow[0]?.slug || String(existing.entity_type_id));
+    const unknown = unknownFieldKeys(typeFields, data.fields);
+    // The slug NAMES the type in the error and is used for nothing else, so it
+    // is read only when there is an error to raise. It used to be a query on
+    // every single update, to build a message that is almost never needed.
+    if (unknown.length > 0) {
+      const typeRow = await queryPool('SELECT slug FROM entity_types WHERE id = ?', [existing.entity_type_id]);
+      throw unknownFieldKeyError(unknown, typeRow[0]?.slug || String(existing.entity_type_id));
+    }
   }
 
   const updates = [];

@@ -488,6 +488,16 @@ app bug on first sight and are not one.
   timeout, which is how one of them reported a network outage as a defect on
   2026-08-28. Both assert now. When triaging, `grep -c 'expect(' <spec>` before
   trusting a green tick - the count is the coverage.
+- **The pencil TOGGLES, and a reload REOPENS.** A spec that reloads and then
+  calls `openEditor()` closes the very editor it meant to open. Two guard-set
+  specs did exactly that and passed anyway, because `close()` was broken in a
+  way that cancelled it out: it emptied the pane named by
+  `currentTypeSlug`, and every generic tab's `init()` overwrote that slug during
+  page setup, so it emptied the wrong (already empty) pane and left the real
+  form orphaned in the DOM. The spec found the form it was looking for BECAUSE
+  closing had not removed it. Fixing `init()` made both go red, and neither was
+  a regression. Use `ensureEditorOpen(page, row)` from `editor-gestures.js`
+  where a spec means "have this editor open" rather than "click the pencil".
 - **A spec that clicks `.entity-row` first gets a folder.** Folders have
   title-only editors with no field rows, so anything asserting about fields,
   legends or toggles fails on a row that was never in scope. Scope to

@@ -621,6 +621,11 @@ renderList();
         listContainer.querySelectorAll('.entity-filter-menu').forEach(m => { m.hidden = true; });
       }
 
+      // A title being renamed in place owns its own clicks: putting the caret
+      // in it, or dragging over the text to select part of it, must not also
+      // select the row or redirect the editor out from under the rename.
+      if (e.target.closest('.entity-title-editing')) return;
+
       // Checkbox cell: tick or untick in place.
       const checkboxCell = e.target.closest('[data-action="toggle-checkbox"]');
       if (checkboxCell) {
@@ -640,18 +645,8 @@ renderList();
         const set = field?.field_options?.values || [];
         if (!set.length) return;
         const next = set[(set.indexOf(cycleEmoji.dataset.value) + 1) % set.length];
-        const response = await app.fetchRaw(`/api/entities/${typeSlug}/${cycleEmoji.dataset.entityId}`, {
-          method: 'PUT',
-          
-          body: JSON.stringify({ fields: { [field.field_key]: next } })
-        });
-        if (response.ok) {
-          await refreshEntities();
-          GenericEntity.syncEditorFromRow(cycleEmoji.dataset.entityId, field.field_key, next);
-          showRowInOpenEditor(cycleEmoji.dataset.entityId);
-        } else {
-          app.notify('Could not change that', 'danger');
-        }
+        await saveFieldFromCell(cycleEmoji.dataset.entityId, field.field_key, next,
+          'Could not change that');
         return;
       }
 
@@ -738,6 +733,10 @@ renderList();
         return;
       }
 
+      // Priority and status go through saveFieldFromCell like every other cell
+      // control. They each used to carry their own copy of the PUT-then-refresh
+      // dance, which is how they came to differ from it - and from each other -
+      // over what to do about the open editor.
       const priorityBtn = e.target.closest('[data-action="cycle-priority"]');
       if (priorityBtn) {
         // Shared with the right-click menu, so the two cannot disagree.
@@ -745,22 +744,8 @@ renderList();
           || ['', 'Low', 'Medium', 'High', 'Critical'];
         const current = priorityBtn.dataset.priority || '';
         const next = LEVELS[(LEVELS.indexOf(current) + 1) % LEVELS.length];
-        const fieldKey = priorityBtn.dataset.fieldKey;
-        const changedId = priorityBtn.dataset.entityId;
-
-        const response = await app.fetchRaw(`/api/entities/${typeSlug}/${changedId}`, {
-          method: 'PUT',
-          
-          body: JSON.stringify({ fields: { [fieldKey]: next || null } })
-        });
-        if (response.ok) {
-          await refreshEntities();
-          if (String(GenericEntity.getCurrentEntityId()) === String(changedId)) {
-            GenericEntity.syncEditorFromRow(changedId, fieldKey, next);
-          }
-        } else {
-          app.notify('Could not change priority', 'danger');
-        }
+        await saveFieldFromCell(priorityBtn.dataset.entityId, priorityBtn.dataset.fieldKey,
+          next || null, 'Could not change priority');
         return;
       }
 
@@ -774,28 +759,8 @@ renderList();
 
         const idx = values.indexOf(statusBtn.dataset.status);
         const next = values[(idx + 1) % values.length];
-
-        const response = await app.fetchRaw(
-          `/api/entities/${typeSlug}/${statusBtn.dataset.entityId}`,
-          {
-            method: 'PUT',
-            
-            // Only this field is sent: updateEntity iterates the keys it is
-            // given, so the entity's other field values are untouched.
-            body: JSON.stringify({ fields: { [field.field_key]: next } })
-          }
-        );
-        if (response.ok) {
-          await refreshEntities();
-          const changedId = statusBtn.dataset.entityId;
-          if (String(GenericEntity.getCurrentEntityId()) === String(changedId)) {
-            GenericEntity.syncEditorFromRow(changedId, field.field_key, next);
-          } else {
-            showRowInOpenEditor(changedId);
-          }
-        } else {
-          app.notify('Could not change status', 'danger');
-        }
+        await saveFieldFromCell(statusBtn.dataset.entityId, field.field_key,
+          next, 'Could not change status');
         return;
       }
 
@@ -902,6 +867,20 @@ renderList();
     // small modal rather than the full row editor - the same gesture the
     // Dailies rail uses for the same field.
     listContainer.addEventListener('dblclick', (e) => {
+      // Double-clicking the title renames it where it sits. The editor is
+      // still the way to change anything else, and still the way to change the
+      // title if that is where you already are - this is for the one field you
+      // most often want to correct without opening anything. Nothing else on
+      // the row claims a double-click (opening the editor stopped being one
+      // when expand/collapse moved onto its own arrow), so there is nothing
+      // for it to fight with.
+      const titleEl = e.target.closest('.entity-cell-title .entity-title');
+      if (titleEl) {
+        e.preventDefault();
+        startInlineRename(titleEl);
+        return;
+      }
+
       const notesBtn = e.target.closest('[data-action="edit-notes-field"]');
       if (!notesBtn) return;
       const entity = entities.find(x => x.id == notesBtn.dataset.entityId);
@@ -914,23 +893,159 @@ renderList();
       });
     });
 
+    // Turns a row's title into an editable box in place. Enter or clicking away
+    // commits, Escape puts the old text back, and an empty title is refused
+    // rather than saved - `title` is required, and a row with no text is a row
+    // you cannot find again.
+    //
+    // The row is draggable, and a draggable ancestor swallows the text
+    // selection a caret needs (the browser starts a drag instead of a
+    // selection), so dragging is turned off for the duration and restored
+    // afterwards - including when the rename is abandoned.
+    function startInlineRename(titleEl) {
+      if (titleEl.classList.contains('entity-title-editing')) return;
+      const row = titleEl.closest('.entity-row');
+      const entityId = row?.dataset.entityId;
+      if (!entityId) return;
+
+      const original = titleEl.textContent;
+      const wasDraggable = row.draggable;
+      row.draggable = false;
+      titleEl.classList.add('entity-title-editing');
+      // plaintext-only keeps a paste from bringing markup in with it. Not every
+      // engine has it; 'true' is the fallback, and the trim on commit covers
+      // what it lets through.
+      try { titleEl.contentEditable = 'plaintext-only'; } catch { /* below */ }
+      if (!titleEl.isContentEditable) titleEl.contentEditable = 'true';
+      titleEl.spellcheck = false;
+      titleEl.focus();
+
+      // The whole title starts selected, so typing replaces it and a click
+      // places the caret - what renaming a file does everywhere else.
+      const range = document.createRange();
+      range.selectNodeContents(titleEl);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      let settled = false;
+      const finish = async (commit) => {
+        if (settled) return;
+        settled = true;
+        titleEl.removeEventListener('keydown', onKeyDown);
+        titleEl.removeEventListener('blur', onBlur);
+        titleEl.contentEditable = 'false';
+        titleEl.classList.remove('entity-title-editing');
+        row.draggable = wasDraggable;
+        window.getSelection()?.removeAllRanges();
+
+        const next = titleEl.textContent.replace(/\s+/g, ' ').trim();
+        if (!commit || next === '' || next === original) {
+          titleEl.textContent = original;
+          return;
+        }
+        await renameEntity(entityId, next, original, titleEl);
+      };
+      const onKeyDown = (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+        else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+      };
+      const onBlur = () => finish(true);
+      titleEl.addEventListener('keydown', onKeyDown);
+      titleEl.addEventListener('blur', onBlur);
+    }
+
+    // Optimistic, for the same reason the cell writes are: the new text is
+    // already on screen and reverting is cheap. Saves through the row's OWN
+    // type, so renaming an idea nested inside a template writes to the idea.
+    async function renameEntity(entityId, title, original, titleEl) {
+      const entity = entities.find(x => String(x.id) === String(entityId));
+      if (entity) {
+        entity.title = title;
+        GenericEntity.setEntities(entities);
+      }
+      // The editor is a second view of the same record: if it is open on this
+      // row it has to show the new title, WITHOUT counting as an edit - the
+      // value is already being saved, and arming Revert would offer to undo
+      // something that is not pending. Re-baselining the form is what keeps
+      // the next keystroke from diffing against a title that is no longer
+      // stored.
+      if (String(GenericEntity.getCurrentEntityId()) === String(entityId)) {
+        GenericEntity.syncEditorFromRow(entityId, 'title', title);
+        GenericEntity.resyncBaseline();
+      }
+
+      const saveSlug = (entity && schemaForEntity(entity)?.slug) || typeSlug;
+      const response = await app.fetchRaw(`/api/entities/${saveSlug}/${entityId}`, {
+        method: 'PUT',
+
+        body: JSON.stringify({ title })
+      });
+      if (!response.ok) {
+        const reason = await response.json().catch(() => null);
+        app.notify(`Could not rename it: ${reason?.message || response.status}`, 'danger');
+        if (entity) {
+          entity.title = original;
+          GenericEntity.setEntities(entities);
+        }
+        titleEl.textContent = original;
+        if (String(GenericEntity.getCurrentEntityId()) === String(entityId)) {
+          GenericEntity.syncEditorFromRow(entityId, 'title', original);
+          GenericEntity.resyncBaseline();
+        }
+        return;
+      }
+      // The same record can be on screen elsewhere - listed on its own page
+      // while referenced inside a template - so tell the other views.
+      document.dispatchEvent(new CustomEvent('entity-saved', {
+        detail: { id: Number(entityId), slug: saveSlug }
+      }));
+    }
+
     // Writes a single field from a cell control. Only that key is sent, so the
     // item's other values are untouched, and the editor is redirected only if
     // it is already open - a cell click never opens or closes it.
+    //
+    // OPTIMISTIC, and that is the point of it. Every cell control used to await
+    // the PUT and then `await refreshEntities()` - a second and third round
+    // trip that re-read every row of the type AND every hierarchy edge - before
+    // one cell changed on screen. Nothing appeared to happen until all three
+    // landed, so clicking along a row was three requests per click, and on a
+    // connection that is not local (or an engine where each statement is its
+    // own round trip) that is the difference between instant and unusable.
+    //
+    // The new value is already known here, so the list repaints from memory
+    // first and the write goes out behind it. Roll-ups stay right because
+    // renderList() recomputes them from the same in-memory rows. A write that
+    // FAILS puts the old value back and says so - which is the one thing an
+    // optimistic paint owes you.
     async function saveFieldFromCell(entityId, fieldKey, value, failMessage) {
+      const entity = entities.find(x => String(x.id) === String(entityId));
+      const before = entity?.fields?.[fieldKey];
+      if (entity) {
+        (entity.fields ||= {})[fieldKey] = value;
+        GenericEntity.setEntities(entities);
+        renderList();
+      }
+      GenericEntity.syncEditorFromRow(entityId, fieldKey, value);
+      showRowInOpenEditor(entityId);
+
       const response = await app.fetchRaw(`/api/entities/${typeSlug}/${entityId}`, {
         method: 'PUT',
-        
+
         body: JSON.stringify({ fields: { [fieldKey]: value } })
       });
       if (!response.ok) {
         const reason = await response.json().catch(() => null);
         app.notify(`${failMessage}: ${reason?.message || response.status}`, 'danger');
+        if (entity) {
+          entity.fields[fieldKey] = before;
+          GenericEntity.setEntities(entities);
+          renderList();
+          GenericEntity.syncEditorFromRow(entityId, fieldKey, before ?? null);
+        }
         return false;
       }
-      await refreshEntities();
-      GenericEntity.syncEditorFromRow(entityId, fieldKey, value);
-      showRowInOpenEditor(entityId);
       return true;
     }
 
@@ -1191,18 +1306,8 @@ renderList();
     listContainer.addEventListener('change', async (e) => {
       const input = e.target.closest('.row-date-input');
       if (!input) return;
-      const response = await app.fetchRaw(`/api/entities/${typeSlug}/${input.dataset.entityId}`, {
-        method: 'PUT',
-        
-        body: JSON.stringify({ fields: { [input.dataset.fieldKey]: input.value || null } })
-      });
-      if (response.ok) {
-        await refreshEntities();
-        GenericEntity.syncEditorFromRow(input.dataset.entityId, input.dataset.fieldKey, input.value);
-      } else {
-        app.notify('Could not set the date', 'danger');
-        renderList();
-      }
+      await saveFieldFromCell(input.dataset.entityId, input.dataset.fieldKey,
+        input.value || null, 'Could not set the date');
     });
 
     // Abandoning the picker without choosing restores the cell.
