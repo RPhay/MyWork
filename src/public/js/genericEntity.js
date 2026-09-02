@@ -69,6 +69,20 @@ const GenericEntity = (() => {
     return kind === 'group' ? 'bi-people-fill' : 'bi-person-circle';
   }
 
+  // A small initials avatar, the same idea Outlook/Teams use for a person
+  // with no photo - gives each row and the picked chip something to anchor
+  // on besides a line of text, which is what read as "just a plain list".
+  function directoryInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function directoryAvatarHtml(name, kind) {
+    return `<span class="entity-directory-avatar${kind === 'group' ? ' is-group' : ''}">${escapeHtml(directoryInitials(name))}</span>`;
+  }
+
   const DIRECTORY_SEARCH_DEBOUNCE_MS = 140;
   // Per-INPUT, not one shared timer/query - a form can carry more than one
   // Person/Group field (an Assignee and an Approver, say), and a shared timer
@@ -83,15 +97,48 @@ const GenericEntity = (() => {
       <div class="form-group entity-directory-field" data-field-type="${kind}" data-field-key="${escapeAttr(field.field_key)}">
         <input type="hidden" name="${field.field_key}" value="${picked ? escapeAttr(JSON.stringify(picked)) : ''}">
         <div class="entity-directory-picked"${picked ? '' : ' hidden'}>
-          <span class="entity-directory-chip"><i class="bi ${directoryFieldIcon(kind)}"></i> <span class="entity-directory-name">${picked ? escapeHtml(picked.displayName || '') : ''}</span></span>
-          <button type="button" class="btn btn-sm btn-link text-danger" data-action="directory-clear" title="Clear" aria-label="Clear"><i class="bi bi-x-lg"></i></button>
+          <span class="entity-directory-chip">
+            ${picked ? directoryAvatarHtml(picked.displayName, kind) : ''}
+            <span class="entity-directory-name">${picked ? escapeHtml(picked.displayName || '') : ''}</span>
+            <button type="button" class="entity-directory-remove" data-action="directory-clear" title="Clear" aria-label="Clear"><i class="bi bi-x-lg"></i></button>
+          </span>
         </div>
         <div class="entity-directory-search"${picked ? ' hidden' : ''}>
-          <input type="text" class="form-control form-control-sm entity-directory-input" placeholder="${placeholder}" autocomplete="off">
+          <div class="entity-directory-input-wrap">
+            <i class="bi ${directoryFieldIcon(kind)} entity-directory-search-icon"></i>
+            <input type="text" class="form-control form-control-sm entity-directory-input" placeholder="${placeholder}" autocomplete="off">
+          </div>
           <div class="entity-directory-results" hidden></div>
         </div>
       </div>
     `;
+  }
+
+  // Shared by the click handler and Enter-picks-the-active-row below, so a
+  // mouse pick and a keyboard pick land in exactly the same state.
+  function applyDirectoryPick(wrapper, picked) {
+    if (!wrapper) return;
+    const kind = wrapper.dataset.fieldType;
+    const hidden = wrapper.querySelector('input[type="hidden"]');
+    const chip = wrapper.querySelector('.entity-directory-chip');
+    const pickedEl = wrapper.querySelector('.entity-directory-picked');
+    const searchEl = wrapper.querySelector('.entity-directory-search');
+    const resultsEl = wrapper.querySelector('.entity-directory-results');
+    const inputEl = wrapper.querySelector('.entity-directory-input');
+    if (hidden) hidden.value = JSON.stringify(picked);
+    if (chip) {
+      chip.innerHTML = `
+        ${directoryAvatarHtml(picked.displayName, kind)}
+        <span class="entity-directory-name">${escapeHtml(picked.displayName || '')}</span>
+        <button type="button" class="entity-directory-remove" data-action="directory-clear" title="Clear" aria-label="Clear"><i class="bi bi-x-lg"></i></button>
+      `;
+    }
+    if (pickedEl) pickedEl.hidden = false;
+    if (searchEl) searchEl.hidden = true;
+    if (inputEl) inputEl.value = '';
+    if (resultsEl) { resultsEl.hidden = true; resultsEl.innerHTML = ''; }
+    markChanged();
+    mirrorEditorToRow();   // a row click/Enter fires no input/change event
   }
 
   const fieldRenderers = {
@@ -1285,8 +1332,7 @@ const GenericEntity = (() => {
     // A picked person/group is {externalId, displayName, email} - shown as a
     // small chip, read-only in the row (the search box is editor-only).
     if ((f.field_type === 'person' || f.field_type === 'group') && value && value.externalId) {
-      const icon = f.field_type === 'group' ? 'bi-people-fill' : 'bi-person-circle';
-      return `<span class="row-field entity-directory-chip-cell" title="${escapeAttr(value.email || '')}"><i class="bi ${icon}"></i>${escapeHtml(value.displayName || '')}</span>`;
+      return `<span class="row-field entity-directory-chip-cell" title="${escapeAttr(value.email || '')}">${directoryAvatarHtml(value.displayName, f.field_type)}${escapeHtml(value.displayName || '')}</span>`;
     }
 
     // Links are an array of {url, title}; anything else stringifies fine.
@@ -2050,11 +2096,16 @@ const GenericEntity = (() => {
           if (input.value.trim() !== term) return; // superseded - discard, a newer search owns the dropdown now
 
           resultsEl.hidden = false;
+          // The first row starts "active" so Enter picks something useful
+          // the moment results appear, without an arrow key first.
           resultsEl.innerHTML = items.length
-            ? items.map(item => `
-                <div class="entity-directory-result" data-action="directory-pick" data-value="${escapeAttr(JSON.stringify({ externalId: item.id, displayName: item.displayName, email: item.email }))}">
-                  <span>${escapeHtml(item.displayName || '(no name)')}</span>
-                  ${item.email ? `<span class="entity-directory-result-email">${escapeHtml(item.email)}</span>` : ''}
+            ? items.map((item, i) => `
+                <div class="entity-directory-result${i === 0 ? ' active' : ''}" data-action="directory-pick" data-value="${escapeAttr(JSON.stringify({ externalId: item.id, displayName: item.displayName, email: item.email }))}">
+                  ${directoryAvatarHtml(item.displayName, kind)}
+                  <span class="entity-directory-result-main">
+                    <span class="entity-directory-result-name">${escapeHtml(item.displayName || '(no name)')}</span>
+                    ${item.email ? `<span class="entity-directory-result-email">${escapeHtml(item.email)}</span>` : ''}
+                  </span>
                 </div>
               `).join('')
             : '<div class="entity-directory-hint">No matches</div>';
@@ -2140,22 +2191,7 @@ const GenericEntity = (() => {
         if (pickResult) {
           let picked;
           try { picked = JSON.parse(pickResult.dataset.value); } catch { return; }
-          const wrapper = pickResult.closest('.entity-directory-field');
-          if (!wrapper) return;
-          const hidden = wrapper.querySelector('input[type="hidden"]');
-          const nameEl = wrapper.querySelector('.entity-directory-name');
-          const pickedEl = wrapper.querySelector('.entity-directory-picked');
-          const searchEl = wrapper.querySelector('.entity-directory-search');
-          const resultsEl = wrapper.querySelector('.entity-directory-results');
-          const inputEl = wrapper.querySelector('.entity-directory-input');
-          if (hidden) hidden.value = JSON.stringify(picked);
-          if (nameEl) nameEl.textContent = picked.displayName || '';
-          if (pickedEl) pickedEl.hidden = false;
-          if (searchEl) searchEl.hidden = true;
-          if (inputEl) inputEl.value = '';
-          if (resultsEl) { resultsEl.hidden = true; resultsEl.innerHTML = ''; }
-          markChanged();
-          mirrorEditorToRow();   // a row click fires no input/change event
+          applyDirectoryPick(pickResult.closest('.entity-directory-field'), picked);
           return;
         }
 
@@ -2191,14 +2227,43 @@ const GenericEntity = (() => {
         }
       });
 
-      // Escape (or Enter, which already flushes above) closes a Person/Group
-      // results dropdown without picking anything from it.
+      // Person/Group results dropdown: Up/Down moves the highlighted row,
+      // Enter picks it, Escape closes without picking. The generic Enter
+      // handler above still runs first and flushes autosave - harmless here,
+      // since nothing has changed until a pick actually happens.
       form.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape' && e.key !== 'Enter') return;
         const input = e.target.closest?.('.entity-directory-input');
         if (!input) return;
         const resultsEl = input.closest('.entity-directory-field')?.querySelector('.entity-directory-results');
-        if (resultsEl) resultsEl.hidden = true;
+        if (!resultsEl) return;
+
+        if (e.key === 'Escape') {
+          resultsEl.hidden = true;
+          return;
+        }
+
+        if (resultsEl.hidden) return;
+        const rows = Array.from(resultsEl.querySelectorAll('.entity-directory-result'));
+        if (!rows.length) return;
+
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const current = rows.findIndex(r => r.classList.contains('active'));
+          const next = e.key === 'ArrowDown'
+            ? (current + 1) % rows.length
+            : (current - 1 + rows.length) % rows.length;
+          rows.forEach(r => r.classList.remove('active'));
+          rows[next].classList.add('active');
+          rows[next].scrollIntoView({ block: 'nearest' });
+          return;
+        }
+
+        if (e.key === 'Enter') {
+          const active = resultsEl.querySelector('.entity-directory-result.active') || rows[0];
+          let picked;
+          try { picked = JSON.parse(active.dataset.value); } catch { return; }
+          applyDirectoryPick(input.closest('.entity-directory-field'), picked);
+        }
       });
     }
   }

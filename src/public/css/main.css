@@ -1053,3 +1053,158 @@ footer {
   background: transparent;
   border-top: none;
 }
+
+/* Person / Group fields: live-search-as-you-type against Entra ID */
+.entity-directory-field {
+  position: relative;
+}
+
+/* The initials badge - a person/group with no photo still gets something to
+   anchor on besides a line of text, in the picked chip, the results list and
+   the row cell alike. Group gets a distinct tint so the two field types read
+   apart from each other at a glance. */
+.entity-directory-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e7f0ff;
+  color: #2563eb;
+  font-size: 0.7em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.entity-directory-avatar.is-group {
+  background: #fdf0e0;
+  color: #b3630a;
+}
+
+.entity-directory-picked {
+  display: flex;
+  align-items: center;
+}
+
+.entity-directory-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 4px;
+  border: 1px solid #e1e4e8;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.entity-directory-name {
+  font-size: 0.92em;
+  font-weight: 500;
+}
+
+.entity-directory-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #adb5bd;
+  font-size: 0.7em;
+  cursor: pointer;
+}
+
+.entity-directory-remove:hover {
+  background: #f1f3f5;
+  color: #e03131;
+}
+
+.entity-directory-search {
+  position: relative;
+}
+
+.entity-directory-input-wrap {
+  position: relative;
+}
+
+.entity-directory-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #adb5bd;
+  font-size: 0.85em;
+  pointer-events: none;
+}
+
+.entity-directory-input-wrap .entity-directory-input {
+  padding-left: 28px;
+}
+
+.entity-directory-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin-top: 4px;
+  padding: 4px;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+.entity-directory-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.entity-directory-result:hover,
+.entity-directory-result.active {
+  background: #eef4ff;
+}
+
+.entity-directory-result-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.entity-directory-result-name {
+  font-size: 0.9em;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-directory-result-email {
+  font-size: 0.78em;
+  color: #868e96;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-directory-hint {
+  padding: 8px 10px;
+  color: #868e96;
+  font-size: 0.85em;
+}
+
+.row-field.entity-directory-chip-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
