@@ -22,10 +22,24 @@ import * as homePool from "../database/homePool.js";
 
 const VALID_TYPES = ["mysql", "mssql"];
 
+// `contexts` is structural - it lives in the HOME database, not whichever
+// database the active context currently has the live pool pointed at. This
+// used to read via `db` (connectionPool.js, the CONTENT pool), which only
+// ever "worked" when a context's own database happened to carry a valid copy
+// of `contexts` too (the common case: one database doing double duty for
+// both home and content, or a fresh schema run creating an empty-but-present
+// `contexts` table everywhere this shared schema file runs). Configuring a
+// genuinely SEPARATE context's database - the exact multi-context,
+// multi-engine setup this feature exists for - queried the WRONG database
+// for the context row and reported "Context not found" even though the
+// context plainly exists. getLiveConnectionConfig() below calls this too,
+// which made it circular: the function that decides where the live pool
+// SHOULD point was reading through wherever it CURRENTLY points.
 async function getContextRow(contextId) {
-  const context = await db.queryOne("SELECT * FROM contexts WHERE id = ?", [
-    contextId,
-  ]);
+  const context = await homePool.queryOne(
+    "SELECT * FROM contexts WHERE id = ?",
+    [contextId],
+  );
   if (!context) {
     throw new NotFoundError("Context not found");
   }
@@ -156,7 +170,7 @@ export async function saveDbConfig(contextId, data) {
   });
 
   try {
-    await db.update(
+    await homePool.update(
       "UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?",
       [dbType, dbConfigJson, contextId],
     );
@@ -185,7 +199,7 @@ export async function saveDbConfig(contextId, data) {
         console.log("Column added successfully via homePool");
 
         // Retry the update now that column exists
-        await db.update(
+        await homePool.update(
           "UPDATE contexts SET db_type = ?, db_config_json = ? WHERE id = ?",
           [dbType, dbConfigJson, contextId],
         );
@@ -405,7 +419,7 @@ export async function createDbSchema(contextId, type, data) {
 }
 
 export async function removeDbConfig(contextId) {
-  await db.update(
+  await homePool.update(
     "UPDATE contexts SET db_type = NULL, db_config_json = NULL WHERE id = ?",
     [contextId],
   );

@@ -916,35 +916,40 @@ export async function createMysqlSchema(connection) {
         AND (supports_hierarchy <> 1 OR supports_folders <> 0)`
   );
 
-  // Nothing may CONTAIN a template - see SYSTEM_TYPE_RELATIONSHIPS. The seeder
-  // only ever adds rules, so a template->template rule created before that
-  // decision would survive it. Removed by hand, once.
-  await connection.query(
-    `DELETE r FROM entity_type_relationships r
-       JOIN entity_types c ON c.id = r.child_type_id
-      WHERE c.slug = 'template' AND r.relationship_kind = 'hierarchy'`
-  );
-
   // `daily.time_box_minutes` was a second time box only Dailies had - see the
   // note where it was declared. Its values move to `time_box` first (there were
   // none on this machine, but an install that used it must not lose them), then
   // the definition goes.
-  await connection.query(
-    `UPDATE entity_field_values v
-       JOIN entities e ON e.id = v.entity_id
-       JOIN entity_types t ON t.id = e.entity_type_id
-        SET v.field_key = 'time_box'
-      WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
-        AND NOT EXISTS (
-          SELECT 1 FROM (SELECT * FROM entity_field_values) x
-           WHERE x.entity_id = v.entity_id AND x.field_key = 'time_box')`
+  //
+  // Guarded because entity_field_values (and entities) are created LATER in
+  // this file - the same trap the AI-key repair below documents, and the same
+  // fix: on a genuinely fresh install this table does not exist yet, and this
+  // ran unconditionally, so `npm run db:init` against an empty database threw
+  // ER_NO_SUCH_TABLE here and never reached entity_field_values' own CREATE
+  // TABLE or anything after it in the file. On a fresh build there are no
+  // values to repair anyway.
+  const [[{ timeBoxRepairTables }]] = await connection.query(
+    `SELECT COUNT(*) AS timeBoxRepairTables FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'entity_field_values'`
   );
-  await connection.query(
-    `DELETE v FROM entity_field_values v
-       JOIN entities e ON e.id = v.entity_id
-       JOIN entity_types t ON t.id = e.entity_type_id
-      WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'`
-  );
+  if (timeBoxRepairTables) {
+    await connection.query(
+      `UPDATE entity_field_values v
+         JOIN entities e ON e.id = v.entity_id
+         JOIN entity_types t ON t.id = e.entity_type_id
+          SET v.field_key = 'time_box'
+        WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
+          AND NOT EXISTS (
+            SELECT 1 FROM (SELECT * FROM entity_field_values) x
+             WHERE x.entity_id = v.entity_id AND x.field_key = 'time_box')`
+    );
+    await connection.query(
+      `DELETE v FROM entity_field_values v
+         JOIN entities e ON e.id = v.entity_id
+         JOIN entity_types t ON t.id = e.entity_type_id
+        WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'`
+    );
+  }
   await connection.query(
     `DELETE f FROM entity_type_fields f
        JOIN entity_types t ON t.id = f.entity_type_id
@@ -1102,6 +1107,23 @@ export async function createMysqlSchema(connection) {
       INDEX idx_child (child_type_id)
     )
   `);
+
+  // Nothing may CONTAIN a template - see SYSTEM_TYPE_RELATIONSHIPS. The seeder
+  // only ever adds rules, so a template->template rule created before that
+  // decision would survive it. Removed by hand, once.
+  //
+  // Must run AFTER the CREATE TABLE directly above, not before it: this used
+  // to sit earlier in the file (right after the type_category/capability-flag
+  // repairs above), which meant a genuinely fresh install - nothing yet in
+  // entity_type_relationships because the table didn't exist yet - threw
+  // ER_NO_SUCH_TABLE here and aborted the rest of createMysqlSchema before it
+  // ever reached this CREATE TABLE or anything after it. `npm run db:init`
+  // against an empty database never actually completed.
+  await connection.query(
+    `DELETE r FROM entity_type_relationships r
+       JOIN entity_types c ON c.id = r.child_type_id
+      WHERE c.slug = 'template' AND r.relationship_kind = 'hierarchy'`
+  );
 
   // Seed the type-to-type relationship rules. This file never used to do this
   // at all, so an install created by `db:init` had hierarchical types with no

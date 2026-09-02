@@ -1154,32 +1154,34 @@ export async function createMssqlSchema(pool) {
        AND (supports_hierarchy <> 1 OR supports_folders <> 0)
   `);
 
-  // Nothing may CONTAIN a template - the twin of the block in mysqlSchema.js.
-  await pool.request().query(`
-    DELETE r FROM [MyWork].[entity_type_relationships] r
-      JOIN [MyWork].[entity_types] c ON c.id = r.child_type_id
-     WHERE c.slug = 'template' AND r.relationship_kind = 'hierarchy'
-  `);
-
   // `daily.time_box_minutes` was a second time box only Dailies had - the twin
   // of the block in mysqlSchema.js. Values move to `time_box` first, then the
   // definition goes.
-  await pool.request().query(`
-    UPDATE v SET v.field_key = 'time_box'
-      FROM [MyWork].[entity_field_values] v
-      JOIN [MyWork].[entities] e ON e.id = v.entity_id
-      JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
-     WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
-       AND NOT EXISTS (
-         SELECT 1 FROM [MyWork].[entity_field_values] x
-          WHERE x.entity_id = v.entity_id AND x.field_key = 'time_box')
-  `);
-  await pool.request().query(`
-    DELETE v FROM [MyWork].[entity_field_values] v
-      JOIN [MyWork].[entities] e ON e.id = v.entity_id
-      JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
-     WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
-  `);
+  //
+  // Guarded because [MyWork].[entity_field_values] is created LATER in this
+  // file - the same trap the AI-key repair below documents, and the same fix:
+  // on a genuinely fresh install this ran unconditionally against a table
+  // that did not exist yet, threw "Invalid object name" here, and aborted the
+  // rest of createMssqlSchema before it ever reached entity_field_values' own
+  // CREATE TABLE. On a fresh build there are no values to repair anyway.
+  if (await tableExists(pool, "entity_field_values")) {
+    await pool.request().query(`
+      UPDATE v SET v.field_key = 'time_box'
+        FROM [MyWork].[entity_field_values] v
+        JOIN [MyWork].[entities] e ON e.id = v.entity_id
+        JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
+       WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
+         AND NOT EXISTS (
+           SELECT 1 FROM [MyWork].[entity_field_values] x
+            WHERE x.entity_id = v.entity_id AND x.field_key = 'time_box')
+    `);
+    await pool.request().query(`
+      DELETE v FROM [MyWork].[entity_field_values] v
+        JOIN [MyWork].[entities] e ON e.id = v.entity_id
+        JOIN [MyWork].[entity_types] t ON t.id = e.entity_type_id
+       WHERE t.slug = 'daily' AND v.field_key = 'time_box_minutes'
+    `);
+  }
   await pool.request().query(`
     DELETE f FROM [MyWork].[entity_type_fields] f
       JOIN [MyWork].[entity_types] t ON t.id = f.entity_type_id
@@ -1315,6 +1317,20 @@ export async function createMssqlSchema(pool) {
     )
   `,
   );
+
+  // Nothing may CONTAIN a template - the twin of the block in mysqlSchema.js.
+  //
+  // Must run AFTER the CREATE TABLE directly above, not before it: this used
+  // to sit earlier in the file, which meant a genuinely fresh install - the
+  // table not created yet - threw "Invalid object name
+  // '[MyWork].[entity_type_relationships]'" here and aborted the rest of
+  // createMssqlSchema before it ever reached this CREATE TABLE or anything
+  // after it. A brand-new MSSQL install never actually finished setting up.
+  await pool.request().query(`
+    DELETE r FROM [MyWork].[entity_type_relationships] r
+      JOIN [MyWork].[entity_types] c ON c.id = r.child_type_id
+     WHERE c.slug = 'template' AND r.relationship_kind = 'hierarchy'
+  `);
 
   // Seed the type-to-type relationship rules, mirroring mysqlSchema.js. Neither
   // schema file used to do this, so an install created by a schema run had
