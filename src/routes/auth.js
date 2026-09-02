@@ -211,6 +211,9 @@ router.get("/status", async (req, res) => {
       // Never the tenant id, client id or secret - a diagnostic endpoint is
       // not a place to echo credentials.
       displayName: req.session?.ssoUser?.displayName || null,
+      // The address Entra signed this session in with - it's the person's
+      // own session reading their own email back, not a credential.
+      email: req.session?.ssoUser?.email || null,
     },
   });
 });

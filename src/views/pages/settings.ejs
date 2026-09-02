@@ -64,6 +64,11 @@
           <i class="bi bi-sliders"></i> Miscellaneous
         </button>
       </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="integrations-tab" data-tab="integrations" type="button" role="tab">
+          <i class="bi bi-plug"></i> Integrations
+        </button>
+      </li>
     </ul>
 
     <!-- Tab Content -->
@@ -94,6 +99,12 @@
            a top-level tab of its own -->
       <div id="tab-misc" class="tab-content-pane">
         <%- include('../tabs/settings-misc.ejs') %>
+      </div>
+      <!-- Integrations: optional connections to outside systems. Azure Entra ID
+           is the first one - it pulls a directory of names/emails to assign
+           things to later, and does not touch sign-in. -->
+      <div id="tab-integrations" class="tab-content-pane">
+        <%- include('../tabs/settings-integrations.ejs') %>
       </div>
     </div>
   </div>

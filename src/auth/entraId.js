@@ -180,6 +180,82 @@ export class EntraIdAuth {
   }
 
   /**
+   * App-only (client credentials) token, for calls made as the application
+   * itself rather than as a signed-in user - listing the whole directory is
+   * one of these, since `/me` only ever answers for whoever is signed in.
+   * Requires the app registration to hold an ADMIN-CONSENTED application
+   * permission (User.Read.All or Directory.Read.All); the delegated scopes
+   * the sign-in flow uses do not grant this on their own.
+   * @returns {Promise<{accessToken, expiresIn}>}
+   */
+  async getAppOnlyToken() {
+    try {
+      const response = await this._postForm('token', {
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        grant_type: 'client_credentials',
+        scope: 'https://graph.microsoft.com/.default',
+      });
+
+      return {
+        accessToken: response.data.access_token,
+        expiresIn: response.data.expires_in,
+      };
+    } catch (error) {
+      const detail = EntraIdAuth.describeAuthError(
+        error,
+        'Failed to acquire an app-only Microsoft Graph token'
+      );
+      console.error('Error acquiring app-only token:', detail);
+      const wrapped = new Error(detail);
+      wrapped.entraDetail = detail;
+      throw wrapped;
+    }
+  }
+
+  /**
+   * List every user in the tenant's directory, paging through
+   * `@odata.nextLink` until exhausted. Called with an app-only token from
+   * getAppOnlyToken() - this is a directory read, not anything scoped to a
+   * signed-in person.
+   * @param {string} accessToken
+   * @returns {Promise<Array<{id, displayName, email}>>}
+   */
+  async listDirectoryUsers(accessToken) {
+    const users = [];
+    let url = `${this.graphApiUrl}/users?$select=id,displayName,mail,userPrincipalName&$top=999`;
+
+    try {
+      while (url) {
+        const response = await axios.get(url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        for (const u of response.data.value || []) {
+          users.push({
+            id: u.id,
+            displayName: u.displayName || null,
+            // Same preference as getUserInfo(): `mail` is the address a
+            // person recognises, the UPN is a fallback for accounts that
+            // never had a mailbox address set.
+            email: u.mail || u.userPrincipalName || null,
+          });
+        }
+        url = response.data['@odata.nextLink'] || null;
+      }
+      return users;
+    } catch (error) {
+      const detail = EntraIdAuth.describeAuthError(
+        error,
+        'Failed to list users from Microsoft Graph'
+      );
+      console.error('Error listing directory users:', detail);
+      const wrapped = new Error(detail);
+      wrapped.entraDetail = detail;
+      throw wrapped;
+    }
+  }
+
+  /**
    * Revoke refresh token (logout)
    * @param {string} refreshToken
    */

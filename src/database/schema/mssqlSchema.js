@@ -474,6 +474,44 @@ export async function createMssqlSchema(pool) {
   // Unrelated to the Tickets TYPE (slug `ticket`), which lives in entities like
   // every other editable type. Nothing read the table.
 
+  // Integrations: twin of the block in mysqlSchema.js - read the reasoning
+  // there. Entra Directory is the first one, reusing the SSO_* app
+  // registration from .env.local.
+  await createTableIfNotExists(
+    pool,
+    "integration_settings",
+    `
+    CREATE TABLE [MyWork].[integration_settings] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      integration_key NVARCHAR(100) NOT NULL,
+      enabled BIT DEFAULT 0,
+      last_synced_at DATETIME2 NULL,
+      created_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT unique_integration_key UNIQUE (integration_key)
+    )
+  `,
+  );
+  await createUpdatedAtTrigger(pool, "integration_settings");
+
+  // A directory user pulled in by an enabled integration - not an
+  // authentication link, see the matching note in mysqlSchema.js.
+  await createTableIfNotExists(
+    pool,
+    "directory_users",
+    `
+    CREATE TABLE [MyWork].[directory_users] (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      provider NVARCHAR(50) NOT NULL CONSTRAINT df_directory_users_provider DEFAULT 'entra',
+      external_id NVARCHAR(255) NOT NULL,
+      display_name NVARCHAR(255) NULL,
+      email NVARCHAR(255) NULL,
+      synced_at DATETIME2 DEFAULT SYSUTCDATETIME(),
+      CONSTRAINT unique_directory_provider_external UNIQUE (provider, external_id)
+    )
+  `,
+  );
+
   await createTableIfNotExists(
     pool,
     "context_folders",

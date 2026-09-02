@@ -935,14 +935,18 @@ function forgetOtherProfilesLocalState(user) {
 // machine, and the default), enabled but not yet signed in, or the endpoint
 // unreachable. The navbar must render identically in all of those cases -
 // an SSO badge that appears because a fetch failed is worse than no badge.
-async function getSsoSignedInUserId() {
+//
+// Carries the email alongside the id: the whole point of asking is to show
+// the address someone actually signed in with, not just which row to badge.
+async function getSsoSignedInUser() {
   try {
     const response = await fetch('/auth/status');
     if (!response.ok) return null;
     const result = await response.json();
     const data = result?.data;
     if (!data?.enabled || !data.signedIn) return null;
-    return typeof data.userId === 'number' ? data.userId : null;
+    if (typeof data.userId !== 'number') return null;
+    return { userId: data.userId, email: data.email || null };
   } catch {
     return null;
   }
@@ -974,10 +978,13 @@ async function initUserSwitcher() {
 
     label.textContent = user ? user.name : 'Choose user';
 
-    // Which profile, if any, this session actually SIGNED IN as. Only ever
-    // set when SSO_MODE resolves to on/auto and the sign-in completed, so on
-    // the home machine this is null and nothing below it renders.
-    const ssoUserId = await getSsoSignedInUserId();
+    // Which profile, if any, this session actually SIGNED IN as, and the
+    // address it signed in with. Only ever set when SSO_MODE resolves to
+    // on/auto and the sign-in completed, so on the home machine this is null
+    // and nothing below it renders.
+    const ssoUser = await getSsoSignedInUser();
+    const ssoUserId = ssoUser?.userId ?? null;
+    const ssoEmail = ssoUser?.email ?? null;
 
     // Badge on the BUTTON, beside the name, visible without opening the
     // menu - being signed in is a standing fact about the session, not a
@@ -991,7 +998,9 @@ async function initUserSwitcher() {
       badge.id = 'userSwitcherSsoBadge';
       badge.className = 'badge text-bg-light ms-1';
       badge.textContent = 'SSO';
-      badge.title = 'Signed in with Microsoft single sign-on';
+      badge.title = ssoEmail
+        ? `Signed in with Microsoft single sign-on as ${ssoEmail}`
+        : 'Signed in with Microsoft single sign-on';
       // Before the caret, which Bootstrap draws as the button's ::after.
       label.insertAdjacentElement('afterend', badge);
     }
@@ -1012,10 +1021,17 @@ async function initUserSwitcher() {
       // that matters is in PUT /api/active-user, since a disabled button
       // stops a click and nothing else.
       const locked = ssoUserId !== null && u.id !== ssoUserId;
+      // The email is Entra's for the signed-in row (the address actually used
+      // to sign in), and falls back to the profile's own `email` column
+      // otherwise - there is no SSO address to show for anyone else.
+      const rowEmail = u.id === ssoUserId ? (ssoEmail || u.email) : null;
+      const emailLine = rowEmail
+        ? `<div class="small text-muted">${app.escapeHtml(rowEmail)}</div>`
+        : '';
       return `
       <li>
         <button type="button" class="dropdown-item d-flex align-items-center justify-content-between gap-3 ${isActive ? 'active' : ''} ${locked ? 'disabled' : ''}" data-user-id="${u.id}"${locked ? ' disabled title="Signed in with single sign-on - sign out to use a different profile"' : ''}>
-          <span><i class="bi bi-person-fill"></i> ${app.escapeHtml(u.name)}</span>
+          <span><i class="bi bi-person-fill"></i> ${app.escapeHtml(u.name)}${emailLine}</span>
           ${badge}
         </button>
       </li>

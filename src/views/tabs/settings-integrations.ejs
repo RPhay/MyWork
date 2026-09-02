@@ -1,0 +1,41 @@
+<%#
+  Optional connections to outside systems - off by default, unlike SSO_MODE
+  sign-in which this has nothing to do with. Azure Entra ID Directory is the
+  first (and for now only) one: a name/email list pulled from Microsoft
+  Graph, for assigning things to later.
+%>
+<div id="integrationsSettings">
+  <p class="text-muted small">
+    Optional connections MyWork can use. Nothing here is required, and each is
+    off until you turn it on.
+  </p>
+
+  <div class="card" style="max-width: 40rem;">
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between">
+        <h6 class="card-title mb-1"><i class="bi bi-microsoft"></i> Azure Entra ID Directory</h6>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="entraDirectoryEnabled" disabled>
+        </div>
+      </div>
+      <p class="card-text text-muted small">
+        Pulls a list of names and email addresses from your organization's
+        Entra directory, so they can later be assigned to things like Ideas or
+        Tasks. Reuses the same Azure app registration as single sign-on - it
+        needs the <code>User.Read.All</code> application permission, with
+        admin consent, added to that app registration.
+      </p>
+
+      <div id="entraDirectoryStatus" class="small mb-2"></div>
+
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-outline-success" id="entraDirectorySyncBtn" disabled>
+          <i class="bi bi-arrow-repeat"></i> Sync now
+        </button>
+        <span class="text-muted small" id="entraDirectorySyncedAt"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/settings-integrations.js"></script>

@@ -291,6 +291,39 @@ export async function createMysqlSchema(connection) {
     }
   }
 
+  // Integrations: optional, off by default, one row per integration. Entra
+  // Directory is the first (and for now the only) one - it reuses the SSO_*
+  // app registration from .env.local, so there is nothing else to store here
+  // beyond whether it's turned on and when it last synced.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS integration_settings (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      integration_key VARCHAR(100) NOT NULL,
+      enabled BOOLEAN DEFAULT FALSE,
+      last_synced_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_integration_key (integration_key)
+    )
+  `);
+
+  // A directory user pulled in by an enabled integration - a name and address
+  // to later assign things to (Ideas, Tasks, ...), NOT an authentication
+  // link. Deliberately separate from user_identities: nothing here backs a
+  // `users` row, since most of a tenant's directory will never sign in to
+  // this app at all.
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS directory_users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      provider VARCHAR(50) NOT NULL DEFAULT 'entra',
+      external_id VARCHAR(255) NOT NULL,
+      display_name VARCHAR(255),
+      email VARCHAR(255),
+      synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_directory_provider_external (provider, external_id)
+    )
+  `);
+
   // Folders for grouping contexts (optional; contexts can sit at root or inside a folder)
   await connection.query(`
     CREATE TABLE IF NOT EXISTS context_folders (

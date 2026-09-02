@@ -35,6 +35,7 @@ import searchRouter from "./api/search.js";
 import trashRouter from "./api/trash.js";
 import statusDigestRouter from "./api/statusDigest.js";
 import preferencesRouter from "./api/preferences.js";
+import integrationsRouter from "./api/integrations.js";
 import authRouter from "./auth.js";
 import { readVersion } from "../utils/version.js";
 import { checkDbHealth } from "../utils/dbHealth.js";
@@ -57,6 +58,7 @@ router.use("/api/", async (req, res, next) => {
     "/api/backup",  // Read-only export
     "/api/entity-types",  // System types, not context-specific data
     "/api/context-sync",  // Names both contexts itself; opens their DBs directly
+    "/api/integrations",  // App-level, machine-wide config like SSO - not per-context
   ];
 
   // Use originalUrl to get the full path
@@ -135,6 +137,7 @@ router.use("/api/pip-window", pipWindowsRouter);
 router.use("/api/search", searchRouter);
 router.use("/api/trash", trashRouter);
 router.use("/api/status-digest", statusDigestRouter);
+router.use("/api/integrations", integrationsRouter);
 
 // First-run bootstrap page: gets the app pointed at a working database and
 // schema before contexts (or anything else) can exist. Redirects itself back
