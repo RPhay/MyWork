@@ -976,15 +976,26 @@ async function initUserSwitcher() {
 
     forgetOtherProfilesLocalState(user);
 
-    label.textContent = user ? user.name : 'Choose user';
-
     // Which profile, if any, this session actually SIGNED IN as, and the
     // address it signed in with. Only ever set when SSO_MODE resolves to
     // on/auto and the sign-in completed, so on the home machine this is null
-    // and nothing below it renders.
+    // and nothing below it renders. Fetched before the label is set, because
+    // the label itself depends on it below.
     const ssoUser = await getSsoSignedInUser();
     const ssoUserId = ssoUser?.userId ?? null;
     const ssoEmail = ssoUser?.email ?? null;
+
+    // The collapsed button shows just the local part of the SSO address
+    // (foo.bar@abc.com -> "foo.bar") when this is the signed-in profile - the
+    // full address is one click away, in the menu row and the badge tooltip.
+    // Split on the FIRST '@' only (a local part can itself contain one inside
+    // quotes, which .split('@')[0] would truncate), and fall back to the
+    // whole string if there's no '@' to split on at all.
+    const ssoAtIndex = ssoEmail ? ssoEmail.indexOf('@') : -1;
+    const ssoLocalPart = ssoEmail ? (ssoAtIndex > 0 ? ssoEmail.slice(0, ssoAtIndex) : ssoEmail) : null;
+    label.textContent = (ssoUserId !== null && user && user.id === ssoUserId && ssoLocalPart)
+      ? ssoLocalPart
+      : (user ? user.name : 'Choose user');
 
     // Badge on the BUTTON, beside the name, visible without opening the
     // menu - being signed in is a standing fact about the session, not a
