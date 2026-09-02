@@ -12,6 +12,36 @@ import logger from '../utils/logger.js';
  * in content DBs that aren't currently live.
  */
 
+// `field_options` is a JSON column on MySQL, which mysql2 auto-parses into a
+// real object - every field read out of that engine already had
+// `field.field_options.values` as an array. MSSQL has no native JSON column
+// type, so it's NVARCHAR(MAX) there (see mssqlSchema.js), and the `mssql`
+// driver returns that as a plain string - it is not auto-parsed the way
+// entityService.js's value_json already accounts for on the value side.
+//
+// getAllEntityTypes() and getEntityTypeFields() are the two read paths that
+// hand field rows straight to the client with no normalisation in between,
+// so on MSSQL every caller received `field_options` as a JSON STRING rather
+// than an object. A status field's editor reads
+// `field.field_options?.values` to draw its ladder; on a string that is
+// `undefined`, so it fell back to the hard-coded default
+// ['incomplete','in_progress','complete'] regardless of what was actually
+// configured, and the row cell (which has no such fallback) rendered
+// nothing at all. The same gap affects every OTHER field type that reads
+// field_options for its choices - select, radio, emoji/emojis, links -
+// engine-dependent in a way nothing surfaced until someone was actually
+// running MSSQL.
+function normalizeFieldOptions(field) {
+  if (typeof field.field_options === 'string') {
+    try {
+      field.field_options = field.field_options ? JSON.parse(field.field_options) : null;
+    } catch {
+      field.field_options = null;
+    }
+  }
+  return field;
+}
+
 // Every field type the schema allows. MUST stay identical to the field_type
 // ENUM in mysqlSchema.js / mssqlSchema.js.
 //
@@ -61,9 +91,9 @@ export async function getAllEntityTypes(category = null) {
   // it here, every tab had to fetch itself separately from
   // /api/entity-types/:slug just for that one array - nine extra requests to
   // re-fetch what this response already almost held.
-  const fieldRows = await query(
+  const fieldRows = (await query(
     'SELECT * FROM entity_type_fields ORDER BY display_order, id'
-  );
+  )).map(normalizeFieldOptions);
   const relRows = await query('SELECT * FROM entity_type_relationships');
 
   const fieldsByType = new Map();
@@ -526,7 +556,7 @@ export async function getEntityTypeFields(entityTypeId) {
     'SELECT * FROM entity_type_fields WHERE entity_type_id = ? ORDER BY display_order, id',
     [entityTypeId]
   );
-  return rows;
+  return rows.map(normalizeFieldOptions);
 }
 
 // Create a field for a type
@@ -563,7 +593,7 @@ export async function createEntityTypeField(entityTypeId, data) {
       ]
     );
     const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [result.insertId]);
-    return rows[0];
+    return normalizeFieldOptions(rows[0]);
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') throw new ConflictError(`Field already exists: ${fieldKey}`);
     throw error;
@@ -597,7 +627,7 @@ export async function updateEntityTypeField(fieldId, data) {
 
   if (updates.length === 0) {
     const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [fieldId]);
-    return rows[0];
+    return normalizeFieldOptions(rows[0]);
   }
 
   values.push(fieldId);
@@ -606,7 +636,7 @@ export async function updateEntityTypeField(fieldId, data) {
     values
   );
   const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [fieldId]);
-  return rows[0];
+  return normalizeFieldOptions(rows[0]);
 }
 
 // Delete a field
@@ -758,9 +788,9 @@ export async function revertSystemType(id) {
     ]
   );
 
-  const live = await query(
+  const live = (await query(
     'SELECT * FROM entity_type_fields WHERE entity_type_id = ?', [id]
-  );
+  )).map(normalizeFieldOptions);
   const liveByKey = new Map(live.map((f) => [f.field_key, f]));
 
   const restored = [];
