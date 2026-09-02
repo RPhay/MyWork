@@ -1323,6 +1323,25 @@ const GenericEntity = (() => {
             <i class="bi ${on ? 'bi-check-square-fill' : 'bi-square'}"></i>
           </span>`;
       }
+      // Person/group and links hold an object/array, not a scalar - `derived`
+      // is also how dailies-items.js asks for a compact read-only cell for a
+      // plain (non-folder) work item, not only a genuine folder roll-up, so
+      // this path runs for an ordinary Person field shown on the Dailies
+      // rail too. Falling through to the generic escapeHtml(shown) below
+      // stringified the raw object as "[object Object]" - a folder never
+      // actually reaches here for these two (neither declares a rollup mode,
+      // so a folder's own value is null and the blank-value guard above
+      // already returned '' before this point), but the Dailies rail always
+      // does.
+      if ((f.field_type === 'person' || f.field_type === 'group') && value && value.externalId) {
+        return `<span class="row-field is-rollup entity-directory-chip-cell" title="${escapeAttr(value.email || '')}">${directoryAvatarHtml(value.displayName, f.field_type)}${escapeHtml(value.displayName || '')}</span>`;
+      }
+      if (f.field_type === 'links' && Array.isArray(value)) {
+        return value.map(l => `
+          <a class="row-field is-rollup entity-row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(l.url)}">
+            <i class="bi bi-link-45deg"></i>${escapeHtml(l.title || l.url)}
+          </a>`).join('');
+      }
       // A rolled-up date is still a date: format it like every other date cell
       // rather than showing the raw ISO timestamp the driver returned.
       const shown = f.field_type === 'date' ? formatDateCell(value) : value;
