@@ -2079,6 +2079,15 @@ async function initGenericEntityTab(typeSlug, typeName) {
 
     // Drag and drop
     let draggedEntityId = null;
+    // Which row+zone currently carries the indicator, so a dragover that
+    // lands on the exact same spot as the last one is a no-op. `dragover`
+    // fires continuously while the pointer sits still (and on every pixel of
+    // movement besides), so without this every one of those ticks re-scanned
+    // the whole list and re-toggled classes it had just set a moment before -
+    // fighting `.entity-row`'s own `transition: background-color 0.2s` into
+    // restarting on every tick, which is what made the indicator look like it
+    // was flickering/chasing the cursor rather than sitting still under it.
+    let lastHoverKey = null;
     listContainer.addEventListener('dragstart', (e) => {
       const row = e.target.closest('.entity-row');
       if (row) {
@@ -2104,14 +2113,29 @@ async function initGenericEntityTab(typeSlug, typeName) {
         // Firefox refuses to start a drag without a text/plain payload.
         e.dataTransfer.setData('text/plain', entity?.title || String(draggedEntityId));
 
-        row.style.opacity = '0.5';
+        row.classList.add('entity-row-dragging');
+
+        // A small dark pill naming the row, in place of the browser's default
+        // drag image - a semi-transparent screenshot of the row as it looked
+        // at that instant, anchored wherever the cursor happened to grab it,
+        // which on a wide table routinely showed half a row cut off rather
+        // than anything recognisable. Built fresh per drag and removed again
+        // once the browser has captured it (setDragImage only needs the node
+        // to exist for a single paint).
+        const ghost = document.createElement('div');
+        ghost.className = 'entity-drag-ghost';
+        ghost.textContent = entity?.title || 'Untitled';
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, 12, 16);
+        setTimeout(() => ghost.remove(), 0);
       }
     });
 
     listContainer.addEventListener('dragend', (e) => {
       const row = e.target.closest('.entity-row');
-      if (row) row.style.opacity = '1';
+      if (row) row.classList.remove('entity-row-dragging');
       draggedEntityId = null;
+      lastHoverKey = null;
     });
 
     // Drop zone within a row: top/bottom band = reorder as a sibling
@@ -2124,9 +2148,18 @@ async function initGenericEntityTab(typeSlug, typeName) {
       return dropZone(e, row, { nesting: !!typeSchema.supports_hierarchy });
     }
 
+    // NOT clearDropIndicators(row) from dragDropUtils.js - that function's
+    // `root` parameter is searched with querySelectorAll, so passing a ROW as
+    // root looks for the indicator classes among the row's DESCENDANTS. They
+    // live on the row itself, so that call was always a no-op here: every
+    // dragover in a same-list drag called this once per row via
+    // `.forEach(clearDropIndicator)` and never actually removed a
+    // before/after line from any of them. Moving the pointer from one row to
+    // another, or from the top band of a row to the bottom, left the stale
+    // line behind AND drew the new one - multiple indicators on screen at
+    // once, which is exactly what "the drag looks broken" looks like.
     function clearDropIndicator(row) {
-      clearDropIndicators(row);       // dragDropUtils.js - one implementation
-      row.classList.remove('entity-drop-target-nest');
+      row.classList.remove('drop-indicator-before', 'drop-indicator-after', 'entity-drop-target-nest');
     }
 
     // Chromium will not deliver a `drop` unless the target accepts the drag on
@@ -2224,12 +2257,21 @@ async function initGenericEntityTab(typeSlug, typeName) {
       e.preventDefault();
       const row = e.target.closest('.entity-row');
       if (row) {
-        listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
         const zone = dropZoneFor(e, row);
-        if (zone === 'nest') {
-          row.classList.add('entity-drop-target-nest');
-        } else {
-          row.classList.add(zone === 'before' ? 'drop-indicator-before' : 'drop-indicator-after');
+        const hoverKey = `${row.dataset.entityId}:${zone}`;
+        // The indicator classes are already exactly right for this spot -
+        // dragover must still call acceptDrop() below on every tick (that's
+        // what keeps the browser willing to fire `drop` at all), but redoing
+        // the class churn for a spot that hasn't changed is what produced the
+        // flicker.
+        if (hoverKey !== lastHoverKey) {
+          lastHoverKey = hoverKey;
+          listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
+          if (zone === 'nest') {
+            row.classList.add('entity-drop-target-nest');
+          } else {
+            row.classList.add(zone === 'before' ? 'drop-indicator-before' : 'drop-indicator-after');
+          }
         }
         acceptDrop(e, 'move');
       }
@@ -2241,6 +2283,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (!listContainer.contains(e.relatedTarget)) {
         listContainer.classList.remove('entity-list-drop-target');
       }
+      lastHoverKey = null;
     });
 
     listContainer.addEventListener('drop', async (e) => {
