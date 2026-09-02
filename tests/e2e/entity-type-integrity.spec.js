@@ -26,6 +26,9 @@ const RENDERED_TYPES = [
   // row they are a single glyph that lights when there is something there -
   // notes are a paragraph, and fifty rows of paragraphs is not a list.
   'notes', 'worked_with_claude',
+  // `person`/`group` render a live Entra ID search box; the picked value is
+  // {externalId, displayName, email} in value_json, like `links`.
+  'person', 'group',
 ];
 
 test('every field type in use is renderable, editable and valid', async ({ page }) => {
@@ -73,7 +76,7 @@ test('the ENUM, the service allow-list and the editor options agree', async ({ p
   const enumTypes = [
     'text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio',
     'status', 'priority', 'checkbox', 'recurrence', 'emoji', 'emojis',
-    'duration', 'timebox', 'notes', 'worked_with_claude',
+    'duration', 'timebox', 'notes', 'worked_with_claude', 'person', 'group',
   ];
 
   const missingFromEditor = enumTypes.filter(t => !editorJs.includes(`value="${t}"`));

@@ -31,6 +31,10 @@ export const VALID_FIELD_TYPES = [
   // Dailies carries these on every work item, made available to any type:
   // your own notes, and whether AI was used on it at all.
   'notes', 'worked_with_claude',
+  // A single person or group, picked by live-searching Entra ID - see
+  // entraDirectoryService.js. Stored as {externalId, displayName, email},
+  // same value_json mechanism `links` already uses.
+  'person', 'group',
 ];
 
 // Get all active (non-deleted) entity types with their fields

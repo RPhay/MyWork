@@ -256,6 +256,77 @@ export class EntraIdAuth {
   }
 
   /**
+   * Live directory search - up to `top` users whose name/email matches
+   * `query`, ranked by Graph's own relevance. NOT the same as
+   * listDirectoryUsers() above, which pages through the WHOLE tenant for the
+   * cached directory pull; this is the search-as-you-type backing a
+   * Person field.
+   * @param {string} accessToken
+   * @param {string} query
+   * @param {number} top
+   * @returns {Promise<Array<{id, displayName, email}>>}
+   */
+  async searchUsers(accessToken, query, top = 10) {
+    return this._searchDirectory('users', 'displayName,mail,userPrincipalName', accessToken, query, top, (u) => ({
+      id: u.id,
+      displayName: u.displayName || null,
+      email: u.mail || u.userPrincipalName || null,
+    }));
+  }
+
+  /**
+   * Live directory search for groups - the Group field's counterpart to
+   * searchUsers() above.
+   * @param {string} accessToken
+   * @param {string} query
+   * @param {number} top
+   * @returns {Promise<Array<{id, displayName, email}>>}
+   */
+  async searchGroups(accessToken, query, top = 10) {
+    return this._searchDirectory('groups', 'displayName,mail', accessToken, query, top, (g) => ({
+      id: g.id,
+      displayName: g.displayName || null,
+      // Only mail-enabled groups carry an address; a plain security group
+      // has none, and that's a normal result, not a broken one.
+      email: g.mail || null,
+    }));
+  }
+
+  /**
+   * Shared $search implementation for searchUsers/searchGroups.
+   * `$search` needs the `ConsistencyLevel: eventual` header, and ranks by
+   * relevance rather than the alphabetical order `$filter startswith` would
+   * give - what you want for "type a few letters, see the best matches".
+   */
+  async _searchDirectory(resource, select, accessToken, query, top, mapItem) {
+    // A '"' would terminate the $search expression early, so it's stripped
+    // rather than escaped - there's no legitimate name/email that needs one.
+    const safeQuery = String(query || '').replace(/"/g, '').trim();
+    if (!safeQuery) return [];
+
+    const url = `${this.graphApiUrl}/${resource}?$search="displayName:${safeQuery}"&$select=${select}&$top=${top}`;
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ConsistencyLevel: 'eventual',
+        },
+      });
+      return (response.data.value || []).map(mapItem);
+    } catch (error) {
+      const detail = EntraIdAuth.describeAuthError(
+        error,
+        `Failed to search ${resource} in Microsoft Graph`
+      );
+      console.error(`Error searching ${resource}:`, detail);
+      const wrapped = new Error(detail);
+      wrapped.entraDetail = detail;
+      throw wrapped;
+    }
+  }
+
+  /**
    * Revoke refresh token (logout)
    * @param {string} refreshToken
    */

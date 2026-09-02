@@ -256,7 +256,7 @@ function UNLISTED_TYPE_OPTION(field) {
 const KNOWN_FIELD_TYPES = [
   'text', 'textarea', 'number', 'duration', 'timebox', 'date', 'url', 'links',
   'select', 'radio', 'checkbox', 'status', 'priority', 'emoji', 'emojis',
-  'notes', 'worked_with_claude',
+  'notes', 'worked_with_claude', 'person', 'group',
 ];
 
 const ROLLUP_MODES = {
@@ -425,7 +425,7 @@ function addFieldRow(field = null) {
     timebox: 'Time Box', date: 'Date', url: 'URL', links: 'Links',
     select: 'Dropdown', radio: 'Choice', checkbox: 'Checkbox', status: 'Status',
     priority: 'Priority', emoji: 'Emoji', emojis: 'Emojis', notes: 'Notes',
-    worked_with_claude: 'AI',
+    worked_with_claude: 'AI', person: 'Person', group: 'Group',
   };
 
   fieldRow.innerHTML = `
@@ -446,10 +446,12 @@ function addFieldRow(field = null) {
           <option value="duration" ${effectiveType === 'duration' ? 'selected' : ''}>Duration (worked time)</option>
           <option value="emoji" ${effectiveType === 'emoji' ? 'selected' : ''}>Emoji (free pick)</option>
           <option value="emojis" ${effectiveType === 'emojis' ? 'selected' : ''}>Emojis (cycle through a set)</option>
+          <option value="group" ${effectiveType === 'group' ? 'selected' : ''}>Group (Entra ID search)</option>
           <option value="links" ${effectiveType === 'links' ? 'selected' : ''}>Links (multiple, named)</option>
           <option value="textarea" ${effectiveType === 'textarea' ? 'selected' : ''}>Long Text</option>
           <option value="notes" ${effectiveType === 'notes' ? 'selected' : ''}>Notes (your own)</option>
           <option value="number" ${effectiveType === 'number' ? 'selected' : ''}>Number</option>
+          <option value="person" ${effectiveType === 'person' ? 'selected' : ''}>Person (Entra ID search)</option>
           <option value="priority" ${effectiveType === 'priority' ? 'selected' : ''}>Priority (Low to Critical)</option>
           <option value="radio" ${effectiveType === 'radio' ? 'selected' : ''}>Radio Buttons</option>
           <option value="status" ${effectiveType === 'status' ? 'selected' : ''}>Status</option>

@@ -1,12 +1,14 @@
-// Azure Entra ID directory integration: optional, off by default. Pulls a
-// list of { displayName, email } from Microsoft Graph so they can later be
-// assigned to things like Ideas or Tasks - a directory cache, not a login.
+// Azure Entra ID directory integration: optional, off by default. Two things
+// live behind the one toggle - a cached pull of { displayName, email } for
+// every user (syncNow, below), and the LIVE Graph search that backs Person
+// and Group fields on any entity type (searchPeople/searchGroups, at the
+// bottom of this file). Neither is a login.
 //
 // Deliberately reuses the SSO_* app registration from .env.local rather than
-// asking for a second set of credentials: listing the whole tenant just
-// needs the same tenant/client id with an ADMIN-CONSENTED application
-// permission (User.Read.All or Directory.Read.All) added to that app
-// registration, not a new one. See CLAUDE.md's SSO section for why
+// asking for a second set of credentials: listing/searching the tenant just
+// needs the same tenant/client id with ADMIN-CONSENTED application
+// permissions (User.Read.All and, for Group fields, Group.Read.All) added to
+// that app registration, not a new one. See CLAUDE.md's SSO section for why
 // credentials live in .env.local rather than the database.
 import * as homeDb from "../database/homePool.js";
 import EntraIdAuth from "../auth/entraId.js";
@@ -36,6 +38,40 @@ async function getSettingsRow() {
     "SELECT enabled, last_synced_at FROM integration_settings WHERE integration_key = ?",
     [INTEGRATION_KEY],
   );
+}
+
+// Person/Group fields search on every (debounced) keystroke, which would
+// otherwise mean a fresh client-credentials token request per keystroke -
+// this caches the last one in memory until it's within a minute of expiring.
+// Process-local and fine to lose on restart, same as any other token cache.
+let cachedAppOnlyToken = null; // { accessToken, expiresAt }
+
+async function getValidAppOnlyToken() {
+  const now = Date.now();
+  if (cachedAppOnlyToken && cachedAppOnlyToken.expiresAt - now > 60_000) {
+    return cachedAppOnlyToken.accessToken;
+  }
+  const client = buildAppOnlyClient();
+  if (!client) return null;
+  const { accessToken, expiresIn } = await client.getAppOnlyToken();
+  cachedAppOnlyToken = { accessToken, expiresAt: now + (expiresIn || 3600) * 1000 };
+  return accessToken;
+}
+
+/** Both search functions below share this: not configured is a hard error,
+ * configured-but-off is a distinct one so the UI can say "turn it on in
+ * Settings" rather than "set up .env.local" to someone who already has. */
+function assertSearchable(status) {
+  if (!status.configured) {
+    throw new ValidationError(
+      `Azure Entra ID is not configured on this machine - missing ${status.missing.join(", ")} in .env.local.`,
+    );
+  }
+  if (!status.enabled) {
+    throw new ValidationError(
+      "Azure Entra ID Directory is turned off - enable it in Settings > Integrations first.",
+    );
+  }
 }
 
 /**
@@ -144,4 +180,31 @@ export async function getDirectoryUsers() {
     "SELECT id, external_id, display_name, email FROM directory_users WHERE provider = ? ORDER BY display_name ASC",
     [PROVIDER],
   );
+}
+
+/**
+ * Live search backing a Person field - hits Microsoft Graph directly on
+ * every call (through the cached app-only token above), NOT the
+ * directory_users cache. That cache can be stale by design (see syncNow's
+ * comment); a search box shouldn't be.
+ */
+export async function searchPeople(q) {
+  assertSearchable(await getStatus());
+  const term = String(q || "").trim();
+  if (term.length < 2) return [];
+
+  const client = buildAppOnlyClient();
+  const accessToken = await getValidAppOnlyToken();
+  return client.searchUsers(accessToken, term);
+}
+
+/** The Group field's counterpart to searchPeople() above. */
+export async function searchGroups(q) {
+  assertSearchable(await getStatus());
+  const term = String(q || "").trim();
+  if (term.length < 2) return [];
+
+  const client = buildAppOnlyClient();
+  const accessToken = await getValidAppOnlyToken();
+  return client.searchGroups(accessToken, term);
 }

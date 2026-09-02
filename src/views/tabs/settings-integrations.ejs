@@ -1,8 +1,10 @@
 <%#
   Optional connections to outside systems - off by default, unlike SSO_MODE
   sign-in which this has nothing to do with. Azure Entra ID Directory is the
-  first (and for now only) one: a name/email list pulled from Microsoft
-  Graph, for assigning things to later.
+  first (and for now only) one: a cached name/email pull (Sync now, below),
+  plus the live search that powers Person and Group fields on any entity
+  type - both gated by this one toggle, since both reuse the same app
+  registration and app-only token.
 %>
 <div id="integrationsSettings">
   <p class="text-muted small">
@@ -20,10 +22,12 @@
       </div>
       <p class="card-text text-muted small">
         Pulls a list of names and email addresses from your organization's
-        Entra directory, so they can later be assigned to things like Ideas or
-        Tasks. Reuses the same Azure app registration as single sign-on - it
-        needs the <code>User.Read.All</code> application permission, with
-        admin consent, added to that app registration.
+        Entra directory (Sync now, below), and powers the live search box on
+        any <strong>Person</strong> or <strong>Group</strong> field you add to
+        an entity type in Settings &gt; Entity Types. Reuses the same Azure app
+        registration as single sign-on - it needs the
+        <code>User.Read.All</code> and <code>Group.Read.All</code> application
+        permissions, with admin consent, added to that app registration.
       </p>
 
       <div id="entraDirectoryStatus" class="small mb-2"></div>

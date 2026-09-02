@@ -49,4 +49,26 @@ router.get("/entra/users", async (req, res) => {
   }
 });
 
+// Live search backing Person/Group fields - hits Graph on every call, unlike
+// /entra/users above which reads the cached directory pull.
+router.get("/entra/search/users", async (req, res) => {
+  try {
+    const results = await entraDirectoryService.searchPeople(req.query.q);
+    res.json({ success: true, data: results });
+  } catch (error) {
+    logger.error("Error searching Entra users:", error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.get("/entra/search/groups", async (req, res) => {
+  try {
+    const results = await entraDirectoryService.searchGroups(req.query.q);
+    res.json({ success: true, data: results });
+  } catch (error) {
+    logger.error("Error searching Entra groups:", error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

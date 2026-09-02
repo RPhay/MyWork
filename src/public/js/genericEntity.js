@@ -60,6 +60,40 @@ const GenericEntity = (() => {
     return d ?? '';
   }
 
+  // Person / Group fields: a search box that live-searches Entra ID through
+  // the server (app-only Graph token, see entraDirectoryService.js) as you
+  // type, rather than offering author-defined choices the way select/radio
+  // do. The picked value is {externalId, displayName, email}, stored the
+  // same value_json way `links` already is - see collectFormValues below.
+  function directoryFieldIcon(kind) {
+    return kind === 'group' ? 'bi-people-fill' : 'bi-person-circle';
+  }
+
+  const DIRECTORY_SEARCH_DEBOUNCE_MS = 140;
+  // Per-INPUT, not one shared timer/query - a form can carry more than one
+  // Person/Group field (an Assignee and an Approver, say), and a shared timer
+  // would let typing in the second cancel a search still pending on the
+  // first.
+  const directorySearchTimers = new WeakMap();
+
+  function renderDirectoryField(field, value, kind) {
+    const picked = value && value.externalId ? value : null;
+    const placeholder = kind === 'group' ? 'Search groups…' : 'Search people…';
+    return `
+      <div class="form-group entity-directory-field" data-field-type="${kind}" data-field-key="${escapeAttr(field.field_key)}">
+        <input type="hidden" name="${field.field_key}" value="${picked ? escapeAttr(JSON.stringify(picked)) : ''}">
+        <div class="entity-directory-picked"${picked ? '' : ' hidden'}>
+          <span class="entity-directory-chip"><i class="bi ${directoryFieldIcon(kind)}"></i> <span class="entity-directory-name">${picked ? escapeHtml(picked.displayName || '') : ''}</span></span>
+          <button type="button" class="btn btn-sm btn-link text-danger" data-action="directory-clear" title="Clear" aria-label="Clear"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="entity-directory-search"${picked ? ' hidden' : ''}>
+          <input type="text" class="form-control form-control-sm entity-directory-input" placeholder="${placeholder}" autocomplete="off">
+          <div class="entity-directory-results" hidden></div>
+        </div>
+      </div>
+    `;
+  }
+
   const fieldRenderers = {
     text: (field, value = '') => `
       <div class="form-group">
@@ -181,6 +215,8 @@ const GenericEntity = (() => {
         </div>
       `;
     },
+    person: (field, value = null) => renderDirectoryField(field, value, 'person'),
+    group: (field, value = null) => renderDirectoryField(field, value, 'group'),
     // 0-n named URLs. Stored as a JSON array of {url, title} in value_json, so
     // it needs no table of its own - the per-type *_links tables this replaces
     // (priority_links, task_links, ticket_links, to_do_links) each existed only
@@ -1246,6 +1282,13 @@ const GenericEntity = (() => {
       return `<span class="row-field is-rollup" title="Rolled up from the items inside">${escapeHtml(shown)}</span>`;
     }
 
+    // A picked person/group is {externalId, displayName, email} - shown as a
+    // small chip, read-only in the row (the search box is editor-only).
+    if ((f.field_type === 'person' || f.field_type === 'group') && value && value.externalId) {
+      const icon = f.field_type === 'group' ? 'bi-people-fill' : 'bi-person-circle';
+      return `<span class="row-field entity-directory-chip-cell" title="${escapeAttr(value.email || '')}"><i class="bi ${icon}"></i>${escapeHtml(value.displayName || '')}</span>`;
+    }
+
     // Links are an array of {url, title}; anything else stringifies fine.
     if (f.field_type === 'links' && Array.isArray(value)) {
       return value.map(l => `
@@ -1836,6 +1879,8 @@ const GenericEntity = (() => {
         data.fields[field.field_key] = value ? parseFloat(value) : null;
       } else if (field.field_type === 'recurrence') {
         data.fields[field.field_key] = value ? JSON.parse(value) : null;
+      } else if (field.field_type === 'person' || field.field_type === 'group') {
+        data.fields[field.field_key] = value ? JSON.parse(value) : null;
       } else {
         data.fields[field.field_key] = value || null;
       }
@@ -1943,8 +1988,15 @@ const GenericEntity = (() => {
     const form = document.getElementById('entity-editor-form');
     if (form) {
       wireEditorCycles();
-      form.addEventListener('input', markChanged);
-      form.addEventListener('change', markChanged);
+      // The Person/Group search box is staging text, not a field value - it
+      // has no `name` and collectFormValues never reads it, only the hidden
+      // input a RESULT click writes. Marking the record dirty (and scheduling
+      // an autosave) while someone is just typing a query, before they've
+      // picked anyone, would save nothing different and show a false
+      // "unsaved" dot the whole time they're searching.
+      const isDirectorySearchInput = (e) => e.target.closest('.entity-directory-input');
+      form.addEventListener('input', (e) => { if (!isDirectorySearchInput(e)) markChanged(); });
+      form.addEventListener('change', (e) => { if (!isDirectorySearchInput(e)) markChanged(); });
 
       // Editing a field updates that row's cell straight away, so the list and
       // the editor never disagree about what is on screen. This is a PREVIEW of
@@ -1959,8 +2011,66 @@ const GenericEntity = (() => {
       });
 
       const mirror = () => mirrorEditorToRow();
-      form.addEventListener('input', mirror);
-      form.addEventListener('change', mirror);
+      form.addEventListener('input', (e) => { if (!isDirectorySearchInput(e)) mirror(); });
+      form.addEventListener('change', (e) => { if (!isDirectorySearchInput(e)) mirror(); });
+
+      // Person/Group: live-search Entra ID through the server as you type.
+      // Debounced and staleness-guarded the same way command-palette.js's
+      // search is - a slower earlier response landing after a faster later
+      // one must not overwrite what's now a different search term.
+      form.addEventListener('input', (e) => {
+        const input = e.target.closest('.entity-directory-input');
+        if (!input) return;
+        const wrapper = input.closest('.entity-directory-field');
+        const resultsEl = wrapper?.querySelector('.entity-directory-results');
+        if (!wrapper || !resultsEl) return;
+        const kind = wrapper.dataset.fieldType;
+        const term = input.value.trim();
+
+        const prevTimer = directorySearchTimers.get(input);
+        if (prevTimer) clearTimeout(prevTimer);
+
+        if (term.length < 2) {
+          resultsEl.hidden = true;
+          resultsEl.innerHTML = '';
+          return;
+        }
+
+        const timer = setTimeout(async () => {
+          const endpoint = kind === 'group' ? '/api/integrations/entra/search/groups' : '/api/integrations/entra/search/users';
+          let items = [];
+          try {
+            items = (await app.fetchData(`${endpoint}?q=${encodeURIComponent(term)}`)) || [];
+          } catch (error) {
+            if (input.value.trim() !== term) return; // superseded while the request was in flight
+            resultsEl.hidden = false;
+            resultsEl.innerHTML = `<div class="entity-directory-hint text-danger">${escapeHtml(error.message)}</div>`;
+            return;
+          }
+          if (input.value.trim() !== term) return; // superseded - discard, a newer search owns the dropdown now
+
+          resultsEl.hidden = false;
+          resultsEl.innerHTML = items.length
+            ? items.map(item => `
+                <div class="entity-directory-result" data-action="directory-pick" data-value="${escapeAttr(JSON.stringify({ externalId: item.id, displayName: item.displayName, email: item.email }))}">
+                  <span>${escapeHtml(item.displayName || '(no name)')}</span>
+                  ${item.email ? `<span class="entity-directory-result-email">${escapeHtml(item.email)}</span>` : ''}
+                </div>
+              `).join('')
+            : '<div class="entity-directory-hint">No matches</div>';
+        }, DIRECTORY_SEARCH_DEBOUNCE_MS);
+        directorySearchTimers.set(input, timer);
+      });
+
+      // Closing the results dropdown on blur has to wait a beat, or the blur
+      // (which fires before the click) removes the row the click was aimed
+      // at before the click ever lands.
+      form.addEventListener('focusout', (e) => {
+        const input = e.target.closest('.entity-directory-input');
+        if (!input) return;
+        const resultsEl = input.closest('.entity-directory-field')?.querySelector('.entity-directory-results');
+        if (resultsEl) setTimeout(() => { resultsEl.hidden = true; }, 150);
+      });
 
       // Add/remove rows for `links` fields. Delegated, so it covers every
       // links field on the form without per-field wiring.
@@ -2023,6 +2133,44 @@ const GenericEntity = (() => {
         if (removeBtn) {
           removeBtn.closest('.entity-link-row')?.remove();
           markChanged();
+          return;
+        }
+
+        const pickResult = e.target.closest('[data-action="directory-pick"]');
+        if (pickResult) {
+          let picked;
+          try { picked = JSON.parse(pickResult.dataset.value); } catch { return; }
+          const wrapper = pickResult.closest('.entity-directory-field');
+          if (!wrapper) return;
+          const hidden = wrapper.querySelector('input[type="hidden"]');
+          const nameEl = wrapper.querySelector('.entity-directory-name');
+          const pickedEl = wrapper.querySelector('.entity-directory-picked');
+          const searchEl = wrapper.querySelector('.entity-directory-search');
+          const resultsEl = wrapper.querySelector('.entity-directory-results');
+          const inputEl = wrapper.querySelector('.entity-directory-input');
+          if (hidden) hidden.value = JSON.stringify(picked);
+          if (nameEl) nameEl.textContent = picked.displayName || '';
+          if (pickedEl) pickedEl.hidden = false;
+          if (searchEl) searchEl.hidden = true;
+          if (inputEl) inputEl.value = '';
+          if (resultsEl) { resultsEl.hidden = true; resultsEl.innerHTML = ''; }
+          markChanged();
+          mirrorEditorToRow();   // a row click fires no input/change event
+          return;
+        }
+
+        const clearDirectory = e.target.closest('[data-action="directory-clear"]');
+        if (clearDirectory) {
+          const wrapper = clearDirectory.closest('.entity-directory-field');
+          if (!wrapper) return;
+          const hidden = wrapper.querySelector('input[type="hidden"]');
+          const pickedEl = wrapper.querySelector('.entity-directory-picked');
+          const searchEl = wrapper.querySelector('.entity-directory-search');
+          if (hidden) hidden.value = '';
+          if (pickedEl) pickedEl.hidden = true;
+          if (searchEl) searchEl.hidden = false;
+          markChanged();
+          mirrorEditorToRow();
         }
       });
       // Pressing Enter in a form field can submit the form natively
@@ -2041,6 +2189,16 @@ const GenericEntity = (() => {
           e.preventDefault();
           flushPendingAutoSave();
         }
+      });
+
+      // Escape (or Enter, which already flushes above) closes a Person/Group
+      // results dropdown without picking anything from it.
+      form.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' && e.key !== 'Enter') return;
+        const input = e.target.closest?.('.entity-directory-input');
+        if (!input) return;
+        const resultsEl = input.closest('.entity-directory-field')?.querySelector('.entity-directory-results');
+        if (resultsEl) resultsEl.hidden = true;
       });
     }
   }

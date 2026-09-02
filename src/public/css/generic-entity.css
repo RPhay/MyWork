@@ -187,6 +187,74 @@
   min-height: 120px;
 }
 
+/* Person / Group fields: live-search-as-you-type against Entra ID */
+.entity-directory-field {
+  position: relative;
+}
+
+.entity-directory-picked {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.entity-directory-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+.entity-directory-search {
+  position: relative;
+}
+
+.entity-directory-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin-top: 2px;
+  max-height: 14rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.entity-directory-result {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.entity-directory-result:hover {
+  background: #eef4ff;
+}
+
+.entity-directory-result-email {
+  font-size: 0.8em;
+  color: #868e96;
+}
+
+.entity-directory-hint {
+  padding: 8px 10px;
+  color: #868e96;
+  font-size: 0.85em;
+}
+
+.row-field.entity-directory-chip-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .entity-actions {
