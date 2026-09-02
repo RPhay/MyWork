@@ -266,8 +266,12 @@ export class EntraIdAuth {
    * @param {number} top
    * @returns {Promise<Array<{id, displayName, email}>>}
    */
-  async searchUsers(accessToken, query, top = 10) {
-    return this._searchDirectory('users', 'displayName,mail,userPrincipalName', accessToken, query, top, (u) => ({
+  async searchUsers(accessToken, query, top = 25) {
+    // ORed so a query matches on name OR mail OR UPN - displayName alone
+    // missed anyone typed by their email address, which is the single most
+    // common way someone actually knows a colleague's Entra identity.
+    const clauses = (q) => `"displayName:${q}" OR "mail:${q}" OR "userPrincipalName:${q}"`;
+    return this._searchDirectory('users', 'displayName,mail,userPrincipalName', accessToken, query, top, clauses, (u) => ({
       id: u.id,
       displayName: u.displayName || null,
       email: u.mail || u.userPrincipalName || null,
@@ -282,8 +286,9 @@ export class EntraIdAuth {
    * @param {number} top
    * @returns {Promise<Array<{id, displayName, email}>>}
    */
-  async searchGroups(accessToken, query, top = 10) {
-    return this._searchDirectory('groups', 'displayName,mail', accessToken, query, top, (g) => ({
+  async searchGroups(accessToken, query, top = 25) {
+    const clauses = (q) => `"displayName:${q}" OR "mail:${q}"`;
+    return this._searchDirectory('groups', 'displayName,mail', accessToken, query, top, clauses, (g) => ({
       id: g.id,
       displayName: g.displayName || null,
       // Only mail-enabled groups carry an address; a plain security group
@@ -298,13 +303,25 @@ export class EntraIdAuth {
    * relevance rather than the alphabetical order `$filter startswith` would
    * give - what you want for "type a few letters, see the best matches".
    */
-  async _searchDirectory(resource, select, accessToken, query, top, mapItem) {
-    // A '"' would terminate the $search expression early, so it's stripped
-    // rather than escaped - there's no legitimate name/email that needs one.
+  async _searchDirectory(resource, select, accessToken, query, top, buildClauses, mapItem) {
+    // A '"' would terminate a $search clause early, so it's stripped rather
+    // than escaped - there's no legitimate name/email that needs one.
     const safeQuery = String(query || '').replace(/"/g, '').trim();
     if (!safeQuery) return [];
 
-    const url = `${this.graphApiUrl}/${resource}?$search="displayName:${safeQuery}"&$select=${select}&$top=${top}`;
+    // URLSearchParams, not hand-built string interpolation: the previous
+    // version put the raw $search value (spaces, quotes, the OR keyword)
+    // straight into the URL unencoded, which a REST API is not obliged to
+    // parse the way you meant - and is exactly the kind of thing that reads
+    // as "the search just doesn't find some things" rather than a clear
+    // error, because Graph still answers 200 with whatever it managed to
+    // parse rather than rejecting a malformed query string outright.
+    const params = new URLSearchParams({
+      '$search': buildClauses(safeQuery),
+      '$select': select,
+      '$top': String(top),
+    });
+    const url = `${this.graphApiUrl}/${resource}?${params.toString()}`;
 
     try {
       const response = await axios.get(url, {
