@@ -129,7 +129,7 @@ function renderWorkItemsList(items, roots = []) {
   roots.forEach((r) => {
     html += renderChildItem(
       r.typeSlug, r.id, r.title, null, null, r.isCopy,
-      { emoji: r.icon, depth: r.depth, isFolder: r.isFolder, onDay: true }
+      { emoji: r.icon, depth: r.depth, isFolder: r.isFolder, onDay: true, fields: r.fields }
     );
   });
 
@@ -175,7 +175,7 @@ function renderWorkItemsList(items, roots = []) {
         item.entities.forEach((c) => {
           childrenHtml += renderChildItem(
             c.typeSlug, c.id, c.title, null, item.id, c.isCopy,
-            { emoji: c.icon, depth: c.depth, isFolder: c.isFolder }
+            { emoji: c.icon, depth: c.depth, isFolder: c.isFolder, fields: c.fields }
           );
         });
       }
@@ -215,6 +215,24 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
     : isCopy
     ? '<i class="bi bi-files text-muted child-origin" title="Copy - edits stay here and do not change the original"></i>'
     : '<i class="bi bi-link-45deg text-muted child-origin" title="Reference - edits change the original record"></i>';
+  // Every show_in_row field the child's OWN type declares - a ServiceNow
+  // record's Link, a Task's Priority - the same fields its own tab would show
+  // as columns. Read from resolvedTypeSchemas, filled by
+  // preloadChildTypeSchemas() before this ever runs; a type missing there
+  // (the preload was skipped) just renders with none, same as one that
+  // genuinely has none. Folders skip this - their cells are roll-ups, not a
+  // folder row's own field values, and a folder record dropped here carries
+  // none anyway.
+  const childSchema = resolvedTypeSchemas.get(type);
+  const fieldCols = (childSchema && !extra.isFolder)
+    ? GenericEntity.orderedColumns(childSchema).filter(c => !c.isTitle)
+    : [];
+  const fieldsHtml = fieldCols.map((c) => {
+    const value = extra.fields ? extra.fields[c.field.field_key] : undefined;
+    if (value === undefined || value === null || value === '') return '';
+    return `<span class="child-item-field" title="${app.escapeHtml(c.label)}">${GenericEntity.renderCellValue({ id, fields: extra.fields || {} }, c.field, value, true)}</span>`;
+  }).join('');
+
   return `
     <div class="work-item child-item-row${onDay ? ' day-root-row' : ''}" data-work-id="${id}" data-item-type="${type}" data-parent-work-id="${parentWorkItemId}" data-depth="${extra.depth || 0}" style="margin-left: ${indent}px;" data-child-id="${id}" data-origin="${isCopy ? 'copy' : 'reference'}"${onDay ? ' data-on-day="1"' : ''}>
       <div class="work-item-header" draggable="true" style="cursor: pointer;" title="Click to expand/collapse, double-click to edit; drag to reorder within its level">
@@ -223,6 +241,7 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
           ${originBadge}
           <span class="work-item-title">${app.escapeHtml(label)}</span>
         </span>
+        ${fieldsHtml}
         <span style="flex: 1;"></span>
         <span class="work-item-actions">
           ${onDay
@@ -283,6 +302,10 @@ async function loadWorkItems() {
     if (result.success) {
       currentWorkItems = result.data;
       currentDayRootEntities = roots;
+      // Must resolve before rendering: renderChildItem() reads schemas
+      // synchronously, and a child of a type never seen before this load
+      // has nothing in resolvedTypeSchemas until this awaits.
+      await preloadChildTypeSchemas(result.data, roots);
       renderWorkItemsList(result.data, roots);
       updateDailyTimeTotal();
     } else {
@@ -491,15 +514,46 @@ function syncDailiesRowSelection() {
   app.selectRow(row, ".work-item");
 }
 
-// The `daily` type's schema, fetched once. The editor is built from it, so
-// without it there is no form to build - hence a cached promise rather than a
-// cached value: two quick row clicks would otherwise fire two requests.
-let dailyTypeSchemaPromise = null;
-function dailyTypeSchema() {
-  if (!dailyTypeSchemaPromise) {
-    dailyTypeSchemaPromise = app.fetchData('/api/entity-types/daily');
+// One schema cache for every type the rail has ever needed - not just
+// `daily`. A child or on-day record can be of ANY type (a ServiceNow record,
+// a Task, a user's own custom type), and rendering its own show_in_row
+// columns needs that type's field list the same way the daily rail's own
+// columns need daily's.
+//
+// Two maps, not one, because of WHEN each is needed: typeSchema() is awaited
+// (fetch dedup - two rows of the same type in one render pass must not fire
+// two requests), while renderChildItem() builds an HTML string synchronously
+// and cannot await anything. resolvedTypeSchemas is what it reads; a type
+// missing from it (preloadChildTypeSchemas() not yet run for this slug)
+// means that child renders with no extra columns rather than throwing.
+const typeSchemaPromises = new Map();
+const resolvedTypeSchemas = new Map();
+function typeSchema(slug) {
+  if (!typeSchemaPromises.has(slug)) {
+    typeSchemaPromises.set(slug, app.fetchData(`/api/entity-types/${slug}`)
+      .then((schema) => { resolvedTypeSchemas.set(slug, schema); return schema; }));
   }
-  return dailyTypeSchemaPromise;
+  return typeSchemaPromises.get(slug);
+}
+
+// Back-compat name used by editWorkItem() below - `daily` is just one more
+// entry in the same cache now.
+function dailyTypeSchema() {
+  return typeSchema('daily');
+}
+
+// Every OTHER type's schema a render pass will need, fetched up front so
+// renderChildItem() can read resolvedTypeSchemas synchronously instead of
+// awaiting per row. Safe to call every load: typeSchema() itself is what
+// dedupes repeat requests for a type already seen.
+async function preloadChildTypeSchemas(items, roots) {
+  const slugs = new Set();
+  for (const r of roots) slugs.add(r.typeSlug);
+  for (const item of items) {
+    for (const c of (item.entities || [])) slugs.add(c.typeSlug);
+  }
+  slugs.delete('daily'); // already loaded alongside items/roots
+  await Promise.all([...slugs].map(typeSchema));
 }
 
 // Dailies now opens the SAME editor every other type opens, built by

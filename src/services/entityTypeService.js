@@ -1,7 +1,7 @@
 import { query } from '../database/connectionPool.js';
 import { ValidationError, NotFoundError, ConflictError } from '../config/errors.js';
 import { UNPINNABLE_TYPE_SLUGS } from '../config/constants.js';
-import { ENGINE_FIELD_DEFS } from '../database/systemEntityTypes.js';
+import { ENGINE_FIELD_DEFS, UNIVERSAL_LEAF_TYPE_SLUGS } from '../database/systemEntityTypes.js';
 // A captured snapshot of a working configuration - see revertSystemType.
 import typeDefaults from '../database/typeDefaults.json' with { type: 'json' };
 import logger from '../utils/logger.js';
@@ -239,6 +239,38 @@ async function ensureWorkspaceChildRules(workspaceTypeId) {
   }
 }
 
+/**
+ * The other half of the fixed SYSTEM_TYPE_RELATIONSHIPS parent list for
+ * ado_work_item/servicenow (UNIVERSAL_LEAF_TYPE_SLUGS): that array is
+ * written once and only ever covers the types that existed at the time, so
+ * a type created afterward - a user's custom type, a workspace tab - would
+ * silently never be able to hold a dropped ADO work item or ServiceNow
+ * record, exactly the "any editable type" trap ensureContainerRules exists
+ * to close for templates and workspace tabs. Called for every NEW
+ * hierarchical type, workspace or not; the schema seeders carry the
+ * matching backfill for types that already existed before this exists.
+ */
+async function ensureUniversalLeafRules(newTypeId) {
+  if (UNIVERSAL_LEAF_TYPE_SLUGS.length === 0) return;
+  const placeholders = UNIVERSAL_LEAF_TYPE_SLUGS.map(() => '?').join(', ');
+  const leaves = await query(
+    `SELECT id FROM entity_types WHERE deleted_at IS NULL AND slug IN (${placeholders})`,
+    UNIVERSAL_LEAF_TYPE_SLUGS
+  );
+  for (const leaf of leaves) {
+    if (leaf.id === newTypeId) continue;
+    const existing = await query(
+      "SELECT id FROM entity_type_relationships WHERE parent_type_id = ? AND child_type_id = ? AND relationship_kind = 'hierarchy'",
+      [newTypeId, leaf.id]
+    );
+    if (existing.length > 0) continue;
+    await query(
+      "INSERT INTO entity_type_relationships (parent_type_id, child_type_id, relationship_kind) VALUES (?, ?, 'hierarchy')",
+      [newTypeId, leaf.id]
+    );
+  }
+}
+
 // Create a new entity type
 export async function createEntityType(data) {
   if (!data.slug) throw new ValidationError('slug is required');
@@ -314,6 +346,12 @@ export async function createEntityType(data) {
       // ...or, if it isn't one itself, it can be put inside a template and
       // every existing workspace tab, like any other editable type.
       await ensureContainerRules(typeId, data.type_category);
+    }
+
+    // A dropped ADO work item or ServiceNow record needs somewhere to land
+    // in THIS new type too, workspace or not - see ensureUniversalLeafRules.
+    if (supportsHierarchy && !UNIVERSAL_LEAF_TYPE_SLUGS.includes(slug)) {
+      await ensureUniversalLeafRules(typeId);
     }
 
     return getEntityType(typeId);

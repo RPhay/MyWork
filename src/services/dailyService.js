@@ -182,6 +182,11 @@ async function attachAssociations(items) {
   // differently, since that difference is invisible otherwise.
   const associatedEntityIds = [...genericChildren.values()].flat().map(r => r.id);
   const copies = await entityService.findClonedEntityIds(associatedEntityIds).catch(() => new Set());
+  // Field VALUES for every associated record, so the rail can render each
+  // one's own show_in_row columns (a ServiceNow record's Link, say) instead
+  // of showing nothing but a title - the same reason getDailyRootEntities
+  // below fetches them too.
+  const associatedFields = await entityService.attachFieldValues(associatedEntityIds);
 
   // One list per type, cut from the generic children. Only the DIRECT children
   // (depth 0) appear in these: they describe what was put on the day, and the
@@ -213,6 +218,7 @@ async function attachAssociations(items) {
       isFolder: !!r.is_folder,
       depth: r.depth,
       isCopy: copies.has(r.id),
+      fields: associatedFields.get(r.id) || {},
     })),
   }));
 }
@@ -583,6 +589,7 @@ export async function getDailyRootEntities(date, contextId) {
   const copies = await entityService
     .findClonedEntityIds(all.map(r => r.id), contextId)
     .catch(() => new Set());
+  const fieldsMap = await entityService.attachFieldValues(all.map(r => r.id));
 
   return all.map(r => ({
     id: r.id,
@@ -590,6 +597,7 @@ export async function getDailyRootEntities(date, contextId) {
     typeSlug: r.type_slug,
     typeLabel: r.label_singular,
     icon: r.icon,
+    fields: fieldsMap.get(r.id) || {},
     isFolder: !!r.is_folder,
     depth: r.depth,
     isCopy: copies.has(r.id),

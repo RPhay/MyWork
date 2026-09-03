@@ -169,6 +169,26 @@
     min-width: 0;
   }
 
+  /* A child/on-day row is not on the daily rail's fixed schema grid - it can
+     be of any type, with any number of its own show_in_row fields, so its
+     header overrides the grid to flex. Without this, the field chips
+     renderChildItem() now emits fall into that grid's fixed 40px/50px/...
+     tracks meant for the DAILY type's columns, and the actions button drifts
+     into whatever narrow or auto-generated track is left over. The `flex: 1`
+     spacer between the fields and the actions buttons (in the row markup)
+     only does anything once the container is actually a flex box. */
+  .child-item-row > .work-item-header {
+    display: flex;
+    align-items: center;
+  }
+
+  .child-item-field {
+    flex: 0 0 auto;
+    margin-right: 10px;
+    font-size: 0.9rem;
+    color: #495057;
+  }
+
   .work-item-title {
     overflow: hidden;
     text-overflow: ellipsis;

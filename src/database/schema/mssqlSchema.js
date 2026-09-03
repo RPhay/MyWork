@@ -27,6 +27,7 @@ import {
   seededTypesWithFields,
   resolveTypeRelationships,
   upgradedStatusOptions,
+  UNIVERSAL_LEAF_TYPE_SLUGS,
 } from '../systemEntityTypes.js';
 
 async function tableExists(pool, tableName) {
@@ -1366,7 +1367,7 @@ export async function createMssqlSchema(pool) {
   // hierarchical types with no self-nesting rule - a tree whose every
   // drag-to-nest is rejected.
   {
-    const typeRows = await pool.request().query('SELECT id, slug FROM [MyWork].[entity_types]');
+    const typeRows = await pool.request().query('SELECT id, slug, supports_hierarchy FROM [MyWork].[entity_types] WHERE deleted_at IS NULL');
     const typeIdBySlug = new Map(typeRows.recordset.map((r) => [r.slug, r.id]));
 
     const insertRule = async (parentSlug, childSlug, rel) => {
@@ -1402,6 +1403,20 @@ export async function createMssqlSchema(pool) {
         for (const parentSlug of parents) {
           for (const childSlug of children) await insertRule(parentSlug, childSlug, rel);
         }
+      }
+    }
+
+    // The backfill half of ensureUniversalLeafRules() in entityTypeService.js,
+    // mirroring mysqlSchema.js. A type that already existed before
+    // UNIVERSAL_LEAF_TYPE_SLUGS did - a custom type, a workspace tab - needs
+    // this too, or it can never hold a dropped ADO work item or ServiceNow
+    // record: the static loop just above only ever named the parents that
+    // existed when it was written.
+    for (const type of typeRows.recordset) {
+      if (UNIVERSAL_LEAF_TYPE_SLUGS.includes(type.slug)) continue;
+      if (!type.supports_hierarchy) continue;
+      for (const leafSlug of UNIVERSAL_LEAF_TYPE_SLUGS) {
+        await insertRule(type.slug, leafSlug, { relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null });
       }
     }
   }

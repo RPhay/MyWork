@@ -625,6 +625,17 @@ export const SPECIAL_ENTITY_TYPES = [
   },
 ];
 
+// Types that drop onto ANY hierarchical type, current and future - not just
+// the fixed parent list SYSTEM_TYPE_RELATIONSHIPS names above. That list is a
+// static array, written once, so it only ever covers the types that existed
+// when it was written - a custom type created later, or a workspace tab
+// (is_workspace, created at runtime with nothing seeded for it at all), never
+// gets ado_work_item or servicenow as an allowed child from it. Both
+// entityTypeService.js (when a new hierarchical type is created) and the
+// schema seeders (as a backfill, for types that already existed before this
+// list did) read this to add that rule the static array cannot reach.
+export const UNIVERSAL_LEAF_TYPE_SLUGS = ['ado_work_item', 'servicenow'];
+
 // The types that nest inside themselves. Derived, never restated, so it cannot
 // drift from supports_hierarchy.
 //

@@ -17,6 +17,7 @@ import {
   seededTypesWithFields,
   resolveTypeRelationships,
   upgradedStatusOptions,
+  UNIVERSAL_LEAF_TYPE_SLUGS,
 } from '../systemEntityTypes.js';
 
 async function columnExists(connection, table, column) {
@@ -1180,7 +1181,7 @@ export async function createMysqlSchema(connection) {
   // self-nesting rule - which renders a tree whose every drag-to-nest is
   // rejected, and is why `goal -> goal` kept having to be re-added by hand.
   {
-    const [typeRows] = await connection.query('SELECT id, slug FROM entity_types');
+    const [typeRows] = await connection.query('SELECT id, slug, supports_hierarchy FROM entity_types WHERE deleted_at IS NULL');
     const typeIdBySlug = new Map(typeRows.map((r) => [r.slug, r.id]));
 
     const insertRule = async (parentSlug, childSlug, rel) => {
@@ -1211,6 +1212,24 @@ export async function createMysqlSchema(connection) {
         for (const parentSlug of parents) {
           for (const childSlug of children) await insertRule(parentSlug, childSlug, rel);
         }
+      }
+    }
+
+    // The backfill half of ensureUniversalLeafRules() in entityTypeService.js,
+    // which only runs when a NEW type is created. A type that already existed
+    // before UNIVERSAL_LEAF_TYPE_SLUGS did - a custom type, a workspace tab -
+    // needs this too, or it can never hold a dropped ADO work item or
+    // ServiceNow record: the static loop just above only ever named the
+    // parents that existed when it was written, the same reason
+    // ensureContainerRules() above needs no matching backfill (it runs from
+    // the OTHER direction, at every type's own creation, so it already covers
+    // types old and new) while this one, running from the leaf's fixed
+    // parent list, does.
+    for (const type of typeRows) {
+      if (UNIVERSAL_LEAF_TYPE_SLUGS.includes(type.slug)) continue;
+      if (!type.supports_hierarchy) continue;
+      for (const leafSlug of UNIVERSAL_LEAF_TYPE_SLUGS) {
+        await insertRule(type.slug, leafSlug, { relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null });
       }
     }
   }
