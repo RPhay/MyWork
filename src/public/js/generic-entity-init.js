@@ -999,15 +999,26 @@ async function initGenericEntityTab(typeSlug, typeName) {
       }
 
       const notesBtn = e.target.closest('[data-action="edit-notes-field"]');
-      if (!notesBtn) return;
-      const entity = entities.find(x => x.id == notesBtn.dataset.entityId);
-      openNotesEditor({
-        entityId: notesBtn.dataset.entityId,
-        fieldKey: notesBtn.dataset.fieldKey,
-        fieldType: notesBtn.dataset.fieldType,
-        // Field values hang off `fields`, not the entity itself.
-        current: entity?.fields?.[notesBtn.dataset.fieldKey] ?? '',
-      });
+      if (notesBtn) {
+        const entity = entities.find(x => x.id == notesBtn.dataset.entityId);
+        openNotesEditor({
+          entityId: notesBtn.dataset.entityId,
+          fieldKey: notesBtn.dataset.fieldKey,
+          fieldType: notesBtn.dataset.fieldType,
+          // Field values hang off `fields`, not the entity itself.
+          current: entity?.fields?.[notesBtn.dataset.fieldKey] ?? '',
+        });
+        return;
+      }
+
+      // popStickyNote lives in dragDropUtils.js - shared with Dailies (see
+      // dailies-list-events.js), which is not a generic tab and shares none
+      // of this closure's own state.
+      const stickyBtn = e.target.closest('[data-action="pop-sticky"]');
+      if (stickyBtn) {
+        const entity = entities.find(x => x.id == stickyBtn.dataset.entityId);
+        if (entity) popStickyNote(entity.id, schemaForEntity(entity).slug, stickyBtn.dataset.fieldKey, e);
+      }
     });
 
     // Turns a row's title into an editable box in place. Enter or clicking away

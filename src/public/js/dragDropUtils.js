@@ -582,6 +582,36 @@ async function createServiceNowRecord(payload) {
   }
 }
 
+// Opens one field of one entity as a real, always-on-top OS window (the
+// desktop wrapper's `sticky` mode - see pipWindowService.js and main.rs).
+// Shared here, not local to either caller, because BOTH a generic tab
+// (generic-entity-init.js) and Dailies (dailies-list-events.js, which is not
+// a generic tab and shares no state with one) need to trigger the exact same
+// launch for the exact same data-action="pop-sticky" glyph
+// (genericEntity.js#renderCellValue renders it identically everywhere a
+// 'stickies' field's cell appears). A sticky note is not a modal - the page
+// only asks the server to spawn the window; /sticky itself owns the text,
+// the autosave, and its own close.
+async function popStickyNote(entityId, typeSlug, fieldKey, e) {
+  try {
+    const res = await app.fetchRaw('/api/pip-window/sticky', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: entityId,
+        type: typeSlug,
+        field: fieldKey,
+        x: Math.round(window.screenX + (e?.clientX || 0)),
+        y: Math.round(window.screenY + Math.max(0, window.outerHeight - window.innerHeight) + (e?.clientY || 0)),
+      }),
+    });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.message);
+    if (result.data?.alreadyOpen) app.notify('Already open - look for the window', 'info');
+  } catch (error) {
+    app.notify(error.message || 'Could not open that sticky note', 'danger');
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Drop indicators
 //

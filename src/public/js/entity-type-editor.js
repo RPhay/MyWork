@@ -294,7 +294,7 @@ function UNLISTED_TYPE_OPTION(field) {
 const KNOWN_FIELD_TYPES = [
   'text', 'textarea', 'number', 'duration', 'timebox', 'date', 'url', 'links',
   'select', 'radio', 'checkbox', 'status', 'priority', 'emoji', 'emojis',
-  'notes', 'worked_with_claude', 'person', 'group',
+  'notes', 'stickies', 'worked_with_claude', 'person', 'group',
 ];
 
 const ROLLUP_MODES = {
@@ -463,7 +463,7 @@ function addFieldRow(field = null) {
     timebox: 'Time Box', date: 'Date', url: 'URL', links: 'Links',
     select: 'Dropdown', radio: 'Choice', checkbox: 'Checkbox', status: 'Status',
     priority: 'Priority', emoji: 'Emoji', emojis: 'Emojis', notes: 'Notes',
-    worked_with_claude: 'AI', person: 'Person', group: 'Group',
+    stickies: 'Sticky Note', worked_with_claude: 'AI', person: 'Person', group: 'Group',
   };
 
   fieldRow.innerHTML = `
@@ -493,6 +493,7 @@ function addFieldRow(field = null) {
           <option value="priority" ${effectiveType === 'priority' ? 'selected' : ''}>Priority (Low to Critical)</option>
           <option value="radio" ${effectiveType === 'radio' ? 'selected' : ''}>Radio Buttons</option>
           <option value="status" ${effectiveType === 'status' ? 'selected' : ''}>Status</option>
+          <option value="stickies" ${effectiveType === 'stickies' ? 'selected' : ''}>Sticky note (own floating window)</option>
           <option value="text" ${effectiveType === 'text' ? 'selected' : ''}>Text</option>
           <option value="timebox" ${effectiveType === 'timebox' ? 'selected' : ''}>Time Box (15m to 2h)</option>
           <option value="url" ${effectiveType === 'url' ? 'selected' : ''}>URL (single link)</option>

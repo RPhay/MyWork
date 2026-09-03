@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sticky note</title>
+  <style>
+    /* Fills the whole window with the note's own colour - no white flash,
+       no border, so the OS window IS the note (desktop/main.rs gives it a
+       real drop shadow; this page just has to paint nothing but yellow). */
+    html, body { margin: 0; padding: 0; height: 100%; background: #fff59d; overflow: hidden; }
+    body {
+      display: flex; flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      user-select: none;
+    }
+    #stickyBar { flex: 0 0 auto; display: flex; justify-content: flex-end; padding: 4px 6px; }
+    #stickyClose {
+      border: none; background: none; font-size: 15px; line-height: 1;
+      color: #8a7a00; cursor: pointer; padding: 3px 7px; opacity: 0.55;
+    }
+    #stickyClose:hover { opacity: 1; }
+    #stickyText {
+      flex: 1 1 auto; resize: none; border: none; outline: none;
+      background: transparent; padding: 0 14px 14px;
+      font-family: inherit; font-size: 15px; line-height: 1.4; color: #4a3f00;
+      user-select: text;
+    }
+    #stickyText::placeholder { color: #b4a94d; }
+  </style>
+</head>
+<body
+  data-csrf-token="<%= csrfToken %>"
+  data-entity-id="<%= entityId %>"
+  data-type-slug="<%= typeSlug %>"
+  data-field-key="<%= fieldKey %>"
+>
+  <%# Right-press-and-drag anywhere moves the window (sticky.js, same
+      mechanism /pip uses); a plain right-click does nothing; the X closes.
+      Left-click and everything else belongs to the textarea. %>
+  <div id="stickyBar">
+    <button id="stickyClose" type="button" title="Close">✕</button>
+  </div>
+  <textarea id="stickyText" placeholder="Type here…" spellcheck="false"></textarea>
+  <script src="/js/main.js"></script>
+  <script src="/js/sticky.js"></script>
+</body>
+</html>

@@ -146,6 +146,22 @@ function initWorkItemsListEventListeners() {
       openWorkItemNotesModal(notesCell.dataset.id);
       return;
     }
+
+    // popStickyNote lives in dragDropUtils.js - shared with every generic
+    // tab (generic-entity-init.js), since genericEntity.js#renderCellValue
+    // renders the identical data-action="pop-sticky" glyph everywhere a
+    // 'stickies' field's cell appears, the daily's own fields and a nested
+    // child's (renderChildItem's field chips) alike. The type is 'daily' for
+    // the day's own row; a child row carries its OWN type on itself
+    // (data-item-type, set by renderChildItem) because it can be anything.
+    const stickyCell = e.target.closest('[data-action="pop-sticky"]');
+    if (stickyCell) {
+      const childRow = stickyCell.closest(".child-item-row");
+      const typeSlug = childRow ? childRow.dataset.itemType : "daily";
+      popStickyNote(Number(stickyCell.dataset.entityId), typeSlug, stickyCell.dataset.fieldKey, e);
+      return;
+    }
+
     if (e.target.closest("[data-action]")) return;
     const header = e.target.closest(".work-item-header");
     if (!header) return;

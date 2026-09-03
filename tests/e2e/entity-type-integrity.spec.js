@@ -76,7 +76,7 @@ test('the ENUM, the service allow-list and the editor options agree', async ({ p
   const enumTypes = [
     'text', 'textarea', 'number', 'date', 'url', 'links', 'select', 'radio',
     'status', 'priority', 'checkbox', 'recurrence', 'emoji', 'emojis',
-    'duration', 'timebox', 'notes', 'worked_with_claude', 'person', 'group',
+    'duration', 'timebox', 'notes', 'stickies', 'worked_with_claude', 'person', 'group',
   ];
 
   const missingFromEditor = enumTypes.filter(t => !editorJs.includes(`value="${t}"`));

@@ -242,6 +242,21 @@ router.get("/pip", (req, res) => {
   });
 });
 
+// A single sticky note, chrome-free - what the desktop wrapper's `sticky`
+// window mode loads. Same split as /pip above: this page carries no data of
+// its own, just which field of which record it is (id/type/field, all query
+// params so the wrapper's URL-building in main.rs stays a plain format!()).
+// sticky.js fetches the current value and PUTs edits back itself.
+router.get("/sticky", (req, res) => {
+  res.render("pages/sticky", {
+    title: "Sticky note",
+    entityId: req.query.id || "",
+    typeSlug: req.query.type || "",
+    fieldKey: req.query.field || "",
+    version: readVersion(),
+  });
+});
+
 // Settings page
 router.get("/settings", (req, res) => {
   const currentYear = new Date().getFullYear();

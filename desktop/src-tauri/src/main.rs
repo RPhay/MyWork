@@ -154,48 +154,105 @@ fn window_number(window: &tauri::WebviewWindow) -> Option<i64> {
     Some(n as i64)
 }
 
-fn main() {
-    // CLI: <monitor> [x y]  - x/y are logical screen coordinates of the
-    // navbar monitor being popped out, sent by the browser page through the
-    // server, so the window opens on the SAME screen right over it.
-    let args: Vec<String> = std::env::args().collect();
+// Which window this launch is for, parsed once from argv so main()'s setup
+// closure stays a single branch rather than argv-parsing logic threaded
+// through it. Two CLI shapes, both from pipWindowService.js:
+//   <monitor> [x y]                    - the original, a focus monitor
+//   sticky <id> <type> <field> [x y]   - one field of one record
+enum Launch {
+    Monitor { monitor: Option<u32>, pos: (f64, f64) },
+    Sticky { id: String, type_slug: String, field: String, pos: (f64, f64) },
+}
+
+fn parse_launch(args: &[String]) -> Launch {
+    if args.get(1).map(|s| s.as_str()) == Some("sticky") {
+        let pos = match (
+            args.get(5).and_then(|a| a.parse().ok()),
+            args.get(6).and_then(|a| a.parse().ok()),
+        ) {
+            (Some(x), Some(y)) => (x, y),
+            _ => (120.0, 120.0),
+        };
+        return Launch::Sticky {
+            id: args.get(2).cloned().unwrap_or_default(),
+            type_slug: args.get(3).cloned().unwrap_or_default(),
+            field: args.get(4).cloned().unwrap_or_default(),
+            pos,
+        };
+    }
     let monitor: Option<u32> = args.get(1).and_then(|a| a.parse().ok());
-    let pos: (f64, f64) = match (
+    let pos = match (
         args.get(2).and_then(|a| a.parse().ok()),
         args.get(3).and_then(|a| a.parse().ok()),
     ) {
         (Some(x), Some(y)) => (x, y),
         _ => (80.0, 80.0),
     };
+    Launch::Monitor { monitor, pos }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let launch = parse_launch(&args);
+    let is_sticky = matches!(launch, Launch::Sticky { .. });
 
     tauri::Builder::default()
         .setup(move |app| {
-            let url = match monitor {
-                Some(n) => format!("http://localhost:3000/pip?monitor={n}"),
-                None => "http://localhost:3000/pip".to_string(),
+            let window = match &launch {
+                Launch::Monitor { monitor, pos } => {
+                    let url = match monitor {
+                        Some(n) => format!("http://localhost:3000/pip?monitor={n}"),
+                        None => "http://localhost:3000/pip".to_string(),
+                    };
+                    let title = match monitor {
+                        Some(n) => format!("Focus monitor {n}"),
+                        None => "Focus monitors".to_string(),
+                    };
+                    // Transparent + shadowless: the page paints nothing but
+                    // the monitor square, so the window must add nothing
+                    // around it - no background, and no rectangular shadow
+                    // betraying a window edge. NOT visible_on_all_workspaces:
+                    // the window opens on the ACTIVE macOS Space - the one
+                    // the browser was on when the pop-out was asked for -
+                    // and stays off the others unless the pop-out's own menu
+                    // turns "show on all virtual monitors" on
+                    // (focus-desktop.js calls setVisibleOnAllWorkspaces).
+                    WebviewWindowBuilder::new(app, "monitors", WebviewUrl::External(url.parse()?))
+                        .title(title)
+                        .decorations(false)
+                        .always_on_top(true)
+                        .transparent(true)
+                        .shadow(false)
+                        .position(pos.0, pos.1)
+                        .inner_size(400.0, 56.0)
+                        .resizable(false)
+                        .build()?
+                }
+                Launch::Sticky { id, type_slug, field, pos } => {
+                    let url = format!(
+                        "http://localhost:3000/sticky?id={id}&type={type_slug}&field={field}"
+                    );
+                    // Opaque, not transparent: unlike a monitor square this
+                    // note IS a solid coloured rectangle (sticky.ejs paints
+                    // the yellow) - transparent here would show whatever is
+                    // behind the window through its own corners. Shadow ON,
+                    // for the same reason a real sticky note reads as a
+                    // physical object sitting on top of everything else.
+                    // Resizable: a monitor square has one correct size: this
+                    // note's text does not.
+                    WebviewWindowBuilder::new(app, "sticky", WebviewUrl::External(url.parse()?))
+                        .title("Sticky note")
+                        .decorations(false)
+                        .always_on_top(true)
+                        .transparent(false)
+                        .shadow(true)
+                        .position(pos.0, pos.1)
+                        .inner_size(240.0, 240.0)
+                        .min_inner_size(140.0, 120.0)
+                        .resizable(true)
+                        .build()?
+                }
             };
-            let title = match monitor {
-                Some(n) => format!("Focus monitor {n}"),
-                None => "Focus monitors".to_string(),
-            };
-            // Transparent + shadowless: the page paints nothing but the
-            // monitor square, so the window must add nothing around it - no
-            // background, and no rectangular shadow betraying a window edge.
-            // NOT visible_on_all_workspaces: the window opens on the ACTIVE
-            // macOS Space - the one the browser was on when the pop-out was
-            // asked for - and stays off the others unless the pop-out's own
-            // menu turns "show on all virtual monitors" on
-            // (focus-desktop.js calls setVisibleOnAllWorkspaces).
-            let window = WebviewWindowBuilder::new(app, "monitors", WebviewUrl::External(url.parse()?))
-                .title(title)
-                .decorations(false)
-                .always_on_top(true)
-                .transparent(true)
-                .shadow(false)
-                .position(pos.0, pos.1)
-                .inner_size(400.0, 56.0)
-                .resizable(false)
-                .build()?;
 
             let drag_window = window.clone();
             app.listen_any("pip-move", move |event| {
@@ -205,6 +262,14 @@ fn main() {
                     MOVING.store(false, Ordering::SeqCst);
                 }
             });
+
+            // Everything below is macOS-Spaces support for the monitors
+            // window's own menu (focus-desktop.js) - a sticky note has no
+            // menu and never emits these, so there is nothing to skip
+            // registering FOR, but no reason to either.
+            if is_sticky {
+                return Ok(());
+            }
 
             // The page asks for the Space list when its menu opens and gets
             // it back as an event; picking one sends the id to move to.

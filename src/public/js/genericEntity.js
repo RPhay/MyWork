@@ -360,6 +360,17 @@ const GenericEntity = (() => {
         <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="notes" placeholder="Your own notes">${value || ''}</textarea>
       </div>
     `,
+    // In the editor a sticky is just a box to type in, same as Notes - the
+    // editor is not what floats. The ROW is: a glyph that, double-clicked,
+    // pops a real OS window for THIS field alone (see the pop-sticky
+    // data-action in renderCellValue and generic-entity-init.js), because a
+    // sticky note is a thing you want visible while you work in something
+    // else entirely, which nothing inside this page's own DOM can be.
+    stickies: (field, value = '') => `
+      <div class="form-group">
+        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="stickies" placeholder="Sticky note text">${value || ''}</textarea>
+      </div>
+    `,
     worked_with_claude: (field, value = false) => `
       <div class="form-group">
         <input type="checkbox" name="${field.field_key}" class="form-check-input" ${value ? 'checked' : ''} data-field-type="worked_with_claude">
@@ -1227,6 +1238,27 @@ const GenericEntity = (() => {
     if (f.field_type === 'notes') {
       const has = value !== null && value !== undefined && String(value).trim() !== '';
       return `<span class="row-field notes-cell"><i class="bi bi-sticky-fill" style="color: ${has ? '#adb5bd' : '#dee2e6'};" aria-hidden="true"></i></span>`;
+    }
+
+    // Same glyph-not-text reasoning as Notes above, but DOUBLE-click (not a
+    // single click) is what opens it - it pops a real OS window
+    // (data-action="pop-sticky", wired in generic-entity-init.js and,
+    // separately, wherever Dailies opens things, since Dailies is not a
+    // generic tab and shares none of that tab's listeners), and a single
+    // click already means something on every row (select it) - it must not
+    // also launch a window by accident.
+    if (f.field_type === 'stickies' && !derived) {
+      const has = value !== null && value !== undefined && String(value).trim() !== '';
+      return `<span class="row-field stickies-cell" data-action="pop-sticky"
+              data-entity-id="${entity.id}" data-field-key="${escapeAttr(f.field_key)}"
+              role="button" tabindex="0"
+              title="${has ? 'Double-click to open this sticky note' : 'Double-click to add a sticky note'}">
+          <i class="bi bi-sticky-fill" style="color: ${has ? '#ffd43b' : '#dee2e6'};" aria-hidden="true"></i>
+        </span>`;
+    }
+    if (f.field_type === 'stickies') {
+      const has = value !== null && value !== undefined && String(value).trim() !== '';
+      return `<span class="row-field stickies-cell"><i class="bi bi-sticky-fill" style="color: ${has ? '#adb5bd' : '#dee2e6'};" aria-hidden="true"></i></span>`;
     }
 
     // Whether AI was used at all - a robot glyph, lit when on. The

@@ -59,6 +59,53 @@ export function launchPipWindow(monitor, x = null, y = null) {
   return { launched: true, monitor };
 }
 
+// Launches the SAME wrapper binary in a different mode: one frameless
+// always-on-top window showing a single entity's single field, editable, in
+// its own OS window - what a sticky note needs and a browser tab, by
+// definition, cannot be (see main.rs's `sticky` CLI branch). Keyed by
+// type+id+field, not a monitor number, so the SAME note reuses its window
+// instead of stacking duplicates, same reasoning as launchPipWindow's guard.
+const SLUG_RE = /^[a-z0-9_]+$/i;
+
+export function launchStickyWindow(entityId, typeSlug, fieldKey, x = null, y = null) {
+  if (!Number.isInteger(entityId) || entityId < 1) {
+    throw new ValidationError("id must be a positive integer");
+  }
+  // Both end up as part of a URL the desktop wrapper's Rust side builds
+  // (http://localhost:3000/sticky?...) - restricted to what a real slug/key
+  // ever looks like so that URL can never come out malformed.
+  if (!SLUG_RE.test(typeSlug || "")) {
+    throw new ValidationError("type must look like a type slug");
+  }
+  if (!SLUG_RE.test(fieldKey || "")) {
+    throw new ValidationError("field must look like a field key");
+  }
+  if ((x != null && !Number.isFinite(x)) || (y != null && !Number.isFinite(y))) {
+    throw new ValidationError("x and y must be numbers");
+  }
+
+  const binary = BINARY_CANDIDATES.find(existsSync);
+  if (!binary) {
+    throw new ValidationError(
+      "The desktop wrapper is not built on this machine - from the repo root, run `npm run desktop:install && npm run desktop:dev` once (requires Rust/Tauri's build tools)",
+    );
+  }
+
+  const key = `sticky:${typeSlug}:${entityId}:${fieldKey}`;
+  const existing = running.get(key);
+  if (existing && existing.exitCode === null) {
+    return { alreadyOpen: true };
+  }
+
+  // CLI shape main.rs parses for this mode: sticky <id> <type> <field> [x y]
+  const args = ["sticky", String(entityId), typeSlug, fieldKey];
+  if (x != null && y != null) args.push(String(Math.round(x)), String(Math.round(y)));
+  const child = spawn(binary, args, { detached: true, stdio: "ignore" });
+  child.unref();
+  running.set(key, child);
+  return { launched: true };
+}
+
 // One INDEPENDENT window per monitor - "pop out all monitors" is just this
 // with every monitor listed. Each entry carries the screen position of its
 // navbar zone so each window lands on its own square.

@@ -93,7 +93,15 @@ function renderDailyRailCell(item, col) {
       return `<span class="work-item-start-time" title="Meeting start time">${item.start_time ? item.start_time : "-"}</span>`;
     default: {
       const value = item.fields ? item.fields[f.field_key] : undefined;
-      return `<span class="work-item-cell" data-field-key="${app.escapeHtml(f.field_key)}">${GenericEntity.renderCellValue({ id: item.id, fields: item.fields || {} }, f, value, true)}</span>`;
+      // notes/stickies mean something different by `derived` than every
+      // other field type does: `true` reads as "a folder roll-up, not a
+      // real per-entity value" and renders muted with no data-action at
+      // all - wrong for a Daily's OWN field (this IS its real value, the
+      // field_key === 'notes' case above just already owns the one field
+      // literally keyed 'notes'; a custom field of field_TYPE 'notes' or
+      // 'stickies' still falls through to here).
+      const isGlyphField = f.field_type === 'notes' || f.field_type === 'stickies';
+      return `<span class="work-item-cell" data-field-key="${app.escapeHtml(f.field_key)}">${GenericEntity.renderCellValue({ id: item.id, fields: item.fields || {} }, f, value, !isGlyphField)}</span>`;
     }
   }
 }
@@ -229,8 +237,16 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
     : [];
   const fieldsHtml = fieldCols.map((c) => {
     const value = extra.fields ? extra.fields[c.field.field_key] : undefined;
-    if (value === undefined || value === null || value === '') return '';
-    return `<span class="child-item-field" title="${app.escapeHtml(c.label)}">${GenericEntity.renderCellValue({ id, fields: extra.fields || {} }, c.field, value, true)}</span>`;
+    // Notes/Stickies are a GLYPH, not a value - even empty, the glyph itself
+    // is the affordance (grey means "double-click to add"), so it must not
+    // be skipped the way an actually-blank url/text cell is. `derived` has
+    // to be false for them too: true means "folder roll-up", which
+    // renderCellValue reads as "not a real per-entity value" and renders
+    // muted with no data-action at all - a child row is neither a folder
+    // nor a roll-up, it is this one entity's own field.
+    const isGlyphField = c.field.field_type === 'notes' || c.field.field_type === 'stickies';
+    if (!isGlyphField && (value === undefined || value === null || value === '')) return '';
+    return `<span class="child-item-field" title="${app.escapeHtml(c.label)}">${GenericEntity.renderCellValue({ id, fields: extra.fields || {} }, c.field, value, !isGlyphField)}</span>`;
   }).join('');
 
   return `
