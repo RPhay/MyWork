@@ -1736,6 +1736,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
       return allTypes.filter(t => {
         if (t.id === entity.entity_type_id) return false;
         if (t.slug === 'folder') return false; // internal container type, never a real target
+        if (t.is_workspace) return false; // an organising space, not a content type
         if ((t.type_category || 'editable') !== 'editable') return false;
         if (entity.is_folder && !t.supports_hierarchy) return false;
         return allowedTypeIds === null || allowedTypeIds.has(t.id);

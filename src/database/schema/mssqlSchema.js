@@ -847,6 +847,13 @@ export async function createMssqlSchema(pool) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD template_structure NVARCHAR(MAX)");
   }
 
+  // A user-created custom tab that holds other types - the twin of the
+  // column in mysqlSchema.js. See the note there.
+  const typesIsWorkspaceExists = await columnExists(pool, "entity_types", "is_workspace");
+  if (!typesIsWorkspaceExists) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_types] ADD is_workspace BIT DEFAULT 0");
+  }
+
   // Seed system entity types if they don't exist (MSSQL)
   // Note: work_item represents individual items that can be associated with a Daily
   //

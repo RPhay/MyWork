@@ -171,19 +171,26 @@ async function ensureSelfNestingRule(typeId) {
 }
 
 /**
- * A template may contain any editable type. That rule is enumerated as a row
- * per child type, which means it can only ever list the types that existed when
- * it was written - so a type created afterwards could not be dropped into a
- * template at all, silently, because the drop is gated on these rules.
+ * A template may contain any editable type, and so may every user-created
+ * workspace tab (is_workspace = 1 - "Foo", say, holding whatever the user
+ * drags or creates inside it). Both rules are enumerated as a row per child
+ * type, which means they can only ever list the types that existed when the
+ * row was written - so a type created afterwards could not be dropped into a
+ * template, or any workspace tab, at all, silently, because the drop is
+ * gated on these rules.
  *
  * Adding the row when the type is created is what makes "any editable type"
- * true rather than "the eight we happened to ship with".
+ * true rather than "whichever ones happened to exist already". Not called
+ * for a workspace tab being created ITSELF - a workspace tab is not nestable
+ * inside a template or another workspace tab, only real content types are;
+ * see ensureWorkspaceChildRules() for the reverse direction, which a new
+ * workspace tab does need.
  */
 async function ensureContainerRules(typeId, typeCategory) {
   if (typeCategory && typeCategory !== 'editable') return;
 
   const containers = await query(
-    "SELECT id FROM entity_types WHERE slug = 'template' AND deleted_at IS NULL"
+    "SELECT id FROM entity_types WHERE deleted_at IS NULL AND (slug = 'template' OR is_workspace = 1)"
   );
   for (const container of containers) {
     if (container.id === typeId) continue;
@@ -195,6 +202,39 @@ async function ensureContainerRules(typeId, typeCategory) {
     await query(
       "INSERT INTO entity_type_relationships (parent_type_id, child_type_id, relationship_kind) VALUES (?, ?, 'hierarchy')",
       [container.id, typeId]
+    );
+  }
+}
+
+/**
+ * The other half of ensureContainerRules(): when a NEW workspace tab is
+ * created, it needs rules INTO every type that already exists, not just
+ * types created after it (that direction is ensureContainerRules, called for
+ * every type). Template never needed this because its child list was seeded
+ * complete; a workspace tab is created at runtime with nothing yet.
+ *
+ * Excludes: itself; 'daily' (a day is not draggable content, same as
+ * Template's own list); 'folder' (no rows of its own to nest); other
+ * workspace tabs (one custom tab holding another is not a shape this
+ * supports); and anything not type_category 'editable' (templates,
+ * external sources - read-only, not content to organise).
+ */
+async function ensureWorkspaceChildRules(workspaceTypeId) {
+  const candidates = await query(
+    `SELECT id FROM entity_types
+     WHERE deleted_at IS NULL AND type_category = 'editable'
+       AND id != ? AND slug NOT IN ('daily', 'folder') AND is_workspace = 0`,
+    [workspaceTypeId]
+  );
+  for (const candidate of candidates) {
+    const existing = await query(
+      "SELECT id FROM entity_type_relationships WHERE parent_type_id = ? AND child_type_id = ? AND relationship_kind = 'hierarchy'",
+      [workspaceTypeId, candidate.id]
+    );
+    if (existing.length > 0) continue;
+    await query(
+      "INSERT INTO entity_type_relationships (parent_type_id, child_type_id, relationship_kind) VALUES (?, ?, 'hierarchy')",
+      [workspaceTypeId, candidate.id]
     );
   }
 }
@@ -223,16 +263,24 @@ export async function createEntityType(data) {
   // through this function.
   const slug = data.slug.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
 
+  // A workspace tab holds hierarchy by definition - there is no other way to
+  // nest anything inside it - so the flag from the client is not trusted for
+  // this one thing; supports_folders keeps the column's own TRUE default,
+  // which is exactly what a workspace tab wants too (its folders get the
+  // shared Folder-type fields the same as any other type's).
+  const supportsHierarchy = data.is_workspace ? true : !!data.supports_hierarchy;
+
   try {
     const result = await query(
-      'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, template_structure, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [slug, data.label, data.label_singular, data.icon || null, typeCategory, data.external_source || null, data.template_structure ? JSON.stringify(data.template_structure) : null, data.supports_hierarchy ? 1 : 0, data.is_system ? 1 : 0, data.primary_date_field || null, data.order_index || 0]
+      'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, external_source, template_structure, supports_hierarchy, is_system, is_workspace, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [slug, data.label, data.label_singular, data.icon || null, typeCategory, data.external_source || null, data.template_structure ? JSON.stringify(data.template_structure) : null, supportsHierarchy ? 1 : 0, data.is_system ? 1 : 0, data.is_workspace ? 1 : 0, data.primary_date_field || null, data.order_index || 0]
     );
 
     const typeId = result.insertId;
 
-    // Create fields if provided
-    if (data.fields && Array.isArray(data.fields)) {
+    // Create fields if provided - never for a workspace tab, which carries
+    // none of its own by definition, whatever the client sends.
+    if (!data.is_workspace && data.fields && Array.isArray(data.fields)) {
       for (let i = 0; i < data.fields.length; i++) {
         const fieldData = { ...data.fields[i], display_order: i };
         await createEntityTypeField(typeId, fieldData);
@@ -243,12 +291,23 @@ export async function createEntityType(data) {
     // this a user-created type has no Worked Time and cannot be pinned or
     // timed, while the nine seeded ones all can. No category is exempt:
     // CLAUDE.md states Worked Time is on every type and cannot be removed,
-    // and the fields are inert on a type that never uses them.
-    await ensureEngineFields(typeId);
+    // and the fields are inert on a type that never uses them. A workspace
+    // tab IS the exception, the same as the permanent 'folder' type - it has
+    // no rows anyone works IN (its own rows are bare organising nodes), so
+    // priority/time-box/worked-time on it would be pure clutter with nothing
+    // real to track.
+    if (!data.is_workspace) await ensureEngineFields(typeId);
 
-    if (data.supports_hierarchy) await ensureSelfNestingRule(typeId);
-    // ...and it can be put inside a template, like every other editable type.
-    await ensureContainerRules(typeId, data.type_category);
+    if (supportsHierarchy) await ensureSelfNestingRule(typeId);
+
+    if (data.is_workspace) {
+      // It can hold every existing editable type...
+      await ensureWorkspaceChildRules(typeId);
+    } else {
+      // ...or, if it isn't one itself, it can be put inside a template and
+      // every existing workspace tab, like any other editable type.
+      await ensureContainerRules(typeId, data.type_category);
+    }
 
     return getEntityType(typeId);
   } catch (error) {
@@ -269,6 +328,10 @@ export async function updateEntityType(id, data) {
   const allowedFields = ['label', 'label_singular', 'icon', 'supports_hierarchy', 'supports_folders', 'primary_date_field', 'order_index', 'is_visible', 'type_category', 'external_source', 'template_structure', 'title_order'];
 
   for (const field of allowedFields) {
+    // A workspace tab holds hierarchy by definition - there is no other way
+    // to nest anything inside it - so this one flag is not editable on one,
+    // the same reason it is not trusted from the client at creation either.
+    if (type.is_workspace && field === 'supports_hierarchy') continue;
     if (data[field] !== undefined) {
       updates.push(`${field} = ?`);
       if (field === 'supports_hierarchy' || field === 'supports_folders' || field === 'is_visible') {
@@ -298,12 +361,13 @@ export async function updateEntityType(id, data) {
   // and this repairs it the next time the type is touched rather than
   // requiring a hand-edit.
   //
-  // NOT for 'folder' - it has no real rows, so priority/time-box/focus
-  // fields would be pure clutter, and each one would try (and, via the
-  // ER_DUP_ENTRY guard, silently fail) to propagate itself as a folder-only
-  // field onto every other hierarchical type, since ensureEngineFields calls
+  // NOT for 'folder', and not for a workspace tab - neither has real rows
+  // anyone works IN, so priority/time-box/focus fields would be pure
+  // clutter, and each one would try (and, via the ER_DUP_ENTRY guard,
+  // silently fail) to propagate itself as a folder-only field onto every
+  // other hierarchical type, since ensureEngineFields calls
   // createEntityTypeField(id, ...) the same way any other field add does.
-  if (type.slug !== FOLDER_TYPE_SLUG) await ensureEngineFields(id);
+  if (type.slug !== FOLDER_TYPE_SLUG && !type.is_workspace) await ensureEngineFields(id);
 
   if (data.supports_hierarchy) await ensureSelfNestingRule(id);
 

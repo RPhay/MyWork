@@ -301,6 +301,9 @@ export async function convertEntityType(entityId, newTypeSlug, contextId = null)
   if (newType.type_category !== 'editable') {
     throw new ValidationError(`${newType.label} is not an editable type and cannot be converted to`);
   }
+  if (newType.is_workspace) {
+    throw new ValidationError(`${newType.label} is a custom tab, not a content type, and cannot be converted to`);
+  }
   if (newType.id === entity.entity_type_id) {
     throw new ValidationError('Already that type');
   }

@@ -585,6 +585,19 @@ export async function createMysqlSchema(connection) {
     await connection.query("ALTER TABLE entity_types ADD COLUMN template_structure JSON");
   }
 
+  // A user-created tab that holds rows of OTHER types rather than being a
+  // content type itself - "Foo", say, organised however its owner likes,
+  // with any existing type dragged or created inside it. Mechanically the
+  // same generic engine as every other type (a real entity_types row, a real
+  // tab, folders and hierarchy all work unchanged) - is_workspace only
+  // marks that this one carries no fields of its own and is a valid nesting
+  // container for every other editable type, the same way the single
+  // built-in 'template' type already is. See entityTypeService.js's
+  // ensureContainerRules() and ensureWorkspaceChildRules().
+  if (!(await columnExists(connection, "entity_types", "is_workspace"))) {
+    await connection.query("ALTER TABLE entity_types ADD COLUMN is_workspace BOOLEAN DEFAULT FALSE");
+  }
+
   // Create index for type_category if it doesn't exist
   if (!(await indexExists(connection, "entity_types", "idx_type_category"))) {
     await connection.query("CREATE INDEX idx_type_category ON entity_types(type_category)");

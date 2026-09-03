@@ -11,30 +11,37 @@ async function loadEntityTypesUI() {
       // like any other, but softDeleteEntityType() refuses to delete one, so
       // they read as a different kind of thing from a type someone typed
       // "New Type" and made themselves.
+      // Custom Tabs (is_workspace) are a third split, not a fourth category -
+      // they are still type_category 'editable', is_system false, exactly
+      // like a custom type. What sets a tab apart is is_workspace: no fields
+      // of its own, and it holds rows of any OTHER editable type instead.
       const editableTypes = result.data.filter(t => t.type_category === 'editable' || !t.type_category);
       const readonlyTypes = result.data.filter(t => t.type_category !== 'editable' && t.type_category);
       const builtInTypes = editableTypes.filter(t => t.is_system);
-      const customTypes = editableTypes.filter(t => !t.is_system);
+      const customTypes = editableTypes.filter(t => !t.is_system && !t.is_workspace);
+      const customTabs = editableTypes.filter(t => !t.is_system && t.is_workspace);
 
-      // Both lists' elements, resolved once - initTypeReordering() on either
-      // one needs to read the OTHER's current order too (see the comment on
-      // that function), not just the list a drop happened in.
+      // All three lists' elements, resolved once - initTypeReordering() on
+      // any one of them needs to read the OTHERS' current order too (see the
+      // comment on that function), not just the list a drop happened in.
       const builtInList = document.getElementById('builtInTypesList');
       const customList = document.getElementById('customTypesList');
-      const bothLists = [builtInList, customList].filter(Boolean);
+      const customTabsList = document.getElementById('customTabsList');
+      const allLists = [builtInList, customList, customTabsList].filter(Boolean);
 
       const renderList = (list, types, emptyMessage) => {
         if (!list) return;
         if (types.length > 0) {
           list.innerHTML = '';
           types.forEach(type => list.appendChild(createTypeListItem(type, false)));
-          initTypeReordering(list, bothLists);
+          initTypeReordering(list, allLists);
         } else {
           list.innerHTML = `<div class="p-4 text-center text-muted">${emptyMessage}</div>`;
         }
       };
       renderList(builtInList, builtInTypes, 'No built-in types.');
       renderList(customList, customTypes, 'No custom types yet. Create one to get started.');
+      renderList(customTabsList, customTabs, 'No custom tabs yet. Create one to get started.');
 
       // Render readonly types
       const readonlyList = document.getElementById('readonlyTypesList');
@@ -51,7 +58,7 @@ async function loadEntityTypesUI() {
     }
   } catch (error) {
     console.error('Error loading entity types:', error);
-    for (const elId of ['builtInTypesList', 'customTypesList', 'readonlyTypesList']) {
+    for (const elId of ['builtInTypesList', 'customTypesList', 'customTabsList', 'readonlyTypesList']) {
       const list = document.getElementById(elId);
       if (list) list.innerHTML = '<div class="p-4 text-center text-danger">Error loading types</div>';
     }
@@ -98,8 +105,9 @@ function createTypeListItem(type, isReadonly) {
         <h6 class="mb-0">${type.label}${categoryBadge}</h6>
         <small><span class="badge bg-secondary">${type.slug}</span></small>
         <small class="d-block mt-1">
-          ${type.fields?.length || 0} fields
-          ${type.supports_hierarchy ? ' • Supports hierarchy' : ''}
+          ${type.is_workspace
+            ? 'Holds rows of any other type'
+            : `${type.fields?.length || 0} fields${type.supports_hierarchy ? ' • Supports hierarchy' : ''}`}
         </small>
       </div>
     </div>
@@ -257,6 +265,11 @@ function initEntityTypesTab() {
   const createBtn = document.getElementById('createNewTypeBtn');
   if (createBtn) {
     createBtn.addEventListener('click', () => window.openEntityTypeEditor());
+  }
+
+  const createTabBtn = document.getElementById('createNewTabBtn');
+  if (createTabBtn) {
+    createTabBtn.addEventListener('click', () => window.openEntityTypeEditor(null, { workspace: true }));
   }
 
   const revertAllBtn = document.getElementById('revertAllTypesBtn');

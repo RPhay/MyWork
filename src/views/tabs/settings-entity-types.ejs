@@ -68,6 +68,35 @@
     </div>
   </div>
 
+  <!-- Custom Tabs Section - is_workspace = true. Not a content type: it has
+       no fields of its own, and exists to hold rows of any OTHER editable
+       type, organised however its owner likes - the same generic engine as
+       every tab, minus a schema of its own. -->
+  <div class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-0">Custom Tabs</h4>
+        <small class="text-muted">Named spaces to organise rows of any other type - not a type themselves</small>
+      </div>
+      <button class="btn btn-primary" id="createNewTabBtn">
+        <i class="bi bi-plus"></i> New Tab
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div id="customTabsList" class="list-group list-group-flush">
+          <div class="text-center p-4 text-muted">
+            <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading types...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Read-Only Types Section -->
   <div class="mb-5">
     <div class="d-flex justify-content-between align-items-center mb-3">

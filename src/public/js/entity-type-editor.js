@@ -57,6 +57,13 @@ window.initEntityTypeSplitPane = initEntityTypeSplitPane;
 window.closeEntityTypeEditor = closeEntityTypeEditor;
 let currentEditingType = null;
 
+// Set only while CREATING via the "+ New Tab" action (settings-entity-
+// types.js), never while editing an existing type - is_workspace is not
+// something a save can change once a type exists (entityTypeService.js's
+// updateEntityType ignores it), so this only needs to answer "am I building
+// a new one right now."
+let creatingAsWorkspace = false;
+
 // Field keys the user REMOVED in this editing session.
 //
 // Deletion used to be signalled by absence: the row was taken out of the DOM,
@@ -69,8 +76,12 @@ let currentEditingType = null;
 // Now absence means nothing and this set means delete.
 let removedFieldKeys = new Set();
 
-async function openEntityTypeEditor(typeId = null) {
+async function openEntityTypeEditor(typeId = null, opts = {}) {
   removedFieldKeys = new Set();          // a fresh session removes nothing yet
+  // Only meaningful when also creating (typeId is null) - reopening an
+  // existing type after a save (openEntityTypeEditor(savedId), no opts)
+  // correctly clears it back to false here.
+  creatingAsWorkspace = !typeId && !!opts.workspace;
   if (typeId) {
     // Load existing type
     try {
@@ -95,9 +106,10 @@ async function openEntityTypeEditor(typeId = null) {
 
 function showEntityTypeEditorModal(type) {
   const isNew = !type;
+  const isWorkspace = isNew ? creatingAsWorkspace : !!type?.is_workspace;
   // Nothing when editing: the type is selected in the list beside this pane, so
   // "Edit: X" repeated it. Creating has no selection to read, so it keeps a label.
-  const title = isNew ? 'Create New Entity Type' : '';
+  const title = isNew ? (isWorkspace ? 'Create New Custom Tab' : 'Create New Entity Type') : '';
 
   const content = document.createElement('div');
   content.innerHTML = `
@@ -121,6 +133,19 @@ function showEntityTypeEditorModal(type) {
         </div>
       </div>
 
+      ${isWorkspace ? `
+        <!-- A custom tab has none of the sections below by design: no fields
+             of its own (it holds rows of OTHER types, never its own), hierarchy
+             and folders are forced on server-side because there is no other
+             way to nest anything inside it, and it already holds every
+             editable type automatically (ensureWorkspaceChildRules in
+             entityTypeService.js) - there is nothing to hand-pick here. -->
+        <div class="alert alert-secondary" role="note">
+          <i class="bi bi-info-circle"></i>
+          A custom tab has no fields of its own. Drag rows in from other tabs, or
+          right-click inside it once created to add rows of any existing type.
+        </div>
+      ` : `
       <!-- Fields Section -->
       <div class="mb-3">
         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -158,6 +183,7 @@ function showEntityTypeEditorModal(type) {
           <!-- Child types will be listed here -->
         </div>
       </div>
+      `}
     </form>
   `;
 
@@ -208,7 +234,8 @@ function showEntityTypeEditorModal(type) {
   // way) and happened to look WRONG for anything checking `field` itself as
   // a boolean - the auto-default-name tracking below, and where the row gets
   // inserted.
-  document.getElementById('addFieldBtn').addEventListener('click', () => addFieldRow());
+  // Not rendered while CREATING a custom tab - see showEntityTypeEditorModal.
+  document.getElementById('addFieldBtn')?.addEventListener('click', () => addFieldRow());
 
   const iconBtn = document.getElementById('typeIconBtn');
   iconBtn?.addEventListener('click', () => openIconPicker(iconBtn, document.getElementById('typeIcon')));
@@ -726,6 +753,12 @@ function canBeRelated(t) {
   // render on OTHER types' folder rows (see systemEntityTypes.js) - so it can
   // neither hold children nor be one.
   if (t.slug === 'folder') return false;
+  // A workspace tab (a user-created custom tab like "Foo" - is_workspace) is
+  // an organising space, not content - entityTypeService.js's
+  // ensureWorkspaceChildRules() already grants it every editable type as a
+  // child automatically, on both sides, so it has no place in this
+  // hand-authored list either, same reasoning as Templates just above.
+  if (t.is_workspace) return false;
   return true;
 }
 
@@ -738,6 +771,10 @@ async function loadTypeRelationships(type) {
       const otherTypes = types.filter(t => (!type || t.id !== type.id) && canBeRelated(t));
 
       const childList = document.getElementById('childTypesList');
+      // Not rendered while CREATING a custom tab - see showEntityTypeEditorModal.
+      // It already holds every editable type automatically once saved
+      // (ensureWorkspaceChildRules), so there is nothing to hand-pick here.
+      if (!childList) return;
 
       childList.innerHTML = '';
 
@@ -941,8 +978,15 @@ async function saveEntityType() {
     label: document.getElementById('typeName').value,
     label_singular: document.getElementById('typeSingular').value,
     icon: document.getElementById('typeIcon').value || null,
-    supports_hierarchy: document.getElementById('typeHierarchy').checked,
+    // Neither control is rendered while creating a custom tab - see
+    // showEntityTypeEditorModal - and entityTypeService.js does not trust
+    // either value from the client for one anyway, forcing both true itself.
+    supports_hierarchy: document.getElementById('typeHierarchy')?.checked ?? true,
     supports_folders: document.getElementById('typeFolders')?.checked ?? true,
+    // Only ever true when set by openEntityTypeEditor(null, {workspace:true})
+    // and we are still CREATING - updateEntityType ignores this key entirely,
+    // so it is harmless (and never sent - see onlyChanges) on an edit.
+    is_workspace: !currentEditingType && creatingAsWorkspace,
     // Explicit deletions. The server never removes a field just because it is
     // missing from `fields` - see updateEntityType.
     removed_field_keys: [...removedFieldKeys],
