@@ -26,7 +26,12 @@ test('every type has a Time Box offering the same six options', async ({ page })
   await page.goto('/', { waitUntil: 'networkidle' });
   const types = (await api(page, '/api/entity-types')).data;
 
-  const missing = types.filter(t => !(t.fields || []).some(f => f.field_key === 'time_box'));
+  // 'folder' has no rows of its own and carries none of the engine block -
+  // see systemEntityTypes.js and entityTypeService.js's updateEntityType,
+  // which skips ensureEngineFields for it specifically.
+  const missing = types
+    .filter(t => t.slug !== 'folder')
+    .filter(t => !(t.fields || []).some(f => f.field_key === 'time_box'));
   console.log('types without a Time Box ->', missing.map(t => t.slug));
   expect(missing.map(t => t.slug), 'all types carry one').toEqual([]);
 
@@ -34,7 +39,7 @@ test('every type has a Time Box offering the same six options', async ({ page })
   // copied into every type's options - which is what let Dailies and the field
   // drift to different sets of answers in the first place.
   const wrong = [];
-  for (const t of types) {
+  for (const t of types.filter(t => t.slug !== 'folder')) {
     const f = (t.fields || []).find(x => x.field_key === 'time_box');
     if (f.field_type !== 'timebox') wrong.push(`${t.slug} uses ${f.field_type}`);
     if (f.label !== 'Time Box') wrong.push(`${t.slug} labels it "${f.label}"`);

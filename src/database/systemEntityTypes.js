@@ -478,16 +478,44 @@ export const SYSTEM_ENTITY_TYPES = [
       // broke both of worked-time.spec's template tests.
     ],
   },
+  {
+    // The one editable type with no rows and no tab of its own. It exists so
+    // Settings has somewhere to define fields that show up directly-editable
+    // on every OTHER folder-capable type's FOLDER rows (entities.is_folder =
+    // 1) - see entityTypeService.js's propagateFolderField*() and
+    // genericEntity.js's is_folder_field handling. A field created here is
+    // duplicated onto every type that supports_hierarchy AND
+    // supports_folders, sharing the same field_key; nothing ever creates a
+    // real entity of THIS type.
+    //
+    // supports_hierarchy: false, so SELF_NESTING_SLUGS (derived below)
+    // excludes it automatically - it is never nested and holds no children
+    // itself. is_visible: false, reconciled in the schema files, keeps it off
+    // the dashboard; dashboard.ejs also excludes slug 'folder' explicitly.
+    // is_system: true makes it permanent, the same delete guard every other
+    // system type has (softDeleteEntityType refuses is_system).
+    slug: 'folder',
+    label: 'Folder',
+    label_singular: 'Folder',
+    icon: '🗂️',
+    supports_hierarchy: false,
+    is_system: true,
+    primary_date_field: null,
+    fields: [],
+  },
 ];
 
 // Type-to-type relationship rules: which types may parent/child which types.
 export const SYSTEM_TYPE_RELATIONSHIPS = [
-  // Hierarchy: types can have children of the same type. There is deliberately
-  // no separate "folder" type - a folder is a row of the page's own type with
-  // entities.is_folder = 1, so these self-nesting rules are all that is needed
-  // for types under types, types under folders, and folders under folders
-  // alike. The list is derived from supports_hierarchy below so the two can
-  // never disagree.
+  // Hierarchy: types can have children of the same type. A folder is still a
+  // row of the page's own type with entities.is_folder = 1 - not an instance
+  // of the 'folder' system type below, which has no rows at all - so these
+  // self-nesting rules are all that is needed for types under types, types
+  // under folders, and folders under folders alike. The 'folder' type exists
+  // only to define fields that render on those is_folder rows; it takes no
+  // part in nesting itself (supports_hierarchy: false keeps it out of
+  // SELF_NESTING_SLUGS below). The list is derived from supports_hierarchy
+  // below so the two can never disagree.
   { type_slugs: null, relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
   // Associations: a daily links to priorities, categories and goals

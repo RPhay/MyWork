@@ -17,7 +17,11 @@ async function api(page, path, options={}) {
 }
 test('every editable type has a priority field', async ({ page }) => {
   await page.goto('/'); await page.waitForLoadState('networkidle');
-  const types = (await api(page,'/api/entity-types')).body.data.filter(t => t.type_category === 'editable');
+  // 'folder' is the one editable type with no rows of its own - see
+  // systemEntityTypes.js - so it carries none of the engine block, priority
+  // included, the same reason a template carries no Worked Time.
+  const types = (await api(page,'/api/entity-types')).body.data
+    .filter(t => t.type_category === 'editable' && t.slug !== 'folder');
   const missing = types.filter(t => !(t.fields||[]).some(f => f.field_key === 'priority' && f.field_type === 'priority'));
   console.log('types without a priority field ->', missing.map(t=>t.slug));
   expect(missing).toEqual([]);

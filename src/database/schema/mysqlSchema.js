@@ -660,6 +660,19 @@ export async function createMysqlSchema(connection) {
     }
   }
 
+  // Revive a soft-deleted 'folder' row from an earlier, abandoned attempt at
+  // this same feature - found on more than one database in this install,
+  // always created and deleted the same day with zero entities or fields
+  // ever attached to it. The seed loop above only INSERTs when NO row named
+  // 'folder' exists at all (its existence check does not filter deleted_at),
+  // so a stale soft-deleted row with the slug left unrenamed blocks the seed
+  // forever - the same trap softDeleteEntityType()'s own comment describes,
+  // just reached by whatever deleted this row without going through that
+  // function's slug-release rename. Mirrors the 'daily' revival below.
+  await connection.query(
+    "UPDATE entity_types SET deleted_at = NULL WHERE slug = 'folder' AND is_system = 1",
+  );
+
   // The EXTERNAL types - Outlook Calendar, Azure DevOps work items. Read-only:
   // their shape follows what the source sends.
   //
@@ -772,6 +785,16 @@ export async function createMysqlSchema(connection) {
   // true so nothing changes for fields that predate it.
   if (!(await columnExists(connection, "entity_type_fields", "show_column_label"))) {
     await connection.query("ALTER TABLE entity_type_fields ADD COLUMN show_column_label BOOLEAN DEFAULT TRUE");
+  }
+
+  // Marks a field DUPLICATED from the permanent 'folder' system type onto
+  // this type's own field list, so a folder row (entities.is_folder = 1) of
+  // THIS type renders it as directly editable rather than leaving it blank
+  // or treating it as a roll-up - see genericEntity.js's is_folder_field
+  // handling. Only entityTypeService.js's propagateFolderField*() functions
+  // ever set this true; the field editor in Settings never sends it.
+  if (!(await columnExists(connection, "entity_type_fields", "is_folder_field"))) {
+    await connection.query("ALTER TABLE entity_type_fields ADD COLUMN is_folder_field BOOLEAN DEFAULT FALSE");
   }
 
   // Widen field_type for tables created before url/links/radio existed. The
@@ -914,6 +937,20 @@ export async function createMysqlSchema(connection) {
     `UPDATE entity_types SET supports_hierarchy = 1, supports_folders = 0
       WHERE slug = 'template' AND type_category = 'template'
         AND (supports_hierarchy <> 1 OR supports_folders <> 0)`
+  );
+
+  // 'folder' is the same kind of case: read-only capability flags on a
+  // system type, reconciled the same way template's are just above. The
+  // INSERT above already sets supports_hierarchy = 0 for a brand-new row (it
+  // passes type.supports_hierarchy through), but supports_folders and
+  // is_visible have no column in that INSERT at all and so default to the
+  // column's own TRUE - which would give the 'folder' type a dashboard tab
+  // and a "+ Folder" button neither means anything for, since nothing ever
+  // creates an entity of this type.
+  await connection.query(
+    `UPDATE entity_types SET supports_hierarchy = 0, supports_folders = 0, is_visible = 0
+      WHERE slug = 'folder' AND is_system = 1
+        AND (supports_hierarchy <> 0 OR supports_folders <> 0 OR is_visible <> 0)`
   );
 
   // `daily.time_box_minutes` was a second time box only Dailies had - see the

@@ -1406,11 +1406,21 @@ const GenericEntity = (() => {
           </div>`;
       }
       const f = c.field;
-      const derived = isFolder && !!f.rollup;
-      const value = derived
-        ? rollups?.get(entity.id)?.[f.field_key]
-        : (isFolder ? null : entity.fields?.[f.field_key]);
-      const inner = (isFolder && !f.rollup) ? '' : renderCellValue(entity, f, value, derived);
+      // is_folder_field: a field defined on the permanent 'folder' system
+      // type and duplicated onto every folder-capable type's own field list
+      // (entityTypeService.js). It belongs to the FOLDER, not to this type's
+      // ordinary rows - directly editable wherever a folder row shows it,
+      // blank everywhere else, never a roll-up.
+      let inner;
+      if (f.is_folder_field) {
+        inner = isFolder ? renderCellValue(entity, f, entity.fields?.[f.field_key], false) : '';
+      } else {
+        const derived = isFolder && !!f.rollup;
+        const value = derived
+          ? rollups?.get(entity.id)?.[f.field_key]
+          : (isFolder ? null : entity.fields?.[f.field_key]);
+        inner = (isFolder && !f.rollup) ? '' : renderCellValue(entity, f, value, derived);
+      }
       return `<div class="entity-cell" data-col="${escapeAttr(f.field_key)}">${inner}</div>`;
     }).join('');
 
@@ -1851,7 +1861,10 @@ const GenericEntity = (() => {
     // A folder organises rather than holding values, so its editor is normally
     // just a name. Worked Time is the exception: a folder can be pinned to the
     // focus bar and accumulate against it, and time recorded somewhere you
-    // cannot see or correct is worse than not recording it.
+    // cannot see or correct is worse than not recording it. Fields defined on
+    // the permanent 'folder' system type (is_folder_field, propagated by
+    // entityTypeService.js) are the other exception - those exist FOR
+    // folders, so editableFields() includes them here too.
     //
     // Selected by TYPE, not by key, so another duration field added later
     // appears here without this needing to know its name.
@@ -1911,12 +1924,17 @@ const GenericEntity = (() => {
   // appeared to work and vanished on reload.
   //
   // A folder organises rather than holding values, so it shows only what the
-  // engine can genuinely record against it: time, which it accumulates when
-  // pinned to the focus bar. Selected by TYPE so a second duration field needs
-  // no change here.
+  // engine can genuinely record against it - time, which it accumulates when
+  // pinned to the focus bar - PLUS whatever fields are defined on the
+  // permanent 'folder' system type and duplicated onto this type
+  // (is_folder_field, propagated by entityTypeService.js). Those belong to
+  // the folder, not to this type's ordinary rows, so they run the other way
+  // on a non-folder record: everything EXCEPT them.
   function editableFields(typeSchema, isFolder) {
     const all = (typeSchema.fields || []).filter(f => !INTERNAL_FIELD_KEYS.has(f.field_key));
-    const usable = isFolder ? all.filter(f => f.field_type === 'duration') : all;
+    const usable = isFolder
+      ? all.filter(f => f.field_type === 'duration' || f.is_folder_field)
+      : all.filter(f => !f.is_folder_field);
     return usable.slice().sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   }
 

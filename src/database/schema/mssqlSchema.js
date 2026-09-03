@@ -926,6 +926,12 @@ export async function createMssqlSchema(pool) {
     }
   }
 
+  // Revive a soft-deleted 'folder' row - the twin of the block in
+  // mysqlSchema.js. See the note there for why.
+  await pool.request().query(
+    "UPDATE [MyWork].[entity_types] SET deleted_at = NULL WHERE slug = 'folder' AND is_system = 1",
+  );
+
   // Seed special types (Daily day container and External integrations) if they don't exist (MSSQL)
   // Repair forbidden icons on existing installs - mirrors mysqlSchema.js. A
   // folder-like icon is never a legitimate customisation, so overwriting it
@@ -1044,6 +1050,13 @@ export async function createMssqlSchema(pool) {
     await pool.request().query("ALTER TABLE [MyWork].[entity_type_fields] ADD show_column_label BIT DEFAULT 1");
   }
 
+  // Marks a field duplicated from the permanent 'folder' system type onto
+  // this type's own field list - see the note in mysqlSchema.js.
+  const fieldsIsFolderFieldExists = await columnExists(pool, "entity_type_fields", "is_folder_field");
+  if (!fieldsIsFolderFieldExists) {
+    await pool.request().query("ALTER TABLE [MyWork].[entity_type_fields] ADD is_folder_field BIT DEFAULT 0");
+  }
+
   // Seed default fields for system entity types. Array order is display_order.
   // Values are bound, not interpolated - a field label is NVARCHAR and any
   // non-ASCII character in one would be mangled by a VARCHAR literal exactly
@@ -1152,6 +1165,15 @@ export async function createMssqlSchema(pool) {
     UPDATE [MyWork].[entity_types] SET supports_hierarchy = 1, supports_folders = 0
      WHERE slug = 'template' AND type_category = 'template'
        AND (supports_hierarchy <> 1 OR supports_folders <> 0)
+  `);
+
+  // 'folder' - the twin of the block in mysqlSchema.js. The INSERT above sets
+  // supports_hierarchy correctly for a new row, but supports_folders and
+  // is_visible have no column in it at all and default to the table's own 1.
+  await pool.request().query(`
+    UPDATE [MyWork].[entity_types] SET supports_hierarchy = 0, supports_folders = 0, is_visible = 0
+     WHERE slug = 'folder' AND is_system = 1
+       AND (supports_hierarchy <> 0 OR supports_folders <> 0 OR is_visible <> 0)
   `);
 
   // `daily.time_box_minutes` was a second time box only Dailies had - the twin

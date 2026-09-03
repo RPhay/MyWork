@@ -24,9 +24,10 @@ test('every type carries a Worked Time property, except templates', async ({ pag
   await page.goto('/', { waitUntil: 'networkidle' });
   const types = (await api(page, '/api/entity-types')).data;
   // A template is a pattern you stamp out, not work you do - see the test at
-  // the bottom of this file.
+  // the bottom of this file. 'folder' has no rows of its own and carries
+  // none of the engine block at all - see systemEntityTypes.js.
   const missing = types
-    .filter(t => t.slug !== 'template')
+    .filter(t => t.slug !== 'template' && t.slug !== 'folder')
     .filter(t => !(t.fields || []).some(f => f.field_key === 'focus_seconds'));
   console.log('types without Worked Time ->', missing.map(t => t.slug));
   expect(missing.map(t => t.slug)).toEqual([]);
@@ -120,12 +121,14 @@ test('templates have no Worked Time and cannot be pinned', async ({ page }) => {
   const hasWorked = (tpl.fields || []).some(f => f.field_key === 'focus_seconds');
   expect(hasWorked, 'a template accumulates no time').toBe(false);
 
-  // Every other editable type still has it.
+  // Every other editable type still has it. 'folder' is the other
+  // exemption - it has no rows of its own, so none of the engine block
+  // applies to it either.
   const missing = types
-    .filter(t => t.type_category === 'editable' && t.slug !== 'template')
+    .filter(t => t.type_category === 'editable' && t.slug !== 'template' && t.slug !== 'folder')
     .filter(t => !(t.fields || []).some(f => f.field_key === 'focus_seconds'))
     .map(t => t.slug);
-  expect(missing, 'only templates are exempt').toEqual([]);
+  expect(missing, 'templates and folder are the only exemptions').toEqual([]);
 
   // And the server refuses to pin one, however it is asked.
   const made = (await api(page, '/api/entities/template', { method: 'POST', body: JSON.stringify({ title: 'ZZZ unpinnable' }) })).data;

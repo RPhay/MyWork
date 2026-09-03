@@ -217,9 +217,20 @@ function showEntityTypeEditorModal(type) {
   // row - see HIDDEN_FIELD_KEYS - which is safe to just omit: a field is only
   // ever deleted by entityTypeService because removed_field_keys named it, not
   // because a save's field list left it out (see updateEntityType).
+  //
+  // is_folder_field rows are the same story for every type EXCEPT Folder
+  // itself: they are propagated COPIES of what the Folder type declares
+  // (entityTypeService.js's propagateFolderField*()), not fields this type
+  // defines. Editing one here would change it only for THIS type, which is
+  // exactly the drift propagation exists to avoid - and because omission
+  // never deletes, leaving the row out of this type's own field list is
+  // enough; the copy is untouched. On the Folder type itself these rows ARE
+  // the type's own fields (they are the master, is_folder_field is 0 there),
+  // so nothing is hidden.
   if (type && type.fields && type.fields.length > 0) {
     type.fields.forEach(field => {
       if (HIDDEN_FIELD_KEYS.has(field.field_key)) return;
+      if (field.is_folder_field && type.slug !== 'folder') return;
       addFieldRow(field);
     });
   }
@@ -711,6 +722,10 @@ function canBeRelated(t) {
   if (t.type_category === 'external') return false;
   if (t.type_category === 'template') return false;
   if (t.slug === 'daily') return false;
+  // 'folder' has no rows of its own - it exists only to define fields that
+  // render on OTHER types' folder rows (see systemEntityTypes.js) - so it can
+  // neither hold children nor be one.
+  if (t.slug === 'folder') return false;
   return true;
 }
 

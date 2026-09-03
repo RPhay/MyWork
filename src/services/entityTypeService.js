@@ -67,6 +67,11 @@ export const VALID_FIELD_TYPES = [
   'person', 'group',
 ];
 
+// The permanent, no-rows, no-tab system type whose fields propagate onto
+// every folder-capable type's own field list - see systemEntityTypes.js and
+// the propagateFolderField*() functions below.
+const FOLDER_TYPE_SLUG = 'folder';
+
 // Get all active (non-deleted) entity types with their fields
 export async function getAllEntityTypes(category = null) {
   let sql = 'SELECT * FROM entity_types WHERE deleted_at IS NULL';
@@ -292,7 +297,13 @@ export async function updateEntityType(id, data) {
   // ENGINE_FIELD_DEFS existed is missing fields the app treats as mandatory,
   // and this repairs it the next time the type is touched rather than
   // requiring a hand-edit.
-  await ensureEngineFields(id);
+  //
+  // NOT for 'folder' - it has no real rows, so priority/time-box/focus
+  // fields would be pure clutter, and each one would try (and, via the
+  // ER_DUP_ENTRY guard, silently fail) to propagate itself as a folder-only
+  // field onto every other hierarchical type, since ensureEngineFields calls
+  // createEntityTypeField(id, ...) the same way any other field add does.
+  if (type.slug !== FOLDER_TYPE_SLUG) await ensureEngineFields(id);
 
   if (data.supports_hierarchy) await ensureSelfNestingRule(id);
 
@@ -559,6 +570,89 @@ export async function getEntityTypeFields(entityTypeId) {
   return rows.map(normalizeFieldOptions);
 }
 
+// Every type that can actually HOLD a folder - the same test
+// generic-entity-init.js's `allowsFolders` applies client-side. A field
+// defined on 'folder' is meaningless anywhere else: a type that cannot have
+// folders has no is_folder rows for it to render on.
+async function folderCapableTypeIds() {
+  const rows = await query(
+    `SELECT id FROM entity_types
+     WHERE deleted_at IS NULL AND slug != ? AND supports_hierarchy = 1 AND supports_folders = 1`,
+    [FOLDER_TYPE_SLUG]
+  );
+  return rows.map((r) => r.id);
+}
+
+// Fields defined on the permanent 'folder' system type are not fields OF
+// that type - nothing ever creates an entity_type_id=folder row - they are
+// the field set every folder-capable type's own FOLDER rows
+// (entities.is_folder = 1) render as directly editable, in place of the
+// blank cell a non-roll-up field would otherwise draw there. Realised by
+// literally duplicating the field definition onto each such type's own
+// entity_type_fields, sharing the same field_key - the same technique
+// ensureEngineFields() uses to give every type its own copy of the built-in
+// engine fields - marked is_folder_field so the client
+// (editableFields/renderEntityRow in genericEntity.js) treats it as
+// folder-only rather than a field of the type's own ordinary rows.
+//
+// A folder field never rolls up: it IS the folder's own directly-entered
+// value, not an aggregate of what is inside it.
+async function propagateFolderFieldCreate(fieldKey, data) {
+  const targetIds = await folderCapableTypeIds();
+  for (const typeId of targetIds) {
+    try {
+      await query(
+        'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal, rollup, show_column_label, is_folder_field) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 1)',
+        [
+          typeId,
+          fieldKey,
+          data.label,
+          data.field_type,
+          data.field_options ? JSON.stringify(data.field_options) : null,
+          data.required ? 1 : 0,
+          data.display_order || 0,
+          data.show_in_row ? 1 : 0,
+          data.is_completion_signal ? 1 : 0,
+          data.show_column_label === undefined ? 1 : (data.show_column_label ? 1 : 0),
+        ]
+      );
+    } catch (error) {
+      // A field_key collision with something that type already defines on
+      // its own (every type already has 'priority', 'notes', ...) is a real
+      // naming conflict, not something to paper over - skip that one type
+      // and say so, rather than fail every other type's propagation over it.
+      if (error.code !== 'ER_DUP_ENTRY') throw error;
+      logger.warn(`Folder field "${fieldKey}" collides with an existing field on entity type ${typeId} - not propagated there`);
+    }
+  }
+}
+
+async function propagateFolderFieldUpdate(fieldKey, data) {
+  const updates = [];
+  const values = [];
+  const allowedFields = ['label', 'field_type', 'field_options', 'required', 'display_order', 'show_in_row', 'is_completion_signal', 'show_column_label'];
+
+  for (const field of allowedFields) {
+    if (data[field] !== undefined) {
+      updates.push(`${field} = ?`);
+      if (field === 'field_options') values.push(data[field] ? JSON.stringify(data[field]) : null);
+      else if (['required', 'show_in_row', 'is_completion_signal'].includes(field)) values.push(data[field] ? 1 : 0);
+      else values.push(data[field]);
+    }
+  }
+  if (updates.length === 0) return;
+
+  values.push(fieldKey);
+  await query(
+    `UPDATE entity_type_fields SET ${updates.join(', ')} WHERE field_key = ? AND is_folder_field = 1`,
+    values
+  );
+}
+
+async function propagateFolderFieldDelete(fieldKey) {
+  await query('DELETE FROM entity_type_fields WHERE field_key = ? AND is_folder_field = 1', [fieldKey]);
+}
+
 // Create a field for a type
 export async function createEntityTypeField(entityTypeId, data) {
   if (!data.field_key) throw new ValidationError('field_key is required');
@@ -593,7 +687,12 @@ export async function createEntityTypeField(entityTypeId, data) {
       ]
     );
     const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [result.insertId]);
-    return normalizeFieldOptions(rows[0]);
+    const created = normalizeFieldOptions(rows[0]);
+
+    const owner = (await query('SELECT slug FROM entity_types WHERE id = ?', [entityTypeId]))[0];
+    if (owner?.slug === FOLDER_TYPE_SLUG) await propagateFolderFieldCreate(fieldKey, data);
+
+    return created;
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') throw new ConflictError(`Field already exists: ${fieldKey}`);
     throw error;
@@ -636,12 +735,27 @@ export async function updateEntityTypeField(fieldId, data) {
     values
   );
   const rows = await query('SELECT * FROM entity_type_fields WHERE id = ?', [fieldId]);
-  return normalizeFieldOptions(rows[0]);
+  const updated = normalizeFieldOptions(rows[0]);
+
+  // field_key is immutable after creation (not in allowedFields above), so
+  // it stays a stable match key for the propagated copies.
+  const owner = (await query('SELECT slug FROM entity_types WHERE id = ?', [updated.entity_type_id]))[0];
+  if (owner?.slug === FOLDER_TYPE_SLUG) await propagateFolderFieldUpdate(updated.field_key, data);
+
+  return updated;
 }
 
 // Delete a field
 export async function deleteEntityTypeField(fieldId) {
+  const rows = await query('SELECT entity_type_id, field_key FROM entity_type_fields WHERE id = ?', [fieldId]);
+  const field = rows[0];
+
   await query('DELETE FROM entity_type_fields WHERE id = ?', [fieldId]);
+
+  if (field) {
+    const owner = (await query('SELECT slug FROM entity_types WHERE id = ?', [field.entity_type_id]))[0];
+    if (owner?.slug === FOLDER_TYPE_SLUG) await propagateFolderFieldDelete(field.field_key);
+  }
 }
 
 // Get relationship rules for a type - only the parent side, because that is
