@@ -2053,8 +2053,10 @@ async function initGenericEntityTab(typeSlug, typeName) {
       }
 
       if (!row) {
-        // Empty space: create at the top level.
-        const items = [{ icon: '➕', label: `New ${singular}`, action: () => startCreate() }];
+        // Empty space: create at the top level. A workspace tab has no
+        // content of its own - same reasoning as the toolbar's "+ <Tab>"
+        // button above - so only folders belong here, not a native row.
+        const items = typeSchema.is_workspace ? [] : [{ icon: '➕', label: `New ${singular}`, action: () => startCreate() }];
         if (allowsFolders) {
           items.push({ icon: '📁', label: 'New Folder', action: () => startCreate({ isFolder: true }) });
         }
@@ -2782,7 +2784,18 @@ async function initGenericEntityTab(typeSlug, typeName) {
       }
     }
 
-    document.getElementById(`add${typeSlug}Btn`)?.addEventListener('click', () => createAndOpen());
+    // A workspace tab is a container, not a content type - "+ <Tab>" would
+    // create a native row of the tab's own type, which is exactly what
+    // is_workspace exists to rule out. Only "+ Folder" and rows of OTHER
+    // types (drag, or the row context menu's "+ Artifact") belong here.
+    const addOwnTypeBtn = document.getElementById(`add${typeSlug}Btn`);
+    if (addOwnTypeBtn) {
+      if (typeSchema.is_workspace) {
+        addOwnTypeBtn.remove();
+      } else {
+        addOwnTypeBtn.addEventListener('click', () => createAndOpen());
+      }
+    }
 
   } catch (error) {
     console.error(`Error initializing ${typeSlug} tab:`, error);

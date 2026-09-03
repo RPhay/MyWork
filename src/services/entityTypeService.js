@@ -298,7 +298,14 @@ export async function createEntityType(data) {
     // real to track.
     if (!data.is_workspace) await ensureEngineFields(typeId);
 
-    if (supportsHierarchy) await ensureSelfNestingRule(typeId);
+    // Self-nesting specifically means "a row of this type can hold another
+    // row of this type" - meaningful for a real content type (a Project
+    // inside a Project), meaningless for a workspace tab, which has no
+    // content of its own to nest. Adding it here is what let the toolbar's
+    // "+ <Tab>" button and the "New <Tab> inside" menu entry both create a
+    // native row of the tab's own type - exactly the "it's not a new type"
+    // behaviour a workspace tab must not have.
+    if (supportsHierarchy && !data.is_workspace) await ensureSelfNestingRule(typeId);
 
     if (data.is_workspace) {
       // It can hold every existing editable type...
