@@ -1714,6 +1714,87 @@ async function initGenericEntityTab(typeSlug, typeName) {
       }
     }
 
+    // Dragging a record in from an external ServiceNow browser tab never
+    // carries the internal 'type' key beginDrag() sets - it is not this
+    // app's drag protocol, just whatever the browser itself puts on a
+    // dragged link. There is no ServiceNow session on THIS server to
+    // authenticate with, so this reads only what was visibly dragged: a URL,
+    // and its link text (usually the record number, since that IS the link
+    // text in ServiceNow's list views) - no ticket status, priority or
+    // assignee, because nothing here can ask ServiceNow for those.
+    //
+    // The accept/reject decision in dragenter/dragover can only look at
+    // `dataTransfer.types` (the type NAMES) - browsers withhold the actual
+    // values from getData() until the drop event fires, for the same reason
+    // a page cannot read your clipboard just by you hovering over it.
+    // 'text/uri-list' and 'text/html' both correlate strongly with "a link
+    // was dragged"; bare 'text/plain' also appears on an ordinary text
+    // selection with no link in it, so it alone does not qualify.
+    function isExternalLinkDrag(dataTransfer) {
+      const types = dataTransfer?.types || [];
+      return types.includes('text/uri-list') || types.includes('text/html');
+    }
+
+    // Only called from the drop handler, where getData() actually returns
+    // values. Prefers the URL list, then an anchor's href out of the dragged
+    // HTML, then plain text IF it is itself URL-shaped - covering a plain
+    // link drag, a rich-text link drag, and a bare URL typed/selected as text.
+    function externalLinkPayload(dataTransfer) {
+      const uriList = dataTransfer.getData('text/uri-list')?.trim();
+      const plain = dataTransfer.getData('text/plain')?.trim();
+      const html = dataTransfer.getData('text/html');
+      let url = uriList || (/^https?:\/\//i.test(plain || '') ? plain : null);
+      if (!url && html) {
+        const match = html.match(/href=["']([^"']+)["']/i);
+        if (match) url = match[1];
+      }
+      if (!url) return null;
+      let title = plain && plain !== url ? plain : null;
+      if (!title && html) {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html;
+        title = wrapper.textContent.trim();
+      }
+      return { url, title: (title || url).slice(0, 200) };
+    }
+
+    // Same shape as createCrossTypeChild above, for the one type that arrives
+    // by drag from OUTSIDE the app rather than a menu pick or another tab.
+    async function createServiceNowDrop(payload, parentId) {
+      try {
+        const created = await app.fetchRaw('/api/entities/servicenow', {
+          method: 'POST',
+          body: JSON.stringify({ title: payload.title, fields: { url: payload.url } }),
+        });
+        const result = await created.json();
+        if (!result.success) {
+          app.notify(result.message || 'Could not create it', 'danger');
+          return;
+        }
+        const linked = await app.fetchRaw(`/api/entities/${typeSlug}/${parentId}/relationships`, {
+          method: 'POST',
+          body: JSON.stringify({
+            parentEntityId: parentId, childEntityId: result.data.id, relationshipKind: 'hierarchy',
+          }),
+        });
+        if (!linked.ok) {
+          throw new Error((await linked.json().catch(() => ({}))).message || 'Could not nest it there');
+        }
+        const linkResult = await linked.json();
+        localStorage.setItem(`entity-expanded-${parentId}`, 'true');
+        entities.push(result.data);
+        if (linkResult.data) relationships.push(linkResult.data);
+        GenericEntity.setEntities(entities);
+        renderList();
+        document.dispatchEvent(new CustomEvent('entity-structure-changed', {
+          detail: { typeSlug: 'servicenow', parentId },
+        }));
+        app.notify('Added ServiceNow record', 'success');
+      } catch (error) {
+        app.notify(error.message || 'Could not add that here', 'danger');
+      }
+    }
+
     // Which OTHER types this row could legally become, given where it
     // actually sits. A nested row may only become a type its real PARENT
     // already allows as a hierarchy child - the same test the server applies
@@ -2443,17 +2524,24 @@ async function initGenericEntityTab(typeSlug, typeName) {
       }
     }
 
+    // A type only accepts an external ServiceNow drag if it already allows a
+    // servicenow row as a hierarchy child - the same rule that gates the
+    // "+ Artifact" menu's own ServiceNow entry, so a drop never succeeds
+    // somewhere the menu would have refused it.
+    const acceptsServiceNowDrop = allowedChildSlugs.has('servicenow');
+
     dropPane.addEventListener('dragenter', (e) => {
       if (draggedEntityId) return;
-      if (!e.dataTransfer?.types?.includes('type')) return;
-      e.preventDefault();
+      if (e.dataTransfer?.types?.includes('type')) { e.preventDefault(); return; }
+      if (acceptsServiceNowDrop && isExternalLinkDrag(e.dataTransfer)) e.preventDefault();
     });
 
     // Cross-type drags are accepted across the whole pane; same-list reordering
     // stays on the list itself, where the row geometry it needs lives.
     dropPane.addEventListener('dragover', (e) => {
       if (draggedEntityId) return;
-      if (!e.dataTransfer?.types?.includes('type')) return;
+      const isInternal = e.dataTransfer?.types?.includes('type');
+      if (!isInternal && !(acceptsServiceNowDrop && isExternalLinkDrag(e.dataTransfer))) return;
       acceptDrop(e, 'copy');
       const row = e.target.closest('.entity-row');
       listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
@@ -2463,9 +2551,23 @@ async function initGenericEntityTab(typeSlug, typeName) {
 
     dropPane.addEventListener('drop', async (e) => {
       if (draggedEntityId) return;
+      const isInternal = e.dataTransfer?.types?.includes('type');
+      if (!isInternal && !(acceptsServiceNowDrop && isExternalLinkDrag(e.dataTransfer))) return;
       e.preventDefault();
       dropPane.classList.remove('entity-list-drop-target');
       listContainer.querySelectorAll('.entity-row').forEach(clearDropIndicator);
+      if (!isInternal) {
+        const payload = externalLinkPayload(e.dataTransfer);
+        if (!payload) { app.notify("Couldn't find a link in that", 'info'); return; }
+        const row = e.target.closest('.entity-row');
+        const parentId = row ? Number(row.dataset.entityId) : null;
+        if (!parentId) {
+          app.notify(`Drop it onto a ${singular.toLowerCase()} - use "+ ${singular}" to make one first`, 'info');
+          return;
+        }
+        await createServiceNowDrop(payload, parentId);
+        return;
+      }
       await handleCrossTypeDrop(e, e.target.closest('.entity-row'));
     });
 

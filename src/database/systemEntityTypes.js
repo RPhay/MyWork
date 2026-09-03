@@ -548,6 +548,11 @@ export const SYSTEM_TYPE_RELATIONSHIPS = [
   // absent for the usual reason - a template is stamped out, not filled in.
   { type_slugs_parent: ['daily', 'priority', 'category', 'goal', 'to_do', 'task', 'ticket', 'idea', 'outlook_calendar'], type_slugs_child: 'ado_work_item', relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
 
+  // A ServiceNow record dropped onto ANY type - same reasoning and the same
+  // parent list as the ADO rule above: things contain ServiceNow records,
+  // never the other way round.
+  { type_slugs_parent: ['daily', 'priority', 'category', 'goal', 'to_do', 'task', 'ticket', 'idea', 'outlook_calendar'], type_slugs_child: 'servicenow', relationship_kind: 'hierarchy', max_children_per_parent: null, max_parents_per_child: null },
+
   // Templates instantiate to work items
   { type_slugs_parent: 'template', type_slugs_child: 'daily', relationship_kind: 'instantiated_from', max_children_per_parent: null, max_parents_per_child: 1 },
 ];
@@ -596,6 +601,27 @@ export const SPECIAL_ENTITY_TYPES = [
     icon: '🔷',
     type_category: 'external',
     external_source: 'azure_devops',
+  },
+  {
+    // A record dragged in from a ServiceNow browser tab - not an API sync.
+    // There is no ServiceNow session on the SERVER to authenticate with, so
+    // this captures only what the browser's own drag already carries: the
+    // record's URL and whatever text was dragged with it (usually the
+    // record number, since that's the link text in ServiceNow's list views).
+    // External and read-only in Settings for the same reason as its
+    // neighbours: its shape follows what was dragged in.
+    //
+    // It goes UNDER anything - see the rule in SYSTEM_TYPE_RELATIONSHIPS,
+    // same reasoning as ado_work_item above.
+    slug: 'servicenow',
+    label: 'ServiceNow',
+    label_singular: 'ServiceNow Record',
+    icon: '🎫',
+    type_category: 'external',
+    external_source: 'servicenow',
+    fields: [
+      { field_key: 'url', label: 'Link', field_type: 'url', required: false, show_in_row: true },
+    ],
   },
 ];
 
@@ -647,17 +673,19 @@ export const ENGINE_FIELD_DEFS = [
 /**
  * Every type the schema seeders should give fields to, and which fields.
  *
- * SYSTEM types bring their own list. SPECIAL (external) types declare none and
- * get the engine block - they are read-only in Settings because their SHAPE
+ * SYSTEM types bring their own list. SPECIAL (external) types get the engine
+ * block regardless - they are read-only in Settings because their SHAPE
  * follows what the source sends, which is a statement about the imported
  * fields, not a reason to withhold the app's own machinery. An ADO work item is
  * something you plan and work on, so it needs a Time Box and Worked Time like
- * anything else.
+ * anything else. A SPECIAL type MAY also declare its own fields (ServiceNow's
+ * Link, say) - those come first and are kept, not overwritten by the engine
+ * block that follows them.
  */
 export function seededTypesWithFields() {
   return [
     ...SYSTEM_ENTITY_TYPES,
-    ...SPECIAL_ENTITY_TYPES.map((t) => ({ ...t, fields: ENGINE_FIELD_DEFS })),
+    ...SPECIAL_ENTITY_TYPES.map((t) => ({ ...t, fields: [...(t.fields || []), ...ENGINE_FIELD_DEFS] })),
   ];
 }
 
