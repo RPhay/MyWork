@@ -503,6 +503,85 @@ function acceptDrop(event, effect = 'move') {
   event.dataTransfer.dropEffect = effect;
 }
 
+// A drag from OUTSIDE this app - a ServiceNow record dragged straight out of
+// its own browser tab, say - never carries the internal 'type' key beginDrag()
+// sets above. There is no session on THIS server to authenticate with
+// whatever sent it, so accepting one means reading only what the browser's
+// own drag already carries: a URL, and its link text.
+//
+// dragover/dragenter can only see dataTransfer's type NAMES, never the actual
+// values - browsers withhold those from getData() until the drop event
+// itself fires, the same restriction that stops a page reading your
+// clipboard just by you hovering over it. Measured against a real
+// ServiceNow tab in Chrome: the only types present were 'text/plain' and a
+// Chromium-internal 'chromium/x-drag-id' marker - no 'text/uri-list', no
+// 'text/html'. Both of those are accepted when present because they mean
+// "a link was dragged" more reliably, but 'text/plain' alone has to be
+// accepted too or nothing this common actually works - it just means MAYBE,
+// resolved for real at drop time by trying to find a URL in it.
+function looksLikeExternalLinkDrag(dataTransfer) {
+  const types = dataTransfer?.types || [];
+  return types.includes('text/uri-list') || types.includes('text/html') || types.includes('text/plain');
+}
+
+// Only meaningful from a 'drop' handler, where getData() actually returns
+// values - call this synchronously, before any await, for the same reason
+// dailies-list-events.js's calendar-drop reader does. Prefers the URL list,
+// then an anchor's href out of the dragged HTML, then plain text if it is
+// itself URL-shaped - covering a plain link drag, a rich-text link drag, and
+// a bare URL typed or selected as text.
+//
+// A URL is NOT required: a real ServiceNow drag, measured in Chrome, carried
+// only 'text/plain' with no 'text/uri-list' or 'text/html' at all - whatever
+// that plain text turns out to be (the record number with no link, say) is
+// still worth creating a record from, rather than silently discarding a drag
+// that plainly carried something. Only returns null when there is truly
+// nothing readable at all, which callers should treat as "not for us" rather
+// than an error - this can fire on an ordinary empty or unreadable drag.
+function externalLinkDropPayload(dataTransfer) {
+  const uriList = dataTransfer.getData('text/uri-list')?.trim();
+  const plain = dataTransfer.getData('text/plain')?.trim();
+  const html = dataTransfer.getData('text/html');
+  let url = uriList || (/^https?:\/\//i.test(plain || '') ? plain : null);
+  if (!url && html) {
+    const match = html.match(/href=["']([^"']+)["']/i);
+    if (match) url = match[1];
+  }
+  let title = plain && plain !== url ? plain : null;
+  if (!title && html) {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    title = wrapper.textContent.trim();
+  }
+  if (!url && !title) return null;
+  return { url, title: (title || url).slice(0, 200) };
+}
+
+// Shared by every page that can receive an external link drop, so a
+// ServiceNow record is created identically everywhere. Returns the created
+// entity, or null (having already notified) on failure - "attaching" it
+// somewhere (a hierarchy relationship here, linkChild/putEntityOnDay on
+// Dailies) is page-specific and left to the caller.
+async function createServiceNowRecord(payload) {
+  try {
+    const response = await app.fetchRaw('/api/entities/servicenow', {
+      method: 'POST',
+      body: JSON.stringify(
+        payload.url ? { title: payload.title, fields: { url: payload.url } } : { title: payload.title }
+      ),
+    });
+    const result = await response.json();
+    if (!result.success) {
+      app.notify(result.message || 'Could not create it', 'danger');
+      return null;
+    }
+    return result.data;
+  } catch (error) {
+    app.notify(error.message || 'Could not create that', 'danger');
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Drop indicators
 //

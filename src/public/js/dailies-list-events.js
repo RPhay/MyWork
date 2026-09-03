@@ -391,6 +391,12 @@ function initWorkItemsListEventListeners() {
       try { return e.dataTransfer.getData(t) || ''; } catch { return ''; }
     };
 
+    // Same synchronous-read requirement as calendarText below - a ServiceNow
+    // record dragged in from its own browser tab, read here (not further
+    // down, after the calendar-file branch's await) so it is still valid
+    // when the calendar check below falls through to it.
+    const linkPayload = externalLinkDropPayload(e.dataTransfer);
+
     let calendarText =
       (types.includes('text/calendar') && read('text/calendar')) ||
       (types.includes('text/plain') && read('text/plain')) ||
@@ -435,6 +441,22 @@ function initWorkItemsListEventListeners() {
         return;
       }
       app.notify('That calendar item had no subject, so there was nothing to name it', 'warning');
+      return;
+    }
+
+    // Not a calendar item - a ServiceNow record dragged in from its own
+    // browser tab, maybe. Same attach shape as an internal type+id drop
+    // above: onto a work item if one was dropped on, onto the day itself
+    // otherwise - just with a freshly created id instead of a dragged one.
+    if (linkPayload) {
+      const created = await createServiceNowRecord(linkPayload);
+      if (created) {
+        if (workItemEl) {
+          await linkChild(workItemEl.dataset.workId, 'servicenow', created.id);
+        } else {
+          await putEntityOnDay(created.id, dropDate());
+        }
+      }
       return;
     }
 
