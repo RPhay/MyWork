@@ -877,7 +877,19 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (unlinkBtn) {
         const row = unlinkBtn.closest('.entity-row');
         const childId = unlinkBtn.dataset.entityId;
-        const parentRow = row?.parentElement?.closest('.entity-node')?.querySelector('.entity-row');
+        // row.parentElement is this row's OWN .entity-node - renderTree()
+        // wraps a row as the first child of its own node, not its parent's -
+        // so closest('.entity-node') from there matched immediately and
+        // returned the row's own node. parentId came out equal to childId,
+        // the DELETE below matched no relationship row (there is no edge
+        // from an entity to itself), and the click did nothing: no error,
+        // nothing removed. Escaping to the enclosing .entity-node-children
+        // first is what actually reaches the ANCESTOR's node; :scope > keeps
+        // it to that node's OWN row rather than the first .entity-row found
+        // anywhere inside it (which, for a parent with its own children,
+        // would still find one, just not necessarily this one's parent).
+        const parentRow = row?.closest('.entity-node-children')?.closest('.entity-node')
+          ?.querySelector(':scope > .entity-row');
         const parentId = parentRow?.dataset.entityId;
         if (!parentId) { app.notify('Could not tell what to remove it from', 'danger'); return; }
 
@@ -1677,8 +1689,18 @@ async function initGenericEntityTab(typeSlug, typeName) {
         if (!linked.ok) {
           throw new Error((await linked.json().catch(() => ({}))).message || 'Could not nest it there');
         }
+        const linkResult = await linked.json();
         localStorage.setItem(`entity-expanded-${parentId}`, 'true');
-        await refreshEntities();
+        // Appended locally rather than a refreshEntities() round trip - both
+        // the new row and its relationship edge are already the exact
+        // objects the two requests above just returned, so re-fetching the
+        // whole type over again just to draw one more nested row was the
+        // entire delay between picking a type in "+ Artifact" and it
+        // actually showing up.
+        entities.push(result.data);
+        if (linkResult.data) relationships.push(linkResult.data);
+        GenericEntity.setEntities(entities);
+        renderList();
         document.dispatchEvent(new CustomEvent('entity-structure-changed', {
           detail: { typeSlug: childType.slug, parentId },
         }));
@@ -2056,18 +2078,32 @@ async function initGenericEntityTab(typeSlug, typeName) {
 
       const items = [];
 
+      // Every creatable type this row can hold - its own type plus whatever
+      // cross-type children it allows - under one "+ Artifact" flyout rather
+      // than each as its own top-level entry. A type with several allowed
+      // children used to list "New Category inside", "New Goal inside",
+      // "New Azure DevOps Work Item inside" ... as separate rows before
+      // Edit/Delete even appeared; folding them into a submenu is the same
+      // fix "Convert to..." already got for the same reason.
+      const artifactOptions = [];
       if (canNestOwnType) {
-        items.push({ icon: '➕', label: `New ${singular} inside`, action: () => startCreate({ parentId: entityId }) });
-      }
-      if (allowsFolders) {
-        items.push({ icon: '📁', label: 'New Folder inside', action: () => startCreate({ parentId: entityId, isFolder: true }) });
+        artifactOptions.push({ icon: '➕', label: `New ${singular}`, action: () => startCreate({ parentId: entityId }) });
       }
       for (const childType of crossTypeChildTypes) {
-        items.push({
+        artifactOptions.push({
           icon: childType.icon || '➕',
-          label: `New ${childType.label_singular || childType.label} inside`,
+          label: `New ${childType.label_singular || childType.label}`,
           action: () => createCrossTypeChild(childType, entityId),
         });
+      }
+      if (artifactOptions.length > 0) {
+        items.push({ icon: '➕', label: '+ Artifact', submenu: artifactOptions });
+      }
+      // Folders stay a separate, top-level entry - a folder organises rows of
+      // this row's own type, it is not itself one of the creatable "artifact"
+      // types the submenu above lists.
+      if (allowsFolders) {
+        items.push({ icon: '📁', label: 'New Folder inside', action: () => startCreate({ parentId: entityId, isFolder: true }) });
       }
       if (items.length > 0) items.push({ separator: true });
 
@@ -2711,17 +2747,23 @@ async function initGenericEntityTab(typeSlug, typeName) {
           return;
         }
 
-        await refreshEntities();
+        // Appended locally rather than a refreshEntities() round trip - the
+        // POST above already returned the complete row (entityService's
+        // createEntity reads it back via getEntityById), so re-fetching every
+        // OTHER row of the type just to draw this one was the entire visible
+        // delay between clicking "+ <Type>" and anything appearing. On a
+        // 127-row type that delay was seconds, not the "immediate" a create
+        // button should be.
+        entities.push(result.data);
+        GenericEntity.setEntities(entities);
+        renderList();
         // force: this may be the id the editor already holds (create, delete,
         // create again reuses nothing, but a reopened editor might), and
         // without it populate would read the request as "close".
         GenericEntity.populate(result.data.id, result.data, typeSchema, typeSlug, undefined, { force: true });
-        // NO second renderList() here. refreshEntities() above ends in one, so
-        // this was rebuilding all 126 rows a second time - and re-running
-        // fitColumns over every cell with them - purely to paint one row as
-        // selected. populate() already does that through syncRowSelection(),
-        // which marks the row in place; the re-render was the more expensive
-        // half of a click that shows nothing until all of it finishes.
+        document.dispatchEvent(new CustomEvent('entity-structure-changed', {
+          detail: { typeSlug, createdId: result.data.id },
+        }));
 
         // Select the placeholder rather than clearing it: the row already
         // exists and needs SOME title, so leaving the box empty would save an
