@@ -1644,7 +1644,11 @@ async function initGenericEntityTab(typeSlug, typeName) {
     const hierarchyChildTypeIds = (typeSchema.relationships || [])
       .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id === typeSchema.id)
       .map(r => r.child_type_id);
-    const canNestOwnType = typeSchema.supports_hierarchy && hierarchyChildTypeIds.includes(typeSchema.id);
+    // is_workspace is checked directly, not just inferred from the absence of
+    // a self-nesting rule: an install whose workspace tab was created before
+    // that rule stopped being written still carries the stale row, and this
+    // is the one place left that trusted it instead of the flag itself.
+    const canNestOwnType = typeSchema.supports_hierarchy && !typeSchema.is_workspace && hierarchyChildTypeIds.includes(typeSchema.id);
     // Folders are a separate capability from nesting: a template nests freely
     // but has no folders, because the template row is already the container.
     const allowsFolders = typeSchema.supports_hierarchy
@@ -2100,7 +2104,7 @@ async function initGenericEntityTab(typeSlug, typeName) {
         });
       }
       if (artifactOptions.length > 0) {
-        items.push({ icon: '➕', label: '+ Artifact', submenu: artifactOptions });
+        items.push({ icon: '➕', label: 'Artifact', submenu: artifactOptions });
       }
       // Folders stay a separate, top-level entry - a folder organises rows of
       // this row's own type, it is not itself one of the creatable "artifact"

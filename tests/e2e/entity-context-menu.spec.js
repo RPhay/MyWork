@@ -61,10 +61,11 @@ test.describe('Generic entity context menu', () => {
     await rightClick(page, page.locator('.entity-row', { hasText: `${PREFIX} parent` }).first());
     await expect(page.locator('.entity-context-menu')).toBeVisible();
     const items = await menuItems(page);
-    // "New Category inside" moved under a "+ Artifact" submenu alongside any
+    // "New Category inside" moved under an "Artifact" submenu (its own ➕
+    // icon is the "+", so the label doesn't repeat it) alongside any
     // cross-type children this row allows - both label and item are still
     // there, just nested rather than a flat top-level entry.
-    expect(items.join('|')).toContain('+ Artifact');
+    expect(items.join('|')).toContain('Artifact');
     expect(items.join('|')).toContain('New Category');
     expect(items.join('|')).toContain('New Folder inside');
     expect(items.join('|')).toContain('Edit Category');
