@@ -38,7 +38,7 @@ export function launchPipWindow(monitor, x = null, y = null) {
   const binary = BINARY_CANDIDATES.find(existsSync);
   if (!binary) {
     throw new ValidationError(
-      "The desktop wrapper is not built on this machine - run `npm install && npm run dev` once inside desktop/",
+      "The desktop wrapper is not built on this machine - from the repo root, run `npm run desktop:install && npm run desktop:dev` once (requires Rust/Tauri's build tools)",
     );
   }
 
