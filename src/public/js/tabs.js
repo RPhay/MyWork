@@ -428,6 +428,7 @@ class TabManager {
     this.dualTabs = [];
 
     this.toggleDualTab = (tab) => {
+      const wasActive = this.dualTabs.length === 2;
       const i = this.dualTabs.indexOf(tab);
       if (i !== -1) {
         this.dualTabs.splice(i, 1);
@@ -437,13 +438,9 @@ class TabManager {
         this.dualTabs.shift();
         this.dualTabs.push(tab);
       }
-      this.applyDualView();
+      this.applyDualView(wasActive);
     };
 
-    // Leaves `dualTabs` as whatever the caller wants next (usually already
-    // cleared) - this only undoes the DOM/state side effects of having been
-    // in dual view, so a caller that goes on to call showTab()/showPane()
-    // starts from a clean single-pane baseline.
     // The one tab picked so far, before a second modifier-click completes
     // the pair - marked so the gesture gives some feedback immediately
     // rather than appearing to do nothing until the second click.
@@ -453,6 +450,10 @@ class TabManager {
       });
     };
 
+    // Leaves `dualTabs` as whatever the caller wants next (usually already
+    // cleared) - this only undoes the DOM/state side effects of having been
+    // in dual view, so a caller that goes on to call showTab()/showPane()
+    // starts from a clean single-pane baseline.
     this.exitDualView = () => {
       if (this.dualTabs.length === 0 && !document.body.classList.contains('dual-tab-view')) return;
       this.dualTabs = [];
@@ -460,16 +461,21 @@ class TabManager {
       syncPending();
     };
 
-    this.applyDualView = () => {
+    // `wasActive` says whether the pair was showing BEFORE this toggle -
+    // that is what decides whether landing at one tab is "arming the first
+    // pick" (0 -> 1, do nothing yet) or "the pair just collapsed" (2 -> 1,
+    // switch to the one that's left). Both look identical from dualTabs.length
+    // alone, which is exactly the bug this fixes: the first modifier-click
+    // was calling switchTab() on itself, which runs exitDualView() at its own
+    // top and immediately wiped the very selection the click had just made -
+    // so nothing ever reached two, because one never stayed armed.
+    this.applyDualView = (wasActive = false) => {
       const active = this.dualTabs.length === 2;
       document.body.classList.toggle('dual-tab-view', active);
       syncPending();
 
       if (!active) {
-        // Zero or one selected: an ordinary single tab. Whichever one is
-        // still selected (if any) becomes current; otherwise leave the
-        // screen as it was.
-        if (this.dualTabs.length === 1) this.switchTab(this.dualTabs[0]);
+        if (wasActive && this.dualTabs.length === 1) this.switchTab(this.dualTabs[0]);
         return;
       }
 

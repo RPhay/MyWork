@@ -21,9 +21,11 @@
         <div class="col-md-6 text-end">
           <!-- Available on every type that supports nesting; generic-entity-init.js
                removes it for flat types. A folder is an is_folder row of this
-               same type, not a type of its own. -->
+               same type - not an instance of the permanent 'folder' system
+               type, which exists only to define the fields propagated onto
+               every such row (entityTypeService.js). -->
           <div class="btn-group" role="group" style="display: inline-flex; gap: 2px;">
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="A folder groups rows of this type. It holds no fields of its own - drag rows into it to organise them.">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>FolderBtn" title="A folder groups rows of this type. Its own fields are defined once, on the Folder type in Settings, and apply to every type's folders - drag rows into it to organise them.">
               <i class="bi bi-folder-plus"></i> + Folder
             </button>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="add<%= typeSlug %>Btn" title="Create a new <%= typeNameSingular %>. The editor stays open on it so you can keep filling it in.">

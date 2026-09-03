@@ -399,7 +399,13 @@ export async function updateEntityType(id, data) {
           WHERE e.entity_type_id = ? AND v.field_key = ?`,
         [id, key]
       );
-      await query('DELETE FROM entity_type_fields WHERE id = ?', [field.id]);
+      // Through deleteEntityTypeField(), not a raw DELETE - this is also
+      // where a deletion on the 'folder' type fans out to every type's
+      // propagated copy (propagateFolderFieldDelete). A raw query here
+      // deleted the master row on Folder but left every copy behind,
+      // orphaned and still marked is_folder_field, silently drifting from a
+      // type that no longer declares the field at all.
+      await deleteEntityTypeField(field.id);
     }
   }
 
