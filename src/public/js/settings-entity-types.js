@@ -6,23 +6,35 @@ async function loadEntityTypesUI() {
     const result = await response.json();
 
     if (result.success && result.data && result.data.length > 0) {
-      // Separate types by category
+      // Separate types by category, then split editable types again by
+      // is_system - built-in (seeded) types can have their fields edited
+      // like any other, but softDeleteEntityType() refuses to delete one, so
+      // they read as a different kind of thing from a type someone typed
+      // "New Type" and made themselves.
       const editableTypes = result.data.filter(t => t.type_category === 'editable' || !t.type_category);
       const readonlyTypes = result.data.filter(t => t.type_category !== 'editable' && t.type_category);
+      const builtInTypes = editableTypes.filter(t => t.is_system);
+      const customTypes = editableTypes.filter(t => !t.is_system);
 
-      // Render editable types
-      const editableList = document.getElementById('editableTypesList');
-      if (editableList) {
-        if (editableTypes.length > 0) {
-          editableList.innerHTML = '';
-          editableTypes.forEach(type => {
-            editableList.appendChild(createTypeListItem(type, false));
-          });
-          initTypeReordering(editableList);
+      // Both lists' elements, resolved once - initTypeReordering() on either
+      // one needs to read the OTHER's current order too (see the comment on
+      // that function), not just the list a drop happened in.
+      const builtInList = document.getElementById('builtInTypesList');
+      const customList = document.getElementById('customTypesList');
+      const bothLists = [builtInList, customList].filter(Boolean);
+
+      const renderList = (list, types, emptyMessage) => {
+        if (!list) return;
+        if (types.length > 0) {
+          list.innerHTML = '';
+          types.forEach(type => list.appendChild(createTypeListItem(type, false)));
+          initTypeReordering(list, bothLists);
         } else {
-          editableList.innerHTML = '<div class="p-4 text-center text-muted">No editable types. Create one to get started.</div>';
+          list.innerHTML = `<div class="p-4 text-center text-muted">${emptyMessage}</div>`;
         }
-      }
+      };
+      renderList(builtInList, builtInTypes, 'No built-in types.');
+      renderList(customList, customTypes, 'No custom types yet. Create one to get started.');
 
       // Render readonly types
       const readonlyList = document.getElementById('readonlyTypesList');
@@ -39,13 +51,9 @@ async function loadEntityTypesUI() {
     }
   } catch (error) {
     console.error('Error loading entity types:', error);
-    const editableList = document.getElementById('editableTypesList');
-    if (editableList) {
-      editableList.innerHTML = '<div class="p-4 text-center text-danger">Error loading types</div>';
-    }
-    const readonlyList = document.getElementById('readonlyTypesList');
-    if (readonlyList) {
-      readonlyList.innerHTML = '<div class="p-4 text-center text-danger">Error loading types</div>';
+    for (const elId of ['builtInTypesList', 'customTypesList', 'readonlyTypesList']) {
+      const list = document.getElementById(elId);
+      if (list) list.innerHTML = '<div class="p-4 text-center text-danger">Error loading types</div>';
     }
   } finally {
     syncTypeRowSelection();
@@ -179,10 +187,27 @@ function createTypeListItem(type, isReadonly) {
 }
 
 // Drag to reorder editable types. Persists entity_types.order_index, which the
-// dashboard reads to order its tabs - so this list and the tab bar stay in sync
-// in both directions.
-function initTypeReordering(listEl) {
+// dashboard reads to order its tabs - so this list and the tab bar stay in
+// sync in both directions.
+//
+// order_index is ONE sequence shared by every editable type, built-in and
+// custom alike - reorderEntityTypes() sets it to the given array's position
+// (0, 1, 2, ...) for exactly the ids it is given, and leaves every other type
+// untouched. Built-in and Custom are two separate lists on screen, but a drop
+// in EITHER one has to submit the position of EVERY editable type, or the
+// list just dragged in would renumber itself 0..N and collide with whatever
+// the OTHER list already holds at those same numbers - two types tied for
+// order_index 0 is not "unsorted", it is silently wrong, and which of them
+// the dashboard tab bar puts first becomes an id tie-break nobody chose.
+// Concatenating both lists' current DOM order keeps one one consistent
+// sequence and, as a side effect, keeps built-ins sorted ahead of customs in
+// the tab bar - which is also the more predictable result to look at here.
+function initTypeReordering(listEl, allLists) {
   let dragged = null;
+
+  const orderedIdsAcrossLists = () => allLists.flatMap((el) =>
+    [...el.querySelectorAll('.type-list-item[draggable="true"]')].map((item) => Number(item.dataset.typeId))
+  );
 
   listEl.addEventListener('dragstart', (e) => {
     dragged = e.target.closest('.type-list-item[draggable="true"]');
@@ -209,12 +234,11 @@ function initTypeReordering(listEl) {
 
   listEl.addEventListener('drop', async (e) => {
     e.preventDefault();
-    const orderedIds = [...listEl.querySelectorAll('.type-list-item[draggable="true"]')]
-      .map(el => Number(el.dataset.typeId));
+    const orderedIds = orderedIdsAcrossLists();
     try {
       const response = await app.fetchRaw('/api/entity-types/reorder', {
         method: 'PATCH',
-        
+
         body: JSON.stringify({ orderedIds }) });
       const result = await response.json();
       if (!result.success) throw new Error(result.message);

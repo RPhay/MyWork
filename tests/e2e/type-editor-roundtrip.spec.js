@@ -79,7 +79,11 @@ for (const slug of TYPES) {
     const before = snapshot((await api(page, `/api/entity-types/${slug}`)).body.data);
 
     // Open it in the editor by clicking its row, exactly as a person would.
-    const row = page.locator('#editableTypesList .type-list-item')
+    // Every slug in TYPES is a built-in (system) type except 'template',
+    // which is read-only and lives in a different list - the row lookup
+    // finding nothing there is what makes this test.skip fire for it, same
+    // as before Built-in/Custom were split out of one "Editable Types" list.
+    const row = page.locator('#builtInTypesList .type-list-item')
       .filter({ hasText: before.label }).first();
     if (await row.count() === 0) test.skip(true, `${slug} is not listed as editable`);
     await row.click();
@@ -164,7 +168,9 @@ test('a type carrying every renderable field type survives a save', async ({ pag
 
     const before = snapshot((await api(page, '/api/entity-types/tests')).body.data);
 
-    const row = page.locator('#editableTypesList .type-list-item').filter({ hasText: before.label }).first();
+    // The 'tests' fixture is user-created (ensureEntityType posts to
+    // /api/entity-types with no is_system flag), so it lives in Custom Types.
+    const row = page.locator('#customTypesList .type-list-item').filter({ hasText: before.label }).first();
     await row.click();
     await page.waitForTimeout(1400);
     await expect(page.locator('#entityTypeForm')).toBeVisible();

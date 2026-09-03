@@ -14,12 +14,40 @@
   </div>
   <p class="text-muted mb-4">Manage editable types and templates that organize your work. Drag to reorder tabs; use the switch to show or hide a type on the dashboard.</p>
 
-  <!-- Editable Types Section -->
+  <!-- Built-in Types Section - the seeded, editable types (Dailies, Projects,
+       Categories, Goals, Todos, Tasks, Tickets, Ideas, ...): is_system = true,
+       type_category = 'editable'. Fields can be edited and rearranged like any
+       custom type; only the type itself (its slug, its existence) is fixed -
+       softDeleteEntityType() refuses to delete an is_system row. -->
   <div class="mb-5">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
-        <h4 class="mb-0">Editable Types</h4>
-        <small class="text-muted">Types you can create and manage in your dailies</small>
+        <h4 class="mb-0">Built-in Types</h4>
+        <small class="text-muted">Shipped with MyWork - fields are yours to change, the type itself is permanent</small>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div id="builtInTypesList" class="list-group list-group-flush">
+          <div class="text-center p-4 text-muted">
+            <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading types...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Types Section - editable types a user created from Settings.
+       is_system = false, so softDeleteEntityType() allows deleting these. -->
+  <div class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-0">Custom Types</h4>
+        <small class="text-muted">Types you created for your own kind of work</small>
       </div>
       <button class="btn btn-primary" id="createNewTypeBtn">
         <i class="bi bi-plus"></i> New Type
@@ -28,7 +56,7 @@
 
     <div class="card">
       <div class="card-body p-0">
-        <div id="editableTypesList" class="list-group list-group-flush">
+        <div id="customTypesList" class="list-group list-group-flush">
           <div class="text-center p-4 text-muted">
             <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
               <span class="visually-hidden">Loading...</span>

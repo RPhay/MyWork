@@ -21,8 +21,11 @@ test('types list has visibility toggles and drag handles', async ({ page }) => {
   await page.goto('/settings?tab=entity-types');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
-  const toggles = await page.locator('#editableTypesList .type-visible-toggle').count();
-  const handles = await page.locator('#editableTypesList .type-drag-handle').count();
+  // Built-in and Custom Types are two separate lists now (settings-entity-
+  // types.js) - count across both, since this test is about editable types
+  // broadly, not specifically the built-in ones.
+  const toggles = await page.locator('#builtInTypesList .type-visible-toggle, #customTypesList .type-visible-toggle').count();
+  const handles = await page.locator('#builtInTypesList .type-drag-handle, #customTypesList .type-drag-handle').count();
   console.log(JSON.stringify({toggles, handles, errs}));
   expect(toggles).toBeGreaterThan(5);
   expect(handles).toBe(toggles);
@@ -34,7 +37,8 @@ test('disabling a type removes its dashboard tab', async ({ page }) => {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500);
 
-  const row = page.locator('#editableTypesList .type-list-item').filter({hasText:'Tickets'}).first();
+  // Tickets is a built-in (system) type - see settings-entity-types.js.
+  const row = page.locator('#builtInTypesList .type-list-item').filter({hasText:'Tickets'}).first();
   await row.locator('.type-visible-toggle').click();
   await page.waitForTimeout(900);
 
@@ -43,7 +47,7 @@ test('disabling a type removes its dashboard tab', async ({ page }) => {
 
   // turn it back on
   await page.goto('/settings?tab=entity-types'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
-  await page.locator('#editableTypesList .type-list-item').filter({hasText:'Tickets'}).first().locator('.type-visible-toggle').click();
+  await page.locator('#builtInTypesList .type-list-item').filter({hasText:'Tickets'}).first().locator('.type-visible-toggle').click();
   await page.waitForTimeout(900);
   await page.goto('/'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1000);
   expect(await page.locator('button[data-tab="ticket"]').count()).toBe(1);
@@ -73,7 +77,10 @@ test('reordering types in Settings changes the dashboard tab order', async ({ pa
   await page.goto('/settings?tab=entity-types');
   await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
 
-  const ids = await page.locator('#editableTypesList .type-list-item[draggable="true"]').evaluateAll(els => els.map(e => Number(e.dataset.typeId)));
+  // Both lists together, in DOM order - initTypeReordering() in settings-
+  // entity-types.js sends exactly this concatenation on a real drop, so it
+  // is the correct "current order" to move an id within.
+  const ids = await page.locator('#builtInTypesList .type-list-item[draggable="true"], #customTypesList .type-list-item[draggable="true"]').evaluateAll(els => els.map(e => Number(e.dataset.typeId)));
   const slugs = await page.evaluate(async () => (await (await fetch('/api/entity-types')).json()).data.map(t=>({id:t.id,slug:t.slug})));
   const byId = Object.fromEntries(slugs.map(s=>[s.id,s.slug]));
   console.log('BEFORE order:', ids.map(i=>byId[i]).join(','));
@@ -107,8 +114,8 @@ test('the type editor opens in a right-hand pane, not a modal', async ({ page })
   await expect(page.locator('#entityTypeEditorPane')).toBeHidden();
 
   // The row itself opens the editor - the separate edit button was removed as
-  // a second control for the same action.
-  await page.locator('#editableTypesList .type-list-item').filter({hasText:'Projects'}).first().click();
+  // a second control for the same action. Projects is a built-in type.
+  await page.locator('#builtInTypesList .type-list-item').filter({hasText:'Projects'}).first().click();
   await page.waitForTimeout(1000);
 
   await expect(page.locator('#entityTypeEditorPane')).toBeVisible();
@@ -116,7 +123,7 @@ test('the type editor opens in a right-hand pane, not a modal', async ({ page })
   // in the list beside it, so a title repeated it (entity-type-editor.js#75).
   // What identifies the type being edited is the selection, so check that.
   await expect(
-    page.locator('#editableTypesList .type-list-item').filter({ hasText: 'Projects' }).first(),
+    page.locator('#builtInTypesList .type-list-item').filter({ hasText: 'Projects' }).first(),
   ).toHaveClass(/selected|active/);
   await expect(page.locator('#entityTypeForm')).toBeVisible();
   // Save/Cancel/Delete live in the pane header, like the typed pages
