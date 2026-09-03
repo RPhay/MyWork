@@ -1527,7 +1527,14 @@ async function initGenericEntityTab(typeSlug, typeName) {
       const box = e.target.closest('.editor-field-col, .editor-field-label');
       if (!box) return;
       const wrap = box.closest('.editor-field');
-      const field = (typeSchema.fields || []).find(f => String(f.id) === String(wrap.dataset.fieldId));
+      // The OPEN entity's own schema, not this tab's - a nested cross-type
+      // row (a ServiceNow record inside a Task, say) is a different type, and
+      // its field ids do not exist in `typeSchema.fields`. Looking there
+      // found nothing, so toggling a nested row's own column visibility
+      // silently did nothing at all: the checkbox flipped, nothing saved,
+      // and it reverted on the next render.
+      const openSchema = GenericEntity.getCurrentSchema() || typeSchema;
+      const field = (openSchema.fields || []).find(f => String(f.id) === String(wrap.dataset.fieldId));
       if (!field) return;
 
       const isColumn = box.classList.contains('editor-field-col');

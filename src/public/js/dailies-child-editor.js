@@ -13,19 +13,17 @@
 // the Dailies pane and saved back to the child's own endpoint - the same
 // render-here-save-there split a template's mixed-type children already use.
 // Any type works, including ones invented later, because nothing is listed.
+//
+// The schema comes from typeSchema() in dailies-items.js (loaded first - see
+// dashboard.ejs), not a cache of its own: this used to keep a second
+// promise-per-slug cache, which meant a child's schema object here was never
+// the SAME object preloadChildTypeSchemas() put in resolvedTypeSchemas - so a
+// column-visibility toggle on an open child (see the 'change' listener in
+// dailies.js) mutated one copy while the rail's rows kept reading the other,
+// and the column never appeared until a hard reload.
 
 // Store currently edited child item - read by syncDailiesRowSelection().
 let currentEditingChild = null;
-
-// One fetch per type, kept as the promise so two quick double-clicks do not
-// each start their own.
-const childSchemaCache = new Map();
-function childTypeSchema(slug) {
-  if (!childSchemaCache.has(slug)) {
-    childSchemaCache.set(slug, app.fetchData(`/api/entity-types/${slug}`));
-  }
-  return childSchemaCache.get(slug);
-}
 
 async function openChildItemEditor(type, id) {
   // Clicking the open row again shuts the editor; unsaved changes hold it.
@@ -37,7 +35,7 @@ async function openChildItemEditor(type, id) {
 
   try {
     const [schema, entity] = await Promise.all([
-      childTypeSchema(type),
+      typeSchema(type),
       app.fetchData(`/api/entities/${type}/${id}`),
     ]);
     if (!schema || !entity) throw new Error(`Could not load that ${type}`);

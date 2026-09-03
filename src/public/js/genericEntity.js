@@ -2363,6 +2363,15 @@ const GenericEntity = (() => {
       splitPanesByType[typeSlug] = splitPaneInstance;
     },
 
+    // The schema of whatever is CURRENTLY OPEN, not whichever tab happens to
+    // be asking. populate() sets the module's `typeSchema` per call, to the
+    // entity's OWN type - a nested cross-type row (a ServiceNow record inside
+    // a Task, a child inside a Dailies work item) is opened with ITS schema,
+    // not the host page's. A caller that instead closed over its own type's
+    // schema (a per-tab column toggle, say) would look up a field id that
+    // belongs to a different type's field list and quietly find nothing.
+    getCurrentSchema: () => typeSchema,
+
     renderRow: renderEntityRow,
     renderFlatList,
     orderedColumns,

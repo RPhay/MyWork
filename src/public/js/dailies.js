@@ -892,6 +892,47 @@ function initDailies() {
     }
   });
 
+  // The same per-field "show as column" / "show its label" switches every
+  // generic tab's editor renders - genericEntity.js draws them for any type,
+  // Dailies included - but the listener that SAVES them lives in
+  // generic-entity-init.js, scoped to each tab's own editor pane, and the
+  // Dailies rail is not a generic tab. Toggling one here did nothing at all:
+  // the checkbox flipped, nothing saved, and it reverted the moment anything
+  // re-rendered. Same reasoning as the autosave listener just above.
+  //
+  // GenericEntity.getCurrentSchema() is essential, not GenericEntity's
+  // typeSchema for 'daily' - what is actually open may be a CHILD of some
+  // other type entirely (dailies-child-editor.js populates with that type's
+  // own schema), and its field ids do not exist on daily's field list.
+  document.getElementById("dailyEditorPane")?.addEventListener("change", async (e) => {
+    const box = e.target.closest(".editor-field-col, .editor-field-label");
+    if (!box) return;
+    const wrap = box.closest(".editor-field");
+    const schema = GenericEntity.getCurrentSchema();
+    const field = (schema?.fields || []).find((f) => String(f.id) === String(wrap.dataset.fieldId));
+    if (!field) return;
+
+    const isColumn = box.classList.contains("editor-field-col");
+    const key = isColumn ? "show_in_row" : "show_column_label";
+
+    try {
+      const res = await app.fetchRaw(`/api/entity-types/fields/${field.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ [key]: box.checked }),
+      });
+      if (!res.ok) throw new Error("save failed");
+    } catch {
+      box.checked = !box.checked;
+      app.notify("Could not change that", "danger");
+      return;
+    }
+    // Mutates the SAME object resolvedTypeSchemas holds (typeSchema() in
+    // dailies-items.js is the one cache now - see dailies-child-editor.js),
+    // so the rail's next render already sees it.
+    field[key] = box.checked;
+    loadWorkItems();
+  });
+
   const closeWorkItemEditorBtn = document.getElementById("dailyCloseBtn");
   if (closeWorkItemEditorBtn) {
     closeWorkItemEditorBtn.addEventListener("click", () => {
