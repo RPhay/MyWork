@@ -113,6 +113,27 @@ export async function getEntityPathLookup(entityTypeSlug) {
   );
 }
 
+// Item counts per type, for the "(N)" badge next to each tab's name. One
+// grouped query rather than a getAllEntities() per type, which would also
+// pull every field value just to be thrown away - the tab bar only needs a
+// number per slug.
+export async function getEntityCounts(contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const rows = await queryPool(
+    `SELECT et.slug AS slug, COUNT(*) AS n
+     FROM entities e
+     JOIN entity_types et ON et.id = e.entity_type_id
+     WHERE e.context_id = ? AND e.deleted_at IS NULL AND et.deleted_at IS NULL
+     GROUP BY et.slug`,
+    [contextId]
+  );
+
+  const counts = {};
+  for (const row of rows) counts[row.slug] = Number(row.n);
+  return counts;
+}
+
 // Get all entities of a type in the current context
 export async function getAllEntities(entityTypeSlug, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
@@ -250,6 +271,66 @@ export async function getEntityById(entityId, contextId = null) {
   entity.fields = fieldMap.get(entity.id) || {};
 
   return entity;
+}
+
+// Changes which type an entity IS, in place. The row keeps its id, its
+// position and every field value it already has - entity_field_values is
+// keyed only by (entity_id, field_key), with no entity_type_id column and no
+// FK to one (see the CLAUDE.md note on this), so nothing there needs to move.
+// A value stored under a field_key the new type doesn't declare is simply
+// never read again; nothing here deletes it, so converting back restores it
+// for free rather than losing data on a round trip.
+//
+// Legality is TREE POSITION, not a fixed list: a nested row may only convert
+// to a type its actual PARENT already allows as a hierarchy child - the same
+// rule a drag-and-drop into that parent is held to (validateRelationship in
+// entityRelationshipService.js) - and a root-level row may become any other
+// editable type, since nothing constrains what may sit at the top of a
+// type's own list today either.
+export async function convertEntityType(entityId, newTypeSlug, contextId = null) {
+  if (!contextId) contextId = await getActiveContextId();
+
+  const rows = await queryPool(
+    'SELECT id, entity_type_id, is_folder FROM entities WHERE id = ? AND context_id = ? AND deleted_at IS NULL',
+    [entityId, contextId]
+  );
+  if (rows.length === 0) throw new NotFoundError(`Entity not found: ${entityId}`);
+  const entity = rows[0];
+
+  const newType = await entityTypeService.getEntityType(newTypeSlug);
+  if (newType.type_category !== 'editable') {
+    throw new ValidationError(`${newType.label} is not an editable type and cannot be converted to`);
+  }
+  if (newType.id === entity.entity_type_id) {
+    throw new ValidationError('Already that type');
+  }
+  if (entity.is_folder && !newType.supports_hierarchy) {
+    throw new ValidationError(`${newType.label} does not support folders`);
+  }
+
+  const parentRows = await queryPool(
+    "SELECT parent_entity_id FROM entity_relationships WHERE child_entity_id = ? AND context_id = ? AND relationship_kind = 'hierarchy'",
+    [entityId, contextId]
+  );
+
+  if (parentRows.length > 0) {
+    const parentTypeRows = await queryPool(
+      'SELECT entity_type_id FROM entities WHERE id = ?',
+      [parentRows[0].parent_entity_id]
+    );
+    const parentTypeId = parentTypeRows[0]?.entity_type_id;
+    const allowed = parentTypeId ? await queryPool(
+      "SELECT 1 AS ok FROM entity_type_relationships WHERE parent_type_id = ? AND child_type_id = ? AND relationship_kind = 'hierarchy'",
+      [parentTypeId, newType.id]
+    ) : [];
+    if (allowed.length === 0) {
+      throw new ValidationError(`${newType.label} cannot go where this item currently lives`);
+    }
+  }
+
+  await queryPool('UPDATE entities SET entity_type_id = ? WHERE id = ?', [newType.id, entityId]);
+
+  return getEntityById(entityId, contextId);
 }
 
 // Create a new entity

@@ -95,6 +95,7 @@
           await call(`/${id}`, { method: 'DELETE' });
           app.notify('Deleted permanently', 'success');
           await refresh();
+          document.dispatchEvent(new CustomEvent('entity-structure-changed'));
         } catch (error) {
           app.notify(error.message || 'Could not delete that', 'danger');
         }

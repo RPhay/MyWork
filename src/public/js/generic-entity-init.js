@@ -1639,6 +1639,116 @@ async function initGenericEntityTab(typeSlug, typeName) {
       && typeSchema.supports_folders !== 0 && typeSchema.supports_folders !== false;
     const singular = typeSchema.label_singular || typeName;
 
+    // Cross-type children: every OTHER type this type already allows as a
+    // hierarchy child - reusing `allowedChildSlugs`, the same set that gates
+    // accepting a cross-type drag/drop and fetching `/contents`, so the menu
+    // never offers a nesting the app would then refuse. Own-type nesting is
+    // the "New <Singular> inside" item above; this is everything else in
+    // that same allowed-child set.
+    const crossTypeChildTypes = typeSchema.supports_hierarchy
+      ? [...allowedChildSlugs]
+          .filter(slug => slug !== typeSlug)
+          .map(slug => allTypes.find(t => t.slug === slug))
+          .filter(Boolean)
+      : [];
+
+    // Creates a new entity of a DIFFERENT type and nests it under `parentId`
+    // in one step - the menu equivalent of dragging an existing row of that
+    // type in from its own tab (handleCrossTypeDrop below), except the row
+    // does not exist yet. No editor opens for it: this tab has no editor for
+    // another type, same reasoning as the cross-type drop.
+    async function createCrossTypeChild(childType, parentId) {
+      try {
+        const created = await app.fetchRaw(`/api/entities/${childType.slug}`, {
+          method: 'POST',
+          body: JSON.stringify({ title: `New ${childType.label_singular || childType.label}` }),
+        });
+        const result = await created.json();
+        if (!result.success) {
+          app.notify(result.message || 'Could not create it', 'danger');
+          return;
+        }
+        const linked = await app.fetchRaw(`/api/entities/${typeSlug}/${parentId}/relationships`, {
+          method: 'POST',
+          body: JSON.stringify({
+            parentEntityId: parentId, childEntityId: result.data.id, relationshipKind: 'hierarchy',
+          }),
+        });
+        if (!linked.ok) {
+          throw new Error((await linked.json().catch(() => ({}))).message || 'Could not nest it there');
+        }
+        localStorage.setItem(`entity-expanded-${parentId}`, 'true');
+        await refreshEntities();
+        document.dispatchEvent(new CustomEvent('entity-structure-changed', {
+          detail: { typeSlug: childType.slug, parentId },
+        }));
+        app.notify(`Added ${childType.label_singular || childType.label}`, 'success');
+      } catch (error) {
+        app.notify(error.message || 'Could not create that', 'danger');
+      }
+    }
+
+    // Which OTHER types this row could legally become, given where it
+    // actually sits. A nested row may only become a type its real PARENT
+    // already allows as a hierarchy child - the same test the server applies
+    // in convertEntityType() - so the menu never offers a move the request
+    // would just be refused for. A root-level row (no hierarchy parent) may
+    // become any other editable type, since nothing constrains what sits at
+    // the top of a type's own list today either.
+    function convertTargetTypesFor(entity) {
+      if (!entity) return [];
+
+      const parentRel = relationships.find(r => r.child_entity_id === entity.id);
+      let allowedTypeIds = null; // null = unconstrained (root-level)
+      if (parentRel) {
+        const parent = entities.find(x => x.id === parentRel.parent_entity_id);
+        const parentType = parent && allTypes.find(t => t.id === parent.entity_type_id);
+        if (!parentType) return []; // can't establish legality here - offer nothing
+        allowedTypeIds = new Set(
+          (parentType.relationships || [])
+            .filter(r => r.relationship_kind === 'hierarchy' && r.parent_type_id === parentType.id)
+            .map(r => r.child_type_id)
+        );
+      }
+
+      return allTypes.filter(t => {
+        if (t.id === entity.entity_type_id) return false;
+        if (t.slug === 'folder') return false; // internal container type, never a real target
+        if ((t.type_category || 'editable') !== 'editable') return false;
+        if (entity.is_folder && !t.supports_hierarchy) return false;
+        return allowedTypeIds === null || allowedTypeIds.has(t.id);
+      });
+    }
+
+    // Changes what type the row IS, keeping its id, position and field
+    // values (server-side: entityService.convertEntityType). The row then
+    // belongs to a different type's tab, so this one closes its editor if it
+    // was open on the entity rather than leave it pointed at a record about
+    // to disappear from the list.
+    async function convertEntity(entity, newType) {
+      try {
+        const response = await app.fetchRaw(`/api/entities/${typeSlug}/${entity.id}/convert-type`, {
+          method: 'PUT',
+          body: JSON.stringify({ newTypeSlug: newType.slug }),
+        });
+        const result = await response.json();
+        if (!result.success) {
+          app.notify(result.message || 'Could not convert it', 'danger');
+          return;
+        }
+        if (String(GenericEntity.getCurrentEntityId()) === String(entity.id)) {
+          GenericEntity.close();
+        }
+        await refreshEntities();
+        document.dispatchEvent(new CustomEvent('entity-structure-changed', {
+          detail: { typeSlug: newType.slug, convertedId: entity.id },
+        }));
+        app.notify(`Converted to ${newType.label_singular || newType.label}`, 'success');
+      } catch (error) {
+        app.notify(error.message || 'Could not convert it', 'danger');
+      }
+    }
+
     let pendingParentId = null; // set when creating something "inside" a row
 
     // The [data-action="toggle-expand"] arrow's handler goes through here.
@@ -1695,6 +1805,51 @@ async function initGenericEntityTab(typeSlug, typeName) {
       for (const item of items) {
         if (item.separator) {
           menuEl.insertAdjacentHTML('beforeend', '<hr style="margin:4px 0;">');
+          continue;
+        }
+        // A flyout, not a plain button - "Convert to..." is the only caller
+        // today. Reuses the same .context-menu-submenu-group / .context-menu-
+        // submenu markup and CSS the hand-written Dailies menu already has
+        // (dailies.ejs), click-to-toggle rather than hover for the same
+        // reason that one is: hover flyouts fire on the mouse PASSING THROUGH
+        // on the way to something else.
+        if (item.submenu) {
+          const group = document.createElement('div');
+          group.className = 'context-menu-submenu-group';
+
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'context-menu-item has-submenu';
+          btn.innerHTML = `<span>${item.icon || ''}</span>`
+            + `<span class="${item.labelClass || ''}">${item.label}</span>`
+            + '<span style="margin-left:auto;">&rsaquo;</span>';
+
+          const sub = document.createElement('div');
+          sub.className = 'context-menu-submenu d-none';
+          for (const subItem of item.submenu) {
+            const subBtn = document.createElement('button');
+            subBtn.type = 'button';
+            subBtn.className = 'context-menu-item';
+            subBtn.innerHTML = `<span>${subItem.icon || ''}</span>`
+              + `<span class="${subItem.labelClass || ''}">${subItem.label}</span>`;
+            subBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              closeContextMenu();
+              await subItem.action();
+            });
+            sub.appendChild(subBtn);
+          }
+
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const wasHidden = sub.classList.contains('d-none');
+            menuEl.querySelectorAll('.context-menu-submenu').forEach(m => m.classList.add('d-none'));
+            if (wasHidden) sub.classList.remove('d-none');
+          });
+
+          group.appendChild(btn);
+          group.appendChild(sub);
+          menuEl.appendChild(group);
           continue;
         }
         const btn = document.createElement('button');
@@ -1775,6 +1930,12 @@ async function initGenericEntityTab(typeSlug, typeName) {
 
         app.notify('Deleted', 'success');
         await refreshEntities();
+        // Nothing else fires on a plain delete - create/update go through
+        // 'entity-saved', reparenting through 'entity-structure-changed' -
+        // so the tab-count badge needs telling separately.
+        document.dispatchEvent(new CustomEvent('entity-structure-changed', {
+          detail: { typeSlug, deletedId: entityId },
+        }));
 
         if (wasOpen) {
           // Deleting the last row leaves nothing to select, so the editor
@@ -1901,6 +2062,13 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (allowsFolders) {
         items.push({ icon: '📁', label: 'New Folder inside', action: () => startCreate({ parentId: entityId, isFolder: true }) });
       }
+      for (const childType of crossTypeChildTypes) {
+        items.push({
+          icon: childType.icon || '➕',
+          label: `New ${childType.label_singular || childType.label} inside`,
+          action: () => createCrossTypeChild(childType, entityId),
+        });
+      }
       if (items.length > 0) items.push({ separator: true });
 
       items.push({ icon: '✏️', label: isFolder ? 'Rename Folder' : `Edit ${singular}`, action: () => {
@@ -1910,6 +2078,20 @@ async function initGenericEntityTab(typeSlug, typeName) {
           renderList();
         }
       } });
+
+      const convertTargets = entity ? convertTargetTypesFor(entity) : [];
+      if (convertTargets.length > 0) {
+        items.push({ separator: true });
+        items.push({
+          icon: '🔄',
+          label: 'Convert to...',
+          submenu: convertTargets.map(t => ({
+            icon: t.icon || '',
+            label: t.label_singular || t.label,
+            action: () => convertEntity(entity, t),
+          })),
+        });
+      }
       // Folders can be pinned as well: "the thing I am working on" is often a
       // whole folder of work, and refusing it was a judgement about how someone
       // should work rather than a limit of the feature.

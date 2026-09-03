@@ -1255,13 +1255,55 @@ async function initUserAndContext() {
   if (state?.needsUser) showUserPicker(state.users);
 }
 
+// Tab item counts: "(N)" beside each tab's name, the same visual language as
+// the per-row child-count badge (childCountBadge above). One grouped query
+// covers every type (getEntityCounts()), so this is a single request rather
+// than one per tab.
+//
+// Refreshed on 'entity-saved' / 'entity-structure-changed' rather than a
+// timer - both already fire on every create, delete, restore, purge and
+// cross-type move across the app, which is every way a count can change.
+// Debounced because a bulk operation (e.g. a drag reorder) can fire several
+// in a row for what is, to the user, one action.
+let tabCountsRefreshTimer = null;
+async function refreshTabCounts() {
+  const badges = document.querySelectorAll('.tab-count[data-count-slug]');
+  if (badges.length === 0) return;
+  try {
+    const response = await app.fetchRaw('/api/entities/counts', {});
+    const result = await response.json();
+    if (!result.success) return;
+    for (const badge of badges) {
+      const n = Number(result.data[badge.dataset.countSlug]) || 0;
+      badge.textContent = n > 0 ? `(${n})` : '';
+      badge.title = n > 0 ? `${n} item${n === 1 ? '' : 's'}` : '';
+    }
+  } catch (error) {
+    // A stale count is not worth interrupting anyone over - the tab itself
+    // still works fine without it.
+    console.error('Error refreshing tab counts:', error);
+  }
+}
+function scheduleTabCountsRefresh() {
+  clearTimeout(tabCountsRefreshTimer);
+  tabCountsRefreshTimer = setTimeout(refreshTabCounts, 300);
+}
+function initTabCounts() {
+  if (!document.querySelector('.tab-count[data-count-slug]')) return;
+  refreshTabCounts();
+  document.addEventListener('entity-saved', scheduleTabCountsRefresh);
+  document.addEventListener('entity-structure-changed', scheduleTabCountsRefresh);
+}
+
 // Initialize on page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     console.log('MyWork application initialized');
     initUserAndContext();
+    initTabCounts();
   });
 } else {
   console.log('MyWork application initialized');
   initUserAndContext();
+  initTabCounts();
 }

@@ -255,6 +255,9 @@
                 one name and the tab showed another, so renaming the type had
                 no visible effect. %>
             <%= type.label %>
+            <%# Filled in by refreshTabCounts() in main.js - empty at render
+                time so a page load never shows a stale number. %>
+            <span class="tab-count" data-count-slug="<%= type.slug %>"></span>
           </button>
         </li>
       <% }); %>
@@ -271,6 +274,7 @@
               <span class="tab-icon"><%= type.icon %></span>
             <% } %>
             <%= type.label %>
+            <span class="tab-count" data-count-slug="<%= type.slug %>"></span>
           </button>
         </li>
       <% }); %>

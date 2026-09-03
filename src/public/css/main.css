@@ -258,6 +258,17 @@
   user-select: none;
 }
 
+/* Tab-bar item count, e.g. "Ideas (7)" - same visual language as
+   .child-count above, filled in by refreshTabCounts() in main.js. Empty
+   (and so invisible) until that first fetch resolves. */
+.tab-count {
+  color: #6c757d;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  margin-left: 3px;
+  user-select: none;
+}
+
 /* ===== App shell =====
    Dailies is a rail down the left of whichever tab is showing, not a page. The
    rail and the tab content sit side by side; toggling the rail simply collapses
@@ -427,6 +438,29 @@ footer {
 .tab-content-pane.active {
   display: block;
   opacity: 1;
+}
+
+/* Ctrl/Cmd+click two type tabs to view them side by side - see setupDualView()
+   in tabs.js. Two panes carry .active at once here (every other view only
+   ever has one), so this splits the content area between them instead of
+   letting the second one overlay full-width. */
+body.dual-tab-view #mainTabContent {
+  display: flex;
+  gap: 0;
+}
+
+body.dual-tab-view .tab-content-pane.active {
+  flex: 1 1 50%;
+  min-width: 0;
+  width: auto;
+  overflow: auto;
+}
+
+/* The one tab picked so far, before a second Ctrl/Cmd+click completes the
+   pair - a lighter echo of .nav-tabs .nav-link.active so the gesture reads
+   as "in progress" rather than doing nothing until the second click. */
+.nav-tabs .nav-link.dual-pending {
+  border-bottom: 2px dashed #6c757d;
 }
 
 /* Table Styles */

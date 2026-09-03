@@ -7,6 +7,19 @@ import { ValidationError } from '../../config/errors.js';
 
 const router = express.Router();
 
+// GET /api/entities/counts - item counts per type, for the tab bar's "(N)"
+// badges. Must stay above /:typeSlug or Express would match "counts" as a
+// type slug instead.
+router.get('/counts', async (req, res) => {
+  try {
+    const counts = await entityService.getEntityCounts();
+    res.json({ success: true, data: counts });
+  } catch (error) {
+    logger.error('Error fetching entity counts:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/entities/:typeSlug - List all entities of a type
 router.get('/:typeSlug', async (req, res) => {
   try {
@@ -103,6 +116,21 @@ router.post('/:typeSlug/:id/clone', async (req, res) => {
     res.status(201).json({ success: true, data: copy });
   } catch (error) {
     logger.error('Error cloning entity:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/entities/:typeSlug/:id/convert-type - Change which type the row
+// IS, in place. Registered above the plain "/:typeSlug/:id" PUT below so the
+// literal "convert-type" segment can never be swallowed as an :id.
+router.put('/:typeSlug/:id/convert-type', async (req, res) => {
+  try {
+    const { newTypeSlug } = req.body;
+    if (!newTypeSlug) throw new ValidationError('newTypeSlug is required');
+    const entity = await entityService.convertEntityType(parseInt(req.params.id), newTypeSlug);
+    res.json({ success: true, data: entity });
+  } catch (error) {
+    logger.error('Error converting entity type:', error);
     res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });

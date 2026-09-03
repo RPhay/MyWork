@@ -322,6 +322,10 @@ class TabManager {
     // The one rule, applied to whichever tab was clicked - see the comment
     // above setupRails().
     const showPane = (target) => {
+      // A rail has nowhere to go while two type tabs are side by side - fall
+      // back to a single pane first, the same as any other navigation.
+      this.exitDualView?.();
+
       // A real click is the user overriding whatever an open editor forced -
       // otherwise the click would be silently swallowed, since visiblePanes()
       // would keep reporting only the forced pane no matter what was clicked.
@@ -402,11 +406,96 @@ class TabManager {
 
   init() {
     this.setupRails();
+    this.setupDualView();
     this.setupTabButtons();
     this.setupTabMenus();
     this.showTab(this.currentTab);
     this.setupUrlSync();
     this.applyContextTabConfig();
+  }
+
+  // Ctrl/Cmd+click two type tabs to view them side by side, capped at two -
+  // independent of the rail-pairing system above, which is always a rail
+  // plus the ONE current type. `dualTabs` holds 0-2 slugs in the order they
+  // were added.
+  //
+  // A third modifier-click drops the OLDER of the two rather than refusing,
+  // so the gesture always does something rather than needing a "clear"
+  // action of its own. A PLAIN click, or anything else that navigates
+  // (a rail toggle, the browser back button), exits dual view first - see
+  // exitDualView() below and its callers.
+  setupDualView() {
+    this.dualTabs = [];
+
+    this.toggleDualTab = (tab) => {
+      const i = this.dualTabs.indexOf(tab);
+      if (i !== -1) {
+        this.dualTabs.splice(i, 1);
+      } else if (this.dualTabs.length < 2) {
+        this.dualTabs.push(tab);
+      } else {
+        this.dualTabs.shift();
+        this.dualTabs.push(tab);
+      }
+      this.applyDualView();
+    };
+
+    // Leaves `dualTabs` as whatever the caller wants next (usually already
+    // cleared) - this only undoes the DOM/state side effects of having been
+    // in dual view, so a caller that goes on to call showTab()/showPane()
+    // starts from a clean single-pane baseline.
+    // The one tab picked so far, before a second modifier-click completes
+    // the pair - marked so the gesture gives some feedback immediately
+    // rather than appearing to do nothing until the second click.
+    const syncPending = () => {
+      document.querySelectorAll('button[data-tab]').forEach((btn) => {
+        btn.classList.toggle('dual-pending', this.dualTabs.length === 1 && this.dualTabs[0] === btn.dataset.tab);
+      });
+    };
+
+    this.exitDualView = () => {
+      if (this.dualTabs.length === 0 && !document.body.classList.contains('dual-tab-view')) return;
+      this.dualTabs = [];
+      document.body.classList.remove('dual-tab-view');
+      syncPending();
+    };
+
+    this.applyDualView = () => {
+      const active = this.dualTabs.length === 2;
+      document.body.classList.toggle('dual-tab-view', active);
+      syncPending();
+
+      if (!active) {
+        // Zero or one selected: an ordinary single tab. Whichever one is
+        // still selected (if any) becomes current; otherwise leave the
+        // screen as it was.
+        if (this.dualTabs.length === 1) this.switchTab(this.dualTabs[0]);
+        return;
+      }
+
+      // Two panes side by side leaves no room for a rail, and no rule for
+      // what it would even pair with - stand them all down the way a
+      // full-width tab already does, but keep the content pane itself
+      // visible so there is somewhere for the two type panes to sit.
+      this.fullWidthTab = false;
+      document.body.classList.remove('fullwidth-tab');
+      this.setPanes?.(['content']);
+      this.touchPane?.('content');
+      this.applyRails?.();
+
+      document.querySelectorAll('.tab-content-pane').forEach((pane) => {
+        pane.classList.toggle('active', this.dualTabs.includes(pane.id.slice('tab-'.length)));
+      });
+      // AFTER applyRails(), which calls syncTabHighlight() - that highlights
+      // only `currentTab`, and would otherwise immediately undo marking
+      // both tabs current.
+      document.querySelectorAll('button[data-tab]').forEach((btn) => {
+        btn.classList.toggle('active', this.dualTabs.includes(btn.dataset.tab));
+      });
+
+      this.dualTabs.forEach((slug) => this.loadTabData(slug));
+      window.app?.recheckVisible?.();
+    };
   }
 
   // A SECOND copy of the Dailies bootstrap stood here - renderCalendar(),
@@ -491,7 +580,8 @@ class TabManager {
     // A tab's text includes its icon span and the whitespace around it, so
     // reading textContent straight gave labels like "New 💡\n   Idea".
     const tabLabel = (btn) => [...btn.childNodes]
-      .filter(n => !(n.nodeType === 1 && n.classList?.contains('tab-icon')))
+      .filter(n => !(n.nodeType === 1
+        && (n.classList?.contains('tab-icon') || n.classList?.contains('tab-count'))))
       .map(n => n.textContent || '')
       .join(' ')
       .replace(/\s+/g, ' ')
@@ -607,6 +697,7 @@ class TabManager {
       // open, which is the common case.
       button.addEventListener('dblclick', (e) => {
         e.preventDefault();
+        this.exitDualView?.();
         this.fullWidthTab = false;
         this.setPanes?.(['content']);
         this.touchPane?.('content');
@@ -617,6 +708,15 @@ class TabManager {
       button.addEventListener('click', (e) => {
         e.preventDefault();
         const tab = button.dataset.tab;
+
+        // Ctrl/Cmd+click: toggle this tab into a second, side-by-side pane
+        // instead of switching to it - see setupDualView(). Not offered for
+        // a full-width view (Reporting): it shares the screen with nothing.
+        if ((e.ctrlKey || e.metaKey) && button.dataset.fullwidth !== 'true') {
+          this.toggleDualTab?.(tab);
+          return;
+        }
+        if (this.dualTabs?.length) this.exitDualView?.();
 
         // A full-width view (Reporting) shares with nothing, so it never goes
         // through the pairing rule - it simply takes the screen. Its tab is
@@ -668,6 +768,10 @@ class TabManager {
   }
 
   showTab(tabName) {
+    // Any real navigation - a switch, the back button - leaves dual view,
+    // the same as a plain tab click does.
+    this.exitDualView?.();
+
     // Hide all tabs
     const tabPanes = document.querySelectorAll('.tab-content-pane');
     tabPanes.forEach(pane => {
