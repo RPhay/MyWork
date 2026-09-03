@@ -621,6 +621,11 @@ export const SPECIAL_ENTITY_TYPES = [
     external_source: 'servicenow',
     fields: [
       { field_key: 'url', label: 'Link', field_type: 'url', required: false, show_in_row: true },
+      // Same shape as every editable type's own Notes field - somewhere to
+      // write what the dragged-in text and link alone don't say (why this
+      // record matters here, what to do about it), since nothing here can
+      // ask ServiceNow for that context itself.
+      { field_key: 'notes', label: 'Notes', field_type: 'textarea', required: false, show_in_row: false },
     ],
   },
 ];

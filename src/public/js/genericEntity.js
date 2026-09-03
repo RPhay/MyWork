@@ -1338,8 +1338,8 @@ const GenericEntity = (() => {
       }
       if (f.field_type === 'links' && Array.isArray(value)) {
         return value.map(l => `
-          <a class="row-field is-rollup entity-row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(l.url)}">
-            <i class="bi bi-link-45deg"></i>${escapeHtml(l.title || l.url)}
+          <a class="row-field is-rollup entity-row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(l.title || l.url)}">
+            <i class="bi bi-link-45deg"></i>
           </a>`).join('');
       }
       // A rolled-up date is still a date: format it like every other date cell
@@ -1354,15 +1354,20 @@ const GenericEntity = (() => {
       return `<span class="row-field entity-directory-chip-cell" title="${escapeAttr(value.email || '')}">${directoryAvatarHtml(value.displayName, f.field_type)}${escapeHtml(value.displayName || '')}</span>`;
     }
 
-    // Links are an array of {url, title}; anything else stringifies fine.
+    // Links are an array of {url, title}; anything else stringifies fine. A
+    // cell is a narrow, fixed-width space shared with every other row's
+    // value - the raw URL text there was frequently the longest thing in the
+    // whole column and told you nothing the destination itself doesn't. The
+    // icon is the whole affordance now; the title/url is still there, just
+    // as a tooltip instead of text that has to fit.
     if (f.field_type === 'links' && Array.isArray(value)) {
       return value.map(l => `
-        <a class="row-field entity-row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(l.url)}">
-          <i class="bi bi-link-45deg"></i>${escapeHtml(l.title || l.url)}
+        <a class="row-field entity-row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(l.title || l.url)}">
+          <i class="bi bi-link-45deg"></i>
         </a>`).join('');
     }
     if (f.field_type === 'url') {
-      return `<a class="row-field entity-row-link" href="${escapeAttr(value)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-link-45deg"></i>${escapeHtml(value)}</a>`;
+      return `<a class="row-field entity-row-link" href="${escapeAttr(value)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(value)}"><i class="bi bi-link-45deg"></i></a>`;
     }
     return `<span class="row-field">${escapeHtml(value)}</span>`;
   }
