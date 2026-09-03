@@ -133,6 +133,17 @@ export async function applyCachedConnectionAtBoot() {
   const store = readStore();
   if (!store.lastLiveConfig) return;
 
+  // Printed BEFORE the attempt, not just on success or failure - this call
+  // is the one thing standing between nodemon's startup banner and the
+  // "server running on port" line, and it can take a while to fail (an
+  // MSSQL host behind an IP-restricted firewall doesn't refuse the
+  // connection, it silently drops it, so even the driver's own
+  // connectionTimeout can take longer than expected to fire). Without this,
+  // that whole wait looks identical to the process being hung outright -
+  // there is no way to tell "about to fail in a few seconds" from "stuck
+  // forever" without it.
+  logger.info('Reconnecting to last active context\'s database...', { type: store.lastLiveConfig.type || 'mysql', host: store.lastLiveConfig.host, database: store.lastLiveConfig.database });
+
   try {
     await connectionPool.reconfigure({
       type: store.lastLiveConfig.type || 'mysql',
