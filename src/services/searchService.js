@@ -26,8 +26,15 @@ const INTERNAL_FIELD_KEYS = new Set([
   'focus_color',
 ]);
 
+// Escapes with '!' rather than backslash. MySQL's default LIKE escape char is
+// backslash, but T-SQL's `ESCAPE` clause takes the character LITERALLY - it
+// does not also treat backslash as a string-literal escape the way MySQL's
+// parser does - so `ESCAPE '\\'` was two different rules on the two engines
+// and the pattern built for one broke on the other. '!' needs no
+// dialect-specific handling in the SQL text on either engine; only '%', '_'
+// and '!' itself need escaping in the user's term.
 function escapeLike(term) {
-  return term.replace(/[\\%_]/g, ch => `\\${ch}`);
+  return term.replace(/[!%_]/g, ch => `!${ch}`);
 }
 
 /**
@@ -57,7 +64,7 @@ export async function search(term, contextId = null, { limit = 30, typeSlug = nu
     `SELECT e.id, e.title, e.is_folder, et.slug AS type_slug, et.label AS type_label, et.icon AS type_icon
      FROM entities e
      JOIN entity_types et ON et.id = e.entity_type_id
-     WHERE e.context_id = ? AND et.deleted_at IS NULL AND e.deleted_at IS NULL AND e.title LIKE ? ESCAPE '\\\\'
+     WHERE e.context_id = ? AND et.deleted_at IS NULL AND e.deleted_at IS NULL AND e.title LIKE ? ESCAPE '!'
      ORDER BY CHAR_LENGTH(e.title), e.title
      LIMIT ${rowCap}`,
     [contextId, like]
@@ -71,7 +78,7 @@ export async function search(term, contextId = null, { limit = 30, typeSlug = nu
      JOIN entities e ON e.id = v.entity_id
      JOIN entity_types et ON et.id = e.entity_type_id
      WHERE e.context_id = ? AND et.deleted_at IS NULL AND e.deleted_at IS NULL
-       AND (v.value_text LIKE ? ESCAPE '\\\\' OR v.value_long LIKE ? ESCAPE '\\\\')
+       AND (v.value_text LIKE ? ESCAPE '!' OR v.value_long LIKE ? ESCAPE '!')
      ORDER BY e.title
      LIMIT ${rowCap}`,
     [contextId, like, like]

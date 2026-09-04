@@ -55,7 +55,7 @@ function ragFor({ total, done, notStarted, overdue }) {
   return { rag: 'amber', why: `${Math.round(donePct * 100)}% complete` };
 }
 
-const isoDay = (value) => (value ? new Date(value).toISOString().slice(0, 10) : null);
+export const isoDay = (value) => (value ? new Date(value).toISOString().slice(0, 10) : null);
 
 /**
  * One row per editable type: how many there are, how they break down by status,

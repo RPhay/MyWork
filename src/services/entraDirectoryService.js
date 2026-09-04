@@ -159,12 +159,14 @@ export async function syncNow() {
   );
   if (existingSettings) {
     await homeDb.update(
-      "UPDATE integration_settings SET enabled = TRUE, last_synced_at = NOW() WHERE integration_key = ?",
+      // TRUE is not a valid T-SQL literal (bare TRUE/FALSE is MySQL-only) - 1
+      // works on both engines.
+      "UPDATE integration_settings SET enabled = 1, last_synced_at = NOW() WHERE integration_key = ?",
       [INTEGRATION_KEY],
     );
   } else {
     await homeDb.insert(
-      "INSERT INTO integration_settings (integration_key, enabled, last_synced_at) VALUES (?, TRUE, NOW())",
+      "INSERT INTO integration_settings (integration_key, enabled, last_synced_at) VALUES (?, 1, NOW())",
       [INTEGRATION_KEY],
     );
   }

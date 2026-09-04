@@ -46,7 +46,7 @@ export async function getSourceAuth(sourceId, authType = null) {
       params.push(authType);
     }
 
-    const [rows] = await query(sql, params);
+    const rows = await query(sql, params);
 
     if (rows.length === 0) return null;
 
@@ -78,7 +78,7 @@ export async function saveSourceAuth(sourceId, authType, authData, metadata = {}
       ? new Date(now.getTime() + (authData.expiresIn * 1000))
       : null;
 
-    const [existing] = await query(
+    const existing = await query(
       'SELECT id FROM source_auth WHERE source_id = ? AND auth_type = ?',
       [sourceId, authType]
     );
@@ -204,7 +204,7 @@ export async function clearSourceAuth(sourceId, authType = null) {
  */
 export async function getAuthStatus(sourceId) {
   try {
-    const [rows] = await query(
+    const rows = await query(
       `SELECT auth_type, auth_metadata, authenticated_at, expires_at
        FROM source_auth
        WHERE source_id = ?

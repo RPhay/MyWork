@@ -3,6 +3,7 @@ import * as entityTypeService from './entityTypeService.js';
 import * as entityService from './entityService.js';
 import { ValidationError } from '../config/errors.js';
 import { UNPINNABLE_TYPE_SLUGS } from '../config/constants.js';
+import { isoDay } from './portfolioReportService.js';
 
 /**
  * The focus bar: what you are actually working on right now, pinned to the top
@@ -51,17 +52,23 @@ export function ragForItem(entity, type) {
   const status = statusField ? (entity.fields?.[statusField.field_key] || '') : '';
   const due = dateField ? entity.fields?.[dateField.field_key] : null;
 
-  const options = typeof statusField?.field_options === 'string'
-    ? JSON.parse(statusField.field_options)
-    : statusField?.field_options;
+  let options;
+  try {
+    options = typeof statusField?.field_options === 'string'
+      ? JSON.parse(statusField.field_options)
+      : statusField?.field_options;
+  } catch {
+    options = null;                                 // malformed field_options: fall back below
+  }
   const doneValues = new Set((options?.doneValues?.length ? options.doneValues : ['Complete', 'Done', 'Ready']).map(String));
 
   if (status && doneValues.has(status)) return { rag: 'green', why: status };
 
   if (due) {
-    const dueDay = new Date(due);
-    const today = new Date();
-    const days = Math.floor((dueDay - today) / 86400000);
+    // Compare ISO day STRINGS (see portfolioReportService.isoDay), not Date
+    // objects with a time-of-day - `new Date(due) - new Date()` drifted by a
+    // day depending on the hour the comparison ran, in either direction.
+    const days = Math.round((new Date(isoDay(due)) - new Date(isoDay(new Date()))) / 86400000);
     if (days < 0) return { rag: 'red', why: `${Math.abs(days)}d overdue` };
     if (days <= 3) return { rag: 'amber', why: days === 0 ? 'due today' : `due in ${days}d` };
     return { rag: 'green', why: `due in ${days}d` };

@@ -1,4 +1,4 @@
-import { query, getCurrentConfig, getPool } from '../database/connectionPool.js';
+import { query, getCurrentConfig, getPool, isDuplicateKeyError } from '../database/connectionPool.js';
 import logger from '../utils/logger.js';
 import {
   SYSTEM_ENTITY_TYPES,
@@ -638,21 +638,6 @@ async function ensureGenericSchema() {
   }
 }
 
-/**
- * Is this error a unique-constraint violation?
- *
- * `error.code === 'ER_DUP_ENTRY'` is a mysql2 code and SQL Server never sets
- * it: there a duplicate arrives as error number 2601 or 2627. The seeding
- * below treats a duplicate as "already done, carry on", so on MSSQL every
- * re-seed would instead rethrow and fail the whole migration.
- */
-function isDuplicateKeyError(error) {
-  if (error?.code === 'ER_DUP_ENTRY') return true;
-  if (error?.number === 2601 || error?.number === 2627) return true;
-  return /duplicate key|duplicate entry|violation of (unique|primary key) constraint/i
-    .test(error?.message || '');
-}
-
 async function seedSystemTypes() {
   try {
     // The definitions are shared with both schema files and phase 0 - see
@@ -666,9 +651,15 @@ async function seedSystemTypes() {
     // Create all types
     for (const typeData of types) {
       try {
+        // type_category/supports_folders/is_visible used to be left out of
+        // this INSERT entirely, so every type seeded through this fallback
+        // path (rather than through a fresh mysqlSchema.js run) got the
+        // column defaults regardless of what systemEntityTypes.js actually
+        // declared - Templates seeded here would default to
+        // supports_folders = TRUE even though its own definition says false.
         const result = await query(
-          'INSERT INTO entity_types (slug, label, label_singular, icon, supports_hierarchy, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [typeData.slug, typeData.label, typeData.label_singular, typeData.icon, typeData.supports_hierarchy ? 1 : 0, 1, typeData.primary_date_field || null, types.indexOf(typeData)]
+          'INSERT INTO entity_types (slug, label, label_singular, icon, type_category, supports_hierarchy, supports_folders, is_visible, is_system, primary_date_field, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [typeData.slug, typeData.label, typeData.label_singular, typeData.icon, typeData.type_category || 'editable', typeData.supports_hierarchy ? 1 : 0, typeData.supports_folders === false ? 0 : 1, typeData.is_visible === false ? 0 : 1, 1, typeData.primary_date_field || null, types.indexOf(typeData)]
         );
         typeMap.set(typeData.slug, result.insertId);
       } catch (error) {
@@ -688,8 +679,8 @@ async function seedSystemTypes() {
         const field = typeData.fields[i];
         try {
           await query(
-            'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [typeId, field.field_key, field.label, field.field_type, field.field_options ? JSON.stringify(field.field_options) : null, field.required ? 1 : 0, i, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0]
+            'INSERT INTO entity_type_fields (entity_type_id, field_key, label, field_type, field_options, required, display_order, show_in_row, is_completion_signal, rollup) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [typeId, field.field_key, field.label, field.field_type, field.field_options ? JSON.stringify(field.field_options) : null, field.required ? 1 : 0, i, field.show_in_row ? 1 : 0, field.is_completion_signal ? 1 : 0, field.rollup || null]
           );
         } catch (error) {
           if (!isDuplicateKeyError(error)) throw error;

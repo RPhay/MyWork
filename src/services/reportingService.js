@@ -50,9 +50,9 @@ export async function getGoalsReport(contextId, { year, status } = {}) {
     categories: [],
   }));
 
-  if (goals.some(g => g.year !== null)) {
-    goals = goals.filter(g => Number(g.year) === Number(year));
-  }
+  // A goal with no year is never scoped to one, so it stays in every year's
+  // report rather than vanishing the moment any OTHER goal sets one.
+  goals = goals.filter(g => g.year === null || Number(g.year) === Number(year));
   if (status) goals = goals.filter(g => g.status === status);
   return goals;
 }

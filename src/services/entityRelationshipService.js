@@ -100,8 +100,12 @@ export async function getRelationshipsForType(typeSlug, contextId = null, kind =
 export async function getEntityChildren(parentEntityId, contextId = null, kind = 'hierarchy') {
   if (!contextId) contextId = await getActiveContextId();
 
+  // Deleted children excluded - none of this function's callers (the
+  // children API route, dailyTemplateService's associationsFor,
+  // instantiateTemplate) want a soft-deleted row treated as still there; the
+  // sibling getRelationshipsForType() above already filters the same way.
   const relationships = await queryPool(
-    'SELECT er.*, e.title, e.entity_type_id FROM entity_relationships er JOIN entities e ON e.id = er.child_entity_id WHERE er.parent_entity_id = ? AND er.context_id = ? AND er.relationship_kind = ? ORDER BY er.order_index, er.id',
+    'SELECT er.*, e.title, e.entity_type_id FROM entity_relationships er JOIN entities e ON e.id = er.child_entity_id AND e.deleted_at IS NULL WHERE er.parent_entity_id = ? AND er.context_id = ? AND er.relationship_kind = ? ORDER BY er.order_index, er.id',
     [parentEntityId, contextId, kind]
   );
 

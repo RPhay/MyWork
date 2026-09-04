@@ -63,12 +63,16 @@ export function minutesToTimeBox(value) {
 // function below still takes and returns the exact flat shape it always has,
 // so routes/api/dailies.js and every dailies-*.js file need no changes at all.
 
-let workItemTypeIdCache = null;
-async function getWorkItemTypeId() {
-  if (workItemTypeIdCache) return workItemTypeIdCache;
+// Keyed by context id, not a single value - each context is a separate
+// database, so 'daily''s entity_type id is not the same number in two
+// contexts. A single cached id survived a context switch and pointed
+// getWorkItemEntitiesByDate et al. at the wrong type on the new database.
+const workItemTypeIdCache = new Map();
+async function getWorkItemTypeId(contextId) {
+  if (workItemTypeIdCache.has(contextId)) return workItemTypeIdCache.get(contextId);
   const type = await entityTypeService.getEntityType('daily');
-  workItemTypeIdCache = type.id;
-  return workItemTypeIdCache;
+  workItemTypeIdCache.set(contextId, type.id);
+  return type.id;
 }
 
 // entity + its {field: value} map -> the flat object every caller expects.
@@ -116,7 +120,7 @@ async function attachFlattened(rows) {
 // as a Date object, not a string - comparing that to a 'YYYY-MM-DD' string in
 // JS would never match.
 async function getWorkItemEntitiesByDate(date, contextId) {
-  const typeId = await getWorkItemTypeId();
+  const typeId = await getWorkItemTypeId(contextId);
   const rows = await db.query(
     `SELECT e.* FROM entities e
      JOIN entity_field_values v ON v.entity_id = e.id AND v.field_key = 'date'
@@ -128,7 +132,7 @@ async function getWorkItemEntitiesByDate(date, contextId) {
 }
 
 async function getWorkItemEntitiesByDateRange(startDate, endDate, contextId) {
-  const typeId = await getWorkItemTypeId();
+  const typeId = await getWorkItemTypeId(contextId);
   const rows = await db.query(
     `SELECT e.* FROM entities e
      JOIN entity_field_values v ON v.entity_id = e.id AND v.field_key = 'date'
@@ -141,7 +145,7 @@ async function getWorkItemEntitiesByDateRange(startDate, endDate, contextId) {
 }
 
 async function nextOrderIndexForDate(date, contextId) {
-  const typeId = await getWorkItemTypeId();
+  const typeId = await getWorkItemTypeId(contextId);
   const result = await db.queryOne(
     `SELECT MAX(e.order_index) as maxOrder FROM entities e
      JOIN entity_field_values v ON v.entity_id = e.id AND v.field_key = 'date'
@@ -427,7 +431,7 @@ export async function cloneWorkItem(id, date) {
       notes: original.notes,
       emoji: original.emoji,
       status: 'Not Started',
-      time_box: original.time_box_minutes,
+      time_box: minutesToTimeBox(original.time_box_minutes),
     },
   }, original.context_id);
 

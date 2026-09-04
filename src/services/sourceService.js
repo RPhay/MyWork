@@ -28,13 +28,29 @@ export async function createSource(data, contextId) {
   return getSourceById(sourceId);
 }
 
-export async function updateSource(id, data) {
+export async function updateSource(id, data = {}) {
   const { name, type, config, enabled, status } = data;
+  await getSourceById(id); // throws NotFoundError if missing
 
-  await db.update(
-    'UPDATE sources SET name = ?, type = ?, config = ?, enabled = ?, status = ? WHERE id = ?',
-    [name, type, JSON.stringify(config || {}), enabled !== false, status, id]
-  );
+  // Partial-update pattern, like updateUser: only the keys actually SENT are
+  // written. Building the SET list unconditionally from a destructure meant
+  // any partial request - toggling just `enabled`, say - wrote `undefined`
+  // (NULL, or the literal string, depending on the driver) into every column
+  // it did not mention, wiping the name/type/config/status that were already
+  // there.
+  const sets = [];
+  const values = [];
+
+  if (name !== undefined) { sets.push('name = ?'); values.push(name); }
+  if (type !== undefined) { sets.push('type = ?'); values.push(type); }
+  if (config !== undefined) { sets.push('config = ?'); values.push(JSON.stringify(config || {})); }
+  if (enabled !== undefined) { sets.push('enabled = ?'); values.push(enabled !== false); }
+  if (status !== undefined) { sets.push('status = ?'); values.push(status); }
+
+  if (sets.length) {
+    values.push(id);
+    await db.update(`UPDATE sources SET ${sets.join(', ')} WHERE id = ?`, values);
+  }
 
   return getSourceById(id);
 }

@@ -292,21 +292,34 @@ async function readRecordPaths(conn, typeId, localContextId) {
   }
 
   const paths = new Map();
-  const pathOf = (row, guard = 0) => {
-    if (!row || guard > 50) return '';           // guard: a cycle must not hang the compare
+  // The parent CHAIN, as an array of titles - not a joined string. A title
+  // containing " / " (a real, saved value) used to be indistinguishable from
+  // the separator itself: "A / B" as one row's own title and "B" nested under
+  // a folder titled "A" produced the identical joined path, so the two were
+  // treated as the same record and one silently never synced. Keyed here by
+  // JSON.stringify(chain) instead, which is unambiguous for any array of
+  // strings - joining with " / " happens only where a path is DISPLAYED.
+  const pathArrOf = (row, guard = 0) => {
+    if (!row || guard > 50) return [];            // guard: a cycle must not hang the compare
     const title = String(row.title ?? '').trim();
     const parentId = parentOf.get(row.id);
     // A parent outside this type (or already deleted) makes this row a root
     // here rather than an orphan with an unresolvable path.
-    if (!parentId || !byId.has(parentId)) return title;
-    return `${pathOf(byId.get(parentId), guard + 1)} / ${title}`;
+    if (!parentId || !byId.has(parentId)) return [title];
+    return [...pathArrOf(byId.get(parentId), guard + 1), title];
   };
 
   for (const row of rows) {
     row.parentId = parentOf.get(row.id) ?? null;
-    paths.set(pathOf(row), row);
+    row.pathArr = pathArrOf(row);
+    paths.set(JSON.stringify(row.pathArr), row);
   }
   return paths;
+}
+
+// Chain -> display string, only ever for something a human reads.
+function displayPath(pathArr) {
+  return (pathArr || []).join(' / ');
 }
 
 async function compareRecords(source, target, sourceType, targetType, ctx) {
@@ -319,7 +332,7 @@ async function compareRecords(source, target, sourceType, targetType, ctx) {
     toAdd: toAdd.length,
     // A sample, not the list: a type with thousands of rows would otherwise
     // push a thousand-line payload into the compare screen.
-    sample: toAdd.slice(0, 10),
+    sample: toAdd.slice(0, 10).map((p) => displayPath(sourcePaths.get(p).pathArr)),
   };
 }
 
@@ -453,7 +466,7 @@ async function syncRecords(source, target, sourceTypeId, targetTypeId, ctx) {
 
   const missing = [...sourcePaths.entries()]
     .filter(([path]) => !targetPaths.has(path))
-    .sort((a, b) => a[0].split(' / ').length - b[0].split(' / ').length);
+    .sort((a, b) => a[1].pathArr.length - b[1].pathArr.length);
 
   if (!missing.length) return { added: 0, paths: [] };
 
@@ -487,7 +500,8 @@ async function syncRecords(source, target, sourceTypeId, targetTypeId, ctx) {
     );
     targetIdByPath.set(path, newId);
 
-    const parentPath = path.includes(' / ') ? path.slice(0, path.lastIndexOf(' / ')) : null;
+    const parentArr = row.pathArr.slice(0, -1);
+    const parentPath = parentArr.length ? JSON.stringify(parentArr) : null;
     const parentId = parentPath ? targetIdByPath.get(parentPath) : null;
     if (parentId) {
       await target.query(
@@ -507,7 +521,7 @@ async function syncRecords(source, target, sourceTypeId, targetTypeId, ctx) {
           outbound(v.value_date), outbound(v.value_bool), outbound(v.value_json)],
       );
     }
-    added.push(path);
+    added.push(displayPath(row.pathArr));
   }
   return { added: added.length, paths: added.slice(0, 20) };
 }

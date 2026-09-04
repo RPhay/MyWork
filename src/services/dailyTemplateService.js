@@ -104,15 +104,23 @@ export async function getTemplateById(id, contextId = null) {
   return toLegacyShape(entity, contextId, await pathLookups());
 }
 
-/** Replace one kind of association wholesale, the way setAssociations did. */
-async function setAssociations(templateId, ids, contextId) {
+/**
+ * Replace one KIND of association wholesale, the way setAssociations did.
+ * Scoped to `kind` ('category' | 'goal' | 'priority'): a template's children
+ * also include the other two kinds, and a caller setting one kind's ids must
+ * not touch the others.
+ */
+async function setAssociations(templateId, kind, ids, contextId) {
   const existing = await associationsFor(templateId, contextId);
   const wanted = new Set((ids || []).map(Number));
-  const all = [...existing.category, ...existing.goal, ...existing.priority];
+  const have = existing[kind] || [];
 
-  for (const row of all) {
-    if (!wanted.has(row.id)) continue;
-    wanted.delete(row.id);                        // already linked
+  for (const row of have) {
+    if (wanted.has(row.id)) {
+      wanted.delete(row.id);                      // already linked
+    } else {
+      await entityRelationshipService.removeRelationship(templateId, row.id, 'hierarchy', contextId);
+    }
   }
   for (const id of wanted) {
     await entityRelationshipService.addRelationship(templateId, Number(id), 'hierarchy', contextId);
@@ -135,8 +143,8 @@ export async function createTemplate(data, contextId) {
     },
   }, contextId);
 
-  for (const ids of [area_ids, goal_ids, priority_ids]) {
-    if (Array.isArray(ids) && ids.length) await setAssociations(entity.id, ids, contextId);
+  for (const [kind, ids] of [['category', area_ids], ['goal', goal_ids], ['priority', priority_ids]]) {
+    if (Array.isArray(ids) && ids.length) await setAssociations(entity.id, kind, ids, contextId);
   }
   return getTemplateById(entity.id, contextId);
 }
@@ -159,8 +167,8 @@ export async function updateTemplate(id, data, contextId = null) {
   if (Object.keys(fields).length) patch.fields = fields;
   if (Object.keys(patch).length) await entityService.updateEntity(id, patch, contextId);
 
-  for (const ids of [data.area_ids, data.goal_ids, data.priority_ids]) {
-    if (ids !== undefined) await setAssociations(id, Array.isArray(ids) ? ids : [], contextId);
+  for (const [kind, ids] of [['category', data.area_ids], ['goal', data.goal_ids], ['priority', data.priority_ids]]) {
+    if (ids !== undefined) await setAssociations(id, kind, Array.isArray(ids) ? ids : [], contextId);
   }
   return getTemplateById(id, contextId);
 }

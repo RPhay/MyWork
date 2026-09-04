@@ -1,4 +1,4 @@
-import { query } from '../database/connectionPool.js';
+import { query, isDuplicateKeyError } from '../database/connectionPool.js';
 import { ValidationError, NotFoundError, ConflictError } from '../config/errors.js';
 import { UNPINNABLE_TYPE_SLUGS } from '../config/constants.js';
 import { ENGINE_FIELD_DEFS, UNIVERSAL_LEAF_TYPE_SLUGS } from '../database/systemEntityTypes.js';
@@ -356,7 +356,7 @@ export async function createEntityType(data) {
 
     return getEntityType(typeId);
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') throw new ConflictError(`slug already exists: ${slug}`);
+    if (isDuplicateKeyError(error)) throw new ConflictError(`slug already exists: ${slug}`);
     throw error;
   }
 }
@@ -414,7 +414,10 @@ export async function updateEntityType(id, data) {
   // createEntityTypeField(id, ...) the same way any other field add does.
   if (type.slug !== FOLDER_TYPE_SLUG && !type.is_workspace) await ensureEngineFields(id);
 
-  if (data.supports_hierarchy) await ensureSelfNestingRule(id);
+  // Matches the create path's `supportsHierarchy && !data.is_workspace` guard
+  // (line ~340) - a workspace tab's is_workspace is not necessarily present in
+  // a partial update payload, so it is read from the STORED row, not `data`.
+  if (data.supports_hierarchy && !type.is_workspace) await ensureSelfNestingRule(id);
 
   // Templates follow Dailies - see syncTemplateFieldsFromDaily. Done here so it
   // happens whenever Dailies is saved, which is the moment the two would
@@ -508,6 +511,24 @@ export async function updateEntityType(id, data) {
           WHERE e.entity_type_id = ? AND v.field_key = ?`,
         [id, key]
       );
+
+      // A field removed from the 'folder' type itself is a folder-only
+      // field, never a real field of a `entity_type_id = folder` row -
+      // nothing ever creates one (see propagateFolderFieldCreate). Its
+      // values live on FOLDER ROWS of every OTHER type instead
+      // (entities.is_folder = 1), keyed by the same field_key, so the sweep
+      // above always deletes zero rows here and the values were left behind.
+      // Only fields removed from the folder type qualify - a field_key that
+      // happens to match an ordinary field on some other type (every type
+      // already has 'notes', 'priority', ...) must not have ITS values wiped.
+      if (type.slug === FOLDER_TYPE_SLUG) {
+        await query(
+          `DELETE v FROM entity_field_values v
+             JOIN entities e ON e.id = v.entity_id
+            WHERE e.is_folder = 1 AND v.field_key = ?`,
+          [key]
+        );
+      }
       // Through deleteEntityTypeField(), not a raw DELETE - this is also
       // where a deletion on the 'folder' type fans out to every type's
       // propagated copy (propagateFolderFieldDelete). A raw query here
@@ -736,7 +757,7 @@ async function propagateFolderFieldCreate(fieldKey, data) {
       // its own (every type already has 'priority', 'notes', ...) is a real
       // naming conflict, not something to paper over - skip that one type
       // and say so, rather than fail every other type's propagation over it.
-      if (error.code !== 'ER_DUP_ENTRY') throw error;
+      if (!isDuplicateKeyError(error)) throw error;
       logger.warn(`Folder field "${fieldKey}" collides with an existing field on entity type ${typeId} - not propagated there`);
     }
   }
@@ -809,7 +830,7 @@ export async function createEntityTypeField(entityTypeId, data) {
 
     return created;
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') throw new ConflictError(`Field already exists: ${fieldKey}`);
+    if (isDuplicateKeyError(error)) throw new ConflictError(`Field already exists: ${fieldKey}`);
     throw error;
   }
 }
@@ -907,7 +928,7 @@ export async function createEntityTypeRelationship(data) {
     const rows = await query('SELECT * FROM entity_type_relationships WHERE id = ?', [result.insertId]);
     return rows[0];
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (isDuplicateKeyError(error)) {
       throw new ConflictError('This relationship rule already exists');
     }
     throw error;

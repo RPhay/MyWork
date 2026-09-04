@@ -1,4 +1,5 @@
 import * as db from "../database/homePool.js";
+import { isDuplicateKeyError } from "../database/connectionPool.js";
 import { ValidationError, NotFoundError } from "../config/errors.js";
 
 // Deliberately minimal: a user is just a name, no password or session - it
@@ -45,7 +46,7 @@ export async function createUser(name, email = null) {
     );
     return getUserById(id);
   } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
+    if (isDuplicateKeyError(error)) {
       throw new ValidationError(
         "A user with that name or email address already exists",
       );
@@ -88,7 +89,7 @@ export async function updateUser(id, { name, email } = {}) {
   try {
     await db.update(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`, values);
   } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
+    if (isDuplicateKeyError(error)) {
       throw new ValidationError(
         "Another profile already uses that name or email address",
       );

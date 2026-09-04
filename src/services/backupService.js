@@ -1,4 +1,4 @@
-import { query, getPool, getCurrentConfig } from '../database/connectionPool.js';
+import { query, getCurrentConfig } from '../database/connectionPool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
@@ -7,6 +7,7 @@ import archiver from 'archiver';
 import logger from '../utils/logger.js';
 import { ValidationError } from '../config/errors.js';
 import { ALL_SYSTEM_TABLES } from './systemDatabaseService.js';
+import { MSSQL_SCHEMA } from '../database/mssqlTranslation.js';
 
 const execAsync = promisify(exec);
 const writeFile = promisify(fs.writeFile);
@@ -176,6 +177,39 @@ function serializeValue(value) {
 // exists, and rolling the whole restore back.
 const TABLES = ALL_SYSTEM_TABLES;
 
+// Parents before children, read off the FOREIGN KEY clauses in mysqlSchema.js
+// (mirrored on mssqlSchema.js): users/sources/years/context_folders have no
+// dependency among these tables; contexts depends on users and
+// context_folders; day_highlights and entities depend on contexts;
+// entity_type_fields/entity_type_relationships depend on entity_types;
+// entity_field_values depends on entities; entity_relationships depends on
+// contexts and entities (both directions); the two work_* junctions depend on
+// entities (and, for work_source_associations, sources). importDatabase()
+// deletes this list in reverse (children first) and inserts it forwards
+// (parents first), which is the two directions a restore actually needs -
+// see "How to delete" in CLAUDE_PROJECT_TESTS.md for the same ordering
+// reasoning applied to a live delete instead of a restore.
+const TABLE_INSERT_ORDER = [
+  'users', 'sources', 'years', 'context_folders', 'contexts',
+  'day_highlights', 'source_auth',
+  'entity_types', 'entity_type_fields', 'entity_type_relationships',
+  'entities', 'entity_field_values', 'entity_relationships',
+  'work_entity_associations', 'work_source_associations',
+];
+
+// Every table a backup can carry needs a place in the order above - a table
+// TABLE_INSERT_ORDER hasn't been extended for is a bug in THIS list, not
+// something to guess an order for at restore time.
+{
+  const missing = TABLES.filter((t) => !TABLE_INSERT_ORDER.includes(t));
+  if (missing.length) {
+    throw new Error(
+      `backupService.TABLE_INSERT_ORDER is missing ${missing.join(', ')} - `
+      + 'add them in FK-safe order before importDatabase() can run.',
+    );
+  }
+}
+
 // Table and column names cannot be parameterised, so they are interpolated -
 // which means they have to be checked. Everything here comes from a file the
 // user supplies, so this is the boundary where a hostile backup would try to
@@ -194,6 +228,17 @@ function validateIdentifier(name, what) {
  * A table that does not exist is skipped rather than throwing: a database that
  * predates a table, or has had one retired, should still be backup-able.
  */
+// True only for "this table does not exist" - ER_NO_SUCH_TABLE on MySQL,
+// error number 208 on MSSQL (checked on the error and its .cause, since
+// connectionPool.query() wraps the driver error). Anything else is a real
+// failure and must not be treated as "nothing to back up here".
+function isMissingTableError(error) {
+  if (!error) return false;
+  const code = error.code || error.cause?.code;
+  const number = error.number ?? error.cause?.number;
+  return code === 'ER_NO_SUCH_TABLE' || number === 208;
+}
+
 export async function exportDatabase() {
   const tables = {};
   let rowsExported = 0;
@@ -201,14 +246,27 @@ export async function exportDatabase() {
   for (const table of TABLES) {
     validateIdentifier(table, 'Table name');
     try {
-      const rows = await query(`SELECT * FROM \`${table}\``);
+      // Plain, unquoted names - qualifyTablesForMssql() only recognises
+      // `\`table\`` incidentally, and backticks previously hid every table
+      // name from it, so MSSQL backups silently exported nothing.
+      const rows = await query(`SELECT * FROM ${table}`);
       tables[table] = rows;
       rowsExported += rows.length;
     } catch (error) {
       // ER_NO_SUCH_TABLE and its MSSQL equivalent both mean "nothing to back
-      // up here", which is not a failed backup.
+      // up here", which is not a failed backup. Anything else - a bad
+      // connection, a permissions error, a qualification failure - IS a
+      // failed backup and must not be swallowed into a quietly-incomplete one.
+      if (!isMissingTableError(error)) throw error;
       logger.warn(`Backup: skipping ${table} (${error.message})`);
     }
+  }
+
+  if (Object.keys(tables).length === 0) {
+    throw new Error(
+      'Backup export produced zero tables - refusing to return a well-formed '
+      + 'empty backup. Check the database connection and the [MyWork] table list.',
+    );
   }
 
   return {
@@ -220,95 +278,145 @@ export async function exportDatabase() {
   };
 }
 
+// How many bind parameters one MSSQL batch may carry when restoring a table
+// under IDENTITY_INSERT (see insertRowsMssql below). SQL Server rejects a
+// request with more than 2100 parameters, and a 200-row chunk of a wide table
+// (entities is ~12 columns) already exceeds that - so the chunk boundary is a
+// parameter budget, not a row count.
+const MSSQL_IMPORT_PARAM_BUDGET = 2000;
+
+// MSSQL's `id` columns are IDENTITY, so an INSERT carrying an explicit id
+// (which a restore must, to keep every foreign key it already recorded)
+// needs IDENTITY_INSERT ON for that table - and that property is
+// SESSION-scoped, so the SET and the inserts it covers have to run on the
+// same connection. connectionPool's query() hands back a fresh request per
+// call, which does not guarantee that across separate calls - so this sends
+// one combined batch per chunk instead of one call per row. Identifiers are
+// written already qualified ([MyWork].[table]/[col]) so qualifyTablesForMssql
+// - which only recognises FROM/JOIN/INTO/UPDATE/TABLE/MERGE - leaves them
+// alone rather than missing them (see its "already qualified" branch).
+//
+// No AUTO_INCREMENT-style reseed afterwards: SQL Server sets a table's
+// current identity value to the highest value explicitly inserted while
+// IDENTITY_INSERT is ON, so the next auto-generated id already continues
+// from there.
+async function insertRowsMssql(table, preparedRows) {
+  const qualifiedTable = `[${MSSQL_SCHEMA}].[${table}]`;
+
+  let start = 0;
+  while (start < preparedRows.length) {
+    const statements = [`SET IDENTITY_INSERT ${qualifiedTable} ON;`];
+    const values = [];
+
+    let i = start;
+    for (; i < preparedRows.length; i++) {
+      const { columns, values: rowValues } = preparedRows[i];
+      if (i > start && values.length + rowValues.length > MSSQL_IMPORT_PARAM_BUDGET) break;
+      const placeholders = columns.map(() => '?').join(',');
+      const columnList = columns.map((c) => `[${c}]`).join(',');
+      statements.push(`INSERT INTO ${qualifiedTable} (${columnList}) VALUES (${placeholders});`);
+      values.push(...rowValues);
+    }
+    start = i;
+
+    statements.push(`SET IDENTITY_INSERT ${qualifiedTable} OFF;`);
+    await query(statements.join('\n'), values);
+  }
+}
+
 export async function importDatabase(payload) {
   if (!payload || typeof payload !== 'object' || !payload.tables) {
     throw new ValidationError('That file doesn\'t look like a MyWork backup');
   }
 
-  const pool = await getPool();
-  const connection = await pool.getConnection();
+  const { type: dbType, database: dbName } = getCurrentConfig();
+  const isMssql = dbType === 'mssql';
+  // information_schema.columns is one of the few things both engines answer
+  // identically, but TABLE_SCHEMA means different things: the database name
+  // on MySQL, the SQL schema (always [MyWork] here, never dbo) on MSSQL.
+  const columnsSchemaFilter = isMssql ? MSSQL_SCHEMA : dbName;
 
-  try {
-    await connection.query('SET FOREIGN_KEY_CHECKS = 0');
-    await connection.beginTransaction();
-
-    // Only the tables this backup actually carries. Emptying a table the file
-    // says nothing about would silently destroy data the restore cannot then
-    // put back - a "restore" that deletes is the worst possible outcome here.
-    const present = TABLES.filter((t) => Array.isArray(payload.tables[t]));
-    if (!present.length) {
-      throw new ValidationError('That backup contains no recognisable tables');
-    }
-    for (const table of [...present].reverse()) {
-      validateIdentifier(table, 'Table name');
-      await connection.query(`DELETE FROM \`${table}\``);
-    }
-
-    let rowsImported = 0;
-
-    for (const table of present) {
-      const rows = payload.tables[table] || [];
-      let maxId = 0;
-
-      // Which columns this table ACTUALLY has right now. A backup taken against
-      // an older schema carries columns that have since been dropped
-      // (`priorities.is_weekly` is a real example), and inserting one of those
-      // failed the entire restore with "Unknown column" - so the one file you
-      // reach for when something has gone wrong was the one that would not
-      // load. Unknown columns are skipped and logged instead.
-      const [columnRows] = await connection.query(
-        `SELECT COLUMN_NAME c FROM information_schema.COLUMNS
-          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
-        [table],
-      );
-      const liveColumns = new Set(columnRows.map(r => r.c));
-      const dropped = new Set();
-
-      for (const row of rows) {
-        const columns = Object.keys(row)
-          .map(c => validateIdentifier(c, `Column name in ${table}`))
-          .filter((c) => {
-            if (liveColumns.has(c)) return true;
-            dropped.add(c);
-            return false;
-          });
-        if (!columns.length) continue;
-        const placeholders = columns.map(() => '?').join(',');
-        const values = columns.map(c => serializeValue(row[c]));
-
-        await connection.query(
-          `INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(',')}) VALUES (${placeholders})`,
-          values
-        );
-
-        if (typeof row.id === 'number' && row.id > maxId) {
-          maxId = row.id;
-        }
-      }
-
-      if (dropped.size) {
-        logger.warn(
-          `Restore: ${table} - ignored ${dropped.size} column(s) this schema no `
-          + `longer has: ${[...dropped].join(', ')}`,
-        );
-      }
-
-      rowsImported += rows.length;
-
-      if (maxId > 0) {
-        await connection.query(`ALTER TABLE \`${table}\` AUTO_INCREMENT = ${maxId + 1}`);
-      }
-    }
-
-    await connection.commit();
-    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
-
-    return { tablesImported: present.length, rowsImported };
-  } catch (error) {
-    await connection.rollback();
-    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
-    throw error;
-  } finally {
-    connection.release();
+  // Only the tables this backup actually carries, in FK-safe order. Emptying
+  // a table the file says nothing about would silently destroy data the
+  // restore cannot then put back - a "restore" that deletes is the worst
+  // possible outcome here.
+  const present = TABLE_INSERT_ORDER.filter((t) => Array.isArray(payload.tables[t]));
+  if (!present.length) {
+    throw new ValidationError('That backup contains no recognisable tables');
   }
+
+  // Children before parents.
+  for (const table of [...present].reverse()) {
+    validateIdentifier(table, 'Table name');
+    await query(`DELETE FROM ${table}`);
+  }
+
+  let rowsImported = 0;
+
+  // Parents before children.
+  for (const table of present) {
+    const rows = payload.tables[table] || [];
+    if (!rows.length) continue;
+
+    // Which columns this table ACTUALLY has right now. A backup taken against
+    // an older schema carries columns that have since been dropped
+    // (`priorities.is_weekly` is a real example), and inserting one of those
+    // failed the entire restore with "Unknown column" - so the one file you
+    // reach for when something has gone wrong was the one that would not
+    // load. Unknown columns are skipped and logged instead.
+    const columnRows = await query(
+      `SELECT COLUMN_NAME c FROM information_schema.columns
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+      [columnsSchemaFilter, table],
+    );
+    const liveColumns = new Set(columnRows.map(r => r.c));
+    const dropped = new Set();
+
+    const preparedRows = [];
+    let maxId = 0;
+
+    for (const row of rows) {
+      const columns = Object.keys(row)
+        .map(c => validateIdentifier(c, `Column name in ${table}`))
+        .filter((c) => {
+          if (liveColumns.has(c)) return true;
+          dropped.add(c);
+          return false;
+        });
+      if (!columns.length) continue;
+
+      preparedRows.push({ columns, values: columns.map(c => serializeValue(row[c])) });
+
+      if (typeof row.id === 'number' && row.id > maxId) {
+        maxId = row.id;
+      }
+    }
+
+    if (dropped.size) {
+      logger.warn(
+        `Restore: ${table} - ignored ${dropped.size} column(s) this schema no `
+        + `longer has: ${[...dropped].join(', ')}`,
+      );
+    }
+
+    if (isMssql) {
+      await insertRowsMssql(table, preparedRows);
+      // No reseed here - see insertRowsMssql's comment.
+    } else {
+      for (const { columns, values } of preparedRows) {
+        const placeholders = columns.map(() => '?').join(',');
+        await query(
+          `INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`,
+          values,
+        );
+      }
+      if (maxId > 0) {
+        await query(`ALTER TABLE ${table} AUTO_INCREMENT = ${maxId + 1}`);
+      }
+    }
+
+    rowsImported += preparedRows.length;
+  }
+
+  return { tablesImported: present.length, rowsImported };
 }

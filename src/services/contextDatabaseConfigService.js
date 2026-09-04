@@ -447,7 +447,13 @@ export async function getLiveConnectionConfig(contextId) {
           database: config.database,
         };
       }
-    } catch {
+    } catch (error) {
+      // A bad JSON blob genuinely means "fall through to the old columns" -
+      // but resolvePassword's ValidationError means the config IS there and
+      // is unusable (wrong machine, wrong key), which is a different problem
+      // than "not configured". Swallowing it here made every gate that reads
+      // this function report the misleading latter.
+      if (error instanceof ValidationError) throw error;
       // Fall through to old format fallback
     }
   }

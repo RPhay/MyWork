@@ -42,7 +42,10 @@ export async function attachFieldValues(entityIds) {
     // real number so display, sorting and sum roll-ups all get one.
     else if (row.value_number !== null) entity[row.field_key] = Number(row.value_number);
     else if (row.value_date !== null) entity[row.field_key] = row.value_date;
-    else if (row.value_bool !== null) entity[row.field_key] = row.value_bool === 1;
+    // mysql2 gives 0/1 for a BIT/BOOLEAN column; mssql gives a real boolean.
+    // `=== 1` read false on every MSSQL install - null is already excluded by
+    // this else-if chain, so a plain boolean coercion is safe on both.
+    else if (row.value_bool !== null) entity[row.field_key] = !!row.value_bool;
     // mysql2 already parses JSON columns into objects/arrays, so only parse
     // when the driver handed back a raw string (as MSSQL's NVARCHAR does).
     // Blindly parsing threw "Unexpected token 'o', \"[object Obj\"..." on every
@@ -108,7 +111,7 @@ export async function getEntityPathLookup(entityTypeSlug) {
      JOIN entity_types et ON et.id = e.entity_type_id
      LEFT JOIN entity_relationships er
        ON er.child_entity_id = e.id AND er.relationship_kind = 'hierarchy'
-     WHERE et.slug = ? AND et.deleted_at IS NULL`,
+     WHERE et.slug = ? AND et.deleted_at IS NULL AND e.deleted_at IS NULL`,
     [entityTypeSlug]
   );
 }
@@ -623,6 +626,13 @@ export async function getDeletedEntities(contextId = null, { limit = 50 } = {}) 
 export async function purgeEntity(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
+  // The bin itself, so deleted rows are still in scope - this only confirms
+  // the root belongs to the active context before its subtree is walked and
+  // hard-deleted. Without it, any id purged another context's row as long as
+  // it happened to exist.
+  const [root] = await queryPool('SELECT id FROM entities WHERE id = ? AND context_id = ?', [entityId, contextId]);
+  if (!root) throw new NotFoundError('Entity not found');
+
   const affected = await collectSubtreeIds(entityId, contextId, { includeDeleted: true });
 
   for (const [table, column] of BRIDGE_JUNCTION_COLUMNS) {
@@ -683,13 +693,24 @@ async function collectSubtreeIds(entityId, contextId, { includeDeleted = false }
 export async function cloneEntity(entityId, contextId = null) {
   if (!contextId) contextId = await getActiveContextId();
 
-  const source = await getEntityById(entityId, contextId);
-  const type = await entityTypeService.getEntityType(source.entity_type_id);
+  // Every descendant is cloned as its OWN type, not the root's - a subtree
+  // mixes types freely (a Project holding Todos holding Tickets), and
+  // createEntity(type.slug, ...) below used to send ALL of them to the
+  // root's type, silently turning every nested Todo into a Project. Built
+  // once up front rather than queried per row.
+  const allTypes = await entityTypeService.getAllEntityTypes();
+  const slugByTypeId = new Map(allTypes.map(t => [t.id, t.slug]));
 
-  // Whole subtree, parents before children, so a clone's parent always exists
-  // by the time the child is created.
+  // Whole subtree, parents before children, so a clone's parent always
+  // exists by the time the child is created. Deleted descendants are
+  // excluded - a soft-deleted row is in the bin, not part of what a clone
+  // or template instantiation should walk (see the matching filter in
+  // entityRelationshipService.js's getRelationshipsForType).
   const hierarchy = await queryPool(
-    "SELECT parent_entity_id, child_entity_id, order_index FROM entity_relationships WHERE context_id = ? AND relationship_kind = 'hierarchy'",
+    `SELECT er.parent_entity_id, er.child_entity_id, er.order_index
+     FROM entity_relationships er
+     JOIN entities e ON e.id = er.child_entity_id AND e.deleted_at IS NULL
+     WHERE er.context_id = ? AND er.relationship_kind = 'hierarchy'`,
     [contextId]
   );
   const childrenOf = new Map();
@@ -702,7 +723,8 @@ export async function cloneEntity(entityId, contextId = null) {
 
   async function copyOne(originalId) {
     const original = await getEntityById(originalId, contextId);
-    const copy = await createEntity(type.slug, {
+    const originalSlug = slugByTypeId.get(original.entity_type_id);
+    const copy = await createEntity(originalSlug, {
       title: original.title,
       is_folder: original.is_folder,
       fields: original.fields || {},
@@ -794,10 +816,22 @@ export async function instantiateTemplate(templateEntityId, date, contextId = nu
   }
 
   // Inlined rather than calling dailyService.createWorkItem: dailyService
-  // already imports this file, so the reverse import would be circular.
+  // already imports this file, so the reverse import would be circular. This
+  // is the same query dailyService's own nextOrderIndexForDate runs, kept in
+  // step here for the same reason - order_index: 0 always pinned an
+  // instantiated template to the top of the day, shoving whatever was
+  // already there down one on every drop.
+  const dailyOrderRows = await queryPool(
+    `SELECT MAX(e.order_index) as maxOrder FROM entities e
+     JOIN entity_field_values v ON v.entity_id = e.id AND v.field_key = 'date'
+     WHERE e.entity_type_id = ? AND e.context_id = ? AND e.deleted_at IS NULL AND v.value_date = ?`,
+    [dailyType.id, contextId, date]
+  );
+  const nextDailyOrder = (dailyOrderRows?.[0]?.maxOrder ?? -1) + 1;
+
   const workItem = await createEntity('daily', {
     title: template.title,
-    order_index: 0,
+    order_index: nextDailyOrder,
     fields: { status: 'Not Started', ...carried, date },
   }, contextId);
   const dailyId = workItem.id;

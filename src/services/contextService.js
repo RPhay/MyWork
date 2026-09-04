@@ -1,4 +1,5 @@
 import * as db from "../database/homePool.js";
+import { isDuplicateKeyError } from "../database/connectionPool.js";
 import { NotFoundError, ValidationError } from "../config/errors.js";
 import { VALID_CONTEXT_ICONS } from "../config/contextIcons.js";
 import * as dbConfigService from "./contextDatabaseConfigService.js";
@@ -116,7 +117,7 @@ export async function createContext(data) {
     );
     return getContextById(contextId);
   } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
+    if (isDuplicateKeyError(error)) {
       throw new ValidationError("A context with that name already exists");
     }
     throw error;
@@ -167,7 +168,7 @@ export async function updateContext(id, data) {
       values,
     );
   } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
+    if (isDuplicateKeyError(error)) {
       throw new ValidationError("A context with that name already exists");
     }
     throw error;

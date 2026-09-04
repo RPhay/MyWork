@@ -5,7 +5,7 @@ import * as entityService from './entityService.js';
 import * as entityRelationshipService from './entityRelationshipService.js';
 import { getActiveContextId } from './activeContextService.js';
 
-async function attachAssociations(priorities) {
+async function attachAssociations(priorities, contextId) {
   if (priorities.length === 0) return priorities;
 
   const ids = priorities.map(p => p.id);
@@ -24,9 +24,11 @@ async function attachAssociations(priorities) {
          JOIN entities e ON e.id = r.child_entity_id
          JOIN entity_types t ON t.id = e.entity_type_id
         WHERE r.relationship_kind = 'hierarchy'
+          AND r.context_id = ?
           AND t.slug IN ('category', 'goal')
+          AND e.deleted_at IS NULL
           AND r.parent_entity_id IN (${placeholders})`,
-      ids
+      [contextId, ...ids]
     ),
     entityService.getEntityPathLookup('category'),
   ]);
@@ -60,7 +62,8 @@ async function toPriorityRows(entities, contextId) {
      FROM entity_relationships er
      JOIN entities c ON c.id = er.child_entity_id
      JOIN entity_types t ON t.id = c.entity_type_id
-     WHERE t.slug = 'priority' AND er.relationship_kind = 'hierarchy' AND er.context_id = ?`,
+     WHERE t.slug = 'priority' AND er.relationship_kind = 'hierarchy' AND er.context_id = ?
+       AND c.deleted_at IS NULL`,
     [contextId]
   );
   const parentOf = new Map(hierarchy.map(r => [r.child_entity_id, r.parent_entity_id]));
@@ -84,7 +87,7 @@ export async function getAllPriorities(contextId) {
   const entities = await entityService.getAllEntities('priority', contextId);
   const rows = await toPriorityRows(entities, contextId);
   rows.sort((a, b) => a.order_index - b.order_index);
-  return attachAssociations(rows);
+  return attachAssociations(rows, contextId);
 }
 
 export async function getPriorityById(id) {
@@ -96,7 +99,7 @@ export async function getPriorityById(id) {
     throw new NotFoundError('Priority not found');
   }
   const [row] = await toPriorityRows([entity], contextId);
-  const [withAssociations] = await attachAssociations([row]);
+  const [withAssociations] = await attachAssociations([row], contextId);
   return withAssociations;
 }
 
@@ -115,8 +118,9 @@ async function setChildrenOfType(priorityId, typeSlug, wantedIds) {
        FROM entity_relationships r
        JOIN entities e ON e.id = r.child_entity_id
        JOIN entity_types t ON t.id = e.entity_type_id
-      WHERE r.parent_entity_id = ? AND r.relationship_kind = 'hierarchy' AND t.slug = ?`,
-    [priorityId, typeSlug]
+      WHERE r.parent_entity_id = ? AND r.relationship_kind = 'hierarchy' AND r.context_id = ?
+        AND t.slug = ? AND e.deleted_at IS NULL`,
+    [priorityId, contextId, typeSlug]
   );
   const have = new Set(existing.map(r => Number(r.id)));
   const want = new Set((wantedIds || []).map(Number));
@@ -233,13 +237,14 @@ export async function updatePriority(id, data) {
 
 export async function deletePriority(id) {
   const contextId = await getActiveContextId();
-  // Cascade the subtree first: entity_relationships FKs are NO ACTION, so the
-  // descendants and their edges have to go explicitly (same pattern the
-  // generic entity delete route uses).
-  const descendants = await entityRelationshipService.cascadeDeleteEntity(Number(id), contextId);
-  for (const entityId of descendants) {
-    await entityService.deleteEntity(entityId, contextId).catch(() => {});
-  }
+  // Delegates to the exact soft-delete path DELETE /api/entities/:type/:id
+  // uses: one deleted_batch for the whole subtree, in one call, with no
+  // errors swallowed. This used to call cascadeDeleteEntity() first, which
+  // hard-deletes the hierarchy edges - so the soft delete that followed found
+  // no children left to stamp, leaving them orphaned but still visible, and a
+  // restore would have had no tree left to rebuild. The per-row
+  // .catch(() => {}) also hid any real failure along the way.
+  await entityService.deleteEntity(Number(id), contextId);
   return true;
 }
 

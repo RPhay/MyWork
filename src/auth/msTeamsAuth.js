@@ -30,9 +30,22 @@ export class MsTeamsAuth {
     return `${this.authorityUrl}/authorize?${params.toString()}`;
   }
 
+  /**
+   * Microsoft's token endpoint accepts ONLY application/x-www-form-urlencoded
+   * - passing axios a plain object sends JSON, which it rejects before ever
+   * looking at the credentials. Mirrors EntraIdAuth's _postForm.
+   */
+  async _postForm(path, fields) {
+    return axios.post(
+      `${this.authorityUrl}/${path}`,
+      new URLSearchParams(fields).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+  }
+
   async exchangeCodeForToken(code) {
     try {
-      const response = await axios.post(`${this.authorityUrl}/token`, {
+      const response = await this._postForm('token', {
         client_id: this.clientId,
         client_secret: this.clientSecret,
         code: code,
@@ -55,7 +68,7 @@ export class MsTeamsAuth {
 
   async refreshAccessToken(refreshToken) {
     try {
-      const response = await axios.post(`${this.authorityUrl}/token`, {
+      const response = await this._postForm('token', {
         client_id: this.clientId,
         client_secret: this.clientSecret,
         refresh_token: refreshToken,
@@ -94,7 +107,7 @@ export class MsTeamsAuth {
 
   async revokeRefreshToken(refreshToken) {
     try {
-      await axios.post(`${this.authorityUrl}/revoke`, {
+      await this._postForm('revoke', {
         client_id: this.clientId,
         client_secret: this.clientSecret,
         token: refreshToken,
