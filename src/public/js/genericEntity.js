@@ -5,6 +5,11 @@
 
 const GenericEntity = (() => {
   let currentTypeSlug, typeSchema, currentEntityId, hasChanges, currentIsFolder = false, currentSaveSlug = null, allEntities = [];
+  // Bumped every time markChanged() registers a REAL change. save() reads
+  // this before its request goes out and compares it after the response
+  // lands, so a keystroke that arrives mid-request is never mistaken for
+  // one this save already captured - see save()'s success handler.
+  let changeSeq = 0;
   const splitPanesByType = {}; // Store splitPane instances per type
 
   // Row editors have no Save button - a change autosaves this long after the
@@ -144,17 +149,17 @@ const GenericEntity = (() => {
   const fieldRenderers = {
     text: (field, value = '') => `
       <div class="form-group">
-        <input type="text" name="${field.field_key}" value="${value || ''}" class="form-control" data-field-type="text">
+        <input type="text" name="${field.field_key}" value="${escapeAttr(value || '')}" class="form-control" data-field-type="text">
       </div>
     `,
     textarea: (field, value = '') => `
       <div class="form-group">
-        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="textarea">${value || ''}</textarea>
+        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="textarea">${escapeHtml(value || '')}</textarea>
       </div>
     `,
     number: (field, value = '') => `
       <div class="form-group">
-        <input type="number" name="${field.field_key}" value="${value || ''}" class="form-control" data-field-type="number">
+        <input type="number" name="${field.field_key}" value="${escapeAttr(value || '')}" class="form-control" data-field-type="number">
       </div>
     `,
     // Every emoji in the set is shown at once with the current one marked,
@@ -182,7 +187,7 @@ const GenericEntity = (() => {
       <div class="form-group">
         <div>
           <button type="button" class="btn btn-outline-secondary emoji-field-btn" data-action="pick-emoji-field"
-                  data-field-key="${escapeAttr(field.field_key)}" title="Click to choose an emoji">${value || resolveFieldDefault(field) || '＋'}</button>
+                  data-field-key="${escapeAttr(field.field_key)}" title="Click to choose an emoji">${escapeHtml(value || resolveFieldDefault(field) || '＋')}</button>
           <input type="hidden" name="${field.field_key}" value="${escapeAttr(value || '')}">
         </div>
       </div>
@@ -202,7 +207,7 @@ const GenericEntity = (() => {
         <select name="${field.field_key}" class="form-select" data-field-type="select">
           <option value="">-- Select --</option>
           ${choices.map(c =>
-            `<option value="${c}" ${String(c) === current ? 'selected' : ''}>${c}</option>`
+            `<option value="${escapeAttr(c)}" ${String(c) === current ? 'selected' : ''}>${escapeHtml(c)}</option>`
           ).join('')}
         </select>
       </div>
@@ -357,7 +362,7 @@ const GenericEntity = (() => {
     // without showing any of the text. See renderCellValue.
     notes: (field, value = '') => `
       <div class="form-group">
-        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="notes" placeholder="Your own notes">${value || ''}</textarea>
+        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="notes" placeholder="Your own notes">${escapeHtml(value || '')}</textarea>
       </div>
     `,
     // In the editor a sticky is just a box to type in, same as Notes - the
@@ -368,7 +373,7 @@ const GenericEntity = (() => {
     // else entirely, which nothing inside this page's own DOM can be.
     stickies: (field, value = '') => `
       <div class="form-group">
-        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="stickies" placeholder="Sticky note text">${value || ''}</textarea>
+        <textarea name="${field.field_key}" class="form-control" rows="6" data-field-type="stickies" placeholder="Sticky note text">${escapeHtml(value || '')}</textarea>
       </div>
     `,
     worked_with_claude: (field, value = false) => `
@@ -878,6 +883,17 @@ const GenericEntity = (() => {
     return byEntity;
   }
 
+  // Plain `.sort()` is lexicographic, so a min/max rollup over numbers put
+  // "9" ahead of "10". When every value is numeric, compare as numbers; a
+  // mix (or dates/text) falls back to locale string order, which is already
+  // correct for ISO date strings.
+  function rollupCompare(a, b) {
+    const na = Number(a);
+    const nb = Number(b);
+    if (a !== '' && b !== '' && !Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+    return String(a).localeCompare(String(b));
+  }
+
   function aggregate(field, values) {
     if (values.length === 0) return null;          // empty folder stays blank
 
@@ -895,8 +911,8 @@ const GenericEntity = (() => {
         return valueForRole(field, 'active');
       }
       case 'sum': return values.reduce((a, v) => a + Number(v), 0);
-      case 'min': return values.slice().sort()[0];
-      case 'max': return values.slice().sort().pop();
+      case 'min': return values.slice().sort(rollupCompare)[0];
+      case 'max': return values.slice().sort(rollupCompare).pop();
       case 'avg': return Math.round((values.reduce((a, v) => a + Number(v), 0) / values.length) * 100) / 100;
       case 'all': return values.every(Boolean);
       case 'any': return values.some(Boolean);
@@ -2039,6 +2055,7 @@ const GenericEntity = (() => {
     const now = formSnapshot();
     if (savedFormSnapshot !== null && now !== null && now === savedFormSnapshot) return;
     hasChanges = true;
+    changeSeq++;
     // Revert enables the moment anything changes - it is the only manual
     // control left on this bar, autosave owns Save's old job.
     const revertBtn = document.getElementById(`${currentTypeSlug}CloseBtn`);
@@ -2576,17 +2593,28 @@ const GenericEntity = (() => {
         : `/api/entities/${slug}`;
       const method = currentEntityId ? 'PUT' : 'POST';
 
+      // Captured before the request goes out. If markChanged() bumps this
+      // while the request is in flight, the keystroke that caused it was
+      // never part of `data` above - clearing hasChanges after such a save
+      // would baseline unsent changes as if the server already had them.
+      const startSeq = changeSeq;
+
       const response = await app.fetchRaw(url, {
         method,
-        
+
         body: JSON.stringify(data)
       });
 
       const result = await response.json();
       if (result.success) {
-        hasChanges = false;
-        // What is on screen IS what is stored now, so it becomes the baseline.
-        rememberFormAsSaved();
+        // Only clear/re-baseline if nothing changed the form since this
+        // save's request started - markSaved() reads hasChanges next and
+        // relies on it still being true when there is unsaved work.
+        if (changeSeq === startSeq) {
+          hasChanges = false;
+          // What is on screen IS what is stored now, so it becomes the baseline.
+          rememberFormAsSaved();
+        }
         // The same record can be on screen more than once - referenced inside a
         // template while also listed on its own page. A reference IS the
         // original, so an edit here has already changed it there; tell the other

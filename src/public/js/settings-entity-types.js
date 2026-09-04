@@ -102,8 +102,8 @@ function createTypeListItem(type, isReadonly) {
       ${!isReadonly ? '<span class="type-drag-handle" title="Drag to reorder. This is the order the tabs appear in on the main page.">⋮⋮</span>' : ''}
       <div class="type-icon">${type.icon || '📄'}</div>
       <div class="type-info">
-        <h6 class="mb-0">${type.label}${categoryBadge}</h6>
-        <small><span class="badge bg-secondary">${type.slug}</span></small>
+        <h6 class="mb-0">${app.escapeHtml(type.label)}${categoryBadge}</h6>
+        <small><span class="badge bg-secondary">${app.escapeHtml(type.slug)}</span></small>
         <small class="d-block mt-1">
           ${type.is_workspace
             ? 'Holds rows of any other type'
@@ -211,6 +211,13 @@ function createTypeListItem(type, isReadonly) {
 // sequence and, as a side effect, keeps built-ins sorted ahead of customs in
 // the tab bar - which is also the more predictable result to look at here.
 function initTypeReordering(listEl, allLists) {
+  // Called on every render, but the listeners live on the persistent list
+  // element - clearing its innerHTML doesn't remove them, so without this
+  // guard every re-render added another set and a single drop fired the
+  // reorder request once per render since the page loaded.
+  if (listEl.dataset.reorderBound) return;
+  listEl.dataset.reorderBound = '1';
+
   let dragged = null;
 
   const orderedIdsAcrossLists = () => allLists.flatMap((el) =>

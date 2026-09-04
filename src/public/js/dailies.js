@@ -425,7 +425,7 @@ async function takeEntityOffDay(entityId) {
 // day - so this exists for when you want one, rather than being the only way in.
 async function addDaily() {
   const date = document.getElementById("selectedDate")?.value
-    || new Date().toISOString().split("T")[0];
+    || app.localISODate();
   try {
     const response = await app.fetchRaw("/api/dailies", {
       method: "POST",
@@ -814,11 +814,15 @@ async function importSelectedOutlookEmails() {
   const emails = window.outlookEmailsData || [];
   const selectedDate = document.getElementById("selectedDate").value;
 
+  let successCount = 0;
+  let failureCount = 0;
+
   for (const idx of selectedIndices) {
     const email = emails[idx];
     if (!email) continue;
 
-    // Create a work item from the email
+    // /api/work-items no longer exists - dailies are created through the
+    // generic daily-creation endpoint now.
     const workItem = {
       title: email.subject,
       description: email.bodyPreview || email.body,
@@ -827,27 +831,39 @@ async function importSelectedOutlookEmails() {
     };
 
     try {
-      const response = await app.fetchRaw("/api/work-items", {
+      await app.fetch("/api/dailies", {
         method: "POST",
-        
-        body: JSON.stringify(workItem) });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        body: JSON.stringify(workItem),
+      });
+      successCount++;
     } catch (error) {
       console.error("Error importing email:", error);
+      failureCount++;
     }
   }
 
-  app.notify(`Imported ${selectedIndices.length} email(s)`, "success");
-  bootstrap.Modal.getInstance(
-    document.getElementById("importOutlookModal"),
-  ).hide();
-  loadWorkItems();
+  if (failureCount > 0) {
+    app.notify(
+      `Failed to import ${failureCount} of ${selectedIndices.length} email(s)`,
+      "danger",
+    );
+  }
+  if (successCount > 0) {
+    app.notify(`Imported ${successCount} email(s)`, "success");
+  }
+
+  // Total failure: leave the modal open so the selection isn't lost.
+  if (successCount > 0) {
+    bootstrap.Modal.getInstance(
+      document.getElementById("importOutlookModal"),
+    ).hide();
+    loadWorkItems();
+  }
 }
 
 
 function initDailies() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = app.localISODate();
   const dateInput = document.createElement("input");
   dateInput.type = "hidden";
   dateInput.id = "selectedDate";

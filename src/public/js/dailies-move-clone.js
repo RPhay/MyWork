@@ -61,7 +61,7 @@ function openMoveCloneModal(dailyId, mode) {
 
   const initialDate =
     document.getElementById("selectedDate")?.value ||
-    new Date().toISOString().split("T")[0];
+    app.localISODate();
   const initial = new Date(initialDate + "T00:00:00");
   moveCloneCalYear = initial.getFullYear();
   moveCloneCalMonth = initial.getMonth();

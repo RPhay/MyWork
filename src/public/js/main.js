@@ -54,6 +54,17 @@ const app = {
     });
   },
 
+  // YYYY-MM-DD from LOCAL date parts - the one place that math is done.
+  // `new Date().toISOString().split("T")[0]` reads UTC, so anyone west of
+  // Greenwich after ~4-8pm local got tomorrow's date; this reads the same
+  // fields the Date picker and every calendar cell already show.
+  localISODate(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  },
+
   // Escape text for safe interpolation into HTML markup or attributes
   escapeHtml(text) {
     const div = document.createElement('div');

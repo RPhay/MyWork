@@ -6,7 +6,13 @@ function loadThemePreferences() {
     mode: prefs.mode || 'system',
     accentColor: prefs.accentColor || 'blue',
     fontSize: prefs.fontSize || 100,
-    compactMode: prefs.compactMode || false
+    compactMode: prefs.compactMode || false,
+    // Dropped here before, so it never round-tripped: this function returns a
+    // NEW object with only these fixed keys, so any save that ran through it
+    // (theme mode, accent color, font size, compact mode - all of them build
+    // `prefs` from this function) wrote dateFormat right back out of storage.
+    // 'YYYY-MM-DD' matches genericEntity.js's dateFormatPreference() default.
+    dateFormat: prefs.dateFormat || 'YYYY-MM-DD'
   };
 }
 

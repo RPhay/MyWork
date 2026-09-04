@@ -22,7 +22,7 @@ function formatMinutes(minutes) {
 }
 
 function isoDate(d) {
-  return d.toISOString().slice(0, 10);
+  return app.localISODate(d);
 }
 
 function setDefaultDateRange(startId, endId) {

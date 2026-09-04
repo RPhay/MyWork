@@ -452,7 +452,7 @@ function initWorkItemsListEventListeners() {
 
       if (event.title) {
         const dateInput = document.getElementById('selectedDate');
-        const date = dateInput?.value || new Date().toISOString().split('T')[0];
+        const date = dateInput?.value || app.localISODate();
         await createWorkItemFromCalendarEvent(event, date);
         return;
       }
@@ -492,7 +492,7 @@ function initWorkItemsListEventListeners() {
 // Which day a drop lands on: whatever the rail is showing.
 function dropDate() {
   const dateInput = document.getElementById("selectedDate");
-  return dateInput?.value || new Date().toISOString().split("T")[0];
+  return dateInput?.value || app.localISODate();
 }
 
 // What counts as calendar data, wherever it came from - a text/plain payload,

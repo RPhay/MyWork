@@ -28,6 +28,16 @@ const HIDDEN_FIELD_KEYS = new Set([
   'board_bay', 'board_order',
 ]);
 
+// Splits an emoji string into grapheme clusters rather than UTF-16 code
+// units. Array.from(str) splits on code points, which still breaks a flag
+// (two regional-indicator code points) or a ZWJ family emoji into several
+// pieces - so adding one to the set counted as several, and removing "one"
+// emoji only popped its last code point, leaving a mangled character behind.
+function emojiGraphemes(str) {
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  return Array.from(segmenter.segment(str || ''), (s) => s.segment);
+}
+
 // Collapses the right-hand editor pane and clears it, mirroring
 // GenericEntity.close() on the typed pages.
 function closeEntityTypeEditor() {
@@ -125,11 +135,11 @@ function showEntityTypeEditorModal(type) {
         </div>
         <div class="col">
           <label class="form-label">Name *</label>
-          <input type="text" class="form-control" id="typeName" placeholder="e.g., Project, Task" value="${type?.label || ''}" required>
+          <input type="text" class="form-control" id="typeName" placeholder="e.g., Project, Task" value="${app.escapeHtml(type?.label || '')}" required>
         </div>
         <div class="col">
           <label class="form-label">Singular Form *</label>
-          <input type="text" class="form-control" id="typeSingular" placeholder="e.g., Project, Task" value="${type?.label_singular || ''}" required>
+          <input type="text" class="form-control" id="typeSingular" placeholder="e.g., Project, Task" value="${app.escapeHtml(type?.label_singular || '')}" required>
         </div>
       </div>
 
@@ -371,7 +381,7 @@ function openIconPicker(btn, hiddenInput) {
 
   const b = btn.getBoundingClientRect();
   const p = picker.getBoundingClientRect();
-  picker.style.top = (b.bottom + window.innerHeight - b.bottom > p.height ? b.bottom + 4 : b.top - p.height - 4) + 'px';
+  picker.style.top = (window.innerHeight - b.bottom > p.height ? b.bottom + 4 : b.top - p.height - 4) + 'px';
   picker.style.left = Math.min(b.left, window.innerWidth - p.width - 8) + 'px';
 
   picker.addEventListener('click', (e) => {
@@ -472,7 +482,7 @@ function addFieldRow(field = null) {
         <span class="field-drag-handle" title="Drag to reorder" style="cursor: grab; user-select: none; font-size: 0.8em; color: #999;">⋮⋮</span>
       </div>
       <div class="col">
-        <input type="text" class="form-control form-control-sm field-label" placeholder="Field name" value="${field?.label || DEFAULT_FIELD_LABEL[effectiveType] || ''}" required ${isLocked ? 'disabled' : ''}>
+        <input type="text" class="form-control form-control-sm field-label" placeholder="Field name" value="${app.escapeHtml(field?.label || DEFAULT_FIELD_LABEL[effectiveType] || '')}" required ${isLocked ? 'disabled' : ''}>
         <input type="hidden" class="field-key" value="${field?.field_key || ''}">
       </div>
       <div class="col">
@@ -511,10 +521,10 @@ function addFieldRow(field = null) {
           <button type="button" class="btn btn-sm btn-outline-secondary field-option-add" title="Add a choice" ${isLocked ? 'disabled' : ''}>+</button>
           <button type="button" class="btn btn-sm btn-outline-danger field-option-del" title="Remove the selected choice" ${isLocked ? 'disabled' : ''}>&minus;</button>
         </div>
-        <input type="hidden" class="field-options" value="${optionsStr}">
+        <input type="hidden" class="field-options" value="${app.escapeHtml(optionsStr)}">
       </div>
       <div class="col field-checkbox-options-col" style="display: ${effectiveType === 'checkbox' ? 'block' : 'none'};">
-        <input type="text" class="form-control form-control-sm field-checkbox-options" placeholder="Options (comma-separated)" value="${effectiveType === 'checkbox' ? optionsStr : ''}" ${isLocked ? 'disabled' : ''}>
+        <input type="text" class="form-control form-control-sm field-checkbox-options" placeholder="Options (comma-separated)" value="${effectiveType === 'checkbox' ? app.escapeHtml(optionsStr) : ''}" ${isLocked ? 'disabled' : ''}>
       </div>
       <div class="col-auto field-rollup-col" style="display: ${ROLLUP_MODES[effectiveType] ? 'block' : 'none'};">
         <select class="form-select form-select-sm field-rollup" title="How a folder derives this field from the items inside it" ${isLocked ? 'disabled' : ''}>
@@ -606,7 +616,7 @@ function addFieldRow(field = null) {
   const paintOptions = () => {
     const vals = readOptions();
     optionsList.innerHTML = vals.length
-      ? vals.map(v => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('')
+      ? vals.map(v => `<option value="${app.escapeHtml(v)}">${app.escapeHtml(v)}</option>`).join('')
       : '<option value="">(no choices yet)</option>';
   };
   paintOptions();
@@ -640,7 +650,7 @@ function addFieldRow(field = null) {
     if (!picked) { emojiValues.value = ''; emojiList.textContent = ''; return; }
     // `emoji` holds one default; `emojis` accumulates the set to cycle through.
     emojiValues.value = fieldTypeSelect.value === 'emojis'
-      ? [...new Set([...Array.from(emojiValues.value), picked])].join('')
+      ? [...new Set([...emojiGraphemes(emojiValues.value), picked])].join('')
       : picked;
     emojiList.textContent = emojiValues.value;
   });
@@ -648,7 +658,7 @@ function addFieldRow(field = null) {
   // Clicking an emoji in the list removes it from the set.
   emojiList.addEventListener('click', () => {
     if (fieldTypeSelect.value !== 'emojis') return;
-    const chars = Array.from(emojiValues.value);
+    const chars = emojiGraphemes(emojiValues.value);
     if (!chars.length) return;
     chars.pop();
     emojiValues.value = chars.join('');
@@ -1036,7 +1046,7 @@ async function saveEntityType() {
 
       // Emoji configuration: one default, or the set to cycle through.
       if (fieldType === 'emoji' || fieldType === 'emojis') {
-        const chars = Array.from(row.querySelector('.field-emoji-values').value || '');
+        const chars = emojiGraphemes(row.querySelector('.field-emoji-values').value || '');
         if (chars.length) {
           fieldData.field_options = fieldType === 'emojis'
             ? { values: chars }

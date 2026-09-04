@@ -328,7 +328,15 @@ async function analyzeAndMigrate() {
       `;
       app.notify("Error: " + result.message, "danger");
       // Fall through: the detailed report below shows which database failed and
-      // how far it got before it did.
+      // how far it got before it did - but only when there IS one. Some
+      // failures (the request itself rejected, an exception before any
+      // per-database report was built) carry no `data` at all, and
+      // dereferencing `report.success` next crashed the renderer, leaving
+      // even the banner above unpainted.
+      if (!result.data) {
+        statusEl.innerHTML = failureBanner;
+        return;
+      }
     }
 
     const report = result.data;

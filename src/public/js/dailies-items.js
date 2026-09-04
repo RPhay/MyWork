@@ -37,6 +37,12 @@ function statusRoleClass(status) {
 // renderer falls back to nothing rather than guessing.
 let dailyRailSchema = null;
 
+// Stamped on each loadWorkItems() call, mirroring workItemEditorRequestId
+// below - jumping through the calendar fast enough fires a load for the new
+// date before the previous date's load has resolved, and without this the
+// slower response (for a date that is no longer selected) painted over it.
+let workItemsRequestId = 0;
+
 // Track widths by field type, chosen to match what the old fixed grid gave
 // the same content. Anything unlisted gets a middling default.
 const RAIL_COL_WIDTH = {
@@ -287,12 +293,13 @@ function renderChildItem(type, id, label, icon, parentWorkItemId, isCopy = false
 async function loadWorkItems() {
   const dateInput = document.getElementById("selectedDate");
   if (!dateInput || !dateInput.value) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = app.localISODate();
     selectDate(today);
     return;
   }
 
   const date = dateInput.value;
+  const requestId = ++workItemsRequestId;
   const container = document.getElementById("workItemsList");
   container.innerHTML = '<p class="text-center text-muted">Loading...</p>';
 
@@ -306,6 +313,9 @@ async function loadWorkItems() {
       fetch(`/api/dailies/date/${date}/roots`),
       dailyTypeSchema(),
     ]);
+    // A newer date has already been selected - drop this response rather than
+    // letting a slow one for the date navigated away from paint over it.
+    if (requestId !== workItemsRequestId) return;
     dailyRailSchema = schema;
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
@@ -322,6 +332,7 @@ async function loadWorkItems() {
       // synchronously, and a child of a type never seen before this load
       // has nothing in resolvedTypeSchemas until this awaits.
       await preloadChildTypeSchemas(result.data, roots);
+      if (requestId !== workItemsRequestId) return;
       renderWorkItemsList(result.data, roots);
       updateDailyTimeTotal();
     } else {
@@ -329,6 +340,7 @@ async function loadWorkItems() {
         '<p class="text-center text-danger">Error loading work items</p>';
     }
   } catch (error) {
+    if (requestId !== workItemsRequestId) return;
     console.error("Error:", error);
     container.innerHTML =
       '<p class="text-center text-danger">Error loading work items</p>';

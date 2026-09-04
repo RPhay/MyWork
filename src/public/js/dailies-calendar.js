@@ -44,7 +44,7 @@ function buildCalendarHtml(
     "November",
     "December",
   ];
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = app.localISODate();
 
   let html = `
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
@@ -65,7 +65,7 @@ function buildCalendarHtml(
 
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month, day);
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = app.localISODate(date);
     const isToday = dateStr === todayStr;
     const isSelected =
       selected instanceof Set ? selected.has(dateStr) : dateStr === selected;
@@ -133,7 +133,7 @@ let calendarMultiSelectedDates = new Set();
 function renderCalendar() {
   const selectedDate =
     document.getElementById("selectedDate")?.value ||
-    new Date().toISOString().split("T")[0];
+    app.localISODate();
 
   if (calendarViewYear === undefined) {
     const initial = new Date(selectedDate + "T00:00:00");
@@ -189,7 +189,7 @@ async function loadCalendarDayTotals(year, month) {
 
     const selectedDate =
       document.getElementById("selectedDate")?.value ||
-      new Date().toISOString().split("T")[0];
+      app.localISODate();
     document.getElementById("calendar").innerHTML = buildCalendarHtml(
       calendarViewYear,
       calendarViewMonth,
@@ -227,7 +227,7 @@ async function loadCalendarDayHighlights(year, month) {
 
     const selectedDate =
       document.getElementById("selectedDate")?.value ||
-      new Date().toISOString().split("T")[0];
+      app.localISODate();
     document.getElementById("calendar").innerHTML = buildCalendarHtml(
       calendarViewYear,
       calendarViewMonth,
@@ -270,7 +270,7 @@ function selectDate(dateStr) {
 
 function updateDateDisplay() {
   const dateInput = document.getElementById("selectedDate");
-  const dateStr = dateInput?.value || new Date().toISOString().split("T")[0];
+  const dateStr = dateInput?.value || app.localISODate();
   const date = new Date(dateStr + "T00:00:00");
   const formatted = date.toLocaleDateString("en-US", {
     weekday: "long",

@@ -585,18 +585,31 @@ async function initGenericEntityTab(typeSlug, typeName) {
       );
       if (!ok) return true;
 
+      const failedIds = [];
+      let succeeded = 0;
       for (const id of ids) {
         const res = await app.fetchRaw(`/api/entities/${typeSlug}/${id}`, {
           method: 'DELETE' });
-        if (!res.ok) {
+        if (res.ok) {
+          succeeded++;
+        } else {
           const reason = await res.json().catch(() => null);
-          app.notify(`Could not delete them all: ${reason?.message || res.status}`, 'danger');
-          break;
+          failedIds.push(id);
+          app.notify(`Could not delete item ${id}: ${reason?.message || res.status}`, 'danger');
         }
       }
-      clearSelection();
+
+      if (failedIds.length) {
+        // Keep only the failures selected, so the same action can be retried
+        // on just what didn't go through.
+        selectedIds.clear();
+        for (const id of failedIds) selectedIds.add(id);
+        app.notify(`Deleted ${succeeded} of ${ids.length} items`, 'danger');
+      } else {
+        clearSelection();
+        app.notify(`Deleted ${succeeded} items`, 'success');
+      }
       await refreshEntities();
-      app.notify(`Deleted ${ids.length} items`, 'success');
       return true;
     }
 
@@ -746,7 +759,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
       // `emojis` cell: advance to the next emoji in the type's own set.
       const cycleEmoji = e.target.closest('[data-action="cycle-emoji"]');
       if (cycleEmoji) {
-        const field = (typeSchema.fields || []).find(f => f.field_key === cycleEmoji.dataset.fieldKey);
+        const cycleEntity = entities.find(x => String(x.id) === String(cycleEmoji.dataset.entityId));
+        const cycleSchema = cycleEntity ? schemaForEntity(cycleEntity) : typeSchema;
+        const field = (cycleSchema.fields || []).find(f => f.field_key === cycleEmoji.dataset.fieldKey);
         const set = field?.field_options?.values || [];
         if (!set.length) return;
         const next = set[(set.indexOf(cycleEmoji.dataset.value) + 1) % set.length];
@@ -760,7 +775,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (emojiBtn) {
         const picked = await app.pickEmoji(emojiBtn);
         if (picked === null) return;
-        const response = await app.fetchRaw(`/api/entities/${typeSlug}/${emojiBtn.dataset.entityId}`, {
+        const pickEntity = entities.find(x => String(x.id) === String(emojiBtn.dataset.entityId));
+        const pickSlug = (pickEntity && schemaForEntity(pickEntity)?.slug) || typeSlug;
+        const response = await app.fetchRaw(`/api/entities/${pickSlug}/${emojiBtn.dataset.entityId}`, {
           method: 'PUT',
           
           body: JSON.stringify({ fields: { [emojiBtn.dataset.fieldKey]: picked || null } })
@@ -803,7 +820,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
       // Only this field is sent, so nothing else on the row is disturbed.
       const timeBoxBtn = e.target.closest('[data-action="cycle-timebox-field"]');
       if (timeBoxBtn) {
-        const field = (typeSchema.fields || []).find(f => f.field_key === timeBoxBtn.dataset.fieldKey);
+        const tbEntity = entities.find(x => String(x.id) === String(timeBoxBtn.dataset.entityId));
+        const tbSchema = tbEntity ? schemaForEntity(tbEntity) : typeSchema;
+        const field = (tbSchema.fields || []).find(f => f.field_key === timeBoxBtn.dataset.fieldKey);
         const LEVELS = GenericEntity.cellChoices(field) || [''];
         const current = timeBoxBtn.dataset.value || '';
         const next = LEVELS[(LEVELS.indexOf(current) + 1) % LEVELS.length];
@@ -856,7 +875,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
 
       const statusBtn = e.target.closest('[data-action="cycle-status"]');
       if (statusBtn) {
-        const field = (typeSchema.fields || []).find(
+        const statusEntity = entities.find(x => String(x.id) === String(statusBtn.dataset.entityId));
+        const statusSchema = statusEntity ? schemaForEntity(statusEntity) : typeSchema;
+        const field = (statusSchema.fields || []).find(
           f => f.field_key === statusBtn.dataset.fieldKey
         );
         const values = field?.field_options?.values || [];
@@ -1158,7 +1179,11 @@ async function initGenericEntityTab(typeSlug, typeName) {
       GenericEntity.syncEditorFromRow(entityId, fieldKey, value);
       showRowInOpenEditor(entityId);
 
-      const response = await app.fetchRaw(`/api/entities/${typeSlug}/${entityId}`, {
+      // Saves through the row's OWN type, the same as renameEntity - a row
+      // nested here that belongs to a different type must be written to
+      // that type's endpoint, not this tab's.
+      const saveSlug = (entity && schemaForEntity(entity)?.slug) || typeSlug;
+      const response = await app.fetchRaw(`/api/entities/${saveSlug}/${entityId}`, {
         method: 'PUT',
 
         body: JSON.stringify({ fields: { [fieldKey]: value } })
@@ -1241,7 +1266,10 @@ async function initGenericEntityTab(typeSlug, typeName) {
       if (GenericEntity.getCurrentEntityId() == null) return;
       if (String(GenericEntity.getCurrentEntityId()) === String(entityId)) return;
       const entity = entities.find(x => String(x.id) === String(entityId));
-      if (entity) GenericEntity.populate(entity.id, entity, typeSchema, typeSlug);
+      if (entity) {
+        const schema = schemaForEntity(entity);
+        GenericEntity.populate(entity.id, entity, schema, typeSlug, schema.slug);
+      }
     }
 
     // Fixed-position menus have to be placed by hand, since they are no longer
@@ -2030,7 +2058,8 @@ async function initGenericEntityTab(typeSlug, typeName) {
               ? entities.find((x) => String(x.id) === String(successor))
               : null;
           if (entity) {
-            GenericEntity.populate(entity.id, entity, typeSchema, typeSlug, undefined, { force: true });
+            const successorSchema = schemaForEntity(entity);
+            GenericEntity.populate(entity.id, entity, successorSchema, typeSlug, successorSchema.slug, { force: true });
             renderList(); // paint the successor as selected
           } else {
             GenericEntity.close();
@@ -2059,7 +2088,9 @@ async function initGenericEntityTab(typeSlug, typeName) {
     function valueCellMenuItems(control) {
       const fieldKey = control.dataset.fieldKey;
       const entityId = Number(control.dataset.entityId);
-      const field = (typeSchema.fields || []).find(f => f.field_key === fieldKey);
+      const menuEntity = entities.find(x => x.id === entityId);
+      const menuSchema = menuEntity ? schemaForEntity(menuEntity) : typeSchema;
+      const field = (menuSchema.fields || []).find(f => f.field_key === fieldKey);
       const choices = GenericEntity.cellChoices(field);
       if (!field || !entityId || !choices?.length) return [];
 

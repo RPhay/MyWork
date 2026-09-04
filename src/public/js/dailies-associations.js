@@ -70,7 +70,7 @@ function buildTreeHTML(items, parentId = null, depth = 0, visited = new Set()) {
     return '';
   }
 
-  const filtered = items.filter(item => (item.parent_id === parentId || item.parent_id === null));
+  const filtered = items.filter(item => (item.parent_id ?? null) === parentId);
   const hasChildren = (itemId) => items.some(item => item.parent_id === itemId && !visited.has(item.id));
 
   return filtered.map(item => {

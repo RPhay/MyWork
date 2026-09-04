@@ -44,10 +44,16 @@ function showStep(step) {
 }
 
 async function postJson(url, body) {
-  const response = await app.fetchRaw(url, {
+  // Standalone page (no main.js, so no app.fetchRaw) - attach the CSRF
+  // token the same way main.js's fetchRaw does.
+  const response = await fetch(url, {
     method: "POST",
-    
-    body: JSON.stringify(body || {}) });
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+    },
+    body: JSON.stringify(body || {}),
+  });
   // If the server returned an HTML error page, surface the status rather than
   // a confusing JSON parse error.
   const text = await response.text();

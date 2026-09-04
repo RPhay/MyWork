@@ -272,130 +272,6 @@ function parseOutlookEmail(text) {
   return email;
 }
 
-// Create todo from calendar event
-async function createTodoFromCalendarEvent(event) {
-  const data = {
-    title: event.title,
-    description: event.description || ''
-  };
-
-  try {
-    const response = await app.fetchRaw('/api/to-dos', {
-      method: 'POST',
-      
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(`Todo created from calendar event: ${event.title}`, 'success');
-      window.GenericEntityTabs?.refresh('to_do');
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error creating todo from calendar event:', error);
-    app.notify('Error creating todo from calendar event', 'danger');
-  }
-}
-
-// Create todo from email
-async function createTodoFromEmail(email) {
-  const description = [
-    email.sender ? `From: ${email.sender}` : '',
-    email.cc ? `Cc: ${email.cc}` : '',
-    email.attachments.length ? `Attachments: ${email.attachments.join(', ')}` : '',
-    email.body ? `\n${email.body}` : ''
-  ].filter(l => l).join('\n');
-
-  const data = {
-    title: email.subject || '(No subject)',
-    description: description.trim()
-  };
-
-  try {
-    const response = await app.fetchRaw('/api/to-dos', {
-      method: 'POST',
-      
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(`Todo created from email: ${email.subject}`, 'success');
-      window.GenericEntityTabs?.refresh('to_do');
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error creating todo from email:', error);
-    app.notify('Error creating todo from email', 'danger');
-  }
-}
-
-// Create idea from calendar event
-async function createIdeaFromCalendarEvent(event) {
-  const data = {
-    title: event.title,
-    description: event.description || ''
-  };
-
-  try {
-    const response = await app.fetchRaw('/api/ideas', {
-      method: 'POST',
-      
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(`Idea created from calendar event: ${event.title}`, 'success');
-      window.GenericEntityTabs?.refresh('idea');
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error creating idea from calendar event:', error);
-    app.notify('Error creating idea from calendar event', 'danger');
-  }
-}
-
-
-// Create template from email
-async function createTemplateFromEmail(email) {
-  const description = [
-    email.sender ? `From: ${email.sender}` : '',
-    email.cc ? `Cc: ${email.cc}` : '',
-    email.attachments.length ? `Attachments: ${email.attachments.join(', ')}` : '',
-    email.body ? `\n${email.body}` : ''
-  ].filter(l => l).join('\n');
-
-  const data = {
-    title: email.subject || '(No subject)',
-    description: description.trim(),
-    status: 'In Progress'
-  };
-
-  try {
-    const response = await app.fetchRaw('/api/daily-templates', {
-      method: 'POST',
-      
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      app.notify(`Template created from email: ${email.subject}`, 'success');
-      window.GenericEntityTabs?.refresh('template');
-    } else {
-      app.notify('Error: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    console.error('Error creating template from email:', error);
-    app.notify('Error creating template from email', 'danger');
-  }
-}
-
 // Detect if dropped text is email
 function isEmailData(text) {
   return text && (
@@ -633,30 +509,11 @@ function clearDropIndicators(root = document) {
     .forEach(el => el.classList.remove(...DROP_INDICATOR_CLASSES));
 }
 
-// Setup drag listeners for draggable items (tabs, priorities, etc.)
+// Set and read by dailies-list-events.js during its own drag handling.
+// setupDragListeners(), the function that used to set it from here, had zero
+// callers anywhere in src/ and has been removed; the declaration stays
+// because that other file still assigns and reads it.
 let currentDragType = null;
-function setupDragListeners() {
-  const draggables = document.querySelectorAll('[draggable="true"]:not([data-drag-bound])');
-  draggables.forEach(item => {
-    item.dataset.dragBound = 'true';
-
-    item.addEventListener('dragstart', (e) => {
-      beginDrag(e, {
-        type: item.dataset.type,
-        id: item.dataset.id,
-        name: item.dataset.name || item.textContent.trim(),
-      });
-      currentDragType = item.dataset.type;
-      item.classList.add('dragging-item');
-      console.log('[setupDragListeners] dragstart:', { type: item.dataset.type, id: item.dataset.id });
-    });
-
-    item.addEventListener('dragend', () => {
-      item.classList.remove('dragging-item');
-      currentDragType = null;
-    });
-  });
-}
 
 // A file dropped anywhere OTHER than a drop zone navigates the tab to it.
 // That was harmless while nothing here accepted files; the Dailies rail does

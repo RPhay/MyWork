@@ -573,7 +573,7 @@ class TabManager {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'context-menu-item';
-        btn.innerHTML = `<span>${item.icon || ''}</span><span>${item.label}</span>`;
+        btn.innerHTML = `<span>${item.icon || ''}</span><span>${app.escapeHtml(item.label)}</span>`;
         btn.addEventListener('click', async () => { close(); await item.action(); });
         menuEl.appendChild(btn);
       }
