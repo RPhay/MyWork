@@ -13,7 +13,7 @@ router.get('/all', async (req, res) => {
     res.json({ success: true, data: goals });
   } catch (error) {
     logger.error('Error fetching all goals:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -25,7 +25,7 @@ router.get('/year/:year', async (req, res) => {
     res.json({ success: true, data: goals });
   } catch (error) {
     logger.error('Error fetching goals:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -59,7 +59,7 @@ router.get('/:id', async (req, res) => {
     res.json({ success: true, data: goal });
   } catch (error) {
     logger.error('Error fetching goal:', error);
-    res.status(404).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

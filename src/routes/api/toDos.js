@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
     res.json({ success: true, data: rows });
   } catch (error) {
     logger.error('Error fetching to_dos:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

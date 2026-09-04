@@ -13,19 +13,25 @@ const handle = (res, promise) => promise
   });
 
 router.get('/', async (req, res) => {
-  const contextId = await activeContextService.getActiveContextId();
-  handle(res, entityService.getDeletedEntities(contextId, { limit: req.query.limit }));
+  handle(res, (async () => {
+    const contextId = await activeContextService.getActiveContextId();
+    return entityService.getDeletedEntities(contextId, { limit: req.query.limit });
+  })());
 });
 
 router.post('/:entityId/restore', async (req, res) => {
-  const contextId = await activeContextService.getActiveContextId();
-  handle(res, entityService.restoreEntity(req.params.entityId, contextId));
+  handle(res, (async () => {
+    const contextId = await activeContextService.getActiveContextId();
+    return entityService.restoreEntity(req.params.entityId, contextId);
+  })());
 });
 
 // The only hard delete in the app.
 router.delete('/:entityId', async (req, res) => {
-  const contextId = await activeContextService.getActiveContextId();
-  handle(res, entityService.purgeEntity(req.params.entityId, contextId));
+  handle(res, (async () => {
+    const contextId = await activeContextService.getActiveContextId();
+    return entityService.purgeEntity(req.params.entityId, contextId);
+  })());
 });
 
 export default router;

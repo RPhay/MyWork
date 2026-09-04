@@ -9,6 +9,25 @@ import logger from '../../utils/logger.js';
 
 const router = express.Router();
 
+// The failure page below interpolates error.message straight into an HTML
+// response - a message can reach here from an OAuth provider's own error
+// description, or eventually from a ValidationError built off some request
+// input, so "it is server-generated today" is not a reason to trust it stays
+// markup-free.
+function escapeHtml(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[ch],
+  );
+}
+
 const PROVIDER_CONFIG = {
   'outlook': {
     authClass: MsOutlookAuth,
@@ -147,7 +166,7 @@ router.get('/sources/auth/sso/callback', async (req, res) => {
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
           <div style="text-align: center;">
             <h2 style="color: #dc3545; margin: 0 0 10px 0;">✗ Failed</h2>
-            <p style="color: #666; margin: 0;">${error.message}</p>
+            <p style="color: #666; margin: 0;">${escapeHtml(error.message)}</p>
           </div>
           <script>
             setTimeout(() => {
@@ -168,7 +187,7 @@ router.get('/sources/auth/sso/callback', async (req, res) => {
  * GET /api/sources/:sourceId/auth/status
  * Get authentication status for a data source
  */
-router.get('/sources/:sourceId/auth/status', async (req, res, next) => {
+router.get('/sources/:sourceId/auth/status', async (req, res) => {
   try {
     const { sourceId } = req.params;
     const status = await dataSourceAuthService.getAuthStatus(sourceId);
@@ -178,7 +197,8 @@ router.get('/sources/:sourceId/auth/status', async (req, res, next) => {
       data: status
     });
   } catch (error) {
-    next(error);
+    logger.error('Error fetching source auth status:', error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -186,7 +206,7 @@ router.get('/sources/:sourceId/auth/status', async (req, res, next) => {
  * POST /api/sources/:sourceId/auth/sso/login
  * Initiate SSO login for a data source
  */
-router.post('/sources/:sourceId/auth/sso/login', async (req, res, next) => {
+router.post('/sources/:sourceId/auth/sso/login', async (req, res) => {
   try {
     const { sourceId } = req.params;
     const { contextId, provider } = req.body;
@@ -242,7 +262,7 @@ router.post('/sources/:sourceId/auth/sso/login', async (req, res, next) => {
     });
   } catch (error) {
     logger.error('SSO login init error:', error);
-    next(error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -250,7 +270,7 @@ router.post('/sources/:sourceId/auth/sso/login', async (req, res, next) => {
  * GET /api/sources/:sourceId/auth/sso/callback
  * Handle OAuth callback for data source SSO
  */
-router.get('/sources/:sourceId/auth/sso/callback', async (req, res, next) => {
+router.get('/sources/:sourceId/auth/sso/callback', async (req, res) => {
   try {
     const { sourceId } = req.params;
     const { code, state } = req.query;
@@ -318,7 +338,7 @@ router.get('/sources/:sourceId/auth/sso/callback', async (req, res, next) => {
     });
   } catch (error) {
     logger.error('SSO callback error:', error);
-    next(error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -326,7 +346,7 @@ router.get('/sources/:sourceId/auth/sso/callback', async (req, res, next) => {
  * POST /api/sources/:sourceId/auth/credentials
  * Save credentials for a data source
  */
-router.post('/sources/:sourceId/auth/credentials', async (req, res, next) => {
+router.post('/sources/:sourceId/auth/credentials', async (req, res) => {
   try {
     const { sourceId } = req.params;
     const { username, password } = req.body;
@@ -351,7 +371,7 @@ router.post('/sources/:sourceId/auth/credentials', async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Error saving credentials:', error);
-    next(error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -359,7 +379,7 @@ router.post('/sources/:sourceId/auth/credentials', async (req, res, next) => {
  * DELETE /api/sources/:sourceId/auth/:authType
  * Clear auth for a data source
  */
-router.delete('/sources/:sourceId/auth/:authType', async (req, res, next) => {
+router.delete('/sources/:sourceId/auth/:authType', async (req, res) => {
   try {
     const { sourceId, authType } = req.params;
 
@@ -371,7 +391,7 @@ router.delete('/sources/:sourceId/auth/:authType', async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Error clearing auth:', error);
-    next(error);
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

@@ -14,7 +14,7 @@ router.get('/export', async (req, res) => {
     res.json(data);
   } catch (error) {
     logger.error('Error exporting database:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

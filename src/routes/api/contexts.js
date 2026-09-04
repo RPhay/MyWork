@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
     res.json({ success: true, data: contexts });
   } catch (error) {
     logger.error('Error fetching contexts:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

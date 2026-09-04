@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
     res.json({ success: true, data: years });
   } catch (error) {
     logger.error('Error fetching years:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -22,7 +22,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ success: true, message: 'Year added', data: year });
   } catch (error) {
     logger.error('Error adding year:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

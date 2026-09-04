@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
     res.json({ success: true, data: categories });
   } catch (error) {
     logger.error('Error fetching categories:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -38,7 +38,7 @@ router.get('/:id', async (req, res) => {
     res.json({ success: true, data: area });
   } catch (error) {
     logger.error('Error fetching area:', error);
-    res.status(404).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

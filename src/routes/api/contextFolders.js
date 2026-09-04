@@ -10,7 +10,7 @@ router.get("/", async (req, res) => {
     res.json({ success: true, data: folders });
   } catch (error) {
     logger.error("Error fetching context folders:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

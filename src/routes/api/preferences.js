@@ -18,7 +18,7 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     logger.error("Error reading preferences:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

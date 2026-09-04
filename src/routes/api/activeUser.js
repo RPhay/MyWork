@@ -83,9 +83,12 @@ router.put('/', async (req, res) => {
 
     let activeContext = null;
     if (contexts.length > 0) {
-      // Reuses whatever is already active if it belongs to them, otherwise
-      // takes their first - the same rule getActiveContextId applies.
-      activeContext = await activeContextService.setActiveContextId(contexts[0].id);
+      // getActiveContextId applies exactly this rule already - the persisted
+      // context id if it belongs to the (now-switched) active user, else
+      // their first by order_index - so ask it rather than hardcoding
+      // contexts[0] here and silently discarding a still-valid persisted one.
+      const contextId = await activeContextService.getActiveContextId();
+      activeContext = await activeContextService.setActiveContextId(contextId);
     }
 
     res.json({

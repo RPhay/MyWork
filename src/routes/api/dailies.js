@@ -13,7 +13,7 @@ router.get('/date/:date', async (req, res) => {
     res.json({ success: true, data: items });
   } catch (error) {
     logger.error('Error fetching work items:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -28,7 +28,7 @@ router.get('/date/:date/roots', async (req, res) => {
     res.json({ success: true, data: roots });
   } catch (error) {
     logger.error('Error fetching a day\'s root records:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -65,7 +65,7 @@ router.get('/range', async (req, res) => {
     res.json({ success: true, data: items });
   } catch (error) {
     logger.error('Error fetching work items:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -89,7 +89,7 @@ router.get('/:id', async (req, res) => {
     res.json({ success: true, data: item });
   } catch (error) {
     logger.error('Error fetching work item:', error);
-    res.status(404).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

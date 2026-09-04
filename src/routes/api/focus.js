@@ -52,18 +52,24 @@ const send = (res, promise) => promise
   });
 
 router.get('/', async (req, res) => {
-  const contextId = await activeContextService.getActiveContextId();
-  send(res, focusService.getFocusItems(contextId));
+  send(res, (async () => {
+    const contextId = await activeContextService.getActiveContextId();
+    return focusService.getFocusItems(contextId);
+  })());
 });
 
 router.post('/', async (req, res) => {
-  const contextId = await activeContextService.getActiveContextId();
-  send(res, focusService.addFocus(req.body.entityId, contextId, req.body.monitor));
+  send(res, (async () => {
+    const contextId = await activeContextService.getActiveContextId();
+    return focusService.addFocus(req.body.entityId, contextId, req.body.monitor);
+  })());
 });
 
 router.delete('/:entityId', async (req, res) => {
-  const contextId = await activeContextService.getActiveContextId();
-  send(res, focusService.removeFocus(req.params.entityId, contextId));
+  send(res, (async () => {
+    const contextId = await activeContextService.getActiveContextId();
+    return focusService.removeFocus(req.params.entityId, contextId);
+  })());
 });
 
 // PATCH /api/focus/monitors/:monitor/order - order of items within one monitor
@@ -74,8 +80,10 @@ router.patch('/monitors/:monitor/order', async (req, res) => {
 
 // PATCH /api/focus/:entityId/monitor - move a pinned item to a different monitor
 router.patch('/:entityId/monitor', async (req, res) => {
-  const contextId = await activeContextService.getActiveContextId();
-  send(res, focusService.moveFocus(req.params.entityId, req.body?.monitor, contextId));
+  send(res, (async () => {
+    const contextId = await activeContextService.getActiveContextId();
+    return focusService.moveFocus(req.params.entityId, req.body?.monitor, contextId);
+  })());
 });
 
 // PATCH /api/focus/:entityId/color - chip background ('#rrggbb', or null)
@@ -86,8 +94,10 @@ router.patch('/:entityId/color', async (req, res) => {
 // One endpoint for start and stop: the clock has two states and the caller
 // always wants the other one.
 router.post('/:entityId/toggle', async (req, res) => {
-  const contextId = await activeContextService.getActiveContextId();
-  send(res, focusService.toggleTimer(req.params.entityId, contextId));
+  send(res, (async () => {
+    const contextId = await activeContextService.getActiveContextId();
+    return focusService.toggleTimer(req.params.entityId, contextId);
+  })());
 });
 
 export default router;

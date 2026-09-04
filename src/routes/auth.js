@@ -126,6 +126,19 @@ router.get("/callback", requireSsoEnabled, async (req, res) => {
     logger.warn("SSO callback state did not match the one issued");
     return res.redirect("/auth/login?error=state-mismatch");
   }
+  // `issued.at` was stamped and never read - a state value survives in the
+  // session indefinitely, so a link into /auth/callback captured (a shared
+  // browser, a proxy log, a bookmark from a stale tab) stayed valid to
+  // replay for as long as the session itself lived. Ten minutes covers a
+  // slow Entra sign-in without leaving the window open indefinitely; expired
+  // fails exactly like a mismatch, not a distinct case, because it grants
+  // nothing more to whoever presents it.
+  const STATE_MAX_AGE_MS = 10 * 60 * 1000;
+  if (Date.now() - issued.at > STATE_MAX_AGE_MS) {
+    logger.warn("SSO callback state had expired");
+    delete req.session.ssoState;
+    return res.redirect("/auth/login?error=state-mismatch");
+  }
   delete req.session.ssoState;
 
   if (!code) {

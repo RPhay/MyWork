@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
     res.json({ success: true, data: sources });
   } catch (error) {
     logger.error('Error fetching sources:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -26,7 +26,7 @@ router.get('/:id', async (req, res) => {
     res.json({ success: true, data: source });
   } catch (error) {
     logger.error('Error fetching source:', error);
-    res.status(404).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ success: true, message: 'Source created', data: source });
   } catch (error) {
     logger.error('Error creating source:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -49,7 +49,7 @@ router.put('/:id', async (req, res) => {
     res.json({ success: true, message: 'Source updated', data: source });
   } catch (error) {
     logger.error('Error updating source:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -60,7 +60,7 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true, message: 'Source deleted' });
   } catch (error) {
     logger.error('Error deleting source:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -71,7 +71,7 @@ router.post('/:id/test', async (req, res) => {
     res.json(result);
   } catch (error) {
     logger.error('Error testing source:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -116,7 +116,7 @@ router.get('/:id/emails', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error fetching emails:', error);
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       message: error.message || 'Failed to fetch emails'
     });
