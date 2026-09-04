@@ -96,7 +96,15 @@ export function rewriteInsertIgnoreForMssql(sqlText, values) {
     })
     .join(", ");
 
-  const rewrittenSql = `IF NOT EXISTS (SELECT 1 FROM ${table} WHERE ${whereClause}) INSERT INTO ${table} (${columns.join(", ")}) VALUES (${insertValueSql})`;
+  // WITH (UPDLOCK, HOLDLOCK): under the default READ COMMITTED isolation, the
+  // SELECT's shared lock is released the instant it finishes, so two
+  // concurrent connections can both see "not exists" and both proceed to
+  // INSERT - the very race INSERT IGNORE exists to avoid, reintroduced by the
+  // rewrite. HOLDLOCK holds that lock for the statement's duration
+  // (serializable-equivalent for this one table reference); UPDLOCK makes it
+  // exclusive up front instead of a shared lock upgrading later, which is
+  // what avoids the two connections deadlocking each other on the upgrade.
+  const rewrittenSql = `IF NOT EXISTS (SELECT 1 FROM ${table} WITH (UPDLOCK, HOLDLOCK) WHERE ${whereClause}) INSERT INTO ${table} (${columns.join(", ")}) VALUES (${insertValueSql})`;
   return { sql: rewrittenSql, values: [...whereValues, ...insertValues] };
 }
 
@@ -104,6 +112,13 @@ export function rewriteInsertIgnoreForMssql(sqlText, values) {
 // MSSQL has no such function, so swap in its equivalent everywhere it appears.
 export function rewriteNowForMssql(sqlText) {
   return sqlText.replace(/\bNOW\(\)/gi, "SYSUTCDATETIME()");
+}
+
+// The rest of the app writes MySQL's CHAR_LENGTH(); MSSQL has no such
+// function, only LEN() - same signature (single string argument), no rewrite
+// of the argument needed.
+export function rewriteCharLengthForMssql(sqlText) {
+  return sqlText.replace(/\bCHAR_LENGTH\(/gi, "LEN(");
 }
 
 // The rest of the app reads JSON columns with MySQL's JSON_EXTRACT(), which
@@ -232,7 +247,16 @@ const TABLE_REF_PATTERN =
   /\b(FROM|JOIN|INTO|UPDATE|TABLE|MERGE)\s+(\[?)([A-Za-z_][A-Za-z0-9_]*)(\]?)/gi;
 
 export function qualifyTablesForMssql(sqlText, knownTables) {
-  if (!knownTables || knownTables.size === 0) return sqlText;
+  // An empty/missing table list is a FAILURE, not "qualify nothing" - see the
+  // dbo section in CLAUDE.md. Returning the SQL unrewritten here used to mean
+  // every statement in the process silently addressed dbo, invisibly, for as
+  // long as the list stayed unreadable (or the schema didn't exist yet).
+  if (!knownTables || knownTables.size === 0) {
+    throw new Error(
+      `Cannot qualify SQL for the ${MSSQL_SCHEMA} schema: no table list is available. ` +
+        `Continuing would let table references resolve against dbo. SQL: ${sqlText.slice(0, 300)}`,
+    );
+  }
 
   return sqlText.replace(
     TABLE_REF_PATTERN,
@@ -270,7 +294,15 @@ export function qualifyTablesForMssql(sqlText, knownTables) {
  * dbo for a month. See the `dbo` section in CLAUDE.md.
  */
 export function assertNoUnqualifiedTables(sqlText, knownTables) {
-  if (!knownTables || knownTables.size === 0) return sqlText;
+  // Same reasoning as qualifyTablesForMssql above: an empty/missing list
+  // means nothing can be verified as qualified, which is exactly the state
+  // this check exists to catch, not wave through.
+  if (!knownTables || knownTables.size === 0) {
+    throw new Error(
+      `Cannot verify SQL is qualified for the ${MSSQL_SCHEMA} schema: no table list is available. ` +
+        `SQL: ${sqlText.slice(0, 300)}`,
+    );
+  }
 
   const offenders = [];
   for (const m of sqlText.matchAll(TABLE_REF_PATTERN)) {

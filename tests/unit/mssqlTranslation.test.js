@@ -1,5 +1,6 @@
 import {
   rewriteInsertIgnoreForMssql,
+  rewriteCharLengthForMssql,
   rewriteJsonExtractForMssql,
   rewriteLimitForMssql,
   rewriteNowForMssql,
@@ -88,7 +89,7 @@ describe('the rewrites already in place', () => {
   it('turns INSERT IGNORE into a guarded insert', () => {
     const { sql, values } = rewriteInsertIgnoreForMssql(
       'INSERT IGNORE INTO t (a, b) VALUES (?, ?)', [1, 2]);
-    expect(sql).toMatch(/^IF NOT EXISTS \(SELECT 1 FROM t WHERE a = \? AND b = \?\) INSERT INTO t/);
+    expect(sql).toMatch(/^IF NOT EXISTS \(SELECT 1 FROM t WITH \(UPDLOCK, HOLDLOCK\) WHERE a = \? AND b = \?\) INSERT INTO t/);
     expect(values).toEqual([1, 2, 1, 2]);
   });
 
@@ -102,7 +103,7 @@ describe('the rewrites already in place', () => {
       [1, 2, 5],
     );
     expect(sql).toBe(
-      'IF NOT EXISTS (SELECT 1 FROM work_entity_associations WHERE daily_id = ? AND entity_id = ?) ' +
+      'IF NOT EXISTS (SELECT 1 FROM work_entity_associations WITH (UPDLOCK, HOLDLOCK) WHERE daily_id = ? AND entity_id = ?) ' +
         'INSERT INTO work_entity_associations (daily_id, entity_id, order_index) VALUES (?, ?, ?)',
     );
     expect(values).toEqual([1, 2, 1, 2, 5]);
@@ -118,7 +119,7 @@ describe('the rewrites already in place', () => {
       [10, 20, 30],
     );
     expect(sql).toBe(
-      'IF NOT EXISTS (SELECT 1 FROM entity_relationships WHERE parent_entity_id = ? AND child_entity_id = ? AND relationship_kind = \'instantiated_from\') ' +
+      'IF NOT EXISTS (SELECT 1 FROM entity_relationships WITH (UPDLOCK, HOLDLOCK) WHERE parent_entity_id = ? AND child_entity_id = ? AND relationship_kind = \'instantiated_from\') ' +
         "INSERT INTO entity_relationships (context_id, parent_entity_id, child_entity_id, relationship_kind, is_generated, order_index) VALUES (?, ?, ?, 'instantiated_from', 1, 0)",
     );
     expect(values).toEqual([20, 30, 10, 20, 30]);
@@ -127,6 +128,12 @@ describe('the rewrites already in place', () => {
   it('swaps NOW() for the T-SQL equivalent', () => {
     expect(rewriteNowForMssql('UPDATE t SET updated_at = NOW()'))
       .toBe('UPDATE t SET updated_at = SYSUTCDATETIME()');
+  });
+
+  it('swaps CHAR_LENGTH for the T-SQL equivalent', () => {
+    // searchService.js's exact ORDER BY - CHAR_LENGTH doesn't exist on MSSQL.
+    expect(rewriteCharLengthForMssql('SELECT * FROM t ORDER BY CHAR_LENGTH(title), title'))
+      .toBe('SELECT * FROM t ORDER BY LEN(title), title');
   });
 
   it('rewrites a JSON boolean comparison', () => {
@@ -179,10 +186,15 @@ describe('qualifyTablesForMssql', () => {
     expect(qualifyTablesForMssql(sql, known)).toBe(sql);
   });
 
-  it('rewrites nothing when the table list is empty or missing', () => {
+  // An empty or missing table list is a FAILURE, not "qualify nothing" - see
+  // "F19" / the dbo section in CLAUDE.md. Silently returning the SQL
+  // unrewritten here is exactly how an unqualified reference used to slip
+  // through and resolve against dbo whenever the list was unreadable, or
+  // legitimately empty because the schema hadn't been created yet.
+  it('throws rather than silently qualifying nothing when the table list is empty or missing', () => {
     const sql = 'SELECT * FROM contexts';
-    expect(qualifyTablesForMssql(sql, new Set())).toBe(sql);
-    expect(qualifyTablesForMssql(sql, null)).toBe(sql);
+    expect(() => qualifyTablesForMssql(sql, new Set())).toThrow(/table list/i);
+    expect(() => qualifyTablesForMssql(sql, null)).toThrow(/table list/i);
   });
 });
 
@@ -228,6 +240,13 @@ describe('nothing falls back to dbo', () => {
     ).toBe('DELETE FROM [MyWork].[entities] WHERE id = ?');
   });
 
+  it('THROWS rather than silently passing when the table list itself is empty or missing', () => {
+    expect(() => assertNoUnqualifiedTables('SELECT * FROM entities', new Set()))
+      .toThrow(/table list/i);
+    expect(() => assertNoUnqualifiedTables('SELECT * FROM entities', null))
+      .toThrow(/table list/i);
+  });
+
   it('THROWS rather than letting an unqualified table through', () => {
     expect(() =>
       assertNoUnqualifiedTables('SELECT * FROM entities', known),
@@ -271,5 +290,17 @@ describe('nothing falls back to dbo', () => {
     const out = qualifyTablesForMssql(sql, known);
     expect(() => assertNoUnqualifiedTables(out, known)).not.toThrow();
     expect(out).toContain('[MyWork].[entity_field_values]');
+  });
+
+  // The INSERT IGNORE rewrite's guarded form carries a table hint
+  // (WITH (UPDLOCK, HOLDLOCK)) between the table name and its WHERE clause -
+  // confirms that addition does not confuse the qualifier, which only cares
+  // about the FROM/table-name pair and leaves everything after it alone.
+  it('qualifies the table in a HOLDLOCK-guarded insert', () => {
+    const { sql } = rewriteInsertIgnoreForMssql(
+      'INSERT IGNORE INTO entities (id, title) VALUES (?, ?)', [1, 'x']);
+    const out = qualifyTablesForMssql(sql, known);
+    expect(() => assertNoUnqualifiedTables(out, known)).not.toThrow();
+    expect(out).toContain('FROM [MyWork].[entities] WITH (UPDLOCK, HOLDLOCK)');
   });
 });

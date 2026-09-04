@@ -4,6 +4,7 @@ import config from "../config/environment.js";
 import logger from "../utils/logger.js";
 import {
   rewriteInsertIgnoreForMssql,
+  rewriteCharLengthForMssql,
   rewriteJsonExtractForMssql,
   rewriteLimitForMssql,
   rewriteNowForMssql,
@@ -121,6 +122,7 @@ async function executeMssql(sqlText, values) {
   // edits fragments has to see the finished shape.
   rewritten = rewriteUpsertForMssql(rewritten.sql, rewritten.values);
   rewritten.sql = rewriteNowForMssql(rewritten.sql);
+  rewritten.sql = rewriteCharLengthForMssql(rewritten.sql);
   rewritten.sql = rewriteJsonExtractForMssql(rewritten.sql);
   rewritten.sql = rewriteLimitForMssql(rewritten.sql);
   // Last, so it sees the finished statement: the rewrites above can introduce
@@ -222,21 +224,39 @@ async function getPool() {
 // the default, or 'mssql'). Closes the existing pool; the next query lazily
 // opens a fresh one against the new target.
 async function reconfigure(newConfig) {
-  if (pool) {
-    if (currentConfig.type === "mssql") {
-      await pool.close();
-    } else {
-      await pool.end();
-    }
-    pool = undefined;
-    clearMssqlTableCache();
-  }
+  // Swap FIRST, close after. The old version awaited the close before
+  // clearing `pool` and updating `currentConfig`, which left both still
+  // pointing at the old target for the whole duration of that await - a
+  // concurrent query arriving in that window used a pool that was in the
+  // middle of closing, against a config that was about to be replaced out
+  // from under it. Nulling `pool` and installing the new config synchronously,
+  // before any await, means a concurrent getPool() sees no live pool the
+  // instant this function starts and lazily opens a fresh one against the new
+  // target - there is no window where the two disagree.
+  const oldPool = pool;
+  const oldType = currentConfig.type;
+  pool = undefined;
   currentConfig = { type: "mysql", ...newConfig };
+  clearMssqlTableCache();
   logger.info("Database connection pool reconfigured", {
     type: currentConfig.type,
     host: newConfig.host,
     database: newConfig.database,
   });
+
+  if (oldPool) {
+    try {
+      if (oldType === "mssql") {
+        await oldPool.close();
+      } else {
+        await oldPool.end();
+      }
+    } catch (error) {
+      // The new pool is already live and in charge - a failure tearing down
+      // the old one is a leak to log, not a reason to fail the reconfigure.
+      logger.warn("Error closing the previous connection pool during reconfigure:", error);
+    }
+  }
 }
 
 async function query(sqlText, values = []) {
@@ -251,6 +271,7 @@ async function query(sqlText, values = []) {
     logger.error("Database query error:", { sql: sqlText, error });
     const dbError = new Error(describeDbError(error));
     dbError.code = error.code || error.errors?.[0]?.code;
+    dbError.number = error.number;
     dbError.cause = error;
     throw dbError;
   }
@@ -299,6 +320,15 @@ function getCurrentConfig() {
   return { ...currentConfig };
 }
 
+// True for a duplicate-key violation on either engine, and unwrapped or
+// wrapped (checks error.cause too, since query() wraps driver errors).
+function isDuplicateKeyError(error) {
+  if (!error) return false;
+  const code = error.code || error.cause?.code;
+  const number = error.number ?? error.cause?.number;
+  return code === "ER_DUP_ENTRY" || number === 2601 || number === 2627;
+}
+
 async function closePool() {
   if (pool) {
     if (currentConfig.type === "mssql") {
@@ -320,4 +350,5 @@ export {
   closePool,
   reconfigure,
   getCurrentConfig,
+  isDuplicateKeyError,
 };

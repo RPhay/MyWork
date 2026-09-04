@@ -84,10 +84,11 @@ async function openMssql(config) {
     password: config.password,
     database: config.database,
     options: {
-      // The same env-driven flags connectionPool.js uses, NOT the hardcoded
-      // `encrypt: true, trustServerCertificate: false` in homePool.js and
-      // contextService.js. Those defaults target Azure SQL; an on-prem server
-      // with a self-signed or internal-CA certificate needs DB_MSSQL_ENCRYPT /
+      // The same env-driven flags connectionPool.js and homePool.js use, NOT
+      // the hardcoded `encrypt: true, trustServerCertificate: false` that
+      // contextService.js still opens its ad-hoc schema-creation connections
+      // with. Those defaults target Azure SQL; an on-prem server with a
+      // self-signed or internal-CA certificate needs DB_MSSQL_ENCRYPT /
       // DB_MSSQL_TRUST_SERVER_CERT, and a comparison that cannot open the
       // connection is a comparison that never runs.
       encrypt: env.database.mssqlEncrypt,

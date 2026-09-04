@@ -10,7 +10,11 @@ import config from "../config/environment.js";
 import logger from "../utils/logger.js";
 import {
   rewriteInsertIgnoreForMssql,
+  rewriteCharLengthForMssql,
+  rewriteJsonExtractForMssql,
+  rewriteLimitForMssql,
   rewriteNowForMssql,
+  rewriteUpsertForMssql,
   toNamedParams,
   qualifyTablesForMssql,
   assertNoUnqualifiedTables,
@@ -42,23 +46,45 @@ async function getPool() {
       password: homeConfig.password,
       database: homeConfig.database,
       connectionTimeout: 10000,
-      options: { encrypt: true, trustServerCertificate: false },
+      // Read from env like connectionPool.js does, rather than hardcoding
+      // Azure SQL's defaults - an on-prem server with a self-signed or
+      // internal-CA certificate was unreachable through this pool even when
+      // DB_MSSQL_ENCRYPT / DB_MSSQL_TRUST_SERVER_CERT were set, because those
+      // env-driven flags never reached here. See DB_MSSQL_ENCRYPT and
+      // DB_MSSQL_TRUST_SERVER_CERT in .env.example.
+      options: {
+        encrypt: config.database.mssqlEncrypt,
+        trustServerCertificate: config.database.mssqlTrustServerCertificate,
+      },
       pool: { max: config.database.poolMax, min: config.database.poolMin },
     });
     mssqlPool.on("error", (err) => logger.error("Home pool error:", err));
-    pool = await mssqlPool.connect();
-    logger.info("Home database pool created (MSSQL)");
+    const connectedPool = await mssqlPool.connect();
 
-    // Initialize schema on first pool creation
+    // Initialize schema on first pool creation. This must complete before
+    // `pool` is assigned and handed out: the module-level `pool` var is what
+    // short-circuits every later getPool() call, so assigning it before schema
+    // creation had succeeded meant a failed schema build was never retried -
+    // the next call just returned the same half-built pool, and the first
+    // qualified query against it hit an empty/partial [MyWork] table list.
+    // Failing loudly here, before `pool` is ever set, is what makes the
+    // "schema completes before the first qualified query" guarantee real
+    // rather than order-of-calls luck.
     if (!schemaInitialized) {
       try {
-        await createMssqlSchema(pool);
+        await createMssqlSchema(connectedPool);
         schemaInitialized = true;
       } catch (error) {
         logger.error("Error initializing MSSQL schema:", error);
+        await connectedPool.close().catch(() => {});
+        throw new Error(
+          `Cannot initialize the MSSQL schema on the home database: ${error.message}`,
+        );
       }
     }
 
+    pool = connectedPool;
+    logger.info("Home database pool created (MSSQL)");
     return pool;
   }
 
@@ -124,8 +150,20 @@ async function getMssqlKnownTables() {
 }
 
 async function executeMssql(sqlText, values) {
-  const rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
+  // Same rewrite chain, same order, as connectionPool.js's executeMssql - this
+  // pool's header comment has always claimed parity with it, but only two of
+  // six rewrites actually ran here (INSERT IGNORE and NOW()), which meant an
+  // upsert, a LIMIT or a JSON_EXTRACT written against a structural table (any
+  // of users/contexts/context_folders/context_tab_settings/user_identities)
+  // went out MySQL-flavoured and threw or silently misbehaved on MSSQL.
+  let rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
+  // Upsert before the rest: it rewrites the whole statement, so anything that
+  // edits fragments has to see the finished shape.
+  rewritten = rewriteUpsertForMssql(rewritten.sql, rewritten.values);
   rewritten.sql = rewriteNowForMssql(rewritten.sql);
+  rewritten.sql = rewriteCharLengthForMssql(rewritten.sql);
+  rewritten.sql = rewriteJsonExtractForMssql(rewritten.sql);
+  rewritten.sql = rewriteLimitForMssql(rewritten.sql);
 
   // THIS POOL QUALIFIES TOO. It did not until 2026-08-27, so every read and
   // write of users, contexts, context_folders, context_tab_settings and
@@ -176,7 +214,13 @@ export async function query(sqlText, values = []) {
     return results;
   } catch (error) {
     logger.error("Home pool query error:", { sql: sqlText, error });
-    throw error;
+    // Wrap the same way connectionPool.query() does, so isDuplicateKeyError()
+    // and any other code/number inspection works against either pool.
+    const dbError = new Error(error.message);
+    dbError.code = error.code || error.errors?.[0]?.code;
+    dbError.number = error.number;
+    dbError.cause = error;
+    throw dbError;
   }
 }
 
