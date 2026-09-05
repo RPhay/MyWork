@@ -1,4 +1,6 @@
 import express from 'express';
+import http from 'node:http';
+import https from 'node:https';
 import { lookup } from 'node:dns/promises';
 import logger from '../../utils/logger.js';
 
@@ -18,10 +20,22 @@ const router = express.Router();
  *   - the resolved IP must be public - private, loopback, link-local and
  *     unique-local ranges are refused, which is what stops it being used to
  *     probe localhost or the LAN from inside the network
+ *   - the connection is PINNED to that same resolved IP - see "pinned lookup"
+ *     below for why a second, unchecked resolution would undo this guard
  *   - redirects are not followed, so a public URL cannot bounce to a private one
  *   - a short timeout and a read cap, so a slow or endless response cannot tie
  *     up the process
  *   - only the title is ever returned; the body is never stored or echoed
+ *
+ * Pinned lookup: `fetch()` cannot be told to use an address it didn't resolve
+ * itself, so checking the IP with dns.lookup() and then calling fetch(url) is
+ * TWO separate resolutions - a hostname an attacker controls can answer the
+ * first with a public IP (passing the check) and the second, moments later,
+ * with 127.0.0.1 or a cloud metadata address, and the fetch goes there
+ * (DNS rebinding). Node's http/https modules take a `lookup` option; passing
+ * one that always returns the address already validated - never re-resolving
+ * the hostname - closes that window. `Host` stays the real hostname so the
+ * origin server still serves the right site.
  */
 
 const TIMEOUT_MS = 5000;
@@ -73,45 +87,89 @@ router.get('/', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Only http and https are supported' });
   }
 
+  let pinnedAddress;
+  let pinnedFamily;
   try {
-    const { address } = await lookup(parsed.hostname);
-    if (isPrivateAddress(address)) {
+    const resolved = await lookup(parsed.hostname);
+    if (isPrivateAddress(resolved.address)) {
       return res.status(400).json({ success: false, message: 'Refusing to fetch a private address' });
     }
+    pinnedAddress = resolved.address;
+    pinnedFamily = resolved.family;
   } catch {
     return res.status(400).json({ success: false, message: 'Could not resolve that host' });
   }
 
+  // Always hands back the address checked above, whatever hostname is asked
+  // for - the one thing standing between this and a second, unchecked
+  // resolution an attacker's DNS could answer differently.
+  // Node's own connect logic asks for `{ all: true }` (its happy-eyeballs
+  // multi-address path) and then expects the ARRAY form of the callback -
+  // calling back with a bare (address, family) triple here throws
+  // "Invalid IP address: undefined" deep inside net.connect. Both forms hand
+  // back the one address already checked; there is never a second candidate
+  // to fall back to.
+  const pinnedLookup = (_hostname, options, callback) => (
+    options?.all
+      ? callback(null, [{ address: pinnedAddress, family: pinnedFamily }])
+      : callback(null, pinnedAddress, pinnedFamily)
+  );
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const requestModule = parsed.protocol === 'https:' ? https : http;
+
   try {
-    const response = await fetch(parsed.href, {
-      signal: controller.signal,
-      redirect: 'manual',
-      headers: { Accept: 'text/html,application/xhtml+xml' },
+    const html = await new Promise((resolve, reject) => {
+      const request = requestModule.request(
+        {
+          protocol: parsed.protocol,
+          hostname: parsed.hostname,
+          port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+          path: `${parsed.pathname}${parsed.search}`,
+          method: 'GET',
+          // `parsed.host`, not `.hostname`: it carries a non-default port too.
+          headers: { Accept: 'text/html,application/xhtml+xml', Host: parsed.host },
+          signal: controller.signal,
+          lookup: pinnedLookup,
+        },
+        (response) => {
+          const type = response.headers['content-type'] || '';
+          const ok = response.statusCode >= 200 && response.statusCode < 300;
+          if (!ok || !type.includes('html')) {
+            response.destroy();
+            return resolve(null);
+          }
+
+          // Read only as far as the title can reasonably be, then stop. A
+          // stop via destroy() never fires 'end' - it's an abandoned read,
+          // not a natural close - so the early-stop case resolves right where
+          // it decides to stop rather than waiting on an event that an
+          // intentional destroy() guarantees will not come.
+          let body = '';
+          let read = 0;
+          let settled = false;
+          const finish = (value) => { if (!settled) { settled = true; resolve(value); } };
+          response.setEncoding('utf8');
+          response.on('data', (chunk) => {
+            read += Buffer.byteLength(chunk);
+            body += chunk;
+            if (body.includes('</title>') || read >= MAX_BYTES) {
+              response.destroy();
+              finish(body);
+            }
+          });
+          response.on('end', () => finish(body));
+          response.on('error', (err) => { if (!settled) reject(err); });
+        },
+      );
+      // Redirects are never followed - the request callback above only ever
+      // sees the FIRST response, 3xx included, and `ok` above rejects it.
+      request.on('error', reject);
+      request.end();
     });
 
-    const type = response.headers.get('content-type') || '';
-    if (!response.ok || !type.includes('html')) {
-      return res.json({ success: true, data: { title: null } });
-    }
-
-    // Read only as far as the title can reasonably be, then stop.
-    const reader = response.body?.getReader();
-    let html = '';
-    let read = 0;
-    while (reader) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      read += value.length;
-      html += Buffer.from(value).toString('utf8');
-      if (html.includes('</title>') || read >= MAX_BYTES) {
-        await reader.cancel().catch(() => {});
-        break;
-      }
-    }
-
-    return res.json({ success: true, data: { title: extractTitle(html) } });
+    return res.json({ success: true, data: { title: html === null ? null : extractTitle(html) } });
   } catch (error) {
     logger.warn(`link-title: could not read ${parsed.hostname}: ${error.message}`);
     return res.json({ success: true, data: { title: null } });
