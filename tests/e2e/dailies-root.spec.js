@@ -23,7 +23,15 @@ async function api(page, path, options = {}) {
   }, { path, options, t: await page.evaluate(() => document.body.dataset.csrfToken || '') });
 }
 
-const today = () => new Date().toISOString().split('T')[0];
+// LOCAL date, matching app.localISODate() (main.js) - the app files a record
+// dropped "today" under the browser's local day, not UTC's. This test used to
+// read UTC here, which drifted a day off from the app from mid-afternoon
+// onward in any timezone west of UTC.
+const today = () => {
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+};
 
 // Through the app's own handlers with a real DataTransfer: Playwright's HTML5
 // drag emulation does not deliver a drop here. `onto` selects the drop target -

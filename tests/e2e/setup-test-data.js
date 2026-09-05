@@ -104,7 +104,11 @@ export async function createTestWorkItem(page, title) {
   const csrfToken = await page.evaluate(() => window.APP_CONFIG?.csrfToken);
   const headers = csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
 
-  const today = new Date().toISOString().split('T')[0];
+  // LOCAL date, matching app.localISODate() (main.js) - UTC drifts a day off
+  // from the app's own "today" from mid-afternoon onward west of UTC.
+  const now = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
   const response = await page.request.post('/api/dailies', {
     data: {
       date: today,
