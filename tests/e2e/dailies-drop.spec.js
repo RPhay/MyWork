@@ -32,7 +32,13 @@ async function api(page, path, options = {}) {
   }, { path, options, t: await page.evaluate(() => document.body.dataset.csrfToken) });
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+// LOCAL date, matching app.localISODate() (main.js) - UTC drifts a day off
+// from the app's own "today" from mid-afternoon onward west of UTC.
+const today = () => {
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+};
 
 test.describe('Dropping onto Dailies', () => {
   test.describe.configure({ mode: 'serial' });

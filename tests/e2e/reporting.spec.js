@@ -59,7 +59,13 @@ test('exports download real files', async ({ page }) => {
     expect(name.endsWith(ext)).toBe(true);
   }
 });
-const today = () => new Date().toISOString().slice(0,10);
+// LOCAL date, matching app.localISODate() (main.js) - UTC drifts a day off
+// from the app's own "today" from mid-afternoon onward west of UTC.
+const today = () => {
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+};
 async function api(page, path, options={}) {
   return page.evaluate(async ({path,options,t}) => {
     const r = await fetch(path,{...options,headers:{'Content-Type':'application/json','X-CSRF-Token':t,...(options.headers||{})}});

@@ -71,7 +71,13 @@ test('REAL drag: idea -> template actually nests', async ({ page }) => {
   await api(page,`/api/entities/idea/${idea.id}`,{method:'DELETE'});
 });
 
-const today = () => new Date().toISOString().slice(0,10);
+// LOCAL date, matching app.localISODate() (main.js) - UTC drifts a day off
+// from the app's own "today" from mid-afternoon onward west of UTC.
+const today = () => {
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+};
 test('REAL drag: template -> a day', async ({ page }) => {
   await page.goto('/?tab=idea'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1800);
   const tpl = (await api(page,'/api/entities/template',{method:'POST',body:JSON.stringify({title:'ZZZt2d template'})})).body.data;
