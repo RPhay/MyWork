@@ -244,6 +244,11 @@ One thing here is not generic: heavy runs can trip this app's rate limiter in
 a way that looks like an unrelated config error. What it looks like and what
 to do: the **Reference** half of this file.
 
+A second thing is not generic either, and is easy to mistake for a bug in the
+app: the suite's database is not whatever context is active in the browser.
+What that means for attributing a failure: the **Reference** half of this
+file.
+
 ---
 
 ## Current state of the suite
@@ -601,6 +606,51 @@ From "Reading a run" in `CLAUDE_PROJECT_TESTS.md`. Read when a heavy run fails w
 HTML, so every test fails on missing config rather than on anything real.
 `RATE_LIMIT_ENABLED` is `false` in `.env.local` for this reason. If it needs to
 go back on locally, raise `RATE_LIMIT_MAX_REQUESTS` rather than flipping the flag.
+
+## The suite's database is not the browser's database
+
+Found 2026-09-04, chasing what looked like a data race: `entity_types.goal`
+read `supports_hierarchy = 1` from one connection and `0` from another,
+seconds apart, on what looked like the same database. It wasn't. Two
+completely different databases were being asked the same question.
+
+**`.env.local`'s `DB_HOST`/`DB_NAME` are only ever the bootstrap default.**
+The live server reconnects to whatever context was last active
+(`data/active-context.json`'s `lastLiveConfig`) as part of its own boot
+sequence - see "Log which database boot is reconnecting to" in git log. A
+context's database can be **anywhere**: a different host, a different engine,
+a differently-cased name (`contexts.db_host`/`db_config_json` exist
+specifically so this is possible - see "Two separate notions of 'database'"
+in `CLAUDE.md`). On this machine the active context is a MySQL server on the
+LAN, database `MyWork`; `.env.local` names `localhost`, database `mywork`.
+Two different databases, confirmed by `SELECT DATABASE(), @@hostname` against
+each.
+
+**`tests/e2e/global-setup.js` and every spec that imports `connectionPool.js`
+directly** (`retired-tables-drop.spec.js` is one) get a **fresh Node process**
+that has never run the server's boot sequence - `connectionPool`'s module-load
+default IS the bare `.env.local` config, full stop. Nothing in the suite calls
+`reconfigure()` to follow the active context. So the guard set's database and
+whatever you see through the browser while it runs are, on this machine,
+two different databases with two different histories.
+
+**This is the safe arrangement, not a bug to close.** Making the suite follow
+the active context would point every spec's create/soft-delete/hard-delete
+traffic at a context that might be the user's real, remote working data -
+exactly what "leave the data as you found it" exists to prevent. The local
+default database being a disposable sandbox is protective; it is only a
+problem that it was undocumented.
+
+**What this explains, so it is not re-investigated as a bug:** the local
+default database is old and was never fully migrated - it holds legacy
+`to_dos`/`ideas` tables with real orphaned rows (never became entities) whose
+foreign keys into `priorities` are exactly what blocks
+`retired-tables-drop.spec.js`'s own fixture cleanup. That is real data in a
+database nobody uses day-to-day, not a code defect - see the git log entry
+fixing `entity_types.goal`'s drifted `supports_hierarchy` for the fuller
+account of chasing this down. Before concluding a failure is a race between
+two connections to "the database," check `SELECT DATABASE(), @@hostname` on
+each side first.
 
 ## Current state of the suite (snapshot, 2026-08-18)
 
