@@ -1,4 +1,4 @@
-import { query, getCurrentConfig } from '../database/connectionPool.js';
+import { query, getCurrentConfig, withTransaction } from '../database/connectionPool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
@@ -300,7 +300,7 @@ const MSSQL_IMPORT_PARAM_BUDGET = 2000;
 // current identity value to the highest value explicitly inserted while
 // IDENTITY_INSERT is ON, so the next auto-generated id already continues
 // from there.
-async function insertRowsMssql(table, preparedRows) {
+async function insertRowsMssql(txQuery, table, preparedRows) {
   const qualifiedTable = `[${MSSQL_SCHEMA}].[${table}]`;
 
   let start = 0;
@@ -320,7 +320,7 @@ async function insertRowsMssql(table, preparedRows) {
     start = i;
 
     statements.push(`SET IDENTITY_INSERT ${qualifiedTable} OFF;`);
-    await query(statements.join('\n'), values);
+    await txQuery(statements.join('\n'), values);
   }
 }
 
@@ -344,79 +344,98 @@ export async function importDatabase(payload) {
   if (!present.length) {
     throw new ValidationError('That backup contains no recognisable tables');
   }
+  present.forEach((table) => validateIdentifier(table, 'Table name'));
 
-  // Children before parents.
-  for (const table of [...present].reverse()) {
-    validateIdentifier(table, 'Table name');
-    await query(`DELETE FROM ${table}`);
-  }
+  // MySQL's AUTO_INCREMENT reseed below is DDL (ALTER TABLE), and DDL causes
+  // an IMPLICIT COMMIT in MySQL - running it inside the transaction would
+  // silently end the transaction right there, committing everything before it
+  // even if a later table's insert then fails. So the reseed happens AFTER a
+  // successful commit instead: by then every row is safely in, and the reseed
+  // only affects the id the NEXT insert gets, never the data just restored -
+  // a failure there is a warning, not a reason to have destroyed nothing.
+  const maxIdByTable = new Map();
 
-  let rowsImported = 0;
-
-  // Parents before children.
-  for (const table of present) {
-    const rows = payload.tables[table] || [];
-    if (!rows.length) continue;
-
-    // Which columns this table ACTUALLY has right now. A backup taken against
-    // an older schema carries columns that have since been dropped
-    // (`priorities.is_weekly` is a real example), and inserting one of those
-    // failed the entire restore with "Unknown column" - so the one file you
-    // reach for when something has gone wrong was the one that would not
-    // load. Unknown columns are skipped and logged instead.
-    const columnRows = await query(
-      `SELECT COLUMN_NAME c FROM information_schema.columns
-        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-      [columnsSchemaFilter, table],
-    );
-    const liveColumns = new Set(columnRows.map(r => r.c));
-    const dropped = new Set();
-
-    const preparedRows = [];
-    let maxId = 0;
-
-    for (const row of rows) {
-      const columns = Object.keys(row)
-        .map(c => validateIdentifier(c, `Column name in ${table}`))
-        .filter((c) => {
-          if (liveColumns.has(c)) return true;
-          dropped.add(c);
-          return false;
-        });
-      if (!columns.length) continue;
-
-      preparedRows.push({ columns, values: columns.map(c => serializeValue(row[c])) });
-
-      if (typeof row.id === 'number' && row.id > maxId) {
-        maxId = row.id;
-      }
+  const { tablesImported, rowsImported } = await withTransaction(async (txQuery) => {
+    // Children before parents.
+    for (const table of [...present].reverse()) {
+      await txQuery(`DELETE FROM ${table}`);
     }
 
-    if (dropped.size) {
-      logger.warn(
-        `Restore: ${table} - ignored ${dropped.size} column(s) this schema no `
-        + `longer has: ${[...dropped].join(', ')}`,
+    let imported = 0;
+
+    // Parents before children.
+    for (const table of present) {
+      const rows = payload.tables[table] || [];
+      if (!rows.length) continue;
+
+      // Which columns this table ACTUALLY has right now. A backup taken
+      // against an older schema carries columns that have since been dropped
+      // (`priorities.is_weekly` is a real example), and inserting one of
+      // those failed the entire restore with "Unknown column" - so the one
+      // file you reach for when something has gone wrong was the one that
+      // would not load. Unknown columns are skipped and logged instead.
+      const columnRows = await txQuery(
+        `SELECT COLUMN_NAME c FROM information_schema.columns
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+        [columnsSchemaFilter, table],
       );
-    }
+      const liveColumns = new Set(columnRows.map(r => r.c));
+      const dropped = new Set();
 
-    if (isMssql) {
-      await insertRowsMssql(table, preparedRows);
-      // No reseed here - see insertRowsMssql's comment.
-    } else {
-      for (const { columns, values } of preparedRows) {
-        const placeholders = columns.map(() => '?').join(',');
-        await query(
-          `INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`,
-          values,
+      const preparedRows = [];
+      let maxId = 0;
+
+      for (const row of rows) {
+        const columns = Object.keys(row)
+          .map(c => validateIdentifier(c, `Column name in ${table}`))
+          .filter((c) => {
+            if (liveColumns.has(c)) return true;
+            dropped.add(c);
+            return false;
+          });
+        if (!columns.length) continue;
+
+        preparedRows.push({ columns, values: columns.map(c => serializeValue(row[c])) });
+
+        if (typeof row.id === 'number' && row.id > maxId) {
+          maxId = row.id;
+        }
+      }
+
+      if (dropped.size) {
+        logger.warn(
+          `Restore: ${table} - ignored ${dropped.size} column(s) this schema no `
+          + `longer has: ${[...dropped].join(', ')}`,
         );
       }
-      if (maxId > 0) {
-        await query(`ALTER TABLE ${table} AUTO_INCREMENT = ${maxId + 1}`);
+
+      if (isMssql) {
+        await insertRowsMssql(txQuery, table, preparedRows);
+        // No reseed here - see insertRowsMssql's comment.
+      } else {
+        for (const { columns, values } of preparedRows) {
+          const placeholders = columns.map(() => '?').join(',');
+          await txQuery(
+            `INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`,
+            values,
+          );
+        }
+        if (maxId > 0) maxIdByTable.set(table, maxId);
       }
+
+      imported += preparedRows.length;
     }
 
-    rowsImported += preparedRows.length;
+    return { tablesImported: present.length, rowsImported: imported };
+  });
+
+  for (const [table, maxId] of maxIdByTable) {
+    try {
+      await query(`ALTER TABLE ${table} AUTO_INCREMENT = ${maxId + 1}`);
+    } catch (error) {
+      logger.warn(`Restore: could not reseed ${table}'s AUTO_INCREMENT (data is intact): ${error.message}`);
+    }
   }
 
-  return { tablesImported: present.length, rowsImported };
+  return { tablesImported, rowsImported };
 }

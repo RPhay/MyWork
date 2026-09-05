@@ -116,7 +116,11 @@ async function getMssqlKnownTables() {
   return mssqlKnownTables;
 }
 
-async function executeMssql(sqlText, values) {
+// `getRequest` defaults to a fresh request off the ambient pool, but
+// withTransaction() passes one pinned to a single mssql.Transaction instead -
+// same translation/qualification pipeline either way, just a different
+// connection underneath.
+async function executeMssql(sqlText, values, getRequest = defaultMssqlRequest) {
   let rewritten = rewriteInsertIgnoreForMssql(sqlText, values);
   // Upsert before the rest: it rewrites the whole statement, so anything that
   // edits fragments has to see the finished shape.
@@ -142,8 +146,7 @@ async function executeMssql(sqlText, values) {
     ? `${translatedSql}; SELECT SCOPE_IDENTITY() AS insertId;`
     : translatedSql;
 
-  const p = await getPool();
-  const request = p.request();
+  const request = await getRequest();
   for (const [name, value] of Object.entries(params)) {
     request.input(name, value);
   }
@@ -162,6 +165,11 @@ async function executeMssql(sqlText, values) {
   }
 
   return Object.assign(result.recordset || [], { affectedRows, insertId: 0 });
+}
+
+async function defaultMssqlRequest() {
+  const p = await getPool();
+  return p.request();
 }
 
 // ---- Pool management --------------------------------------------------------
@@ -259,6 +267,20 @@ async function reconfigure(newConfig) {
   }
 }
 
+// Same shape query() has always thrown - the friendly message from
+// describeDbError, plus code/number/cause for anything (isDuplicateKeyError,
+// callers matching on error.code) that needs the original underneath.
+// Factored out so withTransaction()'s query function wraps errors identically
+// rather than growing a second, slightly-different copy of this.
+function wrapDbError(error, sqlText) {
+  logger.error("Database query error:", { sql: sqlText, error });
+  const dbError = new Error(describeDbError(error));
+  dbError.code = error.code || error.errors?.[0]?.code;
+  dbError.number = error.number;
+  dbError.cause = error;
+  return dbError;
+}
+
 async function query(sqlText, values = []) {
   try {
     if (currentConfig.type === "mssql") {
@@ -268,12 +290,72 @@ async function query(sqlText, values = []) {
     const [results] = await p.execute(sqlText, values);
     return results;
   } catch (error) {
-    logger.error("Database query error:", { sql: sqlText, error });
-    const dbError = new Error(describeDbError(error));
-    dbError.code = error.code || error.errors?.[0]?.code;
-    dbError.number = error.number;
-    dbError.cause = error;
-    throw dbError;
+    throw wrapDbError(error, sqlText);
+  }
+}
+
+// Runs `work(txQuery)` inside one real database transaction: every txQuery()
+// call shares the same connection, and either all of them are committed or
+// none are. Use this for a multi-statement operation where a failure partway
+// through must not leave the database half-changed - a restore, a multi-row
+// move, anything the old MySQL-only code used to wrap in
+// beginTransaction()/commit()/rollback() before this existed as a
+// cross-engine primitive.
+//
+// `work` may throw anything, not just a query failure (a ValidationError
+// deciding the operation shouldn't proceed at all, say) - that still rolls
+// back and rethrows exactly what was thrown, unwrapped. Only errors from
+// txQuery() itself go through wrapDbError, matching query()'s behaviour.
+async function withTransaction(work) {
+  if (currentConfig.type === "mssql") {
+    const p = await getPool();
+    const transaction = new mssql.Transaction(p);
+    await transaction.begin();
+    const txQuery = async (sqlText, values = []) => {
+      try {
+        return await executeMssql(sqlText, values, () => new mssql.Request(transaction));
+      } catch (error) {
+        throw wrapDbError(error, sqlText);
+      }
+    };
+    try {
+      const result = await work(txQuery);
+      await transaction.commit();
+      return result;
+    } catch (error) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        logger.warn("Error rolling back MSSQL transaction:", rollbackError);
+      }
+      throw error;
+    }
+  }
+
+  const p = await getPool();
+  const connection = await p.getConnection();
+  try {
+    await connection.beginTransaction();
+    const txQuery = async (sqlText, values = []) => {
+      try {
+        const [results] = await connection.execute(sqlText, values);
+        return results;
+      } catch (error) {
+        throw wrapDbError(error, sqlText);
+      }
+    };
+    const result = await work(txQuery);
+    await connection.commit();
+    return result;
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      logger.warn("Error rolling back MySQL transaction:", rollbackError);
+    }
+    throw error;
+  } finally {
+    connection.release();
   }
 }
 
@@ -351,4 +433,5 @@ export {
   reconfigure,
   getCurrentConfig,
   isDuplicateKeyError,
+  withTransaction,
 };
